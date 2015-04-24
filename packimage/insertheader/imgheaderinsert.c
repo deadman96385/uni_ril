@@ -14,6 +14,7 @@ void do_sha256(uint8_t *data,int bytes_num,unsigned char *hash)
     memcpy(hash,sha,SHA256_DIGEST_SIZE);
 }
 
+
 static void *load_file(const char *fn, unsigned *_sz)
 {
     char *data;
@@ -51,7 +52,7 @@ static void usage(void)
     printf("Usage: \n");
     printf("$./imgheaderinsert <filename> <add_payloadhash> \n");
     printf("-------------------------------------------------------- \n");
-    printf("-filename              --the image to be inserted with ImgHeader \n");
+    printf("-filename              --the image to be inserted with sys_img_header \n");
     printf("-------------------------------------------------------- \n");
     printf("-add_payloadhash = 1   --add payload hash when secure boot is disabled \n");
     printf("                 = 0   --payload hash isn't needed when secure boot is enabled\n");
@@ -62,11 +63,12 @@ static void usage(void)
 int main(int argc, char* argv[])
 {
 
-    ImgHeader img_h;
+    sys_img_header img_h;
     char filename[FILE_NAME_SIZE] = "0";
     char imagename[FILE_NAME_SIZE] = "0";
-    char *suffix = ".bin";
-    char *newsuffix = ".img";
+    char suffix[10] = "0";
+    char *flag = ".";
+    char *namesuffix = "-sign";
     void *payload = NULL;
     char *start = NULL;
     char *end = NULL;
@@ -86,15 +88,17 @@ int main(int argc, char* argv[])
     int addPayloadHash = atoi(argv[2]);
 
     start = imagename;
-    end = strstr(start,suffix);
+    end = strstr(start,flag);
     if (end == NULL) {
         return 1;
     }
+    memcpy(suffix,end,strlen(end)+1);
     imagename[end-start] = '\0';
-    strcat(imagename,newsuffix);
+    strcat(imagename,namesuffix);
+    strcat(imagename,suffix);
 
     img_h.mVersion=1;
-    img_h.mMagicNum=0xaa55a5a5;
+    img_h.mMagicNum=0x42544844;
 
     payload = load_file(filename, &img_h.mImgSize);
     if(payload == NULL) {

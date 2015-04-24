@@ -4,10 +4,25 @@ SECURE_BOOT=$(get_build_var PRODUCT_SECURE_BOOT)
 HOST_OUT=$(get_build_var HOST_OUT_EXECUTABLES)
 PRODUCT_OUT=$(get_build_var PRODUCT_OUT)
 CURPATH=$(pwd)
+CERTPATH=$CURPATH/vendor/sprd/proprietories-source/packimage/signimage/sansa/output
+CFGPATH=$CURPATH/vendor/sprd/proprietories-source/packimage/signimage/sprd/config
+DESTDIR=$CURPATH/vendor/sprd/proprietories-source/packimage/signimage/sprd/mkdbimg/bin
 SPL=$PRODUCT_OUT/u-boot-spl-16k.bin
+SPLSIGN=$PRODUCT_OUT/u-boot-spl-16k-sign.bin
 SML=$PRODUCT_OUT/sml.bin
+SMLSIGN=$PRODUCT_OUT/sml-sign.bin
 TOS=$PRODUCT_OUT/tos.bin
+TOSSIGN=$PRODUCT_OUT/tos-sign.bin
 UBOOT=$PRODUCT_OUT/u-boot.bin
+UBOOTSIGN=$PRODUCT_OUT/u-boot-sign.bin
+FDL1=$PRODUCT_OUT/fdl1.bin
+FDL1SIGN=$PRODUCT_OUT/fdl1-sign.bin
+FDL2=$PRODUCT_OUT/fdl2.bin
+FDL2SIGN=$PRODUCT_OUT/fdl2-sign.bin
+BOOT=$PRODUCT_OUT/boot.img
+BOOTSIGN=$PRODUCT_OUT/boot-sign.img
+RECOVERY=$PRODUCT_OUT/recovery.img
+RECOVERYSIGN=$PRODUCT_OUT/recovery-sign.img
 
 getModuleName()
 {
@@ -36,8 +51,8 @@ getModuleName()
             name="userdataimage"
             break
             ;;
-            "recoverimage")
-            name="recoverimage"
+            "recoveryimage")
+            name="recoveryimage"
             break
             ;;
             "clean")
@@ -72,25 +87,70 @@ doImgHeaderInsert()
     done
 }
 
-case $(getModuleName "$@") in
-    "chipram")
-        doImgHeaderInsert $SPL $SML $TOS
-        ;;
-    "bootloader")
-        doImgHeaderInsert $UBOOT
-        ;;
-    "allmodules")
-        doImgHeaderInsert $SPL $SML $TOS $UBOOT
-        ;;
-    "clean")
-        #do nothing
-        ;;
-     *)
-        ;;
-esac
+dosprdcopy()
+{
+	if [ -f $SPLSIGN ];then
+		cp $SPLSIGN $DESTDIR
+		#echo -e "\033[33m copy spl-sign.bin finish!\033[0m"
+	fi
+
+	if [ -f $FDL1SIGN ]; then
+		cp $FDL1SIGN $DESTDIR
+		#echo -e "\033[33m copy fdl1-sign.bin finish!\033[0m"
+	fi
+}
+
+doSignImage()
+{
+    if [ "NONE" = $SECURE_BOOT ]; then
+        return
+    fi
+	#/*add sprd sign*/
+if [ "SPRD" = $SECURE_BOOT ]; then
+	for image in $@
+	do
+		if [ -f $image ]; then
+			$HOST_OUT/sprd_sign  $image  $CFGPATH
+		else
+			echo -e "\033[31m ####  no $image, pls check #### \033[0m"
+		fi
+	done
+	#call this function do copy fdl1&spl to mkdbimg/bin document
+	dosprdcopy
+fi
 
 
+}
 
+doPackImage()
+{
+    case $(getModuleName "$@") in
+        "chipram")
+            doImgHeaderInsert $SPL $FDL1
+            doSignImage $SPLSIGN $FDL1SIGN
+            ;;
+        "bootloader")
+            doImgHeaderInsert $UBOOT $FDL2
+            doSignImage $UBOOTSIGN $FDL2SIGN
+            ;;
+        "bootimage")
+            doImgHeaderInsert $BOOT
+		doSignImage $BOOTSIGN
+            ;;
+        "recoveryimage")
+            doImgHeaderInsert $RECOVERY
+		doSignImage $RECOVERYSIGN
+            ;;
+        "allmodules")
+            doImgHeaderInsert $SPL $UBOOT $FDL1 $FDL2 $BOOT $RECOVERY
+		doSignImage $SPLSIGN $FDL1SIGN $FDL2SIGN $BOOTSIGN $RECOVERYSIGN
+            ;;
+        "clean")
+            #do nothing
+            ;;
+        *)
+            ;;
+    esac
+}
 
-
-
+doPackImage "$@"

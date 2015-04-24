@@ -21,13 +21,12 @@ typedef unsigned long long uint64_t;
 
 typedef struct
 {
+    uint32_t mMagicNum; // "BTHD"=="0x42544844"=="boothead"
     uint32_t mVersion; // 1
-    uint32_t mMagicNum; // 0xaa55a5a5
     uint8_t mPayloadHash[32];//sha256 hash value
     uint64_t mImgAddr; //image loaded address
     uint32_t mImgSize; //image size
-    uint32_t mRes; // reserved
-}ImgHeader;
-
+    uint8_t reserved[512-(13*4)]; //reserved,make sure total size is 512B
+}sys_img_header;
 
 #endif
