@@ -299,6 +299,9 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
     H264EncObject *vo = (H264EncObject *) avcHandle->videoEncoderData;
     MMEncConfig * enc_config = vo->g_h264_enc_config;
     uint32 target_bitrate_max;
+    uint32 total_mb_number, mb_rate;
+    uint32 i, level_idx;
+
 
     SCI_ASSERT(NULL != pConf);
 
@@ -325,14 +328,27 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
         vo->rc_gop_paras.ori_intra_period = pConf->PFrames+1;
     }
 
-    target_bitrate_max = (vo->g_enc_image_ptr->width * vo->g_enc_image_ptr->height * pConf->FrameRate * 6); //8*(3/2)*(1/2)
+    total_mb_number = (vo->g_enc_image_ptr->width * vo->g_enc_image_ptr->height)/256;
+    mb_rate = total_mb_number * enc_config->FrameRate;
+    level_idx = 0;
+    for (i = (g_level_num-1); i >= 0; i--) {
+        if ((g_level_infos[i].MaxMBPS <= mb_rate) && (g_level_infos[i].MaxFS <= total_mb_number)) {
+            level_idx = i;
+            break;
+        }
+    }
+
+    target_bitrate_max = g_level_infos[level_idx].MaxBR * 1200;
     if (enc_config->targetBitRate > target_bitrate_max)
     {
         enc_config->targetBitRate = target_bitrate_max;
+        enc_config->QP_IVOP = 1;
+        enc_config->QP_PVOP = 1;
     }
 
-    SPRD_CODEC_LOGD ("%s, %d, FrameRate: %d, intra_period: %d, enc_config->targetBitRate: %d, target_bitrate_max: %d",
-                     __FUNCTION__, __LINE__, enc_config->FrameRate, vo->rc_gop_paras.intra_period, enc_config->targetBitRate, target_bitrate_max);
+    SPRD_CODEC_LOGD ("%s, %d, FrameRate: %d, intra_period: %d, targetBitRate: %d, target_bitrate_max: %d, level: %s, QP_I: %d, QP_P: %d",
+                     __FUNCTION__, __LINE__, enc_config->FrameRate, vo->rc_gop_paras.intra_period, enc_config->targetBitRate, target_bitrate_max,
+                     g_level_infos[level_idx].level_str, enc_config->QP_IVOP, enc_config->QP_PVOP);
 
     return MMENC_OK;
 }
