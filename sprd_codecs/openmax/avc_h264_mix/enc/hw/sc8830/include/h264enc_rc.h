@@ -28,7 +28,7 @@ extern   "C"
 {
 #endif
 
-//#define RCMODE_FRAMERATE_
+#define RCMODE_FRAMERATE_
 #define TARGET_BITRATE 1000000
 
 //#define SLICE_SIZE TARGET_BITRATE/INTRA_PERIOD/3
