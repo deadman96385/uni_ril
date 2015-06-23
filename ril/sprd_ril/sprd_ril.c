@@ -174,6 +174,7 @@ typedef enum {
 
 #define PROP_END_CONNECTIVITY  "gsm.stk.end_connectivity"
 
+
 #define PROP_BUILD_TYPE "ro.build.type"
 
 #define REQUEST_SIMLOCK_WHITE_LIST_PS 1
@@ -183,6 +184,8 @@ typedef enum {
 #define REQUEST_SIMLOCK_WHITE_LIST_PC 5
 
 #define LOOSE_MATCH_PLMN_LENGTH 1
+
+#define PERSIST_VOICE_CLEAR_CODE_PROPERTY "persist.sys.voice_clear_code"
 
 // {for sleep log}
 #define BUFFER_SIZE  (12*1024*4)
@@ -4316,6 +4319,11 @@ void requestLastDataFailCause(int channelID, void *data, size_t datalen, RIL_Tok
 void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     int response = CALL_FAIL_ERROR_UNSPECIFIED;
+    char voice_clearcode_property[PROPERTY_VALUE_MAX];
+    memset(voice_clearcode_property, 0, sizeof(voice_clearcode_property));
+    property_get(PERSIST_VOICE_CLEAR_CODE_PROPERTY, voice_clearcode_property, "0");
+    RILLOGD("%s is %s", PERSIST_VOICE_CLEAR_CODE_PROPERTY, voice_clearcode_property);
+    int fanalresponse[2]={CALL_FAIL_ERROR_UNSPECIFIED,CALL_FAIL_ERROR_UNSPECIFIED};
 
     pthread_mutex_lock(&s_call_mutex);
     switch(call_fail_cause) {
@@ -4358,9 +4366,15 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
             response = CALL_FAIL_ERROR_UNSPECIFIED;
     }
     pthread_mutex_unlock(&s_call_mutex);
-
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
-            sizeof(int));
+    if(!strcmp(voice_clearcode_property, "1")) {
+        fanalresponse[0]=response;
+        fanalresponse[1]=call_fail_cause;
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &fanalresponse,
+                sizeof(int)*2);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
+                sizeof(int));
+    }
 }
 
 static void requestBasebandVersion(int channelID, void *data, size_t datalen, RIL_Token t)
