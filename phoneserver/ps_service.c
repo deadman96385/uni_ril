@@ -40,11 +40,11 @@
 #define SYS_IFCONFIG_UP "sys.ifconfig.up"
 #define SYS_IP_SET "sys.data.setip"
 #define SYS_IP_CLEAR "sys.data.clearip"
+#define SYS_IP_CLEAR_NAME "sys.data.downcard"
 #define SYS_MTU_SET "sys.data.setmtu"
 #define SYS_IFCONFIG_DOWN "sys.ifconfig.down"
 #define SYS_NO_ARP "sys.data.noarp"
 #define SYS_NO_ARP_IPV6  "sys.data.noarp.ipv6"
-#define SYS_IPV6_DISABLE "sys.data.IPV6.disable"
 #define SYS_NET_ADDR "sys.data.net.addr"
 #define SYS_IPV6_ON  "sys.data.ipv6.on"
 #define RETRY_MAX_COUNT 1000
@@ -374,10 +374,6 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                 property_set(SYS_IFCONFIG_UP, linker);
                 PHS_LOGD("IPV6 setip linker = %s", linker);
 
-                //able IPV6
-                snprintf(linker, sizeof(linker), "0");
-                property_set(SYS_IPV6_DISABLE, linker);
-                PHS_LOGD("IPV6 able linker = %s", linker);
                 //set net card addr
                 snprintf(linker, sizeof(linker), "%s%d", prop, cid-1);
                 property_set(SYS_NET_ADDR, linker);
@@ -468,16 +464,6 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                     property_set(SYS_NO_ARP, linker);
                     PHS_LOGD("IPV4 arp linker = %s", linker);
 
-                    //disable IPV6
-                    property_get(SYS_IPV6_ON,ipv6_on,"0");
-                    if(!strcmp(ipv6_on, "1")){// add for cts bug442490
-                        snprintf(linker, sizeof(linker), "0");
-                    }else{
-                        snprintf(linker, sizeof(linker), "1");
-                    }
-                    property_set(SYS_IPV6_DISABLE, linker);
-                    PHS_LOGD("IPV6 disable linker = %s", linker);
-
                 } else if (ppp_info[cid-1].ip_state == IPV6) {
                     snprintf(linker, sizeof(linker), "addr add %s/64 dev %s%d", ppp_info[cid-1].ipv6laddr, prop, cid-1);
                     property_set(SYS_IP_SET, linker);
@@ -497,10 +483,6 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                     property_set(SYS_NO_ARP, linker);
                     PHS_LOGD("IPV6 arp linker = %s", linker);
 
-                    //able IPV6
-                    snprintf(linker, sizeof(linker), "0");
-                    property_set(SYS_IPV6_DISABLE, linker);
-                    PHS_LOGD("IPV6 disable linker = %s", linker);
                 }
                 // set net card addr
                 snprintf(linker, sizeof(linker), "%s%d", prop, cid-1);
@@ -889,6 +871,8 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                 /* set property */
                 snprintf(linker, sizeof(linker), "link set %s%d down", prop, tmp_cid-1);
                 property_set(SYS_IFCONFIG_DOWN, linker);
+                snprintf(linker, sizeof(linker), "%s%d", prop, tmp_cid-1);
+                property_set(SYS_IP_CLEAR_NAME, linker);
                 /* start data_off */
                 property_set("ctl.start", "data_off");
 
@@ -950,11 +934,13 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                     }
 
                     /* clear IP addr */
-                    snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, tmp_cid-1);
+                    snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, i);
                     property_set(SYS_IP_CLEAR, linker);
                     /* set property */
                     snprintf(linker, sizeof(linker), "link set %s%d down", prop, i);
                     property_set(SYS_IFCONFIG_DOWN, linker);
+                    snprintf(linker, sizeof(linker), "%s%d", prop, i);
+                    property_set(SYS_IP_CLEAR_NAME, linker);
                     /* start data_off */
                     property_set("ctl.start", "data_off");
 
@@ -1046,6 +1032,8 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                 /* set property */
                 snprintf(linker, sizeof(linker), "link set %s%d down", prop, tmp_cid-1);
                 property_set(SYS_IFCONFIG_DOWN, linker);
+                snprintf(linker, sizeof(linker), "%s%d", prop, tmp_cid-1);
+                property_set(SYS_IP_CLEAR_NAME, linker);
                 /* start data_off */
                 property_set("ctl.start", "data_off");
 
@@ -1137,8 +1125,12 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                         exit(-1);
                     }
 
-                    snprintf(linker, sizeof(linker), "%s%d down", prop, i);
+                    snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, i);
+                    property_set(SYS_IP_CLEAR, linker);
+                    snprintf(linker, sizeof(linker), "link set %s%d down", prop, i);
                     property_set(SYS_IFCONFIG_DOWN, linker);
+                    snprintf(linker, sizeof(linker), "%s%d", prop, i);
+                    property_set(SYS_IP_CLEAR_NAME, linker);
                     /* start data_off */
                     property_set("ctl.start", "data_off");
 
