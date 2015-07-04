@@ -10099,25 +10099,20 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             int response = 0;
             char *line;
             err = at_send_command_singleline(ATch_type[channelID], "AT+ISIM=1", "+ISIM:", &p_response);
-            if (err < 0 || p_response->success == 0) {
-                goto error;
+            if (err >= 0 && p_response->success) {
+                line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err >= 0) {
+                    err = at_tok_nextint(&line, &response);
+                        if (err >= 0) {
+                            RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
+                            at_response_free(p_response);
+                            break;
+                        }
+                 }
             }
-            line = p_response->p_intermediates->line;
-            err = at_tok_start(&line);
-            if (err < 0) {
-                goto error;
-            }
-            err = at_tok_nextint(&line, &response);
-            if (err < 0) {
-                goto error;
-            }
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
-            at_response_free(p_response);
-            return;
-            error:
-            at_response_free(p_response);
-            RILLOGE("INITISIM must never return error when radio is on");
             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            at_response_free(p_response);
             break;
         }
         case RIL_REQUEST_REGISTER_IMS_IMPU: {
