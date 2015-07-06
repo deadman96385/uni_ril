@@ -45,6 +45,7 @@ LOCAL_SRC_FILES:= \
     vibrator.cpp    \
     wifi.cpp        \
     power.cpp       \
+    otg.cpp	    \
     main.cpp   
 
 

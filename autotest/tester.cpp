@@ -26,6 +26,7 @@
 #include "ver.h"
 #include "vibrator.h"
 #include "wifi.h"
+#include "otg.h"
 
 #include <signal.h>
 #include <cutils/properties.h>
@@ -944,6 +945,52 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 		}
     }
         break;
+	case 0x05: //otg
+	{
+		switch(data[1]) {
+		case 0x01:
+		{
+			if(otgDisable() < 0) {
+				ret = -1;
+			}
+		}
+			break;
+		case 0x02:
+		{
+			if(otgIdStatus() == 0) {
+				rsp[0] = 0;
+				ret = 1;
+			}
+			else if(otgIdStatus() == 1) {
+				rsp[0] = 1;
+				ret = 1;
+			}
+			else {
+				ret = -1;
+			}
+		}
+			break;
+		case 0x03:
+		{
+			if(data[2] == 1) {
+				if(otgVbusOpen() < 0) {
+					ret = -1;
+				}
+			}
+			else {
+				if(otgVbusClose() < 0) {
+					ret = -1;
+				}
+			}
+		}
+			break;
+		default:
+		{
+		}
+			break;
+		}
+	}
+		break;
 	case 0x06: // mic
 	{
 		uchar state = headsetPlugState();
