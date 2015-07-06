@@ -56,7 +56,7 @@
 //#define TST_ENB_LCD
 //#define TST_ENB_SENSOR
 //#define TST_ENB_SIM
-#define TST_ENB_HeadSet
+//#define TST_ENB_HeadSet
 //#define TST_ENB_TCARD
 //#define TST_ENB_VIB
 //#define TST_ENB_WIFI
@@ -130,22 +130,49 @@ int autotest_dbgtest( int argc, char *argv[] )
 #endif // TST_ENB_BAT
 
 #ifdef TST_ENB_BT
-	oka = 0;
-	cnt = 10;
-	for( idx = 0; idx < cnt; ++idx ) {
-		DBGMSG("---------------------- bt test index %d --------------\n", idx);
-		struct bdremote_t bds[10];
+    sleep(3);
+    oka = 0;
+    cnt = 10;
+    struct bdremote_t bdrmt[MAX_SUPPORT_RMTDEV_NUM];
+    for( idx = 0; idx < cnt; ++idx ) {
+        DBGMSG("---------------------- bt test index %d --------------\n", idx);
+        struct bdremote_t bds[10];
 
-		if( btOpen() >= 0 && btInquire(bds, 1) > 0 ) {
-			oka++;
-		}
+        if( btOpen() >= 0 ) {
+            oka++;
+        }
+        sleep(1);
+         btAsyncInquire();
+         sleep(15);
+         btGetInquireResult(bdrmt, MAX_SUPPORT_RMTDEV_NUM);
 
-		btClose();
-		sleep(1);
-	}
-	INFMSG("============================================\n");
-	INFMSG("TestResult: bt[oka = %d, cnt = %d]\n", oka, cnt);
-	INFMSG("============================================\n");
+        sleep(1);
+        btClose();
+        sleep(1);
+    }
+    INFMSG("============================================\n");
+    INFMSG("TestResult: bt[oka = %d, cnt = %d]\n", oka, cnt);
+    INFMSG("============================================\n");
+#endif
+#ifdef TST_ENB_FM
+#ifndef SPRD_WCNBT_MARLIN
+    fmOpen();
+
+    fmPlay(879); // 1077
+    sleep(10);
+
+    fmStop();
+    fmClose();
+#else
+    fmOpenEx();
+
+    fmPlayEx(879); // 1077
+    sleep(10);
+
+    fmStopEx();
+    fmCloseEx();
+
+#endif
 #endif
 
 #ifdef TST_ENB_CAM
@@ -254,15 +281,7 @@ int autotest_dbgtest( int argc, char *argv[] )
 	INFMSG("============================================\n");
 #endif // TST_ENB_DRV
 
-#ifdef TST_ENB_FM
-	fmOpen();
 
-	fmPlay(879); // 1077
-	sleep(10);
-
-	fmStop();
-	fmClose();
-#endif
 
 #ifdef TST_ENB_GPS
 	gpsOpen();

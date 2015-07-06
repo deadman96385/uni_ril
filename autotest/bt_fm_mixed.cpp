@@ -3,10 +3,16 @@
 //
 // anli   2012-11-10
 //
+
+//note:
+//        add code to match Marlin & 2341A chip and support FM,BT coexist.
+//        2015/01/22 By zhangyj
+
 #include <pthread.h>
 #include <stdlib.h>
 
 #include <hardware/bluetooth.h>
+#include <hardware/bt_fm.h>
 #include <hardware/bt_av.h>
 #include <hardware/bt_gatt.h>
 #include <hardware/bt_gatt_client.h>
@@ -19,6 +25,15 @@
 #include <hardware/bt_rc.h>
 #include <hardware/bt_sock.h>
 //#include "btif_util.h"
+#include <hardware/fm.h>
+
+#include <media/AudioRecord.h>
+#include <media/AudioSystem.h>
+#include <media/AudioTrack.h>
+#include <media/mediarecorder.h>
+#include <system/audio.h>
+#include <system/audio_policy.h>
+
 
 
 #include <cutils/properties.h>
@@ -26,6 +41,13 @@
 #include "type.h"
 #include "bt.h"
 #include "util.h"
+#include "perm.h"
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//--namespace sci_fm {
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+using namespace android;
+using namespace at_perm;
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--namespace sci_bt {
@@ -39,6 +61,16 @@
 #define DBG_ENABLE_INFMSG
 #define DBG_ENABLE_FUNINF
 #include "debug.h"
+
+
+enum fmStatus {
+FM_STATE_DISABLED,
+FM_STATE_ENABLED,
+FM_STATE_PLAYING,
+FM_STATE_STOPED,
+FM_STATE_PANIC,
+};
+
 //------------------------------------------------------------------------------
 
 
@@ -61,17 +93,30 @@ static void *saved_data;
 static void * btInquireThread( void *param );
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
+static hw_module_t * s_hwModule = NULL;
+static hw_device_t * s_hwDev    = NULL;
 
 static bluetooth_device_t* sBtDevice = NULL;
 static const bt_interface_t* sBtInterface = NULL;
+static const btfm_interface_t* sFmInterface = NULL;
 static bt_state_t sBtState = BT_STATE_OFF;
 static bool set_wake_alarm(uint64_t delay_millis, bool, alarm_cb cb, void *data);
 static int acquire_wake_lock(const char *);
 static int release_wake_lock(const char *);
+static int sFmStatus = FM_STATE_PANIC;
+//------------------------------------------------------------------------------
+//Callbacks;
+//------------------------------------------------------------------------------
 
-//------------------------------------------------------------------------------
-//BT Callbacks;
-//------------------------------------------------------------------------------
+void btfmEnableCallback (int status)  {  if (status == BT_STATUS_SUCCESS) sFmStatus = FM_STATE_ENABLED; DBGMSG("Enable callback, status: %d", sFmStatus); }
+void btfmDisableCallback (int status) { if (status == BT_STATUS_SUCCESS) sFmStatus = FM_STATE_DISABLED;   DBGMSG("Disable callback, status: %d", sFmStatus); }
+void btfmtuneCallback (int status, int rssi, int snr, int freq) { DBGMSG("Tune callback, status: %d, freq: %d", status, freq); }
+void btfmMuteCallback (int status, BOOLEAN isMute){ DBGMSG("Mute callback, status: %d, isMute: %d", status, isMute); }
+void btfmSearchCallback (int status, int rssi, int snr, int freq){ DBGMSG("Search callback, status: %d", status); }
+void btfmSearchCompleteCallback(int status, int rssi, int snr, int freq){ DBGMSG("Search complete callback"); }
+void btfmAudioModeCallback(int status, int audioMode){ DBGMSG("Audio mode change callback, status: %d, audioMode: %d", status, audioMode); }
+void btfmAudioPathCallback(int status, int audioPath){ DBGMSG("Audio path change callback, status: %d, audioPath: %d", status, audioPath); }
+void btfmVolumeCallback(int status, int volume){ DBGMSG("Volume change callback, status: %d, volume: %d", status, volume); }
 void btDeviceFoundCallback(int num_properties, bt_property_t *properties);
 void btDiscoveryStateChangedCallback(bt_discovery_state_t state);
 void btAdapterStateChangedCallback(bt_state_t state);
@@ -96,15 +141,42 @@ static bt_callbacks_t btCallbacks = {
     NULL, /* acl_state_changed_cb */
     NULL, /* thread_evt_cb */
     NULL, /*dut_mode_recv_cb */
-    NULL, /*authorize_request_cb */
-    NULL, /* energy_info_cb */
+//    NULL, /*authorize_request_cb */
+    NULL, /* le_test_mode_cb */
+    NULL,
 #if defined (SPRD_WCNBT_MARLIN) || defined (SPRD_WCNBT_SR2351)
     NULL,
 #endif
+
 };
 
+static btfm_callbacks_t fmCallback = {
+    sizeof (btfm_callbacks_t),
+    btfmEnableCallback,             // btfm_enable_callback
+    btfmDisableCallback,            // btfm_disable_callback
+    btfmtuneCallback,               // btfm_tune_callback
+    btfmMuteCallback,               // btfm_mute_callback
+    btfmSearchCallback,             // btfm_search_callback
+    btfmSearchCompleteCallback,     // btfm_search_complete_callback
+    NULL,                           // btfm_af_jump_callback
+    btfmAudioModeCallback,          // btfm_audio_mode_callback
+    btfmAudioPathCallback,          // btfm_audio_path_callback
+    NULL,                           // btfm_audio_data_callback
+    NULL,                           // btfm_rds_mode_callback
+    NULL,                           // btfm_rds_type_callback
+    NULL,                           // btfm_deemphasis_callback
+    NULL,                           // btfm_scan_step_callback
+    NULL,                           // btfm_region_callback
+    NULL,                           // btfm_nfl_callback
+    btfmVolumeCallback,             //btfm_volume_callback
+    NULL,                           // btfm_rds_data_callback
+    NULL,                           // btfm_rtp_data_callback
+    NULL,                           //btfm_rssi_callback
+    NULL,                           //btfm_snr_callback
+    NULL,                           //btfm_rf_mute_callback
+};
 static bool set_wake_alarm(uint64_t delay_millis, bool, alarm_cb cb, void *data) {
-  saved_callback = cb;
+/*  saved_callback = cb;
   saved_data = data;
 
   struct itimerspec wakeup_time;
@@ -113,17 +185,58 @@ static bool set_wake_alarm(uint64_t delay_millis, bool, alarm_cb cb, void *data)
   wakeup_time.it_value.tv_nsec = (delay_millis % 1000) * 1000000LL;
   timer_settime(timer, 0, &wakeup_time, NULL);
   return true;
-}
+*/
+    static timer_t timer;
+  static bool timer_created;
 
+  if (!timer_created) {
+    struct sigevent sigevent;
+    memset(&sigevent, 0, sizeof(sigevent));
+    sigevent.sigev_notify = SIGEV_THREAD;
+    sigevent.sigev_notify_function = (void (*)(union sigval))cb;
+    sigevent.sigev_value.sival_ptr = data;
+    timer_create(CLOCK_MONOTONIC, &sigevent, &timer);
+    timer_created = true;
+  }
+
+  struct itimerspec new_value;
+  new_value.it_value.tv_sec = delay_millis / 1000;
+  new_value.it_value.tv_nsec = (delay_millis % 1000) * 1000 * 1000;
+  new_value.it_interval.tv_sec = 0;
+  new_value.it_interval.tv_nsec = 0;
+  timer_settime(timer, 0, &new_value, NULL);
+
+  return true;
+}
+void btAdapterStateChangedCallback(bt_state_t state)
+{
+    if(state == BT_STATE_OFF || state == BT_STATE_ON)
+    {
+        sBtState = state;
+        DBGMSG("BT Adapter State Changed: %d",state);
+    } else if(state == BT_RADIO_OFF || state == BT_RADIO_ON) {
+        DBGMSG("FM Adapter State Changed: %d",state);
+#ifdef SPRD_WCNBT_MARLIN
+        if (state != BT_RADIO_ON) return;
+            sFmInterface = (btfm_interface_t*)sBtInterface->get_fm_interface();
+            int retVal = sFmInterface->init(&fmCallback);
+            retVal = sFmInterface->enable(96);
+#endif
+    } else {
+         DBGMSG("err State Changed: %d",state);
+    }
+}
 static int acquire_wake_lock(const char *) {
-  if (!lock_count)
+  /*if (!lock_count)
     lock_count = 1;
+    */
   return BT_STATUS_SUCCESS;
 }
 
 static int release_wake_lock(const char *) {
-  if (lock_count)
+ /* if (lock_count)
     lock_count = 0;
+    */
   return BT_STATUS_SUCCESS;
 }
 static char *btaddr2str(const bt_bdaddr_t *bdaddr, bdstr_t *bdstr)
@@ -216,13 +329,6 @@ void btDiscoveryStateChangedCallback(bt_discovery_state_t state)
 	}
 }
 
-void btAdapterStateChangedCallback(bt_state_t state)
-{
-	sBtState = state;
-	DBGMSG("BT Adapter State Changed: %d",state);
-}
-
-
 //------------------------------------------------------------------------------
 //BT Callbacks END
 //------------------------------------------------------------------------------
@@ -236,12 +342,12 @@ static  int btHalLoad(void)
 
     INFMSG("Loading HAL lib + extensions");
 
-    err = hw_get_module(BT_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
+    err = hw_get_module(BT_HARDWARE_MODULE_ID, (hw_module_t const**)&s_hwModule);
     if (err == 0)
     {
-        err = module->methods->open(module, BT_HARDWARE_MODULE_ID, &device);
+        err = s_hwModule->methods->open(s_hwModule, BT_HARDWARE_MODULE_ID, (hw_device_t**)&s_hwDev);
         if (err == 0) {
-            sBtDevice = (bluetooth_device_t *)device;
+            sBtDevice = (bluetooth_device_t *)s_hwDev;
             sBtInterface = sBtDevice->get_bluetooth_interface();
         }
     }
@@ -288,18 +394,23 @@ static int btInit(void)
 
 int btOpen( void )
 {
-	int ret = 0;
-	if ((ret = btHalLoad()) < 0 ) {
-		return ret;
-	}
-	if ((ret = btInit()) < 0 ) {
-		return ret;
-	}
+    if (sFmStatus == FM_STATE_PANIC) {
+        if ( btHalLoad() < 0 ) {
+            return -1;
+        }
+    } else {
+        if (NULL == sBtInterface || NULL == sBtDevice) {
+            return -1;
+        }
+    }
+    if ( btInit() < 0 ) {
+        return 0;
+    }
 
 	//sBtInterface->disable();
 	//utilDisableService("dbus");
 
-	ret = sBtInterface->enable();
+	int ret = sBtInterface->enable();
 
 	if( btCheckRtnVal((bt_status_t)ret) ) {
 		ERRMSG("BT enable Fail(%d)!\n", ret);
@@ -403,10 +514,156 @@ int btGetInquireResult( bdremote_t * bdrmt, int maxnum )
 
 }
 
+#ifdef SPRD_WCNBT_MARLIN
+//------------------------------------------------------------------------------
+//FM
+//------------------------------------------------------------------------------
+
+int fmOpenEx( void )
+{
+
+    DBGMSG("Try to open fm \n");
+    if (FM_STATE_ENABLED == sFmStatus || FM_STATE_PLAYING == sFmStatus) return 0; // fm has been opened
+    if (sBtState == BT_STATE_OFF) {
+        if ( btHalLoad() < 0 ) {
+            return -1;
+        }
+    } else {
+        if (NULL == sBtInterface || NULL == sBtDevice) {
+            return -1;
+        }
+    }
+
+    if ( btInit() < 0 ) {
+        return -1;
+    }
+    sBtInterface->enableRadio();
+    DBGMSG("Enable radio okay, try to get fm interface \n");
+    permInstallService(NULL);
+
+    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_SPEAKER,
+            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
+    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
+            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
+
+    WRNMSG("Fm open okay \n");
+    return 0;
+}
+
+//
+#define V4L2_CID_PRIVATE_BASE           0x8000000
+#define V4L2_CID_PRIVATE_TAVARUA_STATE  (V4L2_CID_PRIVATE_BASE + 4)
+
+#define V4L2_CTRL_CLASS_USER            0x980000
+#define V4L2_CID_BASE                   (V4L2_CTRL_CLASS_USER | 0x900)
+#define V4L2_CID_AUDIO_VOLUME           (V4L2_CID_BASE + 5)
+#define V4L2_CID_AUDIO_MUTE             (V4L2_CID_BASE + 9)
+
+//------------------------------------------------------------------------------
+int fmPlayEx( uint freq )
+{
+    if( NULL == s_hwDev ) {
+        ERRMSG("not opened!\n");
+        return -1;
+    }
+
+    status_t   status;
+    String8 fm_volume("FM_Volume=11");
+    String8 fm_mute("FM_Volume=0");
+
+#if 0
+
+    AudioTrack atrk;
+
+    atrk.set(AUDIO_STREAM_FM, 44100, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO);
+    atrk.start();
+
+    AudioTrack::Buffer buffer;
+    buffer.frameCount = 64;
+    status = atrk.obtainBuffer(&buffer, 1);
+
+    if (status == NO_ERROR) {
+    memset(buffer.i8, 0, buffer.size);
+    atrk.releaseBuffer(&buffer);
+    } else if (status != TIMED_OUT && status != WOULD_BLOCK) {
+    ERRMSG(fmt,arg...)("cannot write to AudioTrack: status = %d\n", status);
+    }
+    atrk.stop();
+
+#endif
 
 
+    int counter = 0;
+
+    while (sFmStatus != FM_STATE_ENABLED && counter++ < 3) sleep(1);
+
+    if (sFmStatus != FM_STATE_ENABLED) {
+         ERRMSG("fm service has not enabled, status: %d", sFmStatus);
+         return -1;
+    }
+
+    sFmInterface->tune(freq * 10);
+    sFmInterface->set_audio_path(0x02);
+    sFmInterface->set_volume(32);
+    AudioSystem::setParameters(audio_io_handle_t(0),fm_mute);
+    AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_FM,AUDIO_POLICY_FORCE_NONE);
+
+    status = AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
+             AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
+   // AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
+
+    //AudioSystem::setParameters(audio_io_handle_t(0),fm_volume);
+
+    sFmStatus = FM_STATE_PLAYING;
 
 
+    if ( NO_ERROR != status ) {
+        ERRMSG("out to fm headset error!\n");
+        return -3;
+    }
+     AudioSystem::setParameters(audio_io_handle_t(0),fm_volume);
+    DBGMSG("Fm play okay \n");
+    return 0;
+}
+
+//------------------------------------------------------------------------------
+int fmStopEx( void )
+{
+    if( NULL != s_hwDev ) {
+        AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
+                AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
+        AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
+        sFmStatus = FM_STATE_STOPED;
+    }
+
+    DBGMSG("Stop okay \n");
+    return 0;
+}
+
+int fmCloseEx( void )
+{
+    int counter = 0;
+
+    if (sFmInterface)
+        sFmInterface->disable();
+    else
+        return -1;
+
+    while (counter++ < 3 && FM_STATE_DISABLED != sFmStatus) sleep(1);
+    if (FM_STATE_DISABLED != sFmStatus) return -1;
+
+    if (sFmInterface) sFmInterface->cleanup();
+    if (sBtInterface) {
+         sBtInterface->disableRadio();
+    }
+
+    sFmStatus = FM_STATE_DISABLED;
+
+    DBGMSG("Close successful.");
+
+    return 0;
+}
+#endif
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--} // namespace
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

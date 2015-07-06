@@ -1022,15 +1022,25 @@ int testFM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     case 1:
     {
         uint freq = ((data[1] << 16) | (data[2] << 8) | (data[3] << 0));
-
+#ifndef SPRD_WCNBT_MARLIN
         if( fmOpen() < 0 || fmPlay(freq) < 0 ) {
             ret = -1;
         }
+#else
+        if( fmOpenEx() < 0 || fmPlayEx(freq) < 0 ) {
+            ret = -1;
+        }
+#endif
     }
         break;
     case 2:
+#ifndef SPRD_WCNBT_MARLIN
         fmStop();
-		fmClose();
+        fmClose();
+#else
+        fmStopEx();
+        fmCloseEx();
+#endif
         break;
     default:
         break;

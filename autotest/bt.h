@@ -52,6 +52,15 @@ int btGetInquireResult( struct bdremote_t * bdrmt, int maxnum );
 
 int btClose( void );
 
+#ifdef SPRD_WCNBT_MARLIN
+int fmOpenEx( void );
+
+int fmPlayEx( uint freq );
+
+int fmStopEx( void );
+
+int fmCloseEx( void );
+#endif
 //-----------------------------------------------------------------------------
 //--};
 #ifdef __cplusplus
