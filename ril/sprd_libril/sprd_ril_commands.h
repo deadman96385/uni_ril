@@ -234,6 +234,7 @@
     ,{RIL_REQUEST_VOLTE_INITIAL_GROUP_CALL, dispatchString, responseVoid}
     ,{RIL_REQUEST_VOLTE_ADD_TO_GROUP_CALL, dispatchString, responseVoid}
     ,{RIL_REQUEST_VOLTE_SET_CONFERENCE_URI, dispatchString, responseVoid}
+    ,{RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER, dispatchStrings, responseInts}
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_REQUEST_SET_CELL_BROADCAST_CONFIG, dispatchSetCBConf, responseVoid}
