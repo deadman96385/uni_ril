@@ -179,7 +179,7 @@ threadpool_t *threadpool_d;
 static pthread_t s_tid_sms;
 static pthread_t s_tid_local;
 static pthread_t s_tid_call;
-
+static pthread_t s_tid_sim;
 static int s_fdWakeupRead;
 static int s_fdWakeupWrite;
 
@@ -204,6 +204,8 @@ static pthread_mutex_t s_localDispatchMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_localDispatchCond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_callDispatchMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_callDispatchCond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t s_simDispatchMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_simDispatchCond = PTHREAD_COND_INITIALIZER;
 
 static RequestInfo *s_pendingRequests = NULL;
 
@@ -244,6 +246,7 @@ struct listnode sms_cmd_list;
 struct listnode other_cmd_list;
 struct listnode local_cmd_list;
 struct listnode call_cmd_list;
+struct listnode sim_cmd_list;
 
 void list_init(struct listnode *list);
 void list_add_tail(struct listnode *list, struct listnode *item);
@@ -4814,12 +4817,20 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                     pthread_mutex_lock(&s_callDispatchMutex);
                     pthread_cond_signal(&s_callDispatchCond);
                     pthread_mutex_unlock(&s_callDispatchMutex);
-                } else {
+                } else if(pCI->requestNumber == RIL_REQUEST_SIM_IO
+                        || pCI->requestNumber == RIL_REQUEST_WRITE_SMS_TO_SIM
+                        || pCI->requestNumber == RIL_REQUEST_DELETE_SMS_ON_SIM
+                        || pCI->requestNumber == RIL_REQUEST_GET_SMSC_ADDRESS) {
+                    RILLOGD("Add '%s' to sim_cmd_list\n", requestToString(pCI->requestNumber));
+                    list_add_tail(&sim_cmd_list, cmd_item);
+                    pthread_mutex_lock(&s_simDispatchMutex);
+                    pthread_cond_signal(&s_simDispatchCond);
+                    pthread_mutex_unlock(&s_simDispatchMutex);
+                }else {
                     list_add_tail(&other_cmd_list, cmd_item);
                 }
             } else {
-                if(pCI->requestNumber == RIL_REQUEST_SIM_IO
-                        || pCI->requestNumber == RIL_REQUEST_QUERY_FACILITY_LOCK
+                if(pCI->requestNumber == RIL_REQUEST_QUERY_FACILITY_LOCK
                         || pCI->requestNumber == RIL_REQUEST_SET_FACILITY_LOCK
                         || pCI->requestNumber == RIL_REQUEST_QUERY_CALL_FORWARD_STATUS
                         || pCI->requestNumber == RIL_REQUEST_SET_CALL_FORWARD
@@ -4867,7 +4878,15 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                     pthread_mutex_lock(&s_callDispatchMutex);
                     pthread_cond_signal(&s_callDispatchCond);
                     pthread_mutex_unlock(&s_callDispatchMutex);
-                } else {
+                } else if(pCI->requestNumber == RIL_REQUEST_SIM_IO
+                        || pCI->requestNumber == RIL_REQUEST_WRITE_SMS_TO_SIM
+                        || pCI->requestNumber == RIL_REQUEST_DELETE_SMS_ON_SIM
+                        || pCI->requestNumber == RIL_REQUEST_GET_SMSC_ADDRESS) {
+                    list_add_tail(&sim_cmd_list, cmd_item);
+                    pthread_mutex_lock(&s_simDispatchMutex);
+                    pthread_cond_signal(&s_simDispatchCond);
+                    pthread_mutex_unlock(&s_simDispatchMutex);
+                }else {
                     list_add_tail(&other_cmd_list, cmd_item);
                 }
             }
@@ -4952,6 +4971,30 @@ callDispatch(void *param) {
 
         for (cmd_item = (&call_cmd_list)->next; cmd_item != (&call_cmd_list);
                 cmd_item = (&call_cmd_list)->next) {
+            processCommandBuffer(cmd_item->user_data->buffer,
+                cmd_item->user_data->buflen);
+            RILLOGI("-->callDispatch [%d] free one command\n",tid);
+            list_remove(cmd_item);  /* remove list node first, then free it */
+            free(cmd_item->user_data->buffer);
+            free(cmd_item->user_data);
+            free(cmd_item);
+        }
+    }
+    return NULL;
+}
+static void *
+simDispatch(void *param) {
+    struct listnode * cmd_item;
+    pid_t tid;
+    tid = gettid();
+
+    while(1) {
+        pthread_mutex_lock(&s_simDispatchMutex);
+        pthread_cond_wait(&s_simDispatchCond, &s_simDispatchMutex);
+        pthread_mutex_unlock(&s_simDispatchMutex);
+
+        for (cmd_item = (&sim_cmd_list)->next; cmd_item != (&sim_cmd_list);
+                cmd_item = (&sim_cmd_list)->next) {
             processCommandBuffer(cmd_item->user_data->buffer,
                 cmd_item->user_data->buflen);
             RILLOGI("-->callDispatch [%d] free one command\n",tid);
@@ -5461,6 +5504,7 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
     list_init(&local_cmd_list);
     list_init(&other_cmd_list);
     list_init(&call_cmd_list);
+    list_init(&sim_cmd_list);
 
     threadpool_d = thread_pool_init(THR_MAX, 10000);
     if(threadpool_d->thr_max==THR_MAX){
@@ -5481,6 +5525,11 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
         return;
     }
     ret = pthread_create(&s_tid_call, &attr, callDispatch, NULL);
+    if (ret < 0) {
+        RILLOGE("Failed to create local dispatch thread errno:%d", errno);
+        return;
+    }
+    ret = pthread_create(&s_tid_sim, &attr, simDispatch, NULL);
     if (ret < 0) {
         RILLOGE("Failed to create local dispatch thread errno:%d", errno);
         return;
