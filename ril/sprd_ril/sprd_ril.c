@@ -11690,7 +11690,6 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         char *p,*tmp;
         int lteState;
         int commas=0;
-        int skip ;
         int net_type = -1;
         line = strdup(s);
         tmp = line;
@@ -11720,10 +11719,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
 
         if (lteState == 1 || lteState == 5) {
             if(commas >= 3){
-                err = at_tok_nexthexint(&tmp,&skip);
-                if (err < 0) goto out;
-                err = at_tok_nexthexint(&tmp,&skip);
-                if (err < 0) goto out;
+                skipNextComma(&tmp);
+                skipNextComma(&tmp);
                 err = at_tok_nextint(&tmp, &net_type);
                 if (err < 0) goto out;
             }
