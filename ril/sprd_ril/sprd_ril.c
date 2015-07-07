@@ -801,7 +801,7 @@ static int getPDP(void)
     is_open_channel = atoi(prop);
 
     for (i=0; i < maxPDPNum; i++) {
-        if(activePDN > 0 && pdn[i].nCid == (i + 1)){
+        if(s_testmode != 10 && activePDN > 0 && pdn[i].nCid == (i + 1)){
             continue;
         }
         pthread_mutex_lock(&pdp[i].mutex);
