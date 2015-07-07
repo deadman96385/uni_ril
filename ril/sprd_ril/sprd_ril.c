@@ -8279,6 +8279,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             break;
         case RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC:
             requestTransmitApduBasic(channelID, data, datalen, t);
+            break;
         case RIL_REQUEST_SIM_OPEN_CHANNEL:
             requestOpenLogicalChannel(channelID, data, datalen, t);
             break;
