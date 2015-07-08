@@ -286,7 +286,7 @@ vint _JBV_processH264(
      */
     unit_ptr->key = 0;
 
-    JBV_dbgLog("nalu:%d, pktSz:%d, seqn:%d\n", nalu, pkt_ptr->pSize, pkt_ptr->seqn);
+    //JBV_dbgLog("nalu:%d, pktSz:%d, seqn:%d\n", nalu, pkt_ptr->pSize, pkt_ptr->seqn);
     switch (nalu) {
         case NALU_NON_IDR:
         case NALU_PARTITION_A:
@@ -312,8 +312,8 @@ vint _JBV_processH264(
 
             return(-1);
     }
-    JBV_dbgLog("nalu:%d, pktSz:%d, seqn:%d\n", nalu, pkt_ptr->pSize,
-                pkt_ptr->seqn);
+    //JBV_dbgLog("nalu:%d, pktSz:%d, seqn:%d\n", nalu, pkt_ptr->pSize,
+    //            pkt_ptr->seqn);
 
     /*
      * Correct time stamp wrap-around.
@@ -683,7 +683,7 @@ vint _JBV_reassembleH264(
         }
 
         /* Next packet */
-        JBV_dbgLog("at %d at loc %d\n", obj_ptr->offset, seqn);
+        //JBV_dbgLog("at %d at loc %d\n", obj_ptr->offset, seqn);
         seqn = JBV_NEXT_SEQN(seqn);
     }
 

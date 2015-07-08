@@ -265,7 +265,7 @@ vint _VC_rtpRecv(
                         dsp_ptr->jbPutPkt.valid = 1;
 
                         OSAL_selectGetTime(&tv);
-                        DBG("RTP Rcv Seqn: %d", dsp_ptr->jbPutPkt.seqn);
+                        //DBG("RTP Rcv Seqn: %d", dsp_ptr->jbPutPkt.seqn);
                         JBV_putPkt(&stream_ptr->dec.jbObj, &dsp_ptr->jbPutPkt, (JBV_Timeval *)&tv);
 
                         _VC_rtpUpdateSeq(rtp_ptr);

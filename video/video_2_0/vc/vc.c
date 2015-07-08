@@ -357,7 +357,7 @@ static void _VC_rtpRecvTask(
 
     stream_ptr = (_VC_StreamObj *)arg_ptr;
     vc_ptr = &_VC_obj;
-    OSAL_logMsg("%s:%d RTP Task running\n", __FILE__, __LINE__);
+    OSAL_logMsg("%s: RTP Task running\n", __FUNCTION__);
 
 _VC_RTP_TASK_LOOP:
     /* Check for incoming RTP data */
@@ -369,7 +369,7 @@ _VC_RTP_TASK_LOOP:
         goto _VC_RTP_TASK_LOOP;
     }
     else {
-        OSAL_logMsg("%s:%d RTP Task exited\n", __FILE__, __LINE__);
+        OSAL_logMsg("%s: RTP Task exited\n", __FUNCTION__);
     }
 }
 

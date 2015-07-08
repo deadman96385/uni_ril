@@ -17,7 +17,7 @@
 #ifdef VIDEO_DEBUG_LOG
 # define _VC_TRACE(x, y) OSAL_logMsg("%s %d\n", x, y)
 # define _VC_LOG(fmt, args...) \
-         OSAL_logMsg("%s:%d (%s) " fmt, __FILE__, __LINE__, __FUNCTION__, ## args)
+         OSAL_logMsg("%s: " fmt, __FUNCTION__, ## args)
 #else
 # define _VC_TRACE(x,y)
 # define _VC_LOG(fmt, args...)

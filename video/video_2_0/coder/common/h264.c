@@ -209,7 +209,7 @@ int H264_encGetData(
     sz = start2_ptr - start1_ptr;
     consumed = obj_ptr->pkt.consumed;
     nal = H264_READ_NALU(start1_ptr[0]);
-    DBG("nal: %d", nal);
+    //DBG("nal: %d", nal);
 
     /*
      * Don't send SEI if encoder generates it

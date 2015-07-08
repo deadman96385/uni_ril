@@ -17,14 +17,18 @@
 #ifdef VIDEO_DEBUG_LOG
 #define JBV_dbgLog(fmt, args...) \
         OSAL_logMsg("%s %d:" fmt, __FUNCTION__, __LINE__, ## args)
+#define JBV_wrnLog(fmt, args...) \
+        OSAL_logMsg("%s: WARNNING " fmt, __FUNCTION__, ## args)
 #define JBV_errLog(fmt, args...) \
         OSAL_logMsg("%s %d: ERROR " fmt, __FUNCTION__, __LINE__, ## args)
 #define JBV_InfoLog(fmt, args...) \
         OSAL_logMsg("VIDEO_DEBUG JBV STAT : %s " fmt, __FUNCTION__, ## args)
 #else
 #define JBV_dbgLog(fmt, args...)
+#define JBV_wrnLog(fmt, args...) \
+        OSAL_logMsg("%s: WARNNING " fmt, __FUNCTION__, ## args)
 #define JBV_errLog(fmt, args...) \
-        OSAL_logMsg("%s %d: ERROR " fmt, __FUNCTION__, __LINE__, ## args)
+        OSAL_logMsg("%s %d: ERROR " fmt, __FUNCTION__, ## args)
 
 #define JBV_InfoLog(fmt, args...)
 #endif
@@ -75,8 +79,8 @@
 #define JBV_DECAY_RATE_NUMERATOR   (64881)
 
 /* Init jitter and frame period */
-#define JBV_INIT_FRAME_PERIOD_USEC   (50000)         /* 20 fps */
-#define JBV_INIT_JITTER_USEC         (100000)        /* 100 ms */
+#define JBV_INIT_FRAME_PERIOD_USEC   (66666)         /* 15 fps */
+#define JBV_INIT_JITTER_USEC         (2 * JBV_INIT_FRAME_PERIOD_USEC)        /* 2 x JBV_INIT_FRAME_PERIOD_USEC */
 
 /* Max frame period */
 #define JBV_FRAME_PERIOD_MAX_USEC    (1000000)       /* 1000 ms i.e. 1fps */

@@ -143,7 +143,7 @@ vint _VC_videoStreamSendEncodedData(
                  *
                  * Should never get here
                  */
-                DBG("");
+                //DBG("Send Direction is off\n");
                 continue;
             }
 
@@ -159,11 +159,11 @@ vint _VC_videoStreamSendEncodedData(
 
                 pkt.buf_ptr = rtp_ptr->sendRtpObj.pkt.payload;
 
-                DBG("");
+                //DBG("");
 
                 /* Calculate the Video RTP time stamp. */
                 previousTsMs = rtp_ptr->tsMs;
-                DBG("previousTsMs:%llu", previousTsMs);
+                //DBG("previousTsMs:%llu", previousTsMs);
                 if (FRAME_SPS_PPS_SIZE == length) {
                     /*
                      * For the first frame, Use the randomly initialized rtpTime.
@@ -185,7 +185,7 @@ vint _VC_videoStreamSendEncodedData(
                 }
                 /* Update the local Video RTP Time stamp in Milliseconds. */
                 rtp_ptr->tsMs = tsMs;
-                DBG("currentTsMs:%llu", tsMs);
+                //DBG("currentTsMs:%llu", tsMs);
                 while (_VC_videoGetCodedData(stream_ptr, &pkt, data_ptr, length, tsMs, encType)) {
                     /*
                      * Fill in BlockHeader here
@@ -278,7 +278,7 @@ void _VC_populateFlags(
 
             /* Set Flags. */
             nalu = (*(uint8 *) (data + offset + 4)) & 0x1F;
-            DBG("nal:%d\n", nalu);
+            //DBG("nal:%d\n", nalu);
 
             if (NALU_SPS == nalu || NALU_PPS == nalu) {
                 /* If we are processing nalu 7 or nalu 8, there may remain some frames in this data,
@@ -287,7 +287,7 @@ void _VC_populateFlags(
 
                 /* SPS/PPS - append flag BUFFER_FLAG_CODEC_CONFIG. */
                 *flags_ptr |= BUFFER_FLAG_CODEC_CONFIG;
-                DBG("");
+                //DBG("");
             }
             else if (NALU_IDR == nalu) {
                 /* If we are processing I-Frame, there should be no any other frames in this data.
@@ -295,7 +295,7 @@ void _VC_populateFlags(
                  */
                 /* I Frame - append flag  BUFFER_FLAG_SYNC_FRAME . */
                 *flags_ptr |= BUFFER_FLAG_SYNC_FRAME;
-                DBG("");
+                //DBG("");
                 break;
             }
             else {
@@ -361,7 +361,7 @@ vint _VC_videoStreamGetDataToDecode(
         if (0 != (_VC_ALG_STREAM_JB & streamMask)) {
             OSAL_selectGetTime(&tv);
             JBV_getPkt(&stream_ptr->dec.jbObj, &dsp_ptr->jbGetPkt, (JBV_Timeval *)&tv);
-            DBG("");
+            //DBG("");
 
             /*
              * After adding JB, move the source pointer from RTP.
@@ -369,7 +369,7 @@ vint _VC_videoStreamGetDataToDecode(
             if ((0 == dsp_ptr->jbGetPkt.valid) || (0 == dsp_ptr->jbGetPkt.pSize)) {
                 continue;
             }
-            DBG("");
+            //DBG("");
             pSize = dsp_ptr->jbGetPkt.pSize;
         }
         else {
@@ -398,7 +398,7 @@ vint _VC_videoStreamGetDataToDecode(
 
             /* Get RCS RTP Extn payload. */
             *rcsRtpExtnPayload_ptr = dsp_ptr->jbGetPkt.rcsRtpExtnPayload;
-            DBG("payload:%d\n", *rcsRtpExtnPayload_ptr);
+            //DBG("payload:%d\n", *rcsRtpExtnPayload_ptr);
 
             _VC_populateFlags(data, pSize, flags_ptr);
             if ((*flags_ptr)  & BUFFER_FLAG_SYNC_FRAME) {
@@ -413,7 +413,7 @@ vint _VC_videoStreamGetDataToDecode(
 
             *tsMs_ptr = dsp_ptr->jbGetPkt.tsOrig;
 
-            DBG("");
+            //DBG("");
             ret = (_VC_OK);
         }
     }

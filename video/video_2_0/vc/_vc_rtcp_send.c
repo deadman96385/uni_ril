@@ -1027,7 +1027,7 @@ vint _VC_rtcpSend(
     feedbackMask = _VC_rtcpUtilitProcessJbvRtcpInfo(jbv_ptr, rtcp_ptr, &jbvRtcpInfo);
     packetLoss = jbvRtcpInfo.packetLoss;
 
-    _VC_LOG("RTCP send - lostSeqnLength:%u\n", packetLoss.lostSeqnLength);
+    //_VC_LOG("RTCP send - lostSeqnLength:%u\n", packetLoss.lostSeqnLength);
        
     OSAL_memSet(&message, 0, sizeof(_VTSP_RtcpCmdMsg));
  
@@ -1100,7 +1100,8 @@ vint _VC_rtcpSend(
 
     /* Send message. */
     rtcp_ptr->sendPacketCount += 1;
-    _VC_LOG("RTCP send packet count: %d\n",rtcp_ptr->sendPacketCount);
+    _VC_LOG("RTCP send packet count: %d, lostSeqnLength:%u\n",
+		    rtcp_ptr->sendPacketCount, packetLoss.lostSeqnLength);
     if (OSAL_SUCCESS != OSAL_msgQSend(q_ptr->rtcpMsg, (char *) msg_ptr,
                     sizeof(_VTSP_RtcpCmdMsg), OSAL_NO_WAIT, NULL)) {
         _VC_TRACE(__FILE__, __LINE__);

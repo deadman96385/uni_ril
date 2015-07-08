@@ -16,7 +16,7 @@
  *
  * Updates frame period.
  * Frame period is the ts difference between two adjacent frame.
- * 
+ *
  * Returns: none
  */
 void _JBV_updateFramePeriod(
@@ -38,13 +38,14 @@ void _JBV_updateFramePeriod(
         if (obj_ptr->totalFramesReceived > 0) {
             elapsedTime = unit_ptr->ts - obj_ptr->firstTs;
             obj_ptr->framePeriod = elapsedTime / obj_ptr->totalFramesReceived;
-
+/*
             JBV_dbgLog("currentSeqn:%hu currentTs:%llu firstTs:%llu"
                     "Frame period is %llu (%llu fps)"
                     "Frame Count:%d\n",
                     unit_ptr->seqn,    unit_ptr->ts, obj_ptr->firstTs,
                     obj_ptr->framePeriod,
                     1000000L / obj_ptr->framePeriod, obj_ptr->totalFramesReceived);
+*/
         }
     }
 }
@@ -142,9 +143,10 @@ void _JBV_updateJitter(
         }
 
         obj_ptr->jitter = jitter;
-
+/*
         JBV_dbgLog("New jitter is %llu currentDelay=%lld minDelay=%lld\n",
                 obj_ptr->jitter, currentDelay, obj_ptr->minDelay);
+*/
     }
 }
 
@@ -205,14 +207,14 @@ int32 _JBV_stateMachine(
     /* Top level */
     top = jitter << 1;
 
-    JBV_dbgLog("JBV SM jitter=%llu, lvl=%llu, epy=%llu, nl=%llu, nr=%llu, nh=%llu, "
-            "top=%llu\n", jitter, level, epy, nl, nr, nh, top);
+    //JBV_dbgLog("JBV SM jitter=%llu, lvl=%llu, epy=%llu, nl=%llu, nr=%llu, nh=%llu, "
+    //        "top=%llu\n", jitter, level, epy, nl, nr, nh, top);
 
     /*
      * If below or equal to empty level, switch to empty state.
      */
     if (level <= epy) {
-        JBV_dbgLog("JBV_STATE_EMPTY level=%llu, epy=%llu\n", level, epy);
+        JBV_wrnLog("JBV_STATE_EMPTY level=%llu, epy=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, epy, jitter, framePeriod, 1000000L / framePeriod);
         state = JBV_STATE_EMPTY;
     }
     /*
@@ -221,10 +223,10 @@ int32 _JBV_stateMachine(
      */
     else if (level <= nl) {
         if (JBV_STATE_EMPTY == state) {
-            JBV_dbgLog("JBV_STATE_EMPTY level=%llu, nl=%llu\n", level, nl);       
+            JBV_dbgLog("JBV_STATE_EMPTY level=%llu, nl=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, nl, jitter, framePeriod, 1000000L / framePeriod);
         }
         else {
-            JBV_dbgLog("JBV_STATE_ACCM level=%llu, nl=%llu\n", level, nl);       
+            JBV_dbgLog("JBV_STATE_ACCM level=%llu, nl=%llu\n, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, nl, jitter, framePeriod, 1000000L / framePeriod);
             state = JBV_STATE_ACCM;
         }
     }
@@ -232,28 +234,28 @@ int32 _JBV_stateMachine(
      * If below normal level, switch to accum state.
      */
     else if (level <= nr) {
-        JBV_dbgLog("JBV_STATE_ACCM level=%llu, nr=%llu\n", level, nr);
+        JBV_dbgLog("JBV_STATE_ACCM level=%llu, nr=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, nr, jitter, framePeriod, 1000000L / framePeriod);
         state = JBV_STATE_ACCM;
     }
     /*
      * If below nominal high, switch to normal state.
      */
     else if (level <= nh) {
-        JBV_dbgLog("JBV_STATE_NORM level=%llu, nh=%llu\n", level, nh);        
+        JBV_dbgLog("JBV_STATE_NORM level=%llu, nh=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, nh, jitter, framePeriod, 1000000L / framePeriod);
         state = JBV_STATE_NORM;
     }
     /*
      * If below or at full level, switch to leak state.
      */
     else if (level <= top) {
-        JBV_dbgLog("JBV_STATE_LEAK level=%llu, top=%llu\n", level, top);        
+        JBV_wrnLog("JBV_STATE_LEAK level=%llu, top=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, top, jitter, framePeriod, 1000000L / framePeriod);
         state = JBV_STATE_LEAK;
     }
     /*
      * Go to full state when level reaches above top level.
      */
     else {
-        JBV_dbgLog("JBV_STATE_FULL level=%llu, top=%llu\n", level, top);
+        JBV_wrnLog("JBV_STATE_FULL level=%llu, top=%llu, jitter=%llu, framePeriod=%llu (%llu fps)\n", level, top, jitter, framePeriod, 1000000L / framePeriod);
         state = JBV_STATE_FULL;
     }
 
@@ -490,8 +492,8 @@ vint _JBV_findOldestSequence(
         if (tsMax == tsMin) {
             *level_ptr = obj_ptr->framePeriod; /* We have one frame in */
         }
-        JBV_dbgLog("Found oldest frame %d~%d level:%llu\n", m1Seqn, mSeqn, 
-                *level_ptr);
+        //JBV_dbgLog("Found oldest frame %d~%d level:%llu\n", m1Seqn, mSeqn,
+        //        *level_ptr);
         return (0);
     }
     JBV_errLog("Sequence NOT FOUND maxSeqn=%d, m1Seqn=%d mSeqn=%d, tsMax=%llu, "

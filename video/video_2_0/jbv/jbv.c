@@ -104,7 +104,7 @@ static void _JBV_putPkt(
     /*
      * It is highly unlikely that for real time comm., seqn
      * will be out of order by 256 places.
-     * Even if it is, the packet is too out of place and 
+     * Even if it is, the packet is too out of place and
      * has no hope of recovery.
      */
     seqn = JBV_SEQN_FROM_RTP_SEQN(pkt_ptr->seqn);
@@ -165,9 +165,9 @@ static void _JBV_putPkt(
         }
 
         JBV_dbgLog("Put packet seqn:%u at location %u of size %u ts %llu "
-                "atime %llu key=%02x, mark=%02x firstinSeq=%02x\n", 
-                pkt_ptr->seqn, seqn, unit_ptr->offset, unit_ptr->ts, 
-                unit_ptr->atime, unit_ptr->key, unit_ptr->mark, 
+                "atime %llu key=%02x, mark=%02x firstinSeq=%02x\n",
+                pkt_ptr->seqn, seqn, unit_ptr->offset, unit_ptr->ts,
+                unit_ptr->atime, unit_ptr->key, unit_ptr->mark,
                 unit_ptr->firstInSeq);
 
         /*
@@ -201,12 +201,12 @@ static void _JBV_putPkt(
                 pkt_ptr->pSize, sizeof(unit_ptr->data_ptr));
         return;
     }
-    
+
     /* Update level and also find oldest frame */
-    _JBV_findOldestSequence(obj_ptr, &firstSeqnNextFrame, &lastSeqnNextFrame, 
+    _JBV_findOldestSequence(obj_ptr, &firstSeqnNextFrame, &lastSeqnNextFrame,
             &level);
     /* Run state machine */
-    state = _JBV_stateMachine(state, obj_ptr->jitter, level, 
+    state = _JBV_stateMachine(state, obj_ptr->jitter, level,
             obj_ptr->framePeriod + obj_ptr->framePeriodOffset);
 
     /* Store */
@@ -215,7 +215,7 @@ static void _JBV_putPkt(
     obj_ptr->level              = level;
     obj_ptr->state              = state;
 
-    JBV_statePrint(obj_ptr, pkt_ptr);
+    //JBV_statePrint(obj_ptr, pkt_ptr);
 }
 
 /*
@@ -278,7 +278,7 @@ static void _JBV_getPkt(
         return;
     }
 
-    /* 
+    /*
      * Check if the buffer has recently been initialized with initLevel > 0.
      * This allows the buffer to initially fill up to some non-zero delay.
      */
@@ -327,8 +327,8 @@ static void _JBV_getPkt(
                     nextDrawTime += (obj_ptr->framePeriod +
                             obj_ptr->framePeriodOffset);
                 }
-                JBV_dbgLog("JBV_STATE_NORM curTime:%llu lastDrawTime:%llu\n",
-                        curTime, lastCtime);
+                //JBV_dbgLog("JBV_STATE_NORM curTime:%llu lastDrawTime:%llu\n",
+                //        curTime, lastCtime);
                 break;
             case JBV_STATE_ACCM:
                 if (0 == nextDrawTime) {
@@ -349,16 +349,16 @@ static void _JBV_getPkt(
                             obj_ptr->framePeriodOffset;
                 }
                 obj_ptr->accm++;
-                JBV_dbgLog("JBV_STATE_ACCM "
-                        "curTime:%llu lastDrawTime:%llu accm:%d\n",
-                        curTime, lastCtime, obj_ptr->accm);
+                //JBV_dbgLog("JBV_STATE_ACCM "
+                //        "curTime:%llu lastDrawTime:%llu accm:%d\n",
+                //        curTime, lastCtime, obj_ptr->accm);
                 break;
             case JBV_STATE_LEAK:
                 obj_ptr->accm = 0;
                 nextDrawTime = curTime + obj_ptr->framePeriod +
                         obj_ptr->framePeriodOffset;
-                JBV_dbgLog("JBV_STATE_LEAK curTime:%llu lastDrawTime:%llu\n",
-                        curTime, lastCtime);
+                //JBV_dbgLog("JBV_STATE_LEAK curTime:%llu lastDrawTime:%llu\n",
+                //        curTime, lastCtime);
                 break;
             case JBV_STATE_EMPTY:
                 /* EMPTY */
@@ -374,23 +374,23 @@ static void _JBV_getPkt(
                 leak = 1;
                 nextDrawTime = curTime + obj_ptr->framePeriod +
                         obj_ptr->framePeriodOffset;
-                JBV_dbgLog("JBV_STATE_FULL curTime:%llu lastDrawTime:%llu\n",
-                        curTime, lastCtime);
+                //JBV_dbgLog("JBV_STATE_FULL curTime:%llu lastDrawTime:%llu\n",
+                //        curTime, lastCtime);
                 break;
             default:
                 JBV_dbgLog("Invalid JBV state: %d", state);
                 break;
         }
 
-        /* 
-         * Check for if accm count exceeds accumulate rate 
+        /*
+         * Check for if accm count exceeds accumulate rate
          */
         if (obj_ptr->accm >= obj_ptr->accmRate) {
             /*
              * Accm this packet.
              */
             obj_ptr->accm = 0;
-            JBV_dbgLog("Accm a frame.  curTime:%llu lastDrawTime:%llu\n", 
+            JBV_dbgLog("Accm a frame.  curTime:%llu lastDrawTime:%llu\n",
                     curTime, lastCtime);
             return;
         }
@@ -419,9 +419,9 @@ static void _JBV_getPkt(
                     (NALU_SPS != unit_ptr->nalu) &&
                     (1 != unit_ptr->key)) {
 
-                /* 
-                 * Next expected frame is not ready, check if it's time 
-                 * to draw the oldest frame we have 
+                /*
+                 * Next expected frame is not ready, check if it's time
+                 * to draw the oldest frame we have
                  * *Note: a
                  */
                 if (tsDiff > curTimeDiff) {
@@ -472,8 +472,9 @@ static void _JBV_getPkt(
              */
             if (0 == _JBV_reassembleH263(obj_ptr, firstSeqnNextFrame,
                     lastSeqnNextFrame, pkt_ptr)) {
-                JBV_dbgLog("Got packet at location %u, size %u, new level "
-                        "%llu\n", lastSeqnNextFrame, pkt_ptr->pSize, level);
+                JBV_dbgLog("Got packet seqn=%u at location %u, size %u, "
+                        "new level %llu, state:0x%x, curTime:%llu, nextDrawTime:%llu\n",
+			unit_ptr->seqn, lastSeqnNextFrame, pkt_ptr->pSize, level, state, curTime, nextDrawTime);
                 lastDrawnTs = obj_ptr->unit[lastSeqnNextFrame].ts;
                 lastDrawnSeqn = lastSeqnNextFrame;
             }
@@ -483,11 +484,13 @@ static void _JBV_getPkt(
             /*
              * Series ready ? yes : give. no : return
              */
-            if (0 == _JBV_reassembleH264(obj_ptr, firstSeqnNextFrame, 
+            if (0 == _JBV_reassembleH264(obj_ptr, firstSeqnNextFrame,
                         lastSeqnNextFrame, &naluBitMask, pkt_ptr)) {
-                JBV_dbgLog("Got packet seqn=%u at location %u, size %u, "
-                        "new level %llu\n", unit_ptr->seqn, lastSeqnNextFrame, 
-                        pkt_ptr->pSize, level);
+		if (state & (JBV_STATE_LEAK | JBV_STATE_FULL)) {
+                        JBV_wrnLog("Got packet seqn=%u at location %u, size %u, "
+                                "new level %llu, state:0x%x, curTime:%llu, nextDrawTime:%llu\n",
+			        unit_ptr->seqn, lastSeqnNextFrame, pkt_ptr->pSize, level, state, curTime, nextDrawTime);
+		}
                 lastDrawnTs = obj_ptr->unit[lastSeqnNextFrame].ts;
                 lastDrawnSeqn = lastSeqnNextFrame;
                     }
@@ -507,7 +510,7 @@ static void _JBV_getPkt(
     _JBV_findOldestSequence(obj_ptr, &firstSeqnNextFrame, &lastSeqnNextFrame,
             &level);
     /* Run state machine */
-    state = _JBV_stateMachine(state, obj_ptr->jitter, level, 
+    state = _JBV_stateMachine(state, obj_ptr->jitter, level,
             obj_ptr->framePeriod + obj_ptr->framePeriodOffset);
 
     /* Store */
@@ -616,7 +619,7 @@ void JBV_getPkt(
 
 /*
  * ======== JBV_getRtcpInfo() ========
- * 
+ *
  * - Destructive Read -
  * Uses the mutex lock to safely remove the necessary information from
  * the jitter buffer and place it in the JBV RTCP Info.
