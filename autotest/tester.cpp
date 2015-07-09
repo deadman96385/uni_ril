@@ -51,7 +51,11 @@
 /** Base path of the hal modules */
 #define HAL_LIBRARY_PATH1 "/system/lib/hw"
 #define HAL_LIBRARY_PATH2 "/vendor/lib/hw"
-
+extern "C"
+{
+extern void test_result_init(void);
+extern int test_lcd_start(void);
+}
 static const char *variant_keys[] = {
     "ro.hardware",  /* This goes first so that it can pick up a different file on the emulator. */
     "ro.product.board",
@@ -491,12 +495,15 @@ int testLCD(const uchar * data, int data_len, uchar * rsp, int rsp_size)
         if ( drvLcd_mipi_off() < 0 )
 		ret = -1;
         drvClose();
+    } else if( 0x20 == *data ) {
+		test_result_init();
+		test_lcd_start();
     } else {
         ret = -1;
     }
 
     FUN_EXIT;
-    return ret;
+       return ret;
 }
 
 //------------------------------------------------------------------------------

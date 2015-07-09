@@ -43,6 +43,8 @@ LOCAL_SRC_FILES:= \
     vibrator.cpp    \
     wifi.cpp        \
     power.cpp       \
+    ui.c  \
+    mipi_lcd.c   \
     main.cpp   
 
 
@@ -60,7 +62,8 @@ LOCAL_C_INCLUDES:= \
     external/bluetooth/bluedroid/stack/include \
     external/bluetooth/bluedroid/stack/btm \
     $(TARGET_OUT_INTERMEDIATES)/KERNEL/usr/include/video
-
+LOCAL_C_INCLUDES    +=  vendor/sprd/proprietories-source/autotest/minui \
+			vendor/sprd/proprietories-source/autotest/res
 #    libbluedroid \
 #    libbluetooth \
 #    libbluetoothd\
@@ -81,5 +84,6 @@ LOCAL_SHARED_LIBRARIES:= \
 LOCAL_STATIC_LIBRARIES:= \
     libbt-utils\
     libbt-hci
-
+LOCAL_STATIC_LIBRARIES += libatminui libpixelflinger_static
 include $(BUILD_EXECUTABLE)
+include $(call all-makefiles-under,$(LOCAL_PATH))
