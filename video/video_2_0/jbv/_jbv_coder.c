@@ -344,8 +344,8 @@ vint _JBV_processH264(
     if ((_JBV_TS_INIT != obj_ptr->lastDrawnTs) && (ts < obj_ptr->lastDrawnTs)) {
         /* Packet too Old.  Drop it by not adding it to the buffer. */
         _JBV_dropPacket(obj_ptr, unit_ptr, JBV_DROP_TOO_OLD);
-        JBV_dbgLog("Incoming packetTs:%llu lastDrawnTs:%llu",
-                ts, obj_ptr->lastDrawnTs);
+        JBV_wrnLog("seqn:%d, Incoming packetTs:%llu, lastDrawnTs:%llu, tslast:%llu, firstUnNormTs:%llu\n",
+                pkt_ptr->seqn, ts, obj_ptr->lastDrawnTs, tsLast, obj_ptr->firstUnNormTs);
         return (-1);
     }
 
@@ -356,7 +356,7 @@ vint _JBV_processH264(
     if ((unit1_ptr->valid) && (unit1_ptr->ts != ts)) {
         /* JBV over flow. We are going to overwrite previous undrawn pkt. */
         _JBV_dropPacket(obj_ptr, unit_ptr, JBV_DROP_OVERFLOW);
-        JBV_dbgLog("Overwrite location:%d seqn:%d ts:%llu",
+        JBV_wrnLog("Overwrite location:%d seqn:%d ts:%llu",
                 cseqn, pkt_ptr->seqn, ts);
     }
     /*

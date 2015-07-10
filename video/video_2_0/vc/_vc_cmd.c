@@ -154,7 +154,7 @@ static void _VC_notifyAppWhenStreamChange(
 {
     /* Notify App about Coder start/stop. */
     if (VTSP_STREAM_DIR_SENDONLY == stream_ptr->streamParam.dir) {
-        _VC_LOG("the dir param is VTSP_STREAM_DIR_SENDONLY\n");
+        OSAL_logMsg("%s: the dir param is VTSP_STREAM_DIR_SENDONLY\n", __FUNCTION__);
         if (!stream_ptr->enc.encRunning) {
             /* Enc is currently NOT running. Notify App to Start Enc. */
             stream_ptr->enc.encRunning = 1;
@@ -176,7 +176,7 @@ static void _VC_notifyAppWhenStreamChange(
         }
     }
     else if (VTSP_STREAM_DIR_RECVONLY == stream_ptr->streamParam.dir) {
-        _VC_LOG("the dir param is VTSP_STREAM_DIR_RECVONLY\n");
+        OSAL_logMsg("%s: the dir param is VTSP_STREAM_DIR_RECVONLY\n", __FUNCTION__);
         if (stream_ptr->enc.encRunning) {
             /* Enc is currently running. Notify App to Stop Enc. */
             stream_ptr->enc.encRunning = 0;
@@ -201,7 +201,7 @@ static void _VC_notifyAppWhenStreamChange(
         }
     }
     else if (VTSP_STREAM_DIR_SENDRECV == stream_ptr->streamParam.dir) {
-        _VC_LOG("the dir param is VTSP_STREAM_DIR_SENDRECV\n");
+        OSAL_logMsg("%s: the dir param is VTSP_STREAM_DIR_SENDRECV\n", __FUNCTION__);
         if (!stream_ptr->enc.encRunning) {
             /* Enc is currently not running. Notify App to Start Enc. */
             stream_ptr->enc.encRunning = 1;
@@ -226,7 +226,7 @@ static void _VC_notifyAppWhenStreamChange(
     }
     else if ((VTSP_STREAM_DIR_INACTIVE == stream_ptr->streamParam.dir)
             || (_VTSP_STREAM_DIR_ENDED == stream_ptr->streamParam.dir)) {
-        _VC_LOG("the dir param is VTSP_STREAM_DIR_INACTIVE or _VTSP_STREAM_DIR_ENDED\n");
+        OSAL_logMsg("%s: the dir param is VTSP_STREAM_DIR_INACTIVE or _VTSP_STREAM_DIR_ENDED\n", __FUNCTION__);
         if (stream_ptr->enc.encRunning) {
             /* Enc is currently running. Notify App to Stop Enc. */
             stream_ptr->enc.encRunning = 0;
