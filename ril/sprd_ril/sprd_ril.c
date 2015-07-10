@@ -11285,7 +11285,14 @@ static void initializeCallback(void *param)
     at_send_command(ATch_type[channelID], "AT+CSSN=1,1", NULL);
 
     /*  no connected line identification */
-    at_send_command(ATch_type[channelID], "AT+COLP=0", NULL);
+    //add for CR452724 CMCC case 6.4.1.3 start
+    //at_send_command(ATch_type[channelID], "AT+COLP=0", NULL);
+    if (isCMCC()) {
+        at_send_command(ATch_type[channelID], "AT+COLP=1", NULL);
+    }else{
+        at_send_command(ATch_type[channelID], "AT+COLP=0", NULL);
+    }
+    //add for CR452724 CMCC case 6.4.1.3 end
 
     /*  HEX character set */
     at_send_command(ATch_type[channelID], "AT+CSCS=\"HEX\"", NULL);
