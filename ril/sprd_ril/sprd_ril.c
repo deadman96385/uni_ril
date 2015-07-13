@@ -3251,7 +3251,9 @@ RETRY:
                 if (pdn[i].nCid == (i + 1)) {
                     strncpy(strApnName, pdn[i].strApn, checkCmpAnchor(pdn[i].strApn));
                     strApnName[strlen(strApnName)] = '\0';
-                    RILLOGD("pdp[%d].state = %d", i, pdp[i].state);
+                    if (i < MAX_PDP) {
+                        RILLOGD("pdp[%d].state = %d", i, pdp[i].state);
+                    }
                     if (i < 3
                             && (!strcasecmp(pdn[i].strApn, apn)
                                     || !strcasecmp(strApnName, apn)) && (pdp[i].state == PDP_IDLE)) {
