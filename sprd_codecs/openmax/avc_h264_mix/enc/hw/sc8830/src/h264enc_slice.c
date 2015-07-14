@@ -258,8 +258,8 @@ PUBLIC int32 H264Enc_slice_write (H264EncObject *vo, ENC_IMAGE_PARAMS_T *img_ptr
         vo->error_flag = 0;
     } else if(int_ret & (V_BIT_4 | V_BIT_5 |V_BIT_30 | V_BIT_31))	// (VLC_ERR|TIME_OUT)
     {
-        SPRD_CODEC_LOGE ("%s, %d, VSP_INT_RAW 0x%x \n", __FUNCTION__, __LINE__,reg_value);
-        vo->error_flag |= ER_HW_ID;
+         SPRD_CODEC_LOGE ("%s, %d, VSP_INT_RAW 0x%x \n", __FUNCTION__, __LINE__,reg_value);
+         vo->error_flag |= ER_HW_ID;
 
         if (int_ret & V_BIT_4)
         {
@@ -304,11 +304,6 @@ PUBLIC int32 H264Enc_slice_write (H264EncObject *vo, ENC_IMAGE_PARAMS_T *img_ptr
     {
         img_ptr->sh.i_first_mb = 0;
     }
-
-#ifdef RC_BU
-    if(vo->g_h264_enc_config->RateCtrlEnable)
-        vo->BU_bit_stat = (i_frame_size - slice_bits);
-#endif
 
     return (i_frame_size-slice_bits);
 }
