@@ -454,6 +454,7 @@ static void setCeMode(int channelID);
 static void setTestMode(int channelID);
 static bool isCSFB(void); 
 static bool isCMCC(void);
+static bool isCUCC(void);
 static bool bOnlyOneSIMPresent = false;
 typedef struct {
     int nCid;
@@ -11359,9 +11360,16 @@ static void initializeCallback(void *param)
     /* @} */
 
     /* SPRD : for non-CMCC version @{ */
-    if (!isCMCC()) {
-        at_send_command(ATch_type[channelID], "at+spcapability=32,1,0", NULL);
+    if (isCSFB()) {
+        if (isCMCC()) {
+            at_send_command(ATch_type[channelID], "at+spcapability=32,1,1", NULL);
+        } else if (isCUCC()) {
+            at_send_command(ATch_type[channelID], "at+spcapability=32,1,2", NULL);
+        } else {
+            at_send_command(ATch_type[channelID], "at+spcapability=32,1,0", NULL);
+        }
     }
+
     /* @} */
 
 
@@ -13452,6 +13460,16 @@ static bool isCMCC(void) {
     property_get("ro.operator", prop, NULL);
     RILLOGD("ro.operator is: %s", prop);
     if (!strcmp(prop, "cmcc")) {
+        return true;
+    }
+    return false;
+}
+
+static bool isCUCC(void) {
+    char prop[PROPERTY_VALUE_MAX]="";
+    property_get("ro.operator", prop, NULL);
+    RILLOGD("ro.operator is: %s", prop);
+    if (!strcmp(prop, "cucc")) {
         return true;
     }
     return false;
