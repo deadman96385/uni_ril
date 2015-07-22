@@ -10,7 +10,7 @@
 #include <vier.h>
 
 #include "_vc_rtcp.h"
-/* 
+/*
  * Video Controller structure, private to VC
  */
 _VC_Obj _VC_obj;
@@ -246,6 +246,23 @@ static vint _VC_getCommand(
 }
 
 /*
+ * ======== _VC_alarmHandler() ========
+ *
+ * The handler to catch SIGALRM
+ *
+ */
+void _VC_alarmHandler(int signo)
+{
+    /*
+     * Maybe, we will put the rtcpSend in timmer in the future.
+     * But now, this handler is just used to avoid _VC_rtcpSendRecvTask
+     * terminated by SIGALRM.
+     *
+     */
+    return;
+}
+
+/*
  * ======== _VC_rtcpSendRecvTask() ========
  *
  * This task is responsible for Sending and Receiving RTCP packets.
@@ -275,6 +292,9 @@ static void _VC_rtcpSendRecvTask(
     rtcp_ptr->feedback.tmmbrState = _VC_TMMBR_STATE_INHIBIT;
     rtcp_ptr->feedback.sendTmmbrInKbps = 0;
 
+    /* register the handler to catch SIGALRM */
+    OSAL_taskRegisterSignal(SIGALRM, _VC_alarmHandler);
+
     _VC_LOG("RTCP Task running\n");
 
 _VC_RTCP_TASK_LOOP:
@@ -300,7 +320,7 @@ _VC_RTCP_TASK_LOOP:
     }
 
     /* For now use the RTCP min interval as delay. This should be modified to timer. */
-    OSAL_taskDelay(rtcp_ptr->configure.reducedMinIntervalMillis);
+    //OSAL_taskDelay(rtcp_ptr->configure.reducedMinIntervalMillis);
 
     if (1 == stream_ptr->rtcpEnable) {
         goto _VC_RTCP_TASK_LOOP;
@@ -598,7 +618,7 @@ vint VC_getAppEvent(
             timeout, NULL)) {
         /* Default to Event None in case of error. */
         *event_ptr = VC_EVENT_NONE;
-        *codecType_ptr = -1; 
+        *codecType_ptr = -1;
         OSAL_strncpy(eventDesc_ptr, "VC - No Event", VCI_EVENT_DESC_STRING_SZ);
     }
     else {

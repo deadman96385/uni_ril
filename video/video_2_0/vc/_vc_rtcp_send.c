@@ -1013,6 +1013,7 @@ vint _VC_rtcpSend(
     q_ptr       = vc_ptr->q_ptr;
     net_ptr     = vc_ptr->net_ptr;
     dsp_ptr     = vc_ptr->dsp_ptr;
+
     rtcp_ptr    = _VC_streamIdToRtcpPtr(net_ptr, streamId);
 
 
@@ -1036,7 +1037,6 @@ vint _VC_rtcpSend(
     message.infc     = rtcp_ptr->infc;
     message.streamId = rtcp_ptr->streamId;
     msg_ptr = &message;
-
     /* Create a Full Compound RTCP packet. RFC 4584 Section 3.1 and 3.5.3  */
     if ((VTSP_STREAM_DIR_SENDONLY == dir) || (VTSP_STREAM_DIR_SENDRECV == dir)) {
         /* Add SR block if we are actively sending. */
@@ -1069,6 +1069,7 @@ vint _VC_rtcpSend(
             (feedbackMask & VTSP_MASK_RTCP_FB_TMMBR)) {
         /* Add TMMBR RTCP feedback. Determining when to send TMMBR is handled inside this method */
         offset = _VC_rtcpFeedbackTmmbr(rtcp_ptr, msg_ptr, rtcp_ptr->feedback.sendTmmbrInKbps, offset);
+	OSAL_logMsg("%s: TMMBR sendTmmbrInKbps=%u Kbps\n", __FUNCTION__, rtcp_ptr->feedback.sendTmmbrInKbps);
     }
 
     if ((rtcp_ptr->configure.enableMask & VTSP_MASK_RTCP_FB_TMMBN) &&
@@ -1077,6 +1078,7 @@ vint _VC_rtcpSend(
         offset = _VC_rtcpFeedbackTmmbn(rtcp_ptr, msg_ptr, rtcp_ptr->feedback.sendTmmbnInKbps, offset);
         /* TMMBN has been sent, remove this flag */
         CLEAR_FLAG(rtcp_ptr, VTSP_MASK_RTCP_FB_TMMBN);
+        OSAL_logMsg("%s: TMMBN sendTmmbrInKbps=%u Kbps\n", __FUNCTION__, rtcp_ptr->feedback.sendTmmbrInKbps);
     }
 
     if ((rtcp_ptr->configure.enableMask & VTSP_MASK_RTCP_FB_PLI) &&
@@ -1093,6 +1095,7 @@ vint _VC_rtcpSend(
         offset = _VC_rtcpFeedbackFir(rtcp_ptr, rtcp_ptr->feedback.firSeqNumber, msg_ptr, offset);
         /* FIR has been sent, remove this flag */
         CLEAR_FLAG(rtcp_ptr, VTSP_MASK_RTCP_FB_FIR);
+        OSAL_logMsg("%s: FIR firSeqNumber=%u\n", __FUNCTION__, rtcp_ptr->feedback.firSeqNumber);
     }
 
     /* convert the payload size into bytes. */

@@ -32,14 +32,14 @@ vint _VC_rtcpRecv(
     char                buffer[20];
 
     qId = q_ptr->rtcpEvent;
-    _VC_RTCP_LOG("RTCP recv \n");
+    _VC_RTCP_LOG("RTCP recv\n");
     OSAL_TimeVal currentTime;
 
     /*
      * Read and process messages. Then relay event to application.
      */
     while ((retVal = OSAL_msgQRecv(qId, (char *)&message,
-            _VTSP_Q_RTCP_EVENT_SZ, OSAL_NO_WAIT, NULL)) > 0) {
+            _VTSP_Q_RTCP_EVENT_SZ, _VC_RTCP_MIN_INTERVAL_MILLIS, NULL)) > 0) {
 
         _VC_RTCP_LOG("RTCP recvd something\n");
         /*

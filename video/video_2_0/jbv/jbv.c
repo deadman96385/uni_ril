@@ -571,7 +571,7 @@ int JBV_init(
         mJBVMutex = OSAL_semCountCreate(1);
     }
 
-    JBV_dbgLog("accmRate:%d, initLevel:%llu, eMscPrvt:%d\n",
+    JBV_wrnLog("accmRate:%d, initLevel:%llu, eMscPrvt:%d\n",
             obj_ptr->accmRate, obj_ptr->initLevel, obj_ptr->eMscPrvt);
 
     return (0);

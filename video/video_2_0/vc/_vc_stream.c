@@ -234,6 +234,9 @@ vint _VC_videoStreamSendFir(
     _VC_RtcpCmdMsg    message;
     _VC_StreamObj     *stream_ptr;
     int16              streamId;
+    _VC_TaskObj * task_rtcp_ptr;
+
+    task_rtcp_ptr = &vc_ptr->taskRtcp;
 
     /*
      * Do for all streams on infc.
@@ -246,6 +249,8 @@ vint _VC_videoStreamSendFir(
             message.streamId     = streamId;
             message.feedbackMask = VTSP_MASK_RTCP_FB_FIR;
             _VC_sendRtcpCommand(vc_ptr->q_ptr, &message);
+            OSAL_logMsg("%s: send SIGALRM to RTCP task\n", __FUNCTION__);
+            OSAL_taskSendSignal(task_rtcp_ptr->taskId, SIGALRM);
         }
     }
     return (_VC_OK);
