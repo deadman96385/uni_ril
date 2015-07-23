@@ -1,6 +1,13 @@
 #ifndef __UI_H__
 #define __UI_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+#include "./minui/minui.h"
+#include "./res/string_cn.h"
+
 #define NO_ACTION           -1
 #define HIGHLIGHT_UP        -2
 #define HIGHLIGHT_DOWN      -3
@@ -37,6 +44,10 @@ void ui_set_color(int cl);
 void ui_draw_line(int x1,int y1,int x2,int y2);
 void ui_draw_line_mid(int x1,int y1,int x2,int y2);
 void ui_push_result(int result);
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
 
 #endif
 

@@ -111,6 +111,41 @@ void key_init(void)
     pthread_create(&t, NULL, input_thread, NULL);
 }
 
+int key_pass_or_fail(int key)
+{
+	if(key == 114)
+		return RL_PASS;
+	else if (key == 116)
+		return RL_FAIL;
+	else
+		return RL_NA;
+}
+
+int pass_or_fail(void)
+{
+	int key = -1;
+	key = ui_wait_key_simp();
+	return key_pass_or_fail(key);
+}
+
+int ui_wait_key_simp(void)
+{
+	struct timespec ntime;
+	ntime.tv_sec = time(NULL)+ 10;
+	ntime.tv_nsec = 0;
+
+	return ui_wait_key(&ntime);
+}
+
+int ui_wait_key_sec(int second)
+{
+	struct timespec ntime;
+	ntime.tv_sec = time(NULL)+ second;
+	ntime.tv_nsec = 0;
+
+	return ui_wait_key(&ntime);
+}
+
 int ui_wait_key(struct timespec *ntime)
 {
     int ret=0;

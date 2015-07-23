@@ -182,7 +182,7 @@ int set_light(int idx, int brightness)
 		system("echo 0  > sys/class/leds/keyboard-backlight/brightness");
         WRNMSG("####LIGHT_INDEX_BACKLIGHT off led");
 	}else if(idx == LIGHT_INDEX_BUTTONS){
-		system("echo 0  > sys/class/backlight/sprd_backlight/brightness");
+		//system("echo 0  > sys/class/backlight/sprd_backlight/brightness");
         WRNMSG("####LIGHT_INDEX_BUTTONS off lcd");
 	}
 

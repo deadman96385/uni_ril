@@ -45,6 +45,7 @@
 
 
 #define MENU_TEST_KEY				"- 按键"
+#define MENU_TEST_KEYBL				"- 按键灯"
 #define MENU_TEST_LCD				"- 屏幕"
 #define MENU_TEST_VIBRATOR			"- 震动"
 #define MENU_TEST_BACKLIGHT			"- 背光"
@@ -96,6 +97,7 @@
 #define TEXT_SIM2				"检测SIM卡2"
 #define TEXT_PASS				"成功"
 #define TEXT_FAIL				"失败"
+#define TEXT_AGAIN				"重试"
 #define TEXT_GOBACK				"返回"
 #define TEXT_NA					"未测"
 #define TEXT_NS                 "不支持"
@@ -115,6 +117,9 @@
 
 #define TEXT_VIB_START				"震动开始"
 #define TEXT_VIB_FINISH				"震动结束"
+
+#define TEXT_KEYBL_ILLUSTRATE		"请观察按键灯是否闪烁！"
+#define TEXT_KEYBL_OVER             "闪烁结束！！"
 
 #define TEXT_BL_ILLUSTRATE			"请观察背光亮度是否变化！"
 #define TEXT_BL_OVER                "亮度变化结束！！"

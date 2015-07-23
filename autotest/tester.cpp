@@ -27,6 +27,7 @@
 #include "vibrator.h"
 #include "wifi.h"
 #include "key_common.h"
+#include "ui.h"
 
 #include <signal.h>
 #include <cutils/properties.h>
@@ -905,6 +906,120 @@ int testAudioOUT(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     return ret;
 }
 
+/*
+*skd test keybaklight
+*/
+int testKeyBL(void)
+{
+	int timeout = 2;// second.
+	int key = -1;
+	int ret = 0;
+	int row = 3;
+
+	test_result_init();
+
+	ui_fill_locked();
+	ui_show_title(MENU_TEST_KEYBL);
+	ui_set_color(CL_WHITE);
+	row = ui_show_text(row, 0, TEXT_KEYBL_ILLUSTRATE);
+	gr_flip();
+
+	lightOpen();
+	lightSetKeypad(255);
+	usleep(200*1000);
+	lightSetKeypad(0);
+	usleep(200*1000);
+	lightSetKeypad(255);
+	usleep(200*1000);
+	lightSetKeypad(0);
+
+	ui_set_color(CL_WHITE);
+	row = ui_show_text(row, 0, TEXT_KEYBL_OVER);
+	gr_flip();
+	ui_clear_key_queue();
+	key = ui_wait_key_simp();
+	INFMSG("keybacklight test, key = %d\n", key);
+	
+	if(key == 114) {
+		ui_set_color(CL_GREEN);
+		row = ui_show_text(row, 0, TEXT_PASS);
+		gr_flip();
+		ret = RL_PASS;
+	} else if (key == 116) {
+		ui_set_color(CL_RED);
+		row = ui_show_text(row, 0, TEXT_FAIL);
+		gr_flip();
+		ret = RL_FAIL;
+	} else {
+		ui_set_color(CL_BLUE);
+		row = ui_show_text(row, 0, TEXT_AGAIN);
+		gr_flip();
+		ret = RL_NA;
+	}
+	return ret;
+}
+
+/*
+*skd test vibrator
+*/
+int testVIB(void)
+{
+	int timeout = 2;// second.
+	int key = -1;
+	int ret = 0;
+	int row = 3;
+	int ms = 100;
+
+	test_result_init();
+
+	ui_fill_locked();
+	ui_show_title(MENU_TEST_VIBRATOR);
+	ui_set_color(CL_WHITE);
+	row = ui_show_text(row, 0, TEXT_VIB_START);
+	gr_flip();
+
+	vibOpen();
+	vibTurnOn(timeout);
+	usleep(ms*1000);
+	vibTurnOff();
+	usleep(ms*1000);
+	vibTurnOn(timeout);
+	usleep(ms*1000);
+	vibTurnOff();
+	usleep(ms*1000);
+	vibTurnOn(timeout);
+	usleep(ms*1000);
+	vibTurnOff();
+	vibClose();
+
+	ui_set_color(CL_GREEN);
+	row = ui_show_text(row, 0, TEXT_VIB_FINISH);
+	row = ui_show_text(row, 0, TEXT_FINISH);
+	gr_flip();
+
+	ui_clear_key_queue();
+	key = ui_wait_key_simp();
+	INFMSG("vibrator test, key = %d\n", key);
+
+	if(key == 114) {
+		ui_set_color(CL_GREEN);
+		row = ui_show_text(row, 0, TEXT_PASS);
+		gr_flip();
+		ret = RL_PASS;
+	} else if (key == 116) {
+		ui_set_color(CL_RED);
+		row = ui_show_text(row, 0, TEXT_FAIL);
+		gr_flip();
+		ret = RL_FAIL;
+	} else {
+		ui_set_color(CL_BLUE);
+		row = ui_show_text(row, 0, TEXT_AGAIN);
+		gr_flip();
+		ret = RL_NA;
+	}
+	return ret;
+}
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 // lcd backlight, keypad backlight, vibrator, flashlight
@@ -980,6 +1095,18 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 				break;
 			default:
 				break;
+
+			case 0x03: //skd vibrator
+			{
+				ret = testVIB();
+			}
+			break;
+
+			case 0x01: //skd keybacklight
+			{
+				ret = testKeyBL();
+			}
+			break;
 		}
 	}
 		break;
