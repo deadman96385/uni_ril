@@ -2088,11 +2088,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
                 putPDP(i);
             }
         }
-        if (!strcmp(s_modem, "l") && isSvLte()) {
+        if (isLte()) {
             pthread_mutex_lock(&s_lte_attach_mutex);
             sLteRegState = STATE_OUT_OF_SERVICE;
             pthread_mutex_unlock(&s_lte_attach_mutex);
-            RILLOGD("set sLteRegState: OUT OF SERVICE.");
+            RILLOGD("requestRadioPower set sLteRegState: OUT OF SERVICE.");
         }
         setRadioState(channelID, RADIO_STATE_OFF);
     } else if (onOff > 0 && sState == RADIO_STATE_OFF) {
@@ -2785,6 +2785,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                                 putPDP(cid-1);
                                 putPDP(getExtraPDPNum(cid-1));
                                 RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                             } else {
                                 RIL_onRequestComplete(*t, RIL_E_SUCCESS,
                                     newResponses,
@@ -2796,6 +2797,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                                 putPDP(cid-1);
                                 putPDP(getExtraPDPNum(cid-1));
                                 RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                             } else {
                                 RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
                                     sizeof(RIL_Data_Call_Response_v11));
@@ -2833,6 +2835,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
             }
             if(i >= 3) {
                 RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                 return;
             }
         }
@@ -3579,9 +3582,10 @@ retrycgatt:
                             }
 
                             index = getPDPByIndex(getExtraPDPNum(index));
-                            if (index < 0 || pdp[index].cid >= 0)
+                            if (index < 0 || pdp[index].cid >= 0){
+                                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                                 goto error;
-
+                            }
                             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d",
                                     index + 1);
                             at_send_command(ATch_type[channelID], cmd, NULL);
@@ -4765,6 +4769,7 @@ static void requestRegistrationState(int channelID, int request, void *data,
     int commas;
     int skip;
     int i;
+    bool islte = isLte();
 
 
     if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
@@ -4912,10 +4917,26 @@ static void requestRegistrationState(int channelID, int request, void *data,
         sprintf(res[3], "%d", response[3]);
         responseStr[3] = res[3];
     }
-    if((response[0] == 1|| response[0] == 5) && response[3] == 14){
-        in4G = 1;
-    }else if(request == RIL_REQUEST_DATA_REGISTRATION_STATE){
-        in4G = 0;
+    if(islte && request == RIL_REQUEST_DATA_REGISTRATION_STATE){
+        if(response[0] == 1 || response[0] == 5){
+            pthread_mutex_lock(&s_lte_attach_mutex);
+            if (sLteRegState == STATE_OUT_OF_SERVICE) {
+                sLteRegState = STATE_IN_SERVICE;
+            }
+            pthread_mutex_unlock(&s_lte_attach_mutex);
+            if(response[3] == 14){
+                in4G = 1;
+            }else{
+                in4G = 0;
+            }
+        }else {
+            pthread_mutex_lock(&s_lte_attach_mutex);
+            if (sLteRegState == STATE_IN_SERVICE) {
+                sLteRegState = STATE_OUT_OF_SERVICE;
+            }
+            pthread_mutex_unlock(&s_lte_attach_mutex);
+            in4G = 0;
+        }
     }
 
     if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
@@ -8403,7 +8424,17 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         requestSendIMSSMS(channelID, data, datalen, t);
         break;
         case RIL_REQUEST_SETUP_DATA_CALL:
-            requestSetupDataCall(channelID, data, datalen, t);
+            if(isLte()){
+                RILLOGD("RIL_REQUEST_SETUP_DATA_CALL testmode= %d, sLteRegState = %d", s_testmode, sLteRegState);
+                if(s_testmode == 10 || sLteRegState == STATE_IN_SERVICE){
+                    requestSetupDataCall(channelID, data, datalen, t);
+                }else{
+                    s_lastPdpFailCause = PDP_FAIL_SERVICE_OPTION_NOT_SUPPORTED;
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            }else{
+                requestSetupDataCall(channelID, data, datalen, t);
+            }
             break;
         case RIL_REQUEST_DEACTIVATE_DATA_CALL:
             deactivateDataConnection(channelID, data, datalen, t);
@@ -11125,6 +11156,12 @@ static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t)
         if (s_testmode != 10) {
             at_send_command(ATch_type[channelID], "AT+CLSSPDT = 1", NULL);
         }
+        pthread_mutex_lock(&s_lte_attach_mutex);
+        if(sLteRegState == STATE_IN_SERVICE){
+            sLteRegState = STATE_OUT_OF_SERVICE;
+        }
+        pthread_mutex_unlock(&s_lte_attach_mutex);
+        RILLOGD("detachGPRS set sLteRegState: OUT OF SERVICE.");
     }else{
         err = at_send_command(ATch_type[channelID], "AT+SGFD", &p_response);
     }
