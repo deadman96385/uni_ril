@@ -190,6 +190,7 @@ static void _VC_notifyAppWhenStreamChange(
         if (!stream_ptr->dec.decRunning) {
             /* Dec is currently NOT running. */
             stream_ptr->dec.decRunning = 1;
+            JBV_init(&stream_ptr->dec.jbObj);
             /* start the rtp receive task. */
             _VC_startRtpRecvTask(stream_ptr);
             /* Notify App to Start Dec. */
@@ -214,6 +215,7 @@ static void _VC_notifyAppWhenStreamChange(
         if (!stream_ptr->dec.decRunning) {
             /* Dec is currently NOT running. */
             stream_ptr->dec.decRunning = 1;
+            JBV_init(&stream_ptr->dec.jbObj);
             /* start the rtp receive task. */
             _VC_startRtpRecvTask(stream_ptr);
             /* Notify App to Start Dec. */

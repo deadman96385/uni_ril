@@ -121,7 +121,7 @@ static void _JBV_putPkt(
         obj_ptr->tsLast90K = pkt_ptr->tsOrig;
         obj_ptr->ready     = 1;
 
-        JBV_dbgLog("not ready -> ready seqn:%u Ts:%llu",
+        OSAL_logMsg("not ready -> ready seqn:%u Ts:%llu",
                 pkt_ptr->seqn, obj_ptr->firstUnNormTs);
     }
 
@@ -160,7 +160,7 @@ static void _JBV_putPkt(
         /* Cache the first packet time stamp for Frame period calculation. */
         if (updateFirstTs) {
             obj_ptr->firstTs  = unit_ptr->ts;
-            JBV_dbgLog("cache first seqn:%u first Ts:%llu",
+            OSAL_logMsg("cache first seqn:%u first Ts:%llu",
                     pkt_ptr->seqn, obj_ptr->firstTs);
         }
 
@@ -571,7 +571,7 @@ int JBV_init(
         mJBVMutex = OSAL_semCountCreate(1);
     }
 
-    JBV_wrnLog("accmRate:%d, initLevel:%llu, eMscPrvt:%d\n",
+    OSAL_logMsg("accmRate:%d, initLevel:%llu, eMscPrvt:%d\n",
             obj_ptr->accmRate, obj_ptr->initLevel, obj_ptr->eMscPrvt);
 
     return (0);
