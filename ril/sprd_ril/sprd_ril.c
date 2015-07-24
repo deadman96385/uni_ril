@@ -11875,8 +11875,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             /*as end_status 21 means: pdp reject by network so we not do onDataCallListChanged*/
             if(end_status != 29 && end_status != 21) {
                 if(end_status == 104){
-
-                    RIL_requestTimedCallback (onDataCallListChanged, &cid, NULL);
+                    if(cid > 0 && cid <= MAX_PDP && pdp[cid-1].state == PDP_BUSY){
+                        RIL_requestTimedCallback (onDataCallListChanged, &cid, NULL);
+                    }
                 }else{
                     RIL_requestTimedCallback (onDataCallListChanged, NULL, NULL);
                 }
