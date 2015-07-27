@@ -2088,7 +2088,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
                 putPDP(i);
             }
         }
-        if (isLte()) {
+        if (!strcmp(s_modem, "l") && isSvLte()) {
             pthread_mutex_lock(&s_lte_attach_mutex);
             sLteRegState = STATE_OUT_OF_SERVICE;
             pthread_mutex_unlock(&s_lte_attach_mutex);
@@ -11156,12 +11156,6 @@ static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t)
         if (s_testmode != 10) {
             at_send_command(ATch_type[channelID], "AT+CLSSPDT = 1", NULL);
         }
-        pthread_mutex_lock(&s_lte_attach_mutex);
-        if(sLteRegState == STATE_IN_SERVICE){
-            sLteRegState = STATE_OUT_OF_SERVICE;
-        }
-        pthread_mutex_unlock(&s_lte_attach_mutex);
-        RILLOGD("detachGPRS set sLteRegState: OUT OF SERVICE.");
     }else{
         err = at_send_command(ATch_type[channelID], "AT+SGFD", &p_response);
     }
