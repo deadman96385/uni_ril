@@ -5,6 +5,16 @@
 //
 #include <stdlib.h>
 
+
+//------------------------------------------------------------------------------
+// enable or disable local debug
+#define DBG_ENABLE_DBGMSG
+#define DBG_ENABLE_WRNMSG
+#define DBG_ENABLE_ERRMSG
+#define DBG_ENABLE_INFMSG
+#define DBG_ENABLE_FUNINF
+#include "debug.h"
+//------------------------------------------------------------------------------
 #include "type.h"
 #include "audio.h"
 #include "battery.h"
@@ -59,12 +69,26 @@ extern "C"
 extern void test_result_init(void);
 extern int test_lcd_start(void);
 extern void test_lcd_uinit(void);
+extern int test_gsensor_start(void);
+extern int test_lsensor_start(void);
 }
+
+
+enum  READ_ITEM_RESULT{
+    READ_ITEM_NONE = 0,
+    READ_ITEM_GSENSOR = 0x1c,
+    READ_ITEM_LSENSOR = 0x20,
+
+};
+
 volatile unsigned char skd_lcd = 0x02;//0: pass 1: fail
 volatile unsigned char skd_backlight = 0x02;//0: pass 1: fail
 volatile unsigned char skd_fcamare = 0x02;//0: pass 1: fail
 volatile unsigned char skd_bcamare = 0x02;//0: pass 1: fail
 volatile unsigned char skd_flash_r = 0x02;//0: pass 1: fail
+volatile unsigned char skd_gsensor_result = RESULT_FAIL;
+volatile unsigned char skd_lsensor_result = RESULT_FAIL;
+
 static const char *variant_keys[] = {
     "ro.hardware",  /* This goes first so that it can pick up a different file on the emulator. */
     "ro.product.board",
@@ -531,6 +555,15 @@ int skd_test_result(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 		INFMSG("case 9 rsp no stick to 0x%0x !\n", skd_flash_r);
 		rsp[0]= skd_flash_r;
 		break;
+
+	case READ_ITEM_GSENSOR:
+		rsp[0]= skd_gsensor_result;
+		break;
+		
+	case READ_ITEM_LSENSOR:
+		rsp[0]= skd_lsensor_result;
+		break;
+		
 	default:
 		INFMSG("data[0] = 0x%x no stick to!\n", *data);
 		break;
@@ -1561,19 +1594,50 @@ int testCharger(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 int testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_size)
 {
 	int ret = 0;
+	unsigned int item_result=RESULT_FAIL;
+	static unsigned int   isEntry=0;
 
-    FUN_ENTER;
-    INFMSG("data[0] = %d\n", *data);
+	 FUN_ENTER;	
+	 INFMSG(" deta[0] = 0x%02x\n", *data); 
 
-	ret = 1;
-	if( sensorOpen() >= 0 && sensorActivate(data[0]) >= 0 ) {
-		rsp[0] = 0x00;
-	} else {
-		rsp[0] = 0x01;
+	 LOGD("entry isEntry=%d....\n",isEntry); //CANNOT ENTRY AUTO TESTMODE("autotest path check fail") if uese LOGI
+  
+	 if(!isEntry){
+		test_result_init();
+		isEntry=1;
+	 }
+
+	 switch (data[0]) {
+
+		case 0x20:
+
+			switch (data[1]) {
+					 LOGD("yuebao ==%s= data[1]=0x%02x\n",__FUNCTION__,data[1]);
+					case ITEM_GSENSOR:
+						  INFMSG("entry Gsenor test....\n");
+			       		  item_result = skd_gsensor_result = test_gsensor_start();	
+						break;
+					
+					case ITEM_LSENSOR:
+						  INFMSG("entry Lsenor test....\n");			
+			       		  item_result = skd_lsensor_result = test_lsensor_start();			
+						break;	
+						
+					default:
+						break;
+				}
+
 	}
-
-	sensorClose();
-
+	
+	if( RESULT_PASS==item_result){
+		 INFMSG("  %s test  PASS\n",__FUNCTION__);	
+		rsp[0] = 0x00;
+			
+	} else {
+		 INFMSG("%s   test  FAIL\n",__FUNCTION__);
+		rsp[0] = 0x01;
+				
+	}
     FUN_EXIT;
     return ret;
 }

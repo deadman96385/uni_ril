@@ -43,8 +43,8 @@ enum {
 void ui_set_background(int icon);
 
 
-#undef LOG_TAG
-#define LOG_TAG  "FACTORY"
+//#undef LOG_TAG
+//#define LOG_TAG  "FACTORY"
 #if 0
 #define LOGE(...) fprintf(stderr, "E:" __VA_ARGS__)
 #define LOGD(...) fprintf(stderr, "D:" __VA_ARGS__)

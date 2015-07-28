@@ -48,6 +48,9 @@ LOCAL_SRC_FILES:= \
     mipi_lcd.c   \
 	key_common.cpp	\
 	events.c	\
+    gsensor.c   \
+    lsensor.c   \
+    testcomm.c  \
     main.cpp   
 
 
