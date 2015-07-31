@@ -236,6 +236,9 @@
     ,{RIL_REQUEST_VOLTE_SET_CONFERENCE_URI, dispatchString, responseVoid}
     ,{RIL_REQUEST_ENABLE_BROADCAST_SMS, dispatchInts, responseVoid}
     ,{RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER, dispatchStrings, responseInts}
+    ,{RIL_REQUEST_GET_SIM_LOCK_INFORMATION, dispatchInts, responseInts}
+    ,{RIL_REQUEST_GET_SIM_LOCK_WHITE_LIST, dispatchInts, responseString}
+    ,{RIL_REQUEST_GET_SIM_LOCK_DUMMYS, dispatchVoid, responseInts}
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_REQUEST_SET_CELL_BROADCAST_CONFIG, dispatchSetCBConf, responseVoid}
