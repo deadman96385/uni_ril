@@ -8197,6 +8197,15 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER:
             requestFacilityLockByUser(channelID, data, datalen, t);
             break;
+        case RIL_REQUEST_GET_SIM_LOCK_INFORMATION:
+            requestGetSimLockInfors(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_GET_SIM_LOCK_WHITE_LIST:
+            requestGetSimLockWhiteList(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_GET_SIM_LOCK_DUMMYS:
+            requestGetSimLockDummys(channelID, t);
+            break;
         case RIL_REQUEST_CHANGE_BARRING_PASSWORD:
             requestChangeFacilityLock(channelID, data, datalen, t);
             break;
