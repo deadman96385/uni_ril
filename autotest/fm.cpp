@@ -168,6 +168,26 @@ int fmClose( void )
 	return 0;
 }
 
+int fmCheckStatus(uchar *fm_status )
+{
+    if( NULL == s_hwDev ) {
+	    ERRMSG("not opened!\n");
+	    return -1;
+    }
+	
+	int ret = s_hwDev->setControl(s_hwDev, V4L2_CID_PRIVATE_TAVARUA_STATE, 1);
+	//DBGMSG("setControl:  TAVARUA = %d\n", ret);
+	usleep(20 * 1000);
+
+	ret = s_hwDev->checkStatus(s_hwDev, fm_status);
+	
+    if( ret < 0 ) {
+        ERRMSG("ioctl error: %s\n", strerror(errno));
+        return ret;
+    }
+	return 0;
+}
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 

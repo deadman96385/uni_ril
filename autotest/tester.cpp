@@ -111,6 +111,7 @@ enum auto_test_calibration_cmd_id {
 	int maincmd=0;
 	int image_width=640 ;
 	int image_height=480;
+	unsigned char skd_fm_status_r = 0x00;
 	
 	typedef int32_t (*at_set_testmode)(int camerinterface,int maincmd ,int subcmd,int cameraid,int width,int height);
 	typedef int (*at_cam_from_buf)(void**pp_image_addr,int size,int *out_size);
@@ -995,6 +996,17 @@ int testFM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
         fmStop();
 		fmClose();
         break;
+    case 0x20:
+    {
+    	 uint freq = ((data[1] << 16) | (data[2] << 8) | (data[3] << 0));
+    	  if( fmOpen() < 0 || fmPlay(freq) < 0 ) {
+    	  	ret = -1;
+    	  }
+    	  fmCheckStatus(&skd_fm_status_r);
+    	  fmStop();
+    	  fmClose();
+    }  
+    	break;  
     default:
         break;
     }

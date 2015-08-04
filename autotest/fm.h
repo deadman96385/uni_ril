@@ -21,6 +21,8 @@ int fmStop( void );
 
 int fmClose( void );
 
+int fmCheckStatus(uchar *fm_status );
+
 //-----------------------------------------------------------------------------
 //--};
 #ifdef __cplusplus
