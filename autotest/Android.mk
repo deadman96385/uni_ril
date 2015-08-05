@@ -45,6 +45,8 @@ LOCAL_SRC_FILES:= \
     power.cpp       \
     ui.c  \
     mipi_lcd.c   \
+	key_common.cpp	\
+	events.c	\
     main.cpp   
 
 

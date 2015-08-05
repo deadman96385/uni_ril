@@ -26,6 +26,7 @@
 #include "ver.h"
 #include "vibrator.h"
 #include "wifi.h"
+#include "key_common.h"
 
 #include <signal.h>
 #include <cutils/properties.h>
@@ -341,6 +342,8 @@ int test_Init( void )
 	testRegisterFun(DIAG_CMD_GPS,       testGps);
 
 	drvOpen();
+
+	key_init();
 
     FUN_EXIT;
     return 0;

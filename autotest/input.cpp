@@ -9,9 +9,13 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <time.h>
+
 
 #include "type.h"
 #include "input.h"
+#include "key_common.h"
 #include "driver.h"
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -49,6 +53,7 @@ static int             s_fdKPD_volume   = -1;
 static int             s_fdTP    = -1;
 static volatile int    sRunning  = 0;
 static int             s_tsharkpad  = 0;
+static int             kpd_is_open  = 0;
 
 static pthread_mutex_t sMutxExit = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  sCondExit = PTHREAD_COND_INITIALIZER;
@@ -60,7 +65,7 @@ static int             pollInputDev( int fd[], int n, int timeout);
 static void          * inputThread( void *param );
 //------------------------------------------------------------------------------
 
-int inputOpen( void )
+int inputOpen2( void )
 {   
     AT_ASSERT( -1 == s_fdKPD_power );
     if(!s_tsharkpad)
@@ -109,7 +114,7 @@ int inputOpen( void )
     return 0;
 }
 
-int inputKPDGetKeyInfo( struct kpd_info_t * info )
+int inputKPDGetKeyInfo2( struct kpd_info_t * info )
 {
 	AT_ASSERT( NULL != info );
 	
@@ -117,7 +122,49 @@ int inputKPDGetKeyInfo( struct kpd_info_t * info )
 	return sKeyInfo.key;
 }
 
+int inputOpen( void )
+{
+	drvOpen();
+	ui_clear_key_queue();
+	kpd_is_open = 1;
+	return 1;
+}
+
+int inputClose( void )
+{
+	drvClose();
+	kpd_is_open = 0;
+	return 1;
+}
+
+int inputKPDGetKeyInfo( struct kpd_info_t * info )
+{
+	AT_ASSERT( NULL != info );
+	return inputKPDWaitKeyPress(info, 0);
+}
+
 int inputKPDWaitKeyPress( struct kpd_info_t * info, int timeout )
+{
+    struct timespec ntime;//+++++++++++++++++++++
+    ntime.tv_sec = time(NULL)+ timeout;//KEY_TIMEOUT;//+++++++++
+    ntime.tv_nsec = 0;//++++++++
+
+	if (kpd_is_open) {
+		info->key = ui_wait_key(&ntime);//(&ntime);NULL
+		drvGetKpdInfo(info->key, &(info->row), &(info->col), &(info->gio));
+	} else {
+		info->key = -1;
+		info->row = 0xFFFF;
+		info->col = 0xFFFF;
+		info->gio = 0;
+	}
+	INFMSG("key=%d, row = %d, col = %d, gio = %d\n", 
+		info->key, info->row, info->col, info->gio);
+
+	return info->key;
+}
+
+int inputKPDWaitKeyPress2( struct kpd_info_t * info, int timeout )
 {
     struct input_event iev_power[64],iev_volume[64];
     int fd[IN_FILES]={-1};
@@ -233,7 +280,7 @@ int inputTPGetPoint( int *x, int *y, int timeout )
     return ret;
 }
 
-int inputClose( void )
+int inputClose2( void )
 {
     FUN_ENTER;
     

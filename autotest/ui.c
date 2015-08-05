@@ -54,12 +54,6 @@ static int show_text = 0;
 
 
 
-// Key event input queue
-static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t key_queue_cond = PTHREAD_COND_INITIALIZER;
-static int key_queue[256], key_queue_len = 0;
-static volatile char key_pressed[KEY_MAX + 1];
-
 static int _utf8_strlen(const char* str);
 static int _utf8_to_clen(const char* str, int len);
 
@@ -102,75 +96,9 @@ static void update_progress_locked(void)
 }
 
 
-extern void touch_handle_input(int, struct input_event*);
-// Reads input events, handles special hot keys, and adds to the key queue.
-static void *input_thread(void *cookie)
-{
-    int rel_sum = 0;
-    int fake_key = 0;
-	int fd = -1;
-    for (;;) {
-        // wait for the next key event
-        struct input_event ev;
-        do {
-            fd = ev_get(&ev, 0);
-			LOGD("eventtype %d,eventcode %d,eventvalue %d",ev.type,ev.code,ev.value);
-			if(fd != -1) {
-				touch_handle_input(fd, &ev);
-			}
-            LOGD("eventtype %d,eventcode %d,eventvalue %d",ev.type,ev.code,ev.value);
-            if (ev.type == EV_SYN) {
-                continue;
-            } else if (ev.type == EV_REL) {
-                if (ev.code == REL_Y) {
-                    // accumulate the up or down motion reported by
-                    // the trackball.  When it exceeds a threshold
-                    // (positive or negative), fake an up/down
-                    // key event.
-                    rel_sum += ev.value;
-                    if (rel_sum > 3) {
-                        fake_key = 1;
-                        ev.type = EV_KEY;
-                        ev.code = KEY_DOWN;
-                        ev.value = 1;
-                        rel_sum = 0;
-                    } else if (rel_sum < -3) {
-                        fake_key = 1;
-                        ev.type = EV_KEY;
-                        ev.code = KEY_UP;
-                        ev.value = 1;
-                        rel_sum = 0;
-                    }
-                }
-            } else {
-                rel_sum = 0;
-            }
-        }
-		while (ev.type != EV_KEY || ev.code > KEY_MAX);
-        pthread_mutex_lock(&key_queue_mutex);
-        if (!fake_key) {
-            // our "fake" keys only report a key-down event (no
-            // key-up), so don't record them in the key_pressed
-            // table.
-            key_pressed[ev.code] = ev.value;
-			LOGD("%s: %d\n",__FUNCTION__, ev.value);
-        }
-        fake_key = 0;
-        const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
-        if (ev.value > 0 && key_queue_len < queue_max) {
-            key_queue[key_queue_len++] = ev.code;
-            pthread_cond_signal(&key_queue_cond);
-        }
-        pthread_mutex_unlock(&key_queue_mutex);
-
-    }
-    return NULL;
-}
-
 void ui_init(void)
 {
     gr_init();
-    ev_init();
     text_col = text_row = 0;
     text_rows = gr_fb_height() / CHAR_HEIGHT;
 	LOGD("mmitest fb_h=%d, rows=%d\n", gr_fb_height(), text_rows);
@@ -235,61 +163,6 @@ int ui_text_visible()
     LOGD("ui_text_visible %d\n",visible);
     return visible;
 }
-
-int ui_wait_key(struct timespec *ntime)
-{
-    int ret=0;
-    int key=-1;
-
-    pthread_mutex_lock(&key_queue_mutex);
-    while (key_queue_len == 0) {
-	ret=pthread_cond_timedwait(&key_queue_cond, &key_queue_mutex,ntime);
-	if(ret == ETIMEDOUT)
-            break;
-    }
-
-    if(0 == ret){
-	key = key_queue[0];
-	memcpy(&key_queue[0], &key_queue[1], sizeof(int) * --key_queue_len);
-    }else
-	key=ret;
-    pthread_mutex_unlock(&key_queue_mutex);
-    LOGD("[%s]: key=%d\n", __FUNCTION__, key);
-    return key;
-}
-
-int ui_key_pressed(int key)
-{
-    // This is a volatile static array, don't bother locking
-    return key_pressed[key];
-}
-
-void ui_clear_key_queue()
-{
-    pthread_mutex_lock(&key_queue_mutex);
-    key_queue_len = 0;
-    pthread_mutex_unlock(&key_queue_mutex);
-}
-
-int device_handle_key(int key_code, int visible)
-{
-	if (visible) {
-		switch (key_code) {
-			case KEY_VOLUMEDOWN:
-				return HIGHLIGHT_DOWN;
-			case KEY_VOLUMEUP:
-				return SELECT_ITEM;
-			case KEY_POWER:
-				return GO_BACK;
-			default:
-				return NO_ACTION;
-
-		}
-	}
-
-	return NO_ACTION;
-}
-
 
 void ui_show_title(const char* title)
 {

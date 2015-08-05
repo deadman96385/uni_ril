@@ -21,11 +21,7 @@
 #include <sys/poll.h>
 
 #include <linux/input.h>
-
-#include "minui.h"
-
-
-
+#include "debug.h"
 
 #define MAX_DEVICES 16
 
