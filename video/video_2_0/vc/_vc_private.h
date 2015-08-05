@@ -25,9 +25,9 @@
 
 /* Task related settings. */
 
-#define VC_VTSP_INFC_TASK_NAME     "Vc-Vtsp-Cmd"
-#define VC_RTP_INFC_TASK_NAME      "Vc-Rtp"
-#define VC_RTCP_INFC_TASK_NAME     "Vc-Rtcp"
+#define VC_VTSP_INFC_TASK_NAME     "VES_vtspCmd"
+#define VC_RTP_INFC_TASK_NAME      "VES_rtp"
+#define VC_RTCP_INFC_TASK_NAME     "VES_rtcp"
 
 
 #define BUFFER_FLAG_SYNC_FRAME      (1)

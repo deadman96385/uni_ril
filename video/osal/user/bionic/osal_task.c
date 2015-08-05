@@ -126,6 +126,7 @@ OSAL_TaskId OSAL_taskCreate(
         return(NULL);
     }
     else {
+        pthread_setname_np(tid_ptr->tId, tid_ptr->name);
         sched_yield();
     }
 
