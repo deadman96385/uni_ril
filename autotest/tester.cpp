@@ -56,7 +56,11 @@ extern "C"
 {
 extern void test_result_init(void);
 extern int test_lcd_start(void);
+extern void test_lcd_uinit(void);
 }
+volatile unsigned char skd_lcd = 0x02;//0: pass 1: fail
+volatile unsigned char skd_backlight = 0x02;//0: pass 1: fail
+
 static const char *variant_keys[] = {
     "ro.hardware",  /* This goes first so that it can pick up a different file on the emulator. */
     "ro.product.board",
@@ -264,6 +268,8 @@ static int    testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_s
 static int    testGps(const uchar * data, int data_len, uchar *rsp, int rsp_size);
 static int    testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size);
 
+static void skdLcdTest(volatile unsigned char* ret_val);
+static void skdBacklightTest(volatile unsigned char* ret_val);
 //------------------------------------------------------------------------------
 static PFUN_TEST       sTestFuns[DIAG_CMD_MAX];
 
@@ -500,9 +506,8 @@ int testLCD(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 		ret = -1;
         drvClose();
     } else if( 0x20 == *data ) {
-		test_result_init();
-		test_lcd_start();
-    } else {
+        skdLcdTest(&skd_lcd);
+	} else {
         ret = -1;
     }
 
@@ -965,6 +970,19 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 		}
 	}
 		break;
+	case 0x20:
+	{
+ 		switch(data[1]){
+			case 0x00:
+			{
+				skdBacklightTest(&skd_backlight);
+			}
+				break;
+			default:
+				break;
+		}
+	}
+		break;
     default:
         break;
     }
@@ -1314,3 +1332,79 @@ int test_Deinit( void )
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--} // namespace
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void skdLcdTest(volatile unsigned char* ret_val)
+{
+
+	uchar btn_save=0x00;
+	bool inputRunning = true;
+
+	test_result_init();
+	test_lcd_start();
+
+	if(inputOpen()<0)
+	{
+		INFMSG("skdLcdTest, input fail !!\n");
+	}
+	struct kpd_info_t kpdinfo;
+	while(inputRunning){
+		if( inputKPDWaitKeyPress(&kpdinfo, 5*1000) < 0) {
+			INFMSG("testLcd kpdinfo.key read fail");
+			continue;
+		}else{
+			btn_save = ((uchar)(kpdinfo.key & 0xFF));
+			if( btn_save==0x72 ){
+				INFMSG("testLcd pressed vol down fail");
+				*ret_val = 0x01;
+				inputRunning = false;
+			}else if( btn_save==0x74 ){
+				INFMSG("testLcd pressed power pass");
+				*ret_val = 0x00;
+				inputRunning = false;
+			}
+		}
+	}
+
+	test_lcd_uinit();
+	INFMSG("testLcd close.........");
+	inputClose();
+}
+void skdBacklightTest(volatile unsigned char* ret_val)
+{
+	int max_brightness = 255;
+	uchar btn_save=0x00;
+	bool inputRunning = true;
+	lightOpen();
+	for(int i = 0; i < 5; i++) {
+		lightSetLCD(max_brightness>>i);
+		usleep(500*1000);
+	}
+	lightSetLCD(max_brightness);
+
+	if(inputOpen()<0)
+	{
+		INFMSG("skdBacklightTest, input fail !!\n");
+	}
+	struct kpd_info_t kpdinfo;
+	while(inputRunning){
+		if( inputKPDWaitKeyPress(&kpdinfo, 5*1000) < 0) {
+			INFMSG("testBacklight kpdinfo.key read fail");
+			continue;
+		}else{
+			btn_save = ((uchar)(kpdinfo.key & 0xFF));
+			if( btn_save==0x72 ){
+				INFMSG("testBacklight pressed vol down fail");
+				*ret_val = 0x01;
+				inputRunning = false;
+			}else if( btn_save==0x74 ){
+				INFMSG("testBacklight pressed power pass");
+				*ret_val = 0x00;
+				inputRunning = false;
+			}
+		}
+	}
+
+	lightSetLCD(127);//default backlight brightness
+	lightClose();
+	INFMSG("testBacklight close.........");
+	inputClose();
+}

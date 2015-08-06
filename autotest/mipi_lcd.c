@@ -22,6 +22,14 @@ void test_result_init(void)
 	ui_set_background(BACKGROUND_ICON_NONE);
 }
 
+void test_lcd_uinit(void)
+{
+    LOGD("test_lcd_uinit\n");
+	ui_set_color(CL_BLACK);
+	gr_fill(0, 0, gr_fb_width(), gr_fb_height());
+	gr_flip();
+	gr_exit();
+}
 int test_lcd_start(void)
 {
 	int ret = 0;
