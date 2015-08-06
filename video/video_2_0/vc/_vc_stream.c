@@ -410,6 +410,7 @@ vint _VC_videoStreamGetDataToDecode(
                 rtcpInfo_ptr = &stream_ptr->dec.jbObj.rtcpInfo;
                 /* Atomic write is allowed */
                 rtcpInfo_ptr->keyFrameRead = OSAL_TRUE;
+                rtcpInfo_ptr->keyFrameDropped = OSAL_FALSE;
             }
             /* Assign the data pointer. */
             *data_ptr = data;

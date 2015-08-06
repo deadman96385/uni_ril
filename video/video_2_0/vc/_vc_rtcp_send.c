@@ -352,6 +352,11 @@ static uint32 _VC_rtcpUtilitProcessJbvRtcpInfo(
     _VC_RtcpFeedback  *rtcpPrivate_ptr;
     vint               pliLoss;
 
+    //get the current time
+    OSAL_SelectTimeval  currentTime;    /* Current time as OSAL Timeval */
+    OSAL_selectGetTime(&currentTime);
+    uint32 currentTimeMs = (currentTime.sec * 1000) + (currentTime.usec / 1000);
+
     /* The feedback mask may get changed in other threads, so make a copy of the current value */
     feedbackMask = rtcp_ptr->configure.rtcpFeedbackSendMask;
     rtcpPrivate_ptr = &rtcp_ptr->feedback;
@@ -367,11 +372,15 @@ static uint32 _VC_rtcpUtilitProcessJbvRtcpInfo(
         /* Each time a new FIR request is sent, the sequence number must be increased by
          * one. However, if this is a retransmission, then the sequence number
          * must NOT be incremented. */
-        if (jbvRtcpInfo_ptr->keyFrameRead) {
+    //check the time has elapsed since the last fir to avoid frequently sending FIR
+        _VC_RTCP_LOG("keyFrameRead=%d, currentTimeMs=%u, lastFirSend=%u\n"
+            , jbvRtcpInfo_ptr->keyFrameRead, currentTimeMs, rtcp_ptr->feedback.lastFirSend);
+        if (jbvRtcpInfo_ptr->keyFrameRead &&
+            ((currentTimeMs - rtcp_ptr->feedback.lastFirSend) < 2000)) {
             /* A completed sync frame was read by the application. This means the application's
              * request to send an FIR should be cancelled. The sequence number should be updated
              * for the next FIR. */
-            rtcp_ptr->feedback.firSeqNumber++;
+            //rtcp_ptr->feedback.firSeqNumber++;
             rtcp_ptr->feedback.firWaiting = OSAL_FALSE;
             feedbackMask &= ~VTSP_MASK_RTCP_FB_FIR;
             CLEAR_FLAG(rtcp_ptr, VTSP_MASK_RTCP_FB_FIR);
@@ -380,6 +389,9 @@ static uint32 _VC_rtcpUtilitProcessJbvRtcpInfo(
             /* A sync frame was dropped to to an error in it's transmission. This
              * means the FIR is no longer a 'retransmission.' Instead, this is
              * a request for a new sync frame. */
+            _VC_RTCP_LOG("key Frame droped, and after that no more key frame has been recv");
+            rtcp_ptr->feedback.firSeqNumber++;
+        } else {
             rtcp_ptr->feedback.firSeqNumber++;
         }
     }
@@ -899,6 +911,13 @@ static vint _VC_rtcpFeedbackFir(
     temp32 |= _VTSP_RTCP_FMT_FIR << 24; /* Feedback Message Type for FIR */
     temp32 |= _VTSP_RTCP_PTYPE_PSFB << 16; /* FIR is Payload Specific FB Message - PSFB */
     temp32 |= 4; /* length = 2 + 2n where n=1 refers to number of FCI entries */
+
+    //save the current time to the lastFirSend as this Fir has been sent out sucessfully
+    OSAL_SelectTimeval  currentTime;  /* Current time as OSAL Timeval */
+    OSAL_selectGetTime(&currentTime);
+    rtcp_ptr->feedback.lastFirSend  = (currentTime.sec * 1000) + (currentTime.usec / 1000);
+    rtcp_ptr->sendFirCount += 1;
+    _VC_RTCP_LOG("RTCP send fir count: %d\n",rtcp_ptr->sendFirCount);
 
     msg_ptr->msg.payload[newoffset++] = OSAL_netHtonl(temp32);
     msg_ptr->msg.payload[newoffset++] = OSAL_netHtonl(rtcp_ptr->ssrc);      /* SSRC of this RTCP packet sender */

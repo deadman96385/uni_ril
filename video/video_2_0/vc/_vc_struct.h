@@ -89,6 +89,8 @@ typedef struct {
     uint8              firSeqNumber;
     /* The time when the most recent FIR that has been acted upon was received. */
     VTSP_NtpTime       lastFir;
+    /* The time when the most recent FIR that has been send out. */
+    uint32 	  lastFirSend;
     /* The time when the most recent PLI that has been acted upon was received. */
     VTSP_NtpTime       lastPli;
 
@@ -139,6 +141,7 @@ typedef struct {
     int32          currentCount;
     int32          sendCountFixed;
     vint           sendPacketCount;
+    vint           sendFirCount;
     vint           rtpSendPacketCount;
     vint           rtpSendOctetCount;
     uint32         enableMask;
