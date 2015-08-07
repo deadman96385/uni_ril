@@ -61,7 +61,9 @@ extern void test_lcd_uinit(void);
 }
 volatile unsigned char skd_lcd = 0x02;//0: pass 1: fail
 volatile unsigned char skd_backlight = 0x02;//0: pass 1: fail
-
+volatile unsigned char skd_fcamare = 0x02;//0: pass 1: fail
+volatile unsigned char skd_bcamare = 0x02;//0: pass 1: fail
+volatile unsigned char skd_flash_r = 0x02;//0: pass 1: fail
 static const char *variant_keys[] = {
     "ro.hardware",  /* This goes first so that it can pick up a different file on the emulator. */
     "ro.product.board",
@@ -121,11 +123,14 @@ enum auto_test_calibration_cmd_id {
 	typedef int32_t (*at_set_testmode)(int camerinterface,int maincmd ,int subcmd,int cameraid,int width,int height);
 	typedef int (*at_cam_from_buf)(void**pp_image_addr,int size,int *out_size);
 	typedef int (*at_close_testmode)(void);
+	typedef int (*pf_eng_tst_camera_init)(int32_t camera_id);
+	typedef void (*pf_eng_tst_camera_deinit)(void);
 
 	at_set_testmode atcamera_set_testmode=NULL;
 	at_cam_from_buf atcamera_get_image_from_buf=NULL;
 	at_close_testmode atcamera_close_testmode=NULL;
-	
+	pf_eng_tst_camera_init eng_tst_camera_init=NULL;
+	pf_eng_tst_camera_deinit eng_tst_camera_deinit=NULL;
 
 
 	int find_cam_lib_path(char*path,int len)
@@ -197,6 +202,25 @@ enum auto_test_calibration_cmd_id {
 	{
 		return -1;
 	}
+
+    eng_tst_camera_init = (pf_eng_tst_camera_init)dlsym(camera_handle,"eng_tst_camera_init" );
+	if(eng_tst_camera_init==NULL)
+	{
+	     return -1;
+	}
+	else
+	{
+		INFMSG("eng_tst_camera_init.");
+	}
+	//deinit camera
+	eng_tst_camera_deinit = (pf_eng_tst_camera_deinit)dlsym(camera_handle,"eng_tst_camera_deinit" );
+	if(eng_tst_camera_init==NULL)
+	{
+		return -1;
+	}else{
+		INFMSG("eng_tst_camera_deinit.");
+	}
+
 	return 0;
     }
 
@@ -271,8 +295,13 @@ static int    testmipiCamParal(const uchar * data, int data_len, uchar * rsp, in
 
 static void skdLcdTest(volatile unsigned char* ret_val);
 static void skdBacklightTest(volatile unsigned char* ret_val);
+static int    skd_testCamParal(const uchar * data, int data_len, uchar *rsp, int rsp_size);
+static int    skd_test_result(const uchar * data, int data_len, uchar *rsp, int rsp_size);
+static void   skdCameraTest(int sensor_id,volatile unsigned char* ret_val);
+static void   skdCameraFlashTest(volatile unsigned char* ret_val);
 //------------------------------------------------------------------------------
 static PFUN_TEST       sTestFuns[DIAG_CMD_MAX];
+static int sensor_id = 0;//0:back ,1:front
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -348,6 +377,7 @@ int test_Init( void )
     testRegisterFun(DIAG_CMD_CHARGE,    testCharger);
 	testRegisterFun(DIAG_CMD_SENSOR,    testSensor);
 	testRegisterFun(DIAG_CMD_GPS,       testGps);
+	testRegisterFun(DIAG_CMD_LCD_SPI, skd_test_result);
 
 	drvOpen();
 
@@ -478,6 +508,34 @@ int testKPD(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     return ret;
 }
 
+int skd_test_result(const uchar * data, int data_len, uchar * rsp, int rsp_size)
+{
+	FUN_ENTER;
+	INFMSG("data[0] = 0x%x\n", *data);
+	int ret = 1;
+
+	switch(data[0])
+	{
+	case 7:
+		INFMSG("case 7 rsp no stick to 0x%0x !\n", skd_fcamare);
+		rsp[0]= skd_fcamare;
+		break;
+	case 8:
+		INFMSG("case 8 rsp no stick to 0x%0x !\n", skd_bcamare);
+		rsp[0]= skd_bcamare;
+		break;
+	case 9:
+		INFMSG("case 9 rsp no stick to 0x%0x !\n", skd_flash_r);
+		rsp[0]= skd_flash_r;
+		break;
+	default:
+		INFMSG("data[0] = 0x%x no stick to!\n", *data);
+		break;
+	}
+
+	return ret;
+
+}
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 int testLCD(const uchar * data, int data_len, uchar * rsp, int rsp_size)
@@ -555,6 +613,109 @@ int testCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     return ret;
 }
 
+int skd_testCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size)
+{
+	int ret = 0;
+	FUN_ENTER;
+	INFMSG("testCamParal  data[0] = %d, sensor_id=%d", *data, rsp_size, sensor_id);
+
+	loadlibrary_camera_so();
+
+	switch( data[0] ) {
+		case 0:
+		INFMSG("testCamParal test camera 0");
+		skdCameraTest(0, &skd_bcamare);
+		break;
+	case 1:
+		INFMSG("testCamParal test camera 1");
+		skdCameraTest(1 ,&skd_fcamare);
+		break;
+	case 2:
+		break;
+	case 3:
+		eng_tst_camera_deinit();//deinit back camera and start preview
+		INFMSG("testCamParal close.........");
+		inputClose();
+		break;
+	default:
+		break;
+	}
+
+	FUN_EXIT;
+	return ret;
+}
+
+void skdCameraTest(int sensor_id,volatile unsigned char* ret_val){
+
+    uchar buttonPressed=0x00;// 0: init state   1: power   2: vol down   3: vol up
+    uchar btn_save=0x00;
+    bool inputRunning = true;
+	if(eng_tst_camera_init(sensor_id))   //init  camera and start preview
+	{
+		INFMSG("testCamParal %s fail to call eng_test_camera_init ", __FUNCTION__);
+	}
+	INFMSG("testCamParal open.........");
+
+    if(inputOpen()<0)
+    {
+        INFMSG("skd_testCamParal, input fail !!\n");
+    }
+	struct kpd_info_t kpdinfo;
+	while(inputRunning){
+		if( inputKPDWaitKeyPress(&kpdinfo, 5*1000) < 0) {
+			INFMSG("testCamParal kpdinfo.key read fail");
+			continue;
+		}else{
+			btn_save = ((uchar)(kpdinfo.key & 0xFF));
+			if( btn_save==0x72 ){
+				INFMSG("testCamParal pressed vol down fail");
+				*ret_val = 0x01;
+				inputRunning = false;
+			}else if( btn_save==0x74 ){
+				INFMSG("testCamParal pressed power  pass");
+				*ret_val = 0x00;
+				inputRunning = false;
+			}
+		}
+	}
+
+	eng_tst_camera_deinit();//deinit camera and start preview
+	INFMSG("testCamParal close.........");
+	inputClose();
+}
+
+void skdCameraFlashTest(volatile unsigned char* ret_val){
+
+    uchar btn_save=0x00;
+    bool inputRunning = true;
+    if(inputOpen()<0)
+    {
+        INFMSG("skd Flash, input fail !!\n");
+    }
+	struct kpd_info_t kpdinfo;
+    flashlightSetValue(17); //open flash
+	while(inputRunning){
+		if( inputKPDWaitKeyPress(&kpdinfo, 5*1000) < 0) {
+			INFMSG("skd Flash kpdinfo.key read fail");
+			continue;
+		}else{
+			btn_save = ((uchar)(kpdinfo.key & 0xFF));
+			if( btn_save==0x72 ){
+				INFMSG("skd Flash pressed vol down fail");
+				*ret_val = 0x01;
+				inputRunning = false;
+			}else if( btn_save==0x74 ){
+				INFMSG("skd Flash pressed power  pass");
+				*ret_val = 0x00;
+				inputRunning = false;
+			}
+		}
+	}
+    flashlightSetValue(16);
+	inputClose();
+}
+
+
 int testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 {
    int ret = 0;
@@ -602,6 +763,10 @@ int testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size
     case 4:
         sensor_id = data[1];
         break;
+	case 0x20:   //for skd camera test
+		data = data +1;
+		ret = skd_testCamParal(data, data_len,rsp, rsp_size);
+		break;
     default:
         break;
     }
@@ -1105,6 +1270,12 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 			case 0x01: //skd keybacklight
 			{
 				ret = testKeyBL();
+			}
+			break;
+			
+			case 0x04:
+			{
+              skdCameraFlashTest(&skd_flash_r);
 			}
 			break;
 		}
