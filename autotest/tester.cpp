@@ -15,6 +15,7 @@
 #include "driver.h"
 #include "fm.h"
 #include "gps.h"
+#include "tp.h"
 #include "input.h"
 #include "lcd.h"
 #include "light.h"
@@ -93,6 +94,8 @@ enum auto_test_calibration_cmd_id {
 };
 
     #define	MAX_LEN 200
+
+unsigned char skd_tp_r = 0x01;
 
 	char path[MAX_LEN]=" ";//"/system/lib/hw/camera.scx15.so";
 
@@ -1258,9 +1261,6 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 				skdBacklightTest(&skd_backlight);
 			}
 				break;
-			default:
-				break;
-
 			case 0x03: //skd vibrator
 			{
 				ret = testVIB();
@@ -1278,6 +1278,12 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
               skdCameraFlashTest(&skd_flash_r);
 			}
 			break;
+			case 0x07:
+				test_result_init();
+				testTpStart();
+				break;
+			default:
+				break;
 		}
 	}
 		break;

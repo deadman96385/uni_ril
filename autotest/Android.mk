@@ -29,6 +29,7 @@ LOCAL_SRC_FILES:= \
     fm.cpp     \
     gps.cpp    \
     input.cpp  \
+    tp.cpp    \
     lcd.cpp    \
     light.cpp  \
     perm.cpp   \
