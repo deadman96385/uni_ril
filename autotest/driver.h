@@ -21,9 +21,10 @@ int drvOpen( void );
 
 int drvI2CRead( uchar bus, uchar addr, uchar reg, uchar *value );
 
-int drvGIODir( ushort gpio, uchar dir );
+int drvGIODir( ushort gpio, ushort pull, uchar dir );
 int drvGIOGet( ushort gpio, uchar *val );
 int drvGIOSet( ushort gpio, uchar val );
+int drvGIOClose( ushort gpio );
 
 int drvLcdSendData( uint data );
 int drvLcd_mipi_on( void );

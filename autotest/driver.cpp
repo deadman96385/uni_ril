@@ -108,7 +108,7 @@ int drvI2CRead( uchar bus, uchar addr, uchar reg, uchar *value )
 }
 
 //------------------------------------------------------------------------------
-int drvGIODir( ushort gpio, uchar dir )
+int drvGIODir( ushort gpio, ushort pull, uchar dir )
 {
     if( s_fd < 0 ) {
         ERRMSG("uninialize!\n");
@@ -122,6 +122,18 @@ int drvGIODir( ushort gpio, uchar dir )
     git.val  = 0;
     git.pup_enb  = 0;
     git.pdwn_enb = 0;
+
+      if( pull == 0x00)
+	{
+	     git.pup_enb  = 0;
+	     git.pdwn_enb = 1;
+	 }else if(pull == 0x01){
+	      git.pup_enb  = 1;
+	      git.pdwn_enb = 0;
+       }else if(pull == 0x02){
+             git.pup_enb  = 0;
+	      git.pdwn_enb = 0;
+	}
     
     int ret = ioctl(s_fd, AUTOTST_IOCTL_GPIO_INIT, &git);
     if( ret < 0 ) {
@@ -170,6 +182,27 @@ int drvGIOSet( ushort gpio, uchar val )
         ERRMSG("ioctl error: %s\n", strerror(errno));
     }
         
+    return ret;
+}
+
+
+//----------------------------------------------------------------
+int drvGIOClose( ushort gpio )
+{
+    if( s_fd < 0 ) {
+        ERRMSG("uninialize!\n");
+        return -1;
+    }
+
+    struct autotst_gpio_info_t git;
+
+    git.gpio = gpio;
+
+    int ret = ioctl(s_fd, AUTOTST_IOCTL_GPIO_CLOSE, &git);
+    if( ret < 0 ) {
+        ERRMSG("ioctl error: %s\n", strerror(errno));
+    }
+
     return ret;
 }
 

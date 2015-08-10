@@ -327,6 +327,7 @@ static int    testCharger(const uchar * data, int data_len, uchar *rsp, int rsp_
 static int    testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_size);
 static int    testGps(const uchar * data, int data_len, uchar *rsp, int rsp_size);
 static int    testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size);
+static void   cam_sd_tcard_addvoltage(void);
 
 static void skdLcdTest(volatile unsigned char* ret_val);
 static void skdBacklightTest(volatile unsigned char* ret_val);
@@ -862,6 +863,19 @@ int testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size
     return ret;
 }
 
+//----------------------------------------------------------------------------
+void   cam_sd_tcard_addvoltage(void)
+{
+    system("echo 1 > /sys/kernel/debug/sprd-regulator/vddcamio/enable");
+    usleep(100*1000);
+    system("echo 1 > /sys/kernel/debug/sprd-regulator/vddsd/enable");
+    usleep(100*1000);
+    system("echo 1 > /sys/kernel/debug/sprd-regulator/vddsim0/enable");
+    usleep(100*1000);
+    system("echo 1 > /sys/kernel/debug/sprd-regulator/vddsim1/enable");
+    usleep(100*1000);
+}
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 int testGpio(const uchar * data, int data_len, uchar * rsp, int rsp_size)
@@ -873,24 +887,30 @@ int testGpio(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 
     if( 0 == data[0] ) { // input
         uchar val;
-        if( drvOpen() >= 0 && drvGIODir(data[1], GPIO_DIR_IN) >= 0 &&
+        cam_sd_tcard_addvoltage();
+        if( drvOpen() >= 0 && drvGIODir(data[1], data[2], GPIO_DIR_IN) >= 0 &&
             drvGIOGet(data[1], &val) >= 0 ) {
             ret = 1;
             rsp[0] = val;
         } else {
             ret = -1; // fail
         }
-		drvClose();
     } else if( 1 == data[0] ) { // output
-        if( drvOpen() >= 0 && drvGIODir(data[1], GPIO_DIR_OUT) >= 0 &&
+        cam_sd_tcard_addvoltage();
+        if( drvOpen() >= 0 && drvGIODir(data[1], data[2], GPIO_DIR_OUT) >= 0 &&
             drvGIOSet(data[1], data[2]) >= 0 ) {
             ret = 0;
         } else {
             ret = -1; // fail
         }
-		drvClose();
     } else if( 2 == data[0] ) { // close
 		// nothing
+        if( drvOpen() >= 0 && drvGIOClose(data[1]) >= 0 ) {
+            ret = 0;
+        } else {
+            ret = -1; // fail
+        }
+                drvClose();
 	} else {
 		ret = -1;
 		ERRMSG("invalid gpio data[0]\n");
