@@ -6730,7 +6730,8 @@ static void  requestVerifySimPuk2(int channelID, void*  data, size_t  datalen, R
     at_response_free(p_response);
     simstatus = getSIMStatus(channelID);
     RILLOGD("simstatus = %d", simstatus);
-    if(simstatus == SIM_READY) {
+    RILLOGD("radioStatus = %d", sState);
+    if(simstatus == SIM_READY && sState == RADIO_STATE_ON) {
     //if(getSIMStatus(channelID) == SIM_READY) {
         setRadioState(channelID, RADIO_STATE_SIM_READY);
     }else if((SIM_NETWORK_PERSONALIZATION == simstatus)
