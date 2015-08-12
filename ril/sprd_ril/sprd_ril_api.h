@@ -44,5 +44,11 @@ void sprd_IMEISimOut(int request, void *data, size_t datalen, RIL_Token t);
 int sprd_BandSelect(BAND_TYPE_T band_type);
 BAND_TYPE_T sprd_GetCurrentBand(void);
 int sprd_DebugScreen(char **testbuffer);
-
+int getPDNCid(int index);
+char* getPDNIPType(int index);
+char* getPDNAPN(int index);
+int getFallbackCid(int index);
+int updatePDPCid(int cid,int state);
+int setPDPMapping(int primary,int secondary);
+bool isPrimaryCid(int index);
 #endif

@@ -870,6 +870,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                 ppp_info[tmp_cid - 1].state = PPP_STATE_IDLE;
 
                 usleep(200*1000);
+
                 if(!strcmp(modem, "t")) {
                     property_get(ETH_TD, prop, "veth");
                 } else if(!strcmp(modem, "w")) {
@@ -884,26 +885,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                     PHS_LOGE("Unknown modem type, exit");
                     exit(-1);
                 }
-                /* clear IP addr */
-                snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, tmp_cid-1);
-                property_set(SYS_IP_CLEAR, linker);
-                /* set property */
-                snprintf(linker, sizeof(linker), "link set %s%d down", prop, tmp_cid-1);
-                property_set(SYS_IFCONFIG_DOWN, linker);
-                /* start data_off */
-                property_set("ctl.start", "data_off");
-
-                /* wait up to 10s for data_off execute complete */
-                do {
-                    property_get(SYS_IFCONFIG_DOWN, linker, "");
-                    if(!strcmp(linker, "done"))
-                        break;
-                    count++;
-                    PHS_LOGD("wait data_off exec %d times...", count);
-                    usleep(10*1000);
-                }while(count < RETRY_MAX_COUNT);
-
-                PHS_LOGD("data_off execute done");
+                down_netcard(tmp_cid,prop);
 
                 sprintf(cmd, "setprop net.%s%d.ip %s", prop, tmp_cid-1,"0.0.0.0");
                 system(cmd);
@@ -949,27 +931,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                         PHS_LOGE("Unknown modem type, exit");
                         exit(-1);
                     }
-
-                    /* clear IP addr */
-                    snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, tmp_cid-1);
-                    property_set(SYS_IP_CLEAR, linker);
-                    /* set property */
-                    snprintf(linker, sizeof(linker), "link set %s%d down", prop, i);
-                    property_set(SYS_IFCONFIG_DOWN, linker);
-                    /* start data_off */
-                    property_set("ctl.start", "data_off");
-
-                    /* wait up to 10s for data_off execute complete */
-                    do {
-                        property_get(SYS_IFCONFIG_DOWN, linker, "");
-                        if(!strcmp(linker, "done"))
-                            break;
-                        count++;
-                        PHS_LOGD("wait data_off exec %d times...", count);
-                        usleep(10*1000);
-                    }while(count < RETRY_MAX_COUNT);
-
-                    PHS_LOGD("data_off execute done");
+                    down_netcard(i+1,prop);
 
                     sprintf(cmd, "setprop net.%s%d.ip %s", prop, i,"0.0.0.0");
                     system(cmd);
@@ -1041,24 +1003,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                     exit(-1);
                 }
 
-                /* clear IP addr */
-                snprintf(linker, sizeof(linker), "addr flush dev %s%d", prop, tmp_cid-1);
-                property_set(SYS_IP_CLEAR, linker);
-                /* set property */
-                snprintf(linker, sizeof(linker), "link set %s%d down", prop, tmp_cid-1);
-                property_set(SYS_IFCONFIG_DOWN, linker);
-                /* start data_off */
-                property_set("ctl.start", "data_off");
-
-                /* wait up to 10s for data_off execute complete */
-                do {
-                    property_get(SYS_IFCONFIG_DOWN, linker, "");
-                    if(!strcmp(linker, "done"))
-                        break;
-                    count++;
-                    PHS_LOGD("wait data_off exec %d times...", count);
-                    usleep(10*1000);
-                }while(count < RETRY_MAX_COUNT);
+                down_netcard(tmp_cid,prop);
 
                 if (ppp_info[tmp_cid-1].ip_state == IPV6 ||
                     ppp_info[tmp_cid-1].ip_state == IPV4V6) {
@@ -1071,21 +1016,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                 system(cmd);
 
                 if ((tmp_cid2 != -1) && (tmp_cid2 != 0)) {
-                    snprintf(linker, sizeof(linker), "link set %s%d down", prop, tmp_cid2-1);
-                    property_set(SYS_IFCONFIG_DOWN, linker);
-                    /* start data_off */
-                    property_set("ctl.start", "data_off");
-
-                    /* wait up to 10s for data_off execute complete */
-                    do {
-                        property_get(SYS_IFCONFIG_DOWN, linker, "");
-                        if(!strcmp(linker, "done"))
-                            break;
-                        count++;
-                        PHS_LOGD("wait data_off exec %d times...", count);
-                        usleep(10*1000);
-                    }while(count < RETRY_MAX_COUNT);
-
+                    down_netcard(tmp_cid2,prop);
                     if (ppp_info[tmp_cid-1].ip_state == IPV6 ||
                         ppp_info[tmp_cid-1].ip_state == IPV4V6) {
                         snprintf(ipv6_dhcpcd_cmd, sizeof(ipv6_dhcpcd_cmd), "dhcpcd_ipv6:%s%d", prop, tmp_cid2-1);
@@ -1137,22 +1068,7 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                         PHS_LOGE("Unknown modem type, exit--2");
                         exit(-1);
                     }
-
-                    snprintf(linker, sizeof(linker), "%s%d down", prop, i);
-                    property_set(SYS_IFCONFIG_DOWN, linker);
-                    /* start data_off */
-                    property_set("ctl.start", "data_off");
-
-
-                    /* wait up to 10s for data_off execute complete */
-                    do {
-                        property_get(SYS_IFCONFIG_DOWN, linker, "");
-                        if(!strcmp(linker, "done"))
-                            break;
-                        count++;
-                        PHS_LOGD("wait data_off exec %d times...", count);
-                        usleep(10*1000);
-                    }while(count < RETRY_MAX_COUNT);
+                    down_netcard(tmp_cid,prop);
 
                     if (ppp_info[i].ip_state == IPV6 ||
                         ppp_info[i].ip_state == IPV4V6) {
@@ -1772,6 +1688,36 @@ int cvt_cgcontrdp_rsp(AT_CMD_RSP_T * rsp,
 error:
     return AT_RESULT_NG;
 }
+
+int down_netcard(int cid, char* netinterface){
+    int index = cid-1;
+    char linker[128] = {0};
+    int count = 0;
+
+    if(cid < 1 || cid >= MAX_PPP_NUM || netinterface == NULL)
+        return 0;
+    PHS_LOGD("down cid %d, network interface %s ",cid,netinterface);
+    snprintf(linker, sizeof(linker), "addr flush dev %s%d", netinterface, index);
+    property_set(SYS_IP_CLEAR, linker);
+    /* set property */
+    snprintf(linker, sizeof(linker), "link set %s%d down", netinterface, index);
+    property_set(SYS_IFCONFIG_DOWN, linker);
+    /* start data_off */
+    property_set("ctl.start", "data_off");
+
+    /* wait up to 10s for data_off execute complete */
+    do {
+        property_get(SYS_IFCONFIG_DOWN, linker, "");
+        if(!strcmp(linker, "done"))
+            break;
+        count++;
+        PHS_LOGD("wait data_off exec %d times...", count);
+        usleep(10*1000);
+    }while(count < RETRY_MAX_COUNT);
+    PHS_LOGD("data_off execute done");
+    return 1;
+}
+
 
 int getMaxPDPNum(void) {
     return isLte() ? MAX_PPP_NUM:MAX_PPP_NUM/2;
