@@ -255,7 +255,7 @@ int autotest_dbgtest( int argc, char *argv[] )
 	uchar  ucval;
 
 	gpio = 59; // 50 tp reset pin
-	drvGIODir(gpio, GPIO_DIR_OUT);
+	drvGIODir(gpio, 0, GPIO_DIR_OUT);
 	INFMSG("gpio %d output high\n", gpio);
 	drvGIOSet(gpio, 1);
 	sleep(4);
@@ -264,7 +264,7 @@ int autotest_dbgtest( int argc, char *argv[] )
 
 	gpio  = 60; // 60 tp intr pin
 	ucval = 0xff;
-	drvGIODir(gpio, GPIO_DIR_IN);
+	drvGIODir(gpio, 1, GPIO_DIR_IN);
 	drvGIOGet(gpio, &ucval);
 	INFMSG("gpio %d input val = %d\n", gpio, ucval);
 
