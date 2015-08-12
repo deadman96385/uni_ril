@@ -4534,7 +4534,7 @@ static void stripNumberFromSipAddress(const char *sipAddress, char *number, int 
 
     memset(number, 0, len * sizeof(char));
 
-    char delim[] = ":@";
+    char delim[] = ":;@";
     char *strDupSipAddr = strdup(sipAddress);
     char *s = strDupSipAddr;
     char *token = strsep(&s, delim);
