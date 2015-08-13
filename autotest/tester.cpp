@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
+#include <system/audio.h>
 
 #include <dlfcn.h> 
 #include<stdlib.h>
@@ -47,7 +48,9 @@
 //------------------------------------------------------------------------------
 
 #include <cutils/properties.h>
-
+#include <fcntl.h>
+#define AUDIO_TEST_FILE "/data/local/media/aploopback.pcm"
+#define AUDCTL "/dev/pipe/mmi.audio.ctrl"
 
 /** Base path of the hal modules */
 #define HAL_LIBRARY_PATH1 "/system/lib/hw"
@@ -259,9 +262,50 @@ static int    testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_s
 static int    testGps(const uchar * data, int data_len, uchar *rsp, int rsp_size);
 static int    testmipiCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size);
 
+int SendAudioTestCmd(const uchar * cmd,int bytes){
+    int fd = -1;
+    int ret=-1;
+    int bytes_to_read = bytes;
+
+    if(cmd==NULL){
+        return -1;
+    }
+
+    if(fd < 0) {
+        fd = open(AUDCTL, O_WRONLY | O_NONBLOCK);
+    }
+
+    if(fd < 0) {
+        return -1;
+    }else{
+        do {
+            ret = write(fd, cmd, bytes);
+            if( ret > 0) {
+                if(ret <= bytes) {
+                    bytes -= ret;
+                }
+            }
+            else if((!((errno == EAGAIN) || (errno == EINTR))) || (0 == ret)) {
+                ALOGE("pipe write error %d,bytes read is %d",errno,bytes_to_read - bytes);
+                break;
+            }
+            else {
+                ALOGW("pipe_write_warning: %d,ret is %d",errno,ret);
+            }
+        }while(bytes);
+    }
+
+    if(fd > 0) {
+        close(fd);
+    }
+
+    if(bytes == bytes_to_read)
+        return ret ;
+    else
+        return (bytes_to_read - bytes);
+}
 //------------------------------------------------------------------------------
 static PFUN_TEST       sTestFuns[DIAG_CMD_MAX];
-
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 static void signalProcess( int signo )
@@ -668,84 +712,132 @@ int testSIM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     FUN_EXIT;
     return ret;
 }
-
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-int testAudioIN(const uchar * data, int data_len, uchar * rsp, int rsp_size)
+int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 {
-	static int open = -1;
-
+    static int data_fd = -1;
     int   ret = 0;
     uchar mic = data[0];
     uchar act = data[1];
+    char write_buf[256] = {0};
+    int devices = 0;
     FUN_ENTER;
-    ALOGE("wangzuo:data[0] = %d\n", *data);
+    ALOGE("wangzuo:data[0] = %d %d \n", mic, act);
 
-    #define RECORD_SAMPLE_RATE  16000
-    #define RECORD_MAX_SIZE     (1600)
+#define RECORD_SAMPLE_RATE  16000
+#define RECORD_MAX_SIZE    1600
     static uchar rcrdBuf[RECORD_MAX_SIZE];
-
-    switch( act ) {
+    switch( act ){
     case 0x01:
-        audRcrderClose();
-        open = audRcrderOpen(mic, RECORD_SAMPLE_RATE);
+        switch(mic){
+            case AUD_INDEV_BUILTIN_MIC:
+                snprintf(write_buf,sizeof(write_buf) - 1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_IN_BUILTIN_MIC,RECORD_SAMPLE_RATE,1);
+                break;
+            case AUD_INDEV_HEADSET_MIC:
+                snprintf(write_buf,
+                    sizeof(write_buf) - 1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_IN_WIRED_HEADSET,RECORD_SAMPLE_RATE,1);
+                break;
+            case AUD_INDEV_BACK_MIC:
+                snprintf(write_buf,
+                    sizeof(write_buf) - 1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_IN_BACK_MIC,RECORD_SAMPLE_RATE,1);
+                break;
+            default:
+                break;
+        }
+        ALOGD("write:%s", write_buf);
+        SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
+        usleep(400*1000);
         break;
     case 0x02:
-        if( open < 0 ) {
+        ret = 0;
+        usleep(400*1000);
+        if(data_fd < 0) {
+            ALOGD("testAudioIN start open");
+            data_fd = open(AUDIO_TEST_FILE, O_RDONLY|O_NONBLOCK);
+        }
+        if( data_fd < 0 ) {
             ret = -1;
+            ALOGD("testAudioIN open failed");
+            break;
         }
         break;
-    case 0x03:
-    { //
-		uchar idx = data[2];
-		INFMSG("index = %d\n", idx);
-		if( open < 0 ) {
-			ret = -1;
-			break;
-		}
-
-		if( 0 == idx ) {
-			if( audRcrderRecord((uchar *)rcrdBuf, RECORD_MAX_SIZE) < 0 ) {
-				ret = -1;
-				break;
-			}
-		}
+    case 0x03: {
+        uchar idx = data[2];
+        ALOGE("index = %d\n", idx);
+        if(data_fd < 0) {
+            data_fd = open(AUDIO_TEST_FILE, O_RDONLY|O_NONBLOCK);
+        }
+        if( data_fd < 0 ) {
+            ret = -1;
+            break;
+        }
+        if( 0 == idx ) {
+            int to_read = RECORD_MAX_SIZE;
+            uchar *buf = (uchar *)rcrdBuf;
+            int num_read = 0;
+            {
+                int i=0;
+                for(i=0;i<5;i++){
+                    read(data_fd, (uchar *)rcrdBuf, RECORD_MAX_SIZE);
+                }
+            }
+            while(to_read) {
+                num_read = read(data_fd, (uchar *)buf, to_read);
+                if(num_read <= 0) {
+                    usleep(10000);
+                    continue;
+                }
+                if(num_read < to_read) {
+                    usleep(10000);
+                }
+                to_read -= num_read;
+                buf += num_read;
+                ALOGD("testAudioIN 3 num_read:0x%x err:%s", num_read,strerror(errno));
+            }
+        }
         ret = RECORD_MAX_SIZE - (idx * DIAG_MAX_DATA_SIZE);
-		INFMSG("ret = %d\n", ret);
+        ALOGE("ret = %d\n", ret);
 
-		if( ret > DIAG_MAX_DATA_SIZE ) {
-			ret = DIAG_MAX_DATA_SIZE;
-		} else if( ret <= 0 ) {
-			ret = 0;
-			break;
-		}
+        if( ret > DIAG_MAX_DATA_SIZE ) {
+            ret = DIAG_MAX_DATA_SIZE;
+        } else if( ret <= 0 ) {
+            ret = 0;
+            break;
+        }
         memcpy(rsp, rcrdBuf + idx * DIAG_MAX_DATA_SIZE, ret);
     }
-        break;
+    break;
     case 0x04:
-        audRcrderClose();
-        open = -1;
+        snprintf(write_buf, sizeof(write_buf) - 1, "input_devices_test=0");
+        ALOGD("write:%s", write_buf);
+        SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
+        close(data_fd);
+        data_fd = -1;
         break;
     case 0x05:
     // for test
-/*    {
-            #define RCRD_SIZE (160 * 1024)
-            FILE  * fp;
-            uchar * pcm = (uchar *)malloc(RCRD_SIZE);
-            int size = RCRD_SIZE;
+    /*    {
+                #define RCRD_SIZE (160 * 1024)
+                FILE  * fp;
+                uchar * pcm = (uchar *)malloc(RCRD_SIZE);
+                int size = RCRD_SIZE;
 
-            if( audRcrderRecord(pcm, size) < 0 ) {
-                ret = -1;
-            }
+                if( audRcrderRecord(pcm, size) < 0 ) {
+                    ret = -1;
+                }
 
-            fp = fopen("/mnt/sdcard/rcrd.pcm", "w");
-            if( fp ) {
-                size = fwrite(pcm, 1, size, fp);
-                fclose(fp);
-            }
-            free(pcm);
-    }
-*/
+                fp = fopen("/mnt/sdcard/rcrd.pcm", "w");
+                if( fp ) {
+                    size = fwrite(pcm, 1, size, fp);
+                    fclose(fp);
+                }
+                free(pcm);
+        }
+    */
     // no break
     default:
         ret = -1;
@@ -817,72 +909,52 @@ int test_GetRightPcm( const uchar ** pcm_data, int * pcm_bytes )
 	return 0;
 }
 
-int testAudioOUT(const uchar * data, int data_len, uchar * rsp, int rsp_size)
+int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 {
     int   ret = 0;
     uchar out = data[0];
     uchar act = data[1];
     uchar chl = data[2];
-
+    static int fd = -1;
+    char write_buf[256] = {0};
+    int devices = 0;
     FUN_ENTER;
-    INFMSG("out = %d, act = %d, chl = %d\n", out, act, chl);
-
-	#define PLAY_SAMPLE_RATE  44100
 
     switch( act ) {
-    case 0x01: {
-        ALOGE("wangzuo:testAudioOUT 0x01");
-		const uchar * pcm;
-		int     pcm_len;
-		if( 0 == chl ) {
-			pcm     = s_pcmdata_mono;
-			pcm_len = sizeof s_pcmdata_mono;
-		} else if( 1 == chl ) {
-			pcm     = s_pcmdata_left;
-			pcm_len = sizeof s_pcmdata_left;
-		} else {
-			pcm     = s_pcmdata_right;
-			pcm_len = sizeof s_pcmdata_right;
-		}
-        audPlayerClose();
-        if( audPlayerOpen(out, PLAY_SAMPLE_RATE, chl, 0) < 0 ||
-            audPlayerPlay(pcm, pcm_len) < 0 ) {
-            ret = -1;
-        }
-	}
-        break;
+    case 0x01:
     case 0x02: {
-        ALOGE("wangzuo:testAudioOUT 0x02 data + 3:%c,data_len-3:%d",data + 3,data_len - 3);
-        audPlayerClose();
-        if(audPlayerOpen(out, PLAY_SAMPLE_RATE, chl, 0) < 0 || audPlayerPlay(data + 3, data_len - 4) < 0){    //remove the end 7e
-            ret = -1;
+        switch(out){
+            case AUD_OUTDEV_SPEAKER:
+                snprintf(write_buf,
+                    sizeof(write_buf) - 
+                    1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_OUT_SPEAKER,44100,2);
+                break;
+            case AUD_OUTDEV_EARPIECE:
+                snprintf(write_buf,
+                    sizeof(write_buf) - 1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_OUT_EARPIECE,44100,2);
+                break;
+            case AUD_OUTDEV_HEADSET:
+                snprintf(write_buf,
+                    sizeof(write_buf) - 1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
+                    AUDIO_DEVICE_OUT_WIRED_HEADPHONE,44100,2);
+                break;
+            default:
+                break;
         }
-    }
+        ALOGD("write:%s", write_buf);
+        SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
+        usleep(400 * 1000);
         break;
+    }
     case 0x03:
-        audPlayerClose();
+        snprintf(write_buf,sizeof(write_buf) - 1,"out_devices_test=0");
+        ALOGD("write:%s", write_buf);
+        SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
         break;
     default:
-        // for test
-/*
-        if( audPlayerOpen(out, 8000, 0, 0) >= 0 ) {
-            #define M_SIZE (32 * 1024)
-            uchar * pcm = (uchar *)malloc(M_SIZE);
-            int size = 0;
-            FILE * fp = fopen("/mnt/sdcard/hello.pcm", "r");
-            if( fp != NULL ) {
-                size = fread(pcm, 1, M_SIZE, fp);
-                fclose(fp);
-            } else {
-                memset(pcm, 0 , M_SIZE);
-            }
-
-            if( audPlayerPlay(pcm, size) < 0 ) {
-                ret = -1;
-            }
-            free(pcm);
-        }
-*/
+        ret = -1;
         break;
     }
 

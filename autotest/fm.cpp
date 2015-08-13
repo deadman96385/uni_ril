@@ -35,6 +35,7 @@ using namespace at_perm;
 #define DBG_ENABLE_INFMSG
 #define DBG_ENABLE_FUNINF
 #include "debug.h"
+extern int SendAudioTestCmd(const uchar * cmd,int bytes);
 //------------------------------------------------------------------------------
 
 
@@ -63,13 +64,9 @@ int fmOpen( void )
 		return ((err > 0) ? -err : err);
 	}
 
-    permInstallService(NULL);
-
-	AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_SPEAKER,
-            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    
+    char  cmd_buf[100] ={0};
+    sprintf(cmd_buf, "test_stream_route=%d",AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
+    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
     return 0;
 }
 
@@ -123,19 +120,11 @@ int fmPlay( uint freq )
         ERRMSG("ioctl error: %s\n", strerror(errno));
         return ret;
     }
-    //usleep(20 * 1000);
-    AudioSystem::setParameters(audio_io_handle_t(0),fm_mute);
-    AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_FM,AUDIO_POLICY_FORCE_NONE);
 
-	status = AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-            AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
-
-	if( NO_ERROR != status ) {
-        ERRMSG("out to fm headset error!\n");
-        return -3;
-    }
-    AudioSystem::setParameters(audio_io_handle_t(0),fm_volume);
-
+    char  cmd_buf[100] ={0};
+    int fm_audio_volume = 11;
+    sprintf(cmd_buf, "FM_Volume=%d;test_stream_route=%d;handleFm=1",fm_audio_volume,AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
+    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
     return 0;
 }
 
@@ -143,10 +132,9 @@ int fmPlay( uint freq )
 int fmStop( void )
 {
 	if( NULL != s_hwDev ) {
-
-		AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-
+            char  cmd_buf[100] ={0};
+            sprintf(cmd_buf, "handleFm=0");
+            SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
 		s_hwDev->setControl(s_hwDev, V4L2_CID_PRIVATE_TAVARUA_STATE, 0);
 	}
 
