@@ -365,6 +365,7 @@ static void getSIMStatusAgainForSimBusy();
 static int DeactiveDataConnectionByCid(int cid);
 unsigned char* convertUsimToSim(unsigned char const* byteUSIM, int len, unsigned char * hexUSIM);
 static void stopQueryNetwork(int channelID, void *data, size_t datalen, RIL_Token t);
+static void forceDetachDataconnection(int channelID, void *data, size_t datalen, RIL_Token t);
 static bool hasSimBusy = false;
 static void* dump_sleep_log();
 static void getIMEIPassword(int channeID,char pwd[]);//SPRD add for simlock
@@ -9034,6 +9035,9 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_STOP_QUERY_AVAILABLE_NETWORKS:
             stopQueryNetwork(channelID, data, datalen, t);
             break;
+        case RIL_REQUEST_FORCE_DETACH_DATACONNECTION:
+            forceDetachDataconnection(channelID, data, datalen, t);
+            break;
         case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
             {
                 char cmd[30] = {0};
@@ -14204,6 +14208,20 @@ static void stopQueryNetwork(int channelID, void *data, size_t datalen, RIL_Toke
     int err;
     ATResponse *p_response = NULL;
     err = at_send_command(ATch_type[channelID], "AT+SAC", &p_response);
+    if (err < 0 || p_response->success == 0) {
+       goto error;
+    }
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+static void forceDetachDataconnection(int channelID, void *data, size_t datalen, RIL_Token t){
+    int err;
+    ATResponse *p_response = NULL;
+    err = at_send_command(ATch_type[channelID], "AT+CLSSPDT = 1", &p_response);
     if (err < 0 || p_response->success == 0) {
        goto error;
     }
