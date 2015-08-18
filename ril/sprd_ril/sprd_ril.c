@@ -223,7 +223,7 @@ static bool isSrvccStrated();
 static void addSrvccPendingOperate(char *cmd);
 static void excuteSrvccPendingOperate();
 
-#define SIM_ECC_LIST_PROPERTY "ril.sim.ecclist"
+#define SIM_ECC_LIST_PROPERTY "ril.ecclist"
 #define SIM_ECC_LIST_CATEGORY_PROPERTY "ril.sim.ecclist.category"
 typedef struct{
     char * number;
