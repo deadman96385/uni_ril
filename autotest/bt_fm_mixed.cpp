@@ -33,7 +33,7 @@
 #include <media/mediarecorder.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
-
+#include <time.h>
 
 
 #include <cutils/properties.h>
@@ -394,7 +394,8 @@ static int btInit(void)
 
 int btOpen( void )
 {
-    if (sFmStatus == FM_STATE_PANIC) {
+    int counter = 0;
+    if ((sFmStatus == FM_STATE_PANIC) || (sFmStatus == FM_STATE_DISABLED)) {
         if ( btHalLoad() < 0 ) {
             return -1;
         }
@@ -415,6 +416,18 @@ int btOpen( void )
 	if( btCheckRtnVal((bt_status_t)ret) ) {
 		ERRMSG("BT enable Fail(%d)!\n", ret);
 	}
+
+	while (counter++ < 3 && BT_STATE_ON != sBtState) sleep(1);
+
+	if(sBtState == BT_STATE_ON)
+		ret = BT_STATUS_SUCCESS;
+	else
+		ret = -1;
+	sBtState = BT_STATE_ON;
+	sRemoteDevNum=0;
+	memset(&sRemoteDev, 0,
+		   (sizeof(bdremote_t)*MAX_SUPPORT_RMTDEV_NUM));
+
 	sInqStatus = BT_STATUS_INQUIRE_UNK;
 
 	return (ret);
@@ -425,15 +438,24 @@ int btOpen( void )
 int btClose(void)
 {
 	int ret    = 0;
+	int counter = 0;
 	sInqStatus = BT_STATUS_INQUIRE_UNK;
 
 	ret = sBtInterface->disable();
+
+	while (counter++ < 3 && BT_STATE_ON != sBtState) sleep(1);
+
+	if(sBtState == BT_STATE_OFF)
+		ret = BT_STATUS_SUCCESS;
+	else
+		ret = -1;
 	if( ret ) {
 		ERRMSG("BT disable Fail(%d)!\n", ret);
 	} else {
 		INFMSG("BT disable OK\n");
 	}
-	
+	sBtInterface = NULL;
+	sBtState = BT_STATE_OFF;
 	return ret;
 }
 
