@@ -42,7 +42,7 @@
 #include "bt.h"
 #include "util.h"
 #include "perm.h"
-
+extern int SendAudioTestCmd(const uchar * cmd,int bytes);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--namespace sci_fm {
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -539,12 +539,10 @@ int fmOpenEx( void )
     }
     sBtInterface->enableRadio();
     DBGMSG("Enable radio okay, try to get fm interface \n");
-    permInstallService(NULL);
 
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_SPEAKER,
-            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
+    char  cmd_buf[100] ={0};
+    sprintf(cmd_buf, "test_stream_route=%d",AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
+    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
 
     WRNMSG("Fm open okay \n");
     return 0;
@@ -605,23 +603,11 @@ int fmPlayEx( uint freq )
     sFmInterface->tune(freq * 10);
     sFmInterface->set_audio_path(0x02);
     sFmInterface->set_volume(32);
-    AudioSystem::setParameters(audio_io_handle_t(0),fm_mute);
-    AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_FM,AUDIO_POLICY_FORCE_NONE);
 
-    status = AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-             AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
-   // AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
-
-    //AudioSystem::setParameters(audio_io_handle_t(0),fm_volume);
-
-    sFmStatus = FM_STATE_PLAYING;
-
-
-    if ( NO_ERROR != status ) {
-        ERRMSG("out to fm headset error!\n");
-        return -3;
-    }
-     AudioSystem::setParameters(audio_io_handle_t(0),fm_volume);
+    char  cmd_buf[100] ={0};
+    int fm_audio_volume = 11;
+    sprintf(cmd_buf, "FM_Volume=%d;test_stream_route=%d;handleFm=1",fm_audio_volume,AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
+    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
     DBGMSG("Fm play okay \n");
     return 0;
 }
@@ -630,9 +616,9 @@ int fmPlayEx( uint freq )
 int fmStopEx( void )
 {
     if( NULL != s_hwDev ) {
-        AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM_HEADSET,
-                AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-        AudioSystem::setForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
+        char  cmd_buf[100] ={0};
+        sprintf(cmd_buf, "handleFm=0");
+        SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
         sFmStatus = FM_STATE_STOPED;
     }
 
