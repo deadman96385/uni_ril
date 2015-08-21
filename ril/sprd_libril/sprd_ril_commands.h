@@ -240,6 +240,7 @@
     ,{RIL_REQUEST_GET_SIM_LOCK_WHITE_LIST, dispatchInts, responseString}
     ,{RIL_REQUEST_GET_SIM_LOCK_DUMMYS, dispatchVoid, responseInts}
     ,{RIL_REQUEST_FORCE_DETACH_DATACONNECTION, dispatchVoid, responseVoid}
+    ,{RIL_REQUEST_ENABLE_IMS, dispatchVoid, responseVoid}
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_REQUEST_SET_CELL_BROADCAST_CONFIG, dispatchSetCBConf, responseVoid}

@@ -8611,7 +8611,8 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_SET_INITIAL_ATTACH_APN
                 || request == RIL_REQUEST_SET_IMS_SMSC
                 || request == RIL_REQUEST_ALLOW_DATA
-                || (request == RIL_REQUEST_DIAL && s_isstkcall))
+                || (request == RIL_REQUEST_DIAL && s_isstkcall)
+                || request == RIL_REQUEST_ENABLE_IMS)
        ) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -10766,6 +10767,16 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             break;
         }
 
+        case RIL_REQUEST_ENABLE_IMS: {
+            err = at_send_command(ATch_type[channelID], "AT+IMSEN=1" , NULL);
+            if (err < 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            break;
+        }
+
         case RIL_REQUEST_REGISTER_IMS_XCAP: {
             char cmd[100] = {0};
             const char *xcap = NULL;
@@ -12366,7 +12377,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         }
         RILLOGD("onUnsolicited(), " "CONN:, cid: %d, active: %d", cid, active);
         if (cid == 11 && active == 1) {
-            RIL_requestTimedCallback(onConn, NULL, NULL);
+            //RIL_requestTimedCallback(onConn, NULL, NULL);
+            RIL_onUnsolicitedResponse (RIL_UNSOL_CONN_IMSEN, NULL, 0);
         }
     }
 	else if (strStartsWith(s,"^CEND:")) {
