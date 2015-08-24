@@ -1149,7 +1149,7 @@ static void deactivateDataConnection(int channelID, void *data, size_t datalen, 
                     RILLOGD("last dataconnection data off failed!");
                 }
                 goto done;
-            } else if (activePDN > 1 && (is_stk_end_connectivity == 0)) {
+            } else if (activePDN > 1 && (is_stk_end_connectivity == 0) && pdn[cid - 1].nCid != -1) {
                 if(initialAttachApn != NULL && initialAttachApn->apn != NULL &&
                     (!strcasecmp(pdn[cid - 1].strApn, initialAttachApn->apn) ||
                         !strcasecmp(strtok(pdn[cid - 1].strApn, "."), initialAttachApn->apn))) {
@@ -3304,7 +3304,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                         int fb_cid = getFallbackCid(cid-1); //pdp fallback cid
                         RILLOGD("called by SetupDataCall! fallback cid : %d", fb_cid);
                         //just for IPV4+IPV6, strcmp(responses[i].type ,"IPV4V6") == 0 will goto else branch
-                        if (fb_cid> 0 && strcmp(responses[i].type ,"IPV4V6") && (responses[fb_cid-1].cid == fb_cid) && responses[fb_cid-1].active) {
+                        if (fb_cid> 0 && (responses[fb_cid-1].cid == fb_cid) && responses[fb_cid-1].active) {
                             RIL_Data_Call_Response_v11 *newResponses = alloca(2 * sizeof(RIL_Data_Call_Response_v11));
                             copyDataReponse(&responses[i], &newResponses[0]);
                             copyDataReponse(&responses[fb_cid-1], &newResponses[1]);
@@ -7522,7 +7522,7 @@ static void requestSendAT(int channelID, char *data, size_t datalen, RIL_Token t
         if(ptr != NULL)
             cid = atoi(++ptr);
         RILLOGD("get fallback cid: %d",cid);
-        if(cid > 0 && cid <= MAX_PDP && getFallbackCid(cid-1) != -1 && isPrimaryCid(cid-1))
+        if(cid > 0 && cid <= MAX_PDP && getFallbackCid(cid-1) != -1 && !isPrimaryCid(cid-1))
             cid = getFallbackCid(cid-1);
         snprintf(buf, sizeof(buf), "%d\r\n OK\r\n", cid);
         response[0] = buf;
