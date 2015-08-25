@@ -4796,9 +4796,16 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                         || pCI->requestNumber == RIL_REQUEST_CONFERENCE
                         || pCI->requestNumber == RIL_REQUEST_UDUB
                         || pCI->requestNumber == RIL_REQUEST_SEPARATE_CONNECTION
+#if defined (RIL_SPRD_EXTENSION)
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_HANGUP
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_ANSWER
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_DIAL
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_RESPONSE_MEDIA_CHANGE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_REQUEST_MEDIA_CHANGE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_FALL_BACK_TO_VOICE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_INITIAL_GROUP_CALL
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_ADD_TO_GROUP_CALL
+#endif
                         || pCI->requestNumber == RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE) {
                     RILLOGD("Add '%s' to call_cmd_list\n", requestToString(pCI->requestNumber));
                     list_add_tail(&call_cmd_list, cmd_item);
@@ -4853,9 +4860,16 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                         || pCI->requestNumber == RIL_REQUEST_CONFERENCE
                         || pCI->requestNumber == RIL_REQUEST_UDUB
                         || pCI->requestNumber == RIL_REQUEST_SEPARATE_CONNECTION
+#if defined (RIL_SPRD_EXTENSION)
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_HANGUP
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_ANSWER
                         || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_DIAL
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_RESPONSE_MEDIA_CHANGE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_REQUEST_MEDIA_CHANGE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_CALL_FALL_BACK_TO_VOICE
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_INITIAL_GROUP_CALL
+                        || pCI->requestNumber == RIL_REQUEST_VOLTE_ADD_TO_GROUP_CALL
+#endif
                         || pCI->requestNumber == RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE) {
                     list_add_tail(&call_cmd_list, cmd_item);
                     pthread_mutex_lock(&s_normalDispatchMutex);
