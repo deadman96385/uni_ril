@@ -561,11 +561,12 @@ int fmOpenEx( void )
     }
     sBtInterface->enableRadio();
     DBGMSG("Enable radio okay, try to get fm interface \n");
-
-    char  cmd_buf[100] ={0};
-    sprintf(cmd_buf, "test_stream_route=%d",AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
-    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
-
+    {
+        char  cmd_buf[100] ={0};
+        int fm_audio_volume = 11;
+        sprintf(cmd_buf, "autotest_fmtest=1");
+        SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
+    }
     WRNMSG("Fm open okay \n");
     return 0;
 }
@@ -625,11 +626,12 @@ int fmPlayEx( uint freq )
     sFmInterface->tune(freq * 10);
     sFmInterface->set_audio_path(0x02);
     sFmInterface->set_volume(32);
-
-    char  cmd_buf[100] ={0};
-    int fm_audio_volume = 11;
-    sprintf(cmd_buf, "FM_Volume=%d;test_stream_route=%d;handleFm=1",fm_audio_volume,AUDIO_DEVICE_OUT_WIRED_HEADPHONE);
-    SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
+    {
+        char  cmd_buf[100] ={0};
+        int fm_audio_volume = 11;
+        sprintf(cmd_buf, "autotest_fmtest=2");
+        SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
+    }
     DBGMSG("Fm play okay \n");
     return 0;
 }
@@ -639,7 +641,8 @@ int fmStopEx( void )
 {
     if( NULL != s_hwDev ) {
         char  cmd_buf[100] ={0};
-        sprintf(cmd_buf, "handleFm=0");
+        int fm_audio_volume = 11;
+        sprintf(cmd_buf, "autotest_fmtest=0");
         SendAudioTestCmd((const uchar*)cmd_buf,sizeof(cmd_buf));
         sFmStatus = FM_STATE_STOPED;
     }
