@@ -170,6 +170,7 @@ typedef enum {
 
 #define PROP_DEFAULT_BEARER  "gsm.stk.default_bearer"
 #define PROP_OPEN_CHANNEL  "gsm.stk.open_channel"
+#define PROP_OPERATOP_PLMN  "gsm.sim.operator.numeric"
 
 #define PROP_END_CONNECTIVITY  "gsm.stk.end_connectivity"
 
@@ -178,6 +179,8 @@ typedef enum {
 #define REQUEST_SIMLOCK_WHITE_LIST_PU 3
 #define REQUEST_SIMLOCK_WHITE_LIST_PP 4
 #define REQUEST_SIMLOCK_WHITE_LIST_PC 5
+
+#define LOOSE_MATCH_PLMN_LENGTH 1
 
 // {for sleep log}
 #define BUFFER_SIZE  (12*1024*4)
@@ -889,7 +892,6 @@ int updatePDPCid(int cid,int state){
     pthread_mutex_unlock(&pdp[index].mutex);
     return 1;
 }
-
 int getPDPCid(int index){
     if(index >= MAX_PDP  || index < 0)
         return -1;
@@ -1174,7 +1176,7 @@ static void deactivateDataConnection(int channelID, void *data, size_t datalen, 
                     	RILLOGD("last dataconnection data off failed!");
                     }
                 }else{
-                       snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
                     if (deactivateLteDataConnection(channelID, cmd) < 0) {
                         goto error;
                     }
@@ -3725,6 +3727,59 @@ static int checkCmpAnchor(char* apn){
 
     return len-19;
 }
+static bool strictMatchApn(char* pdnApn, char* apn){
+    char strApnName[128] = {0};
+    RILLOGD("requestSetupDataCall strictMatchApn");
+    if(strcmp(pdnApn, "") && strcmp(apn, "")){
+        strncpy(strApnName, pdnApn, checkCmpAnchor(pdnApn));
+        strApnName[strlen(strApnName)] = '\0';
+        return !strcasecmp(pdnApn, apn) || !strcasecmp(strApnName, apn);
+    }else {
+        return false;
+    }
+}
+static bool looseMatchApn(char* pdnApn, char* apn){
+    static char *plmnList[LOOSE_MATCH_PLMN_LENGTH] = {
+        "405862",
+    };
+    static char *matchApnList[LOOSE_MATCH_PLMN_LENGTH] = {
+        "internetims",
+    };
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char *plmn;
+    int i;
+    bool plmnMatch = false;
+    property_get(PROP_OPERATOP_PLMN, prop, "");
+    plmn = (char*)alloca(sizeof(char) * 10);
+    if(strcmp(prop,"")){
+        char *plmn1 = strtok(prop, ",");
+        if(s_multiSimMode) {
+            extern int s_sim_num;
+            if (s_sim_num == 0) {
+                strcpy(plmn, plmn1);
+            } else if (s_sim_num == 1) {
+                char *plmn2 = strtok(NULL, ",");
+                if(plmn2 == NULL){
+                    strcpy(plmn, plmn1);
+               }else{
+                    strcpy(plmn, plmn2);
+               }
+            }
+        } else {
+            strcpy(plmn, plmn1);
+        }
+    }else{
+        strcpy(plmn, "");
+    }
+    RILLOGD("requestSetupDataCall looseMatchApn");
+    for(i = 0;i < LOOSE_MATCH_PLMN_LENGTH; i++){
+        if(!strcmp(plmn,plmnList[i]) && strictMatchApn(pdnApn, matchApnList[i])){
+            plmnMatch = true;
+            break;
+        }
+    }
+    return plmnMatch && !strcasecmp(apn, initialAttachApn->apn);
+}
 static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     const char *apn = NULL;
@@ -3746,7 +3801,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     int is_default_bearer;
     int is_open_channel;
     int nRetryTimes = 0;
-    char strApnName[128] = {0};
 
     property_get(PROP_DEFAULT_BEARER, prop, "0");
     is_default_bearer = atoi(prop);
@@ -3779,14 +3833,12 @@ RETRY:
             for (i = 0; i < MAX_PDP_CP; i++) {
                 cid = getPDNCid(i);
                 if ( cid == (i + 1)) {
-                    strncpy(strApnName, getPDNAPN(i), checkCmpAnchor(getPDNAPN(i)));
-                    strApnName[strlen(strApnName)] = '\0';
                     if (i < MAX_PDP) {
                         RILLOGD("pdp[%d].state = %d", i, getPDPState(i));
                     }
                     if (i < MAX_PDP
-                            && (!strcasecmp(getPDNAPN(i), apn)
-                                    || !strcasecmp(strApnName, apn)) && (getPDPState(i) == PDP_IDLE)) {
+                            && (strictMatchApn(getPDNAPN(i), apn) || looseMatchApn(getPDNAPN(i), apn))
+                            && (getPDPState(i) == PDP_IDLE)) {
                         RILLOGD("Using default PDN");
                         getPDPByIndex(i);
                         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
@@ -3796,7 +3848,7 @@ RETRY:
                         snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",	cid);
                         err = at_send_command(ATch_type[channelID], cmd, &p_response);
                         if (errorHandlingForCGDATA(channelID, p_response, err,i)) {
-                            index = i;
+                            primaryindex = i;
                             goto error;
                         }
                         updatePDPCid(i+1,1);
@@ -4209,7 +4261,7 @@ done:
 error:
     if(primaryindex >= 0) {
         if (IsLte && !is_default_bearer) {
-            putPDP(getFallbackCid(primaryindex-1)-1);
+            putPDP(getFallbackCid(primaryindex)-1);
             putPDP(primaryindex);
         } else {
             putPDP(primaryindex);
