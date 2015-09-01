@@ -12434,9 +12434,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             goto out;
         }
         RILLOGD("onUnsolicited(), " "CONN:, cid: %d, active: %d", cid, active);
-        if (cid == 11 && active == 1) {
+        if (cid == 11) {
             //RIL_requestTimedCallback(onConn, NULL, NULL);
-            RIL_onUnsolicitedResponse (RIL_UNSOL_CONN_IMSEN, NULL, 0);
+            RIL_onUnsolicitedResponse (RIL_UNSOL_CONN_IMSEN, (void *)&active, sizeof(active));
         }
     }
 	else if (strStartsWith(s,"^CEND:")) {
@@ -13479,6 +13479,19 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         err = at_tok_nexthexint(&tmp, &cell_id);
         if (err < 0) goto out;
         RIL_onUnsolicitedResponse (RIL_UNSOL_PHY_CELL_ID, (void *)&cell_id, 4);
+    }
+    /* @} */
+    else if(strStartsWith(s, "+CIREPI:")) {
+        char *tmp;
+        int epi;
+
+        RILLOGD("RIL_UNSOL_CIREPI");
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &epi);
+        if (err < 0) goto out;
+        RIL_onUnsolicitedResponse (RIL_UNSOL_CIREPI, (void *)&epi, sizeof(epi));
     }
     /* @} */
 #endif
