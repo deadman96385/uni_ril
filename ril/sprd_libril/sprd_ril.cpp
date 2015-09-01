@@ -217,6 +217,9 @@ static size_t s_lastNITZTimeDataSize;
 #define TL_SIM_NUM  "ro.modem.tl.count"
 #define LF_SIM_NUM  "ro.modem.lf.count"
 
+#define PROP_BUILD_TYPE "ro.build.type"
+
+int s_isuserdebug = 0;
 static int s_multiSimMode;
 const char * s_modem = NULL;
 static int s_sim_num;
@@ -931,13 +934,16 @@ dispatchDial (Parcel &p, RequestInfo *pRI) {
     }
 
     startRequest;
-    appendPrintBuf("%snum=%s,clir=%d", printBuf, dial.address, dial.clir);
-    if (uusPresent) {
-        appendPrintBuf("%s,uusType=%d,uusDcs=%d,uusLen=%d", printBuf,
-                dial.uusInfo->uusType, dial.uusInfo->uusDcs,
-                dial.uusInfo->uusLength);
+    if (s_isuserdebug) {
+        appendPrintBuf("%snum=%s,clir=%d", printBuf, dial.address, dial.clir);
+        if (uusPresent) {
+            appendPrintBuf("%s,uusType=%d,uusDcs=%d,uusLen=%d", printBuf,
+                    dial.uusInfo->uusType, dial.uusInfo->uusDcs,
+                    dial.uusInfo->uusLength);
+        }
     }
     closeRequest;
+
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
     s_callbacks.onRequest(pRI->pCI->requestNumber, &dial, sizeOfDial, pRI);
@@ -2765,7 +2771,9 @@ static int responseStrings(Parcel &p, void *response, size_t responselen) {
 static int responseString(Parcel &p, void *response, size_t responselen) {
     /* one string only */
     startResponse;
-    appendPrintBuf("%s%s", printBuf, (char*)response);
+    if (s_isuserdebug) {
+        appendPrintBuf("%s%s", printBuf, (char*)response);
+    }
     closeResponse;
 
     writeStringToParcel(p, (const char *)response);
@@ -4333,8 +4341,10 @@ static int responseDSCI(Parcel &p, void *response, size_t responselen) {
     p.writeInt32(p_cur->location);
 
     startResponse;
-    appendPrintBuf("%sstatus=%d, type=%s,number=%s,cause=%d,location=%d", printBuf,
-        p_cur->stat,(p_cur->type==0)?"voice":"video", p_cur->number, p_cur->cause, p_cur->location);
+    if (s_isuserdebug) {
+        appendPrintBuf("%sstatus=%d, type=%s,number=%s,cause=%d,location=%d", printBuf,
+            p_cur->stat,(p_cur->type==0)?"voice":"video", p_cur->number, p_cur->cause, p_cur->location);
+    }
     closeResponse;
 
     return 0;
@@ -4358,7 +4368,9 @@ static int responseCallCsFallBack(Parcel &p, void *response, size_t responselen)
     writeStringToParcel(p, p_cur->number);
 
     startResponse;
-    appendPrintBuf("responseCallCsFallBack: id=%d, number=%s", p_cur->id, p_cur->number);
+    if (s_isuserdebug) {
+        appendPrintBuf("responseCallCsFallBack: id=%d, number=%s", p_cur->id, p_cur->number);
+    }
     closeResponse;
     return 0;
 }
@@ -4423,36 +4435,37 @@ static int responseCallListVoLTE(Parcel &p, void *response, size_t responselen) 
             p.writeInt32(uusInfo->uusLength);
             p.write(uusInfo->uusData, uusInfo->uusLength);
         }
-        appendPrintBuf("%s[id=%d,%s,[neg_Present=%d,",
-            printBuf,
-            p_cur->index,
-            (p_cur->isMT)?"mt":"mo",
-            p_cur->negStatusPresent);
-        appendPrintBuf("%snegStatus=%d,mediaDes=%s],[csMode=%d,",
-            printBuf,
-            p_cur->negStatus,
-            p_cur->mediaDescription,
-            (p_cur->csMode));
-        appendPrintBuf("%s,%s,conf=%d,numberType=%d,",
-            printBuf,
-            callStateToString(p_cur->state),
-            (p_cur->mpty),
-            p_cur->numberType);
-
-        appendPrintBuf("%s,toa=%d,%s],[pri_p=%d,priority=%d,CliValidity=%d,",
-            printBuf,
-            p_cur->toa,
-            p_cur->number,
-            p_cur->prioritypresent,
-            p_cur->priority,
-            p_cur->CliValidityPresent);
-        appendPrintBuf("%s,cli=%d],als='%d',%s,%s,%d]",
-            printBuf,
-            p_cur->numberPresentation,
-            p_cur->als,
-            (p_cur->isVoicePrivacy)?"voc":"nonvoc",
-            p_cur->name,
-            p_cur->namePresentation);
+        if (s_isuserdebug) {
+            appendPrintBuf("%s[id=%d,%s,[neg_Present=%d,",
+                printBuf,
+                p_cur->index,
+                (p_cur->isMT)?"mt":"mo",
+                p_cur->negStatusPresent);
+            appendPrintBuf("%snegStatus=%d,mediaDes=%s],[csMode=%d,",
+                printBuf,
+                p_cur->negStatus,
+                p_cur->mediaDescription,
+                (p_cur->csMode));
+            appendPrintBuf("%s,%s,conf=%d,numberType=%d,",
+                printBuf,
+                callStateToString(p_cur->state),
+                (p_cur->mpty),
+                p_cur->numberType);
+            appendPrintBuf("%s,toa=%d,%s],[pri_p=%d,priority=%d,CliValidity=%d,",
+                printBuf,
+                p_cur->toa,
+                p_cur->number,
+                p_cur->prioritypresent,
+                p_cur->priority,
+                p_cur->CliValidityPresent);
+            appendPrintBuf("%s,cli=%d],als='%d',%s,%s,%s]",
+                printBuf,
+                p_cur->numberPresentation,
+                p_cur->als,
+                (p_cur->isVoicePrivacy)?"voc":"nonvoc",
+                p_cur->name,
+                p_cur->namePresentation);
+        }
     }
     removeLastChar;
     closeResponse;
@@ -4490,13 +4503,15 @@ static int responseCallForwardsUri(Parcel &p, void *response, size_t responselen
         p.writeInt32(p_cur->serviceClass);
         writeStringToParcel(p, p_cur->ruleset);
         p.writeInt32(p_cur->timeSeconds);
-        appendPrintBuf("%s[%s,reason=%d,numType=%d,ton=%d,%s,cls=%d,rule=%s,tout=%d],", printBuf,
-                (p_cur->status==1)?"enable":"disable",
-                        p_cur->reason, p_cur->numberType, p_cur->ton,
-                        (char*)p_cur->number,
-                        p_cur->serviceClass,
-                        p_cur->ruleset,
-                        p_cur->timeSeconds);
+        if (s_isuserdebug) {
+            appendPrintBuf("%s[%s,reason=%d,numType=%d,ton=%d,%s,cls=%d,rule=%s,tout=%d],", printBuf,
+                    (p_cur->status==1)?"enable":"disable",
+                            p_cur->reason, p_cur->numberType, p_cur->ton,
+                            (char*)p_cur->number,
+                            p_cur->serviceClass,
+                            p_cur->ruleset,
+                            p_cur->timeSeconds);
+        }
     }
     removeLastChar;
     closeResponse;
@@ -5323,6 +5338,7 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
     pthread_attr_t attr;
     int opt;
     char phoneCount[PROPERTY_VALUE_MAX];
+    char versionStr[PROPERTY_VALUE_MAX];
     int count;
 
     optind = 0;  // reset getopt
@@ -5377,6 +5393,11 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
     } else {
         RILLOGE("Invalid modem type");
         exit(-1);
+    }
+
+    property_get(PROP_BUILD_TYPE, versionStr, "user");
+    if(strstr(versionStr, "userdebug")) {
+        s_isuserdebug = 1;
     }
 
     if (callbacks == NULL) {
