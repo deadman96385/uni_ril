@@ -47,6 +47,7 @@
 #define SYS_IPV6_DISABLE "sys.data.IPV6.disable"
 #define SYS_NET_ADDR "sys.data.net.addr"
 #define SYS_IPV6_ON  "sys.data.ipv6.on"
+#define SYS_NET_ACTIVATING_TYPE "sys.data.activating.type"
 #define RETRY_MAX_COUNT 1000
 #define DEFAULT_PUBLIC_DNS2 "204.117.214.10"
 //Due to real network limited, 2409:8084:8000:0010:2002:4860:4860:8888 maybe not correct
@@ -56,7 +57,6 @@
 
 #define   SYS_GSPS_ETH_UP_PROP        "ril.gsps.eth.up"
 #define   SYS_GSPS_ETH_DOWN_PROP      "ril.gsps.eth.down"
-#define   SYS_GSPS_ETH_IFNAME_PROP    "sys.gsps.eth.ifname"
 #define   SYS_GSPS_ETH_LOCALIP_PROP   "sys.gsps.eth.localip"
 #define   SYS_GSPS_ETH_PEERIP_PROP    "sys.gsps.eth.peerip"
 #define   DHCP_DNSMASQ_LEASES_FILE    "/data/misc/dhcp/dnsmasq.leases"
@@ -70,12 +70,15 @@ extern const char *modem;
 
 extern int findInBuf(char *buf, int len, char *needle);
 
-static int parse_peer_ip(char* ipaddr){
+static int parse_peer_ip(char* ipaddr,int ipv6_enable){
 
     FILE* fp=NULL;
     char line[1024] = {0};
     char* ptr=NULL, *p=NULL;
     int ret =0;
+
+    if(ipv6_enable)
+        return TRUE;
 
     if ((fp = fopen(DHCP_DNSMASQ_LEASES_FILE, "r")) == NULL) {
         PHS_LOGE("Fail to open %s, error : %s.", DHCP_DNSMASQ_LEASES_FILE, strerror(errno));
@@ -308,6 +311,7 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
         char ipv6_on[PROPERTY_VALUE_MAX];
         char linker[128] = {0};
         char ipv6_dhcpcd_cmd[128] = {0};
+        char gspsprop[PROPERTY_VALUE_MAX];
         if (!isLte()){
             snprintf(at_cmd_str, sizeof(at_cmd_str), "AT+SIPCONFIG=%d\r",cid);
         }else{
@@ -358,6 +362,10 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
             PHS_LOGD("PS ip_state = %d",ppp_info[cid-1].ip_state);
 
             if (ppp_info[cid-1].ip_state == IPV4V6) {
+
+                property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
+                PHS_LOGD("IPV6 activating");
+
                 snprintf(linker, sizeof(linker), "addr add %s/64 dev %s%d", ppp_info[cid-1].ipv6laddr, prop, cid-1);
                 property_set(SYS_IP_SET, linker);
                 PHS_LOGD("IPV6 setip linker = %s", linker);
@@ -384,6 +392,16 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                 property_set(SYS_NET_ADDR, linker);
                 PHS_LOGD("Netcard addr linker = %s", linker);
 
+
+                property_get(SYS_GSPS_ETH_UP_PROP, gspsprop, "0");
+                PHS_LOGD("GSPS up prop = %s", gspsprop);
+                if (atoi(gspsprop)) {
+                    char peerip[64]="";
+                    if (parse_peer_ip(peerip,TRUE) == 0){
+                        property_set(SYS_GSPS_ETH_LOCALIP_PROP, ppp_info[cid-1].ipv6laddr);
+                        property_set(SYS_GSPS_ETH_PEERIP_PROP,  peerip);
+                    }
+                }
 
                 /* start data_on */
                 property_set("ctl.start", "data_on");
@@ -418,6 +436,8 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                     usleep(100*1000);
                 }
 
+                property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
+
                 // set ip addr mtu to check
                 snprintf(linker, sizeof(linker), "addr add %s dev %s%d", ppp_info[cid-1].ipladdr, prop, cid-1);
                 property_set(SYS_IFCONFIG_UP, linker);
@@ -425,12 +445,20 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
 
                 snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop, cid-1);
                 property_set(SYS_MTU_SET, linker);
-                PHS_LOGD("IPV6 setmtu linker = %s", linker);
+                PHS_LOGD("IPV4 setmtu linker = %s", linker);
 
                 // no arp
                 snprintf(linker, sizeof(linker), "link set %s%d arp off", prop, cid-1);
                 property_set(SYS_NO_ARP, linker);
                 PHS_LOGD("IPV4 arp linker = %s", linker);
+
+                if (atoi(gspsprop)) {
+                    char peerip[64]="";
+                    if (parse_peer_ip(peerip,FALSE) == 0){
+                        property_set(SYS_GSPS_ETH_LOCALIP_PROP, ppp_info[cid-1].ipladdr);
+                        property_set(SYS_GSPS_ETH_PEERIP_PROP,  peerip);
+                    }
+                }
 
                 /* start data_on */
                 property_set("ctl.start", "data_on");
@@ -447,17 +475,20 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
             } else {
                 if (ppp_info[cid-1].ip_state == IPV4) {
                     /* set property */
+                    property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
+                    PHS_LOGD("IPV4 activating");
+
                     snprintf(linker, sizeof(linker), "addr add %s dev %s%d", ppp_info[cid-1].ipladdr, prop, cid-1);
                     property_set(SYS_IP_SET, linker);
                     PHS_LOGD("IPV4 setip linker = %s", linker);
 
                     snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop, cid-1);
                     property_set(SYS_MTU_SET, linker);
-                    PHS_LOGD("IPV6 setmtu linker = %s", linker);
+                    PHS_LOGD("IPV4 setmtu linker = %s", linker);
 
                     snprintf(linker, sizeof(linker), "");
                     property_set(SYS_NO_ARP_IPV6, linker);
-                    PHS_LOGD("IPV6 arp linker = %s", linker);
+                    PHS_LOGD("IPV4 arp linker = %s", linker);
 
                     // up the net interface
                     snprintf(linker, sizeof(linker), "link set %s%d up", prop, cid-1);
@@ -480,6 +511,10 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                     PHS_LOGD("IPV6 disable linker = %s", linker);
 
                 } else if (ppp_info[cid-1].ip_state == IPV6) {
+
+                    property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
+                    PHS_LOGD("IPV6 activating");
+
                     snprintf(linker, sizeof(linker), "addr add %s/64 dev %s%d", ppp_info[cid-1].ipv6laddr, prop, cid-1);
                     property_set(SYS_IP_SET, linker);
                     PHS_LOGD("IPV6 setip linker = %s", linker);
@@ -508,16 +543,18 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req)
                 property_set(SYS_NET_ADDR, linker);
                 PHS_LOGD("Netcard addr linker = %s", linker);
 
-
-                char gspsprop[PROPERTY_VALUE_MAX];
                 property_get(SYS_GSPS_ETH_UP_PROP, gspsprop, "0");
                 if (atoi(gspsprop)) {
                     char peerip[64]="";
-                    char devname[64]={0};
-                    if (parse_peer_ip(peerip) == 0){
-                        snprintf(devname, sizeof(devname), "%s%d",  prop, cid-1);
-                        property_set(SYS_GSPS_ETH_IFNAME_PROP, devname);
-                        property_set(SYS_GSPS_ETH_LOCALIP_PROP, ppp_info[cid-1].ipladdr);
+                    int ipv6_enable = FALSE;
+
+                    if(ppp_info[cid-1].ip_state == IPV6)
+                        ipv6_enable = TRUE;
+                    if (parse_peer_ip(peerip,ipv6_enable) == 0){
+                        if(ipv6_enable == TRUE)
+                            property_set(SYS_GSPS_ETH_LOCALIP_PROP, ppp_info[cid-1].ipv6laddr);
+                        else
+                            property_set(SYS_GSPS_ETH_LOCALIP_PROP, ppp_info[cid-1].ipladdr);
                         property_set(SYS_GSPS_ETH_PEERIP_PROP,  peerip);
                     }
                 }
