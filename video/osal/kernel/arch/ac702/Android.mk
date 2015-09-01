@@ -10,6 +10,8 @@ LOCAL_CFLAGS := \
 	$(MY_SYSTEM_CFLAGS) \
 	$(MY_CFLAGS)
 
+LOCAL_C_INCLUDES := $(MY_INCLUDE_DIR)
+
 LOCAL_MODULE:= libosal_kernel
 LOCAL_MODULE_TAGS := optional
 
