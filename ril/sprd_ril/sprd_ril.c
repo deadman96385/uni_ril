@@ -10909,6 +10909,11 @@ out:
 
 done:
     at_response_free(p_response);
+    if(ret == SIM_ABSENT){
+        setHasSim(false);
+    } else {
+        setHasSim(true);
+    }
     return ret;
 }
 
