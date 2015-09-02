@@ -1736,7 +1736,7 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
             || (SIM_SERVICE_PROVIDER_PERSONALIZATION == simstatus)){
             if( 0 == strcmp(type, "PSP") || 0 == strcmp(type, "PUP") || 0 == strcmp(type, "PCP")
                                          || 0 == strcmp(type, "PPP") || 0 == strcmp(type, "PNP")) {
-                char *type_new[3] = {0};
+                char type_new[3] = {0};
                 switch(simstatus) {
                     case SIM_NETWORK_PERSONALIZATION:
                         strcpy(type_new,"PN");
@@ -1750,7 +1750,7 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
                     case SIM_SERVICE_PROVIDER_PERSONALIZATION:
                         strcpy(type_new,"PP");
                         break;
-                    case SIM_SIM_PERSONALIZATION:
+                    default: //SIM_SIM_PERSONALIZATION:
                         strcpy(type_new,"PS");
                         break;
                 }
