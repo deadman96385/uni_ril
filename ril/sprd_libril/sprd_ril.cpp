@@ -4777,6 +4777,7 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                         || pCI->requestNumber == RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI
                         || pCI->requestNumber == RIL_REQUEST_SET_CALL_FORWARD_URI
 #endif
+                        || pCI->requestNumber == RIL_REQUEST_ALLOW_DATA
                         || pCI->requestNumber == RIL_REQUEST_SETUP_DATA_CALL
                         || pCI->requestNumber == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
                     list_add_tail(&slow_cmd_list, cmd_item);
