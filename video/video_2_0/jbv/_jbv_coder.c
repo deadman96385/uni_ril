@@ -423,6 +423,15 @@ vint _JBV_processH264(
         }
     }
 
+    /*
+     * STAP-A marks first packet of new sequence
+     */
+    if (NALU_STAP_A == nalu) {
+        JBV_dbgLog("recv a NALU_STAP_A pkt, mark is %d, fistInSeq %d -> %d\n",
+                pkt_ptr->mark, unit_ptr->firstInSeq, 1);
+        unit_ptr->firstInSeq = 1;
+    }
+
     /* Update Observer with details of the new incoming packet. */
     observer_ptr->bytesReceived += pkt_ptr->pSize;
     observer_ptr->counter++;
