@@ -1043,33 +1043,12 @@ int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 
     switch( act ){
     case 0x01:
-        switch(mic){
-            case AUD_INDEV_BUILTIN_MIC:
-                snprintf(write_buf,
-                    sizeof(write_buf) - 
-                    1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_IN_BUILTIN_MIC,RECORD_SAMPLE_RATE,1);
-                break;
-            case AUD_INDEV_HEADSET_MIC:
-                snprintf(write_buf,
-                    sizeof(write_buf) - 1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_IN_WIRED_HEADSET,RECORD_SAMPLE_RATE,1);
-                break;
-            case AUD_INDEV_BACK_MIC:
-                snprintf(write_buf,
-                    sizeof(write_buf) - 1,"input_devices_test=1;test_in_stream_route=0x%x;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_IN_BACK_MIC,RECORD_SAMPLE_RATE,1);
-                break;
-            default:
-                break;
-        }
+        snprintf(write_buf,sizeof(write_buf) -1,"autotest_audiorecordtest=1;autotest_indevices=%d",mic);
         ALOGD("write:%s", write_buf);
         SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
-        usleep(400*1000);
         break;
     case 0x02:
         ret = 0;
-        usleep(400*1000);
         if(data_fd < 0) {
             ALOGD("testAudioIN start open");
             data_fd = open(AUDIO_TEST_FILE, O_RDONLY|O_NONBLOCK);
@@ -1084,9 +1063,12 @@ int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
         uchar idx = data[2];
         ALOGE("index = %d\n", idx);
         if(data_fd < 0) {
+            ALOGD("testAudioIN begin open");
             data_fd = open(AUDIO_TEST_FILE, O_RDONLY|O_NONBLOCK);
+            ALOGD("testAudioIN begin end");
         }
         if( data_fd < 0 ) {
+            ALOGD("testAudioIN open failed");
             ret = -1;
             break;
         }
@@ -1094,11 +1076,19 @@ int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
             int to_read = RECORD_MAX_SIZE;
             uchar *buf = (uchar *)rcrdBuf;
             int num_read = 0;
-            {
-                int i=0;
-                for(i=0;i<5;i++){
-                    read(data_fd, (uchar *)rcrdBuf, RECORD_MAX_SIZE);
-                }
+            snprintf(write_buf,sizeof(write_buf)-1,"autotest_audiorecordtest=2;autotest_datasize=%d",to_read);
+            ALOGD("write:%s", write_buf);
+            SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
+            usleep(10000);
+            if(data_fd < 0) {
+                ALOGD("testAudioIN start open");
+                data_fd = open(AUDIO_TEST_FILE, O_RDONLY|O_NONBLOCK);
+                ALOGD("testAudioIN end open");
+            }
+            if( data_fd < 0 ) {
+                ALOGE("testAudioIN open:%s failed",AUDIO_TEST_FILE);
+                ret = -1;
+                break;
             }
             while(to_read) {
                 num_read = read(data_fd, (uchar *)buf, to_read);
@@ -1127,7 +1117,7 @@ int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
     }
     break;
     case 0x04:
-        snprintf(write_buf, sizeof(write_buf) - 1, "input_devices_test=0");
+        snprintf(write_buf, sizeof(write_buf) - 1, "autotest_audiorecordtest=0");
         ALOGD("write:%s", write_buf);
         SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
         close(data_fd);
@@ -1224,6 +1214,26 @@ int test_GetRightPcm( const uchar ** pcm_data, int * pcm_bytes )
 	return 0;
 }
 
+static unsigned char* hex_to_string(uchar *data, int size){
+    unsigned char* str=NULL;
+    int str_size=0;
+    int i=0;
+    if(size<=0){
+        return NULL;
+    }
+    str_size=size*2+1;
+    str=(unsigned char*)malloc(str_size);
+    if(NULL==str){
+        return NULL;
+    }
+
+    for(i=0;i<size;i++){
+        sprintf((char *)(str + i*2), "%02x", data[i]);
+    }
+    str[str_size]='\0';
+    return str;
+}
+
 int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 {
     int   ret = 0;
@@ -1283,37 +1293,35 @@ int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 
     }
 
-
     switch( act ) {
-    case 0x01:
-    case 0x02: {
-        switch(out){
-            case AUD_OUTDEV_SPEAKER:
-                snprintf(write_buf,
-                    sizeof(write_buf) -
-                    1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_OUT_SPEAKER,44100,2);
-                break;
-            case AUD_OUTDEV_EARPIECE:
-                snprintf(write_buf,
-                    sizeof(write_buf) - 1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_OUT_EARPIECE,44100,2);
-                break;
-            case AUD_OUTDEV_HEADSET:
-                snprintf(write_buf,
-                    sizeof(write_buf) - 1,"out_devices_test=1;test_stream_route=%d;samplerate=%d;channels=%d",
-                    AUDIO_DEVICE_OUT_WIRED_HEADPHONE,44100,2);
-                break;
-            default:
-                break;
-        }
+    case 0x01:{
+        snprintf(write_buf,
+                    sizeof(write_buf) - 1,"autotest_audiotracktest=1;autotest_outdevices=%d;autotest_channels=%d",
+                    out,chl);
         ALOGD("write:%s", write_buf);
         SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
-        usleep(400 * 1000);
+        break;
+    }
+    case 0x02: {
+        int data_size=0;
+        unsigned char* str=NULL;
+        data_size=data_len-4;
+        str=hex_to_string((uchar *)(data+3),data_size);
+        if(NULL==str){
+            ret=-1;
+        }else{
+            snprintf(write_buf,
+                        sizeof(write_buf)-
+                        1,"autotest_audiotracktest=1;autotest_outdevices=%d;autotest_channels=%d;autotest_datasize=%d;autotest_data=%s",
+                        out,chl,data_size,str);
+            ALOGD("write:%s", write_buf);
+            SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
+            free(str);
+        }
         break;
     }
     case 0x03:
-        snprintf(write_buf,sizeof(write_buf) - 1,"out_devices_test=0");
+        snprintf(write_buf,sizeof(write_buf) - 1,"autotest_audiotracktest=0");
         ALOGD("write:%s", write_buf);
         SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
         break;
