@@ -94,6 +94,12 @@ volatile unsigned char skd_backlight = 0x02;//0: pass 1: fail
 volatile unsigned char skd_fcamare = 0x02;//0: pass 1: fail
 volatile unsigned char skd_bcamare = 0x02;//0: pass 1: fail
 volatile unsigned char skd_flash_r = 0x02;//0: pass 1: fail
+volatile unsigned char skd_retvalue = 0x02;//0: pass 1: fail
+
+volatile unsigned char skd_vibrator = 0x02;//0: pass 1: fail
+volatile unsigned char skd_keybacklight = 0x02;//0: pass 1: fail
+
+
 volatile unsigned char skd_gsensor_result = RESULT_FAIL;
 volatile unsigned char skd_lsensor_result = RESULT_FAIL;
 
@@ -614,7 +620,13 @@ int skd_test_result(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 	case READ_ITEM_LSENSOR:
 		rsp[0]= skd_lsensor_result;
 		break;
-		
+	case 5:
+		rsp[0]= skd_lcd;
+		break;
+	case 6:
+		rsp[0]= skd_backlight;
+		break;
+
 	default:
 		INFMSG("data[0] = 0x%x no stick to!\n", *data);
 		break;
@@ -702,7 +714,7 @@ int testCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 
 int skd_testCamParal(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 {
-	int ret = 0;
+	int ret = 1;
 	FUN_ENTER;
 	INFMSG("testCamParal  data[0] = %d, sensor_id=%d", *data, rsp_size, sensor_id);
 
@@ -755,12 +767,12 @@ void skdCameraTest(int sensor_id,volatile unsigned char* ret_val){
 		}else{
 			btn_save = ((uchar)(kpdinfo.key & 0xFF));
 			if( btn_save==0x72 ){
-				INFMSG("testCamParal pressed vol down fail");
-				*ret_val = 0x01;
+				INFMSG("testCamParal pressed vol down pass");
+				*ret_val = 0x00;
 				inputRunning = false;
 			}else if( btn_save==0x74 ){
-				INFMSG("testCamParal pressed power  pass");
-				*ret_val = 0x00;
+				INFMSG("testCamParal pressed power  fail");
+				*ret_val = 0x01;
 				inputRunning = false;
 			}
 		}
@@ -788,12 +800,12 @@ void skdCameraFlashTest(volatile unsigned char* ret_val){
 		}else{
 			btn_save = ((uchar)(kpdinfo.key & 0xFF));
 			if( btn_save==0x72 ){
-				INFMSG("skd Flash pressed vol down fail");
-				*ret_val = 0x01;
+				INFMSG("skd Flash pressed vol down pass");
+				*ret_val = 0x00;
 				inputRunning = false;
 			}else if( btn_save==0x74 ){
-				INFMSG("skd Flash pressed power  pass");
-				*ret_val = 0x00;
+				INFMSG("skd Flash pressed power  fail");
+				*ret_val = 0x01;
 				inputRunning = false;
 			}
 		}
@@ -1236,7 +1248,7 @@ static unsigned char* hex_to_string(uchar *data, int size){
 
 int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 {
-    int   ret = 0;
+    int ret = 0;
     uchar out = data[0];
     uchar act = data[1];
     uchar chl = data[2];
@@ -1248,6 +1260,7 @@ int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
     if(out==0x20){
         out = data[1];
         int key = -1;
+	ret = 1;
         int output_devices=0;
         switch(out){
             case AUD_OUTDEV_SPEAKER:
@@ -1278,13 +1291,12 @@ int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 
         if(key == 114)
         {
-            ret = RL_PASS;
+	    rsp[0] = 0;/*pass*/
         } else if (key == 116)
         {
-            ret = RL_FAIL;
-        } else
-        {
-            ret = RL_NA;
+	    rsp[0] = 1;/*fail*/
+        } else {
+            rsp[0] = 2;/*test again*/
         }
         snprintf(write_buf, sizeof(write_buf) - 1, "out_devices_test=0");
         ALOGD("write:%s", write_buf);
@@ -1455,6 +1467,7 @@ int testVIB(void)
 int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 {
     int ret = 0;
+	int ret_var = -1;
 
     FUN_ENTER;
     INFMSG("data[0] = %d,data[1] = %d\n", *data,data[1]);
@@ -1524,13 +1537,25 @@ int testLKBV(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 				break;
 			case 0x03: //skd vibrator
 			{
-				ret = testVIB();
+				ret = 1;
+				ret_var = testVIB();
+				if(2 == ret_var){
+				    rsp[0] = 0;
+				} else if(1 == ret_var) {
+				    rsp[0] = 1;
+				} 
 			}
 			break;
 
 			case 0x01: //skd keybacklight
 			{
-				ret = testKeyBL();
+				ret = 1;
+				ret_var = testKeyBL();
+				if(2 == ret_var){
+				    rsp[0] = 0x00;
+				} else if(1 == ret_var) {
+				    rsp[0] = 0x01;
+				}
 			}
 			break;
 			
@@ -1949,12 +1974,12 @@ void skdLcdTest(volatile unsigned char* ret_val)
 		}else{
 			btn_save = ((uchar)(kpdinfo.key & 0xFF));
 			if( btn_save==0x72 ){
-				INFMSG("testLcd pressed vol down fail");
-				*ret_val = 0x01;
+				INFMSG("testLcd pressed vol down pass");
+				*ret_val = 0x00;
 				inputRunning = false;
 			}else if( btn_save==0x74 ){
-				INFMSG("testLcd pressed power pass");
-				*ret_val = 0x00;
+				INFMSG("testLcd pressed power fail");
+				*ret_val = 0x01;
 				inputRunning = false;
 			}
 		}
@@ -1988,12 +2013,12 @@ void skdBacklightTest(volatile unsigned char* ret_val)
 		}else{
 			btn_save = ((uchar)(kpdinfo.key & 0xFF));
 			if( btn_save==0x72 ){
-				INFMSG("testBacklight pressed vol down fail");
-				*ret_val = 0x01;
+				INFMSG("testBacklight pressed vol down pass");
+				*ret_val = 0x00;
 				inputRunning = false;
 			}else if( btn_save==0x74 ){
-				INFMSG("testBacklight pressed power pass");
-				*ret_val = 0x00;
+				INFMSG("testBacklight pressed power fail");
+				*ret_val = 0x01;
 				inputRunning = false;
 			}
 		}
