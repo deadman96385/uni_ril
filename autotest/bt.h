@@ -48,6 +48,7 @@ typedef char bdstr_t[18];
 
 int btAsyncInquire( void );
 int btGetInquireStatus( void );
+void btSetInquireStatus(int status);
 int btGetInquireResult( struct bdremote_t * bdrmt, int maxnum );
 
 int btClose( void );

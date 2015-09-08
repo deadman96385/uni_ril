@@ -1172,15 +1172,19 @@ int testBT(const uchar * data, int data_len, uchar * rsp, int rsp_size)
         }
         break;
     case 2: // inquire
-	num = btGetInquireResult(bdrmt, MAX_SUPPORT_RMTDEV_NUM);
-         	ret = -1;
-        	if(BT_STATUS_INQUIRE_UNK== btGetInquireStatus()){
-		DBGMSG("BT IRQ:Begin to Search!");
-		btAsyncInquire();
-        	}else if(BT_STATUS_INQUIRE_END== btGetInquireStatus() || BT_STATUS_INQUIRING== btGetInquireStatus()){
-		if(btGetInquireResult(bdrmt, MAX_SUPPORT_RMTDEV_NUM) > 0){
-			ret = 0;
-		}
+        num = btGetInquireResult(bdrmt, MAX_SUPPORT_RMTDEV_NUM);
+        ret = -1;
+        if(BT_STATUS_INQUIRE_UNK== btGetInquireStatus()){
+            DBGMSG("BT IRQ:Begin to Search!");
+            btAsyncInquire();
+        }else if(BT_STATUS_INQUIRE_END== btGetInquireStatus() || BT_STATUS_INQUIRING== btGetInquireStatus()){
+            if(btGetInquireResult(bdrmt, MAX_SUPPORT_RMTDEV_NUM) > 0){
+                ret = 0;
+            } else if(BT_STATUS_INQUIRE_END== btGetInquireStatus()){
+                DBGMSG("BT_STATUS_INQUIRE_END with no device found!");
+                btSetInquireStatus(BT_STATUS_INQUIRE_UNK);
+            } else
+                DBGMSG("BT_STATUS_INQUIRING with no device found now!");
         }
         break;
     case 3: // get inquire

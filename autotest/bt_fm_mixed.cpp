@@ -100,6 +100,7 @@ static bluetooth_device_t* sBtDevice = NULL;
 static const bt_interface_t* sBtInterface = NULL;
 static const btfm_interface_t* sFmInterface = NULL;
 static bt_state_t sBtState = BT_STATE_OFF;
+static bt_state_t sFmState = BT_RADIO_OFF;
 static bool set_wake_alarm(uint64_t delay_millis, bool, alarm_cb cb, void *data);
 static int acquire_wake_lock(const char *);
 static int release_wake_lock(const char *);
@@ -397,10 +398,13 @@ int btOpen( void )
     int counter = 0;
     if ((sFmStatus == FM_STATE_PANIC) || (sFmStatus == FM_STATE_DISABLED)) {
         if ( btHalLoad() < 0 ) {
+            ERRMSG("BT load lib Fail");
             return -1;
         }
     } else {
         if (NULL == sBtInterface || NULL == sBtDevice) {
+            ERRMSG("sBtInterface=%s,sBtDevice=%s", NULL == sBtInterface?"NULL":"Not NULL",
+				NULL == sBtDevice?"NULL":"Not NULL");
             return -1;
         }
     }
@@ -443,7 +447,7 @@ int btClose(void)
 
 	ret = sBtInterface->disable();
 
-	while (counter++ < 3 && BT_STATE_ON != sBtState) sleep(1);
+    while (counter++ < 3 && BT_STATE_OFF != sBtState) sleep(1);
 
 	if(sBtState == BT_STATE_OFF)
 		ret = BT_STATUS_SUCCESS;
@@ -454,7 +458,7 @@ int btClose(void)
 	} else {
 		INFMSG("BT disable OK\n");
 	}
-	sBtInterface = NULL;
+
 	sBtState = BT_STATE_OFF;
 	return ret;
 }
@@ -513,6 +517,11 @@ int btAsyncInquire(void)
 int btGetInquireStatus( void )
 {
     return sInqStatus;
+}
+
+void btSetInquireStatus(int status)
+{
+    sInqStatus = status;
 }
 
 //------------------------------------------------------------------------------
