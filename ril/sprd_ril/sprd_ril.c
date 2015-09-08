@@ -234,7 +234,7 @@ typedef struct{
     struct Ecc_Record *next;
     struct Ecc_Record *prev;
 }Ecc_Record;
-Ecc_Record * s_sim_ecclist;
+Ecc_Record * s_sim_ecclist = NULL;
 static pthread_mutex_t s_ecclist_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int getEccRecordCategory(char *number);
@@ -4926,12 +4926,13 @@ static void requestEccDial(int channelID, void *data, size_t datalen, RIL_Token 
     if(isVoLteEnable()){
         token = strchr(p_dial->address, '/');
         if(token)
-            *token = '@';
+            *token = '\0';
         category = getEccRecordCategory(p_dial->address);
-
         if(category != -1){
             ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address,category, clir);
         } else {
+            if(token)
+                *token = '@';
             ret = asprintf(&cmd, "ATD%s,#%s;", p_dial->address, clir);
         }
     } else {
@@ -14615,6 +14616,8 @@ static void addEccRecord(Ecc_Record *record){
     pthread_mutex_lock(&s_ecclist_mutex);
     if(s_sim_ecclist == NULL){
         s_sim_ecclist = record;
+        s_sim_ecclist->prev = NULL;
+        s_sim_ecclist->next = NULL;
     } else {
         s_sim_ecclist->next = record;
         record->prev = s_sim_ecclist;
@@ -14631,14 +14634,14 @@ static void updateEccRecord(Ecc_Record *record){
     RILLOGD("updateEccRecord->number:%s category:%d",record->number,record->category);
     pthread_mutex_lock(&s_ecclist_mutex);
     Ecc_Record *tem_record = s_sim_ecclist;
-    while(record->number != NULL
-            && tem_record->number != NULL
-            && tem_record->prev != NULL){
-        if(strcmp(record->number,tem_record->number) == 0){
-            tem_record->category = record->category;
-            break;
+    if (record->number != NULL){
+        while(tem_record != NULL && tem_record->number != NULL){
+            if(strcmp(record->number,tem_record->number) == 0){
+                tem_record->category = record->category;
+                break;
+            }
+            tem_record = tem_record->prev;
         }
-        tem_record = tem_record->prev;
     }
     pthread_mutex_unlock(&s_ecclist_mutex);
 }
@@ -14649,8 +14652,7 @@ static int getEccRecordCategory(char *number){
     }
     int category = -1;
     Ecc_Record *tem_record = s_sim_ecclist;
-    while(tem_record->number != NULL
-            && tem_record->prev != NULL){
+    while(tem_record != NULL && tem_record->number != NULL){
         if(strcmp(number,tem_record->number) == 0){
             category = tem_record->category;
             break;
@@ -14663,21 +14665,21 @@ static int getEccRecordCategory(char *number){
 
 static void addEmergencyNumbertoEccList(Ecc_Record *record){
     extern int s_sim_num;
-    char *ecc_list = (char *)calloc(1, PROPERTY_VALUE_MAX);
-    char *prop_name = (char *)calloc(1, PROPERTY_VALUE_MAX);
-    char *tmp_list = (char *)calloc(1, PROPERTY_VALUE_MAX);
+    char ecc_list[PROPERTY_VALUE_MAX] = {0};
+    char prop_name[PROPERTY_VALUE_MAX] = {0};
+    char tmp_list[PROPERTY_VALUE_MAX] = {0};
     char *tmp;
     int number_exist = 0;
     strcpy(prop_name, SIM_ECC_LIST_PROPERTY);
     if(s_multiSimMode){
         sprintf(prop_name,"%s%d",prop_name,s_sim_num);
     }
-    property_get(prop_name, ecc_list, NULL);
+    property_get(prop_name, ecc_list, "");
 
-    if(ecc_list == NULL){
+    if(strlen(ecc_list) == 0){
         number_exist = 1;
     } else {
-        tmp_list = strcpy(tmp_list,ecc_list);
+        strncpy(tmp_list,ecc_list,strlen(ecc_list));
 
         tmp = strtok(tmp_list,",");
         if(tmp != NULL && strcmp(tmp,record->number) == 0){
@@ -14692,7 +14694,7 @@ static void addEmergencyNumbertoEccList(Ecc_Record *record){
     }
 
     if(!number_exist){
-        sprintf(ecc_list,"%s%s,",ecc_list,record->number);
+        sprintf(ecc_list,"%s,%s,",ecc_list,record->number);
         property_set(prop_name, ecc_list);
         addEccRecord(record);
     } else {
@@ -14701,10 +14703,6 @@ static void addEmergencyNumbertoEccList(Ecc_Record *record){
         free(record);
     }
     RILLOGD("addEmergencyNumbertoEccList->ecc list =%s number_exist:%d",ecc_list,number_exist);
-
-    free(ecc_list);
-    free(prop_name);
-    free(tmp_list);
 }
 
 static void dialEmergencyWhileCallFailed(void *param){
