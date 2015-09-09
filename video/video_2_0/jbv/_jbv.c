@@ -37,7 +37,13 @@ void _JBV_updateFramePeriod(
             && (obj_ptr->lastSeqn < unit_ptr->seqn)) {
         if (obj_ptr->totalFramesReceived > 0) {
             elapsedTime = unit_ptr->ts - obj_ptr->firstTs;
-            obj_ptr->framePeriod = elapsedTime / obj_ptr->totalFramesReceived;
+            if (obj_ptr->totalFramesReceived < elapsedTime) {
+                /* garuantee that obj_ptr->framePeriod is greater than 0 */
+                obj_ptr->framePeriod = elapsedTime / obj_ptr->totalFramesReceived;
+            } else {
+                JBV_wrnLog("elapsedTime %u, obj_ptr->totalFramesReceived %d\n",
+                        elapsedTime, obj_ptr->totalFramesReceived);
+            }
 /*
             JBV_dbgLog("currentSeqn:%hu currentTs:%llu firstTs:%llu"
                     "Frame period is %llu (%llu fps)"
