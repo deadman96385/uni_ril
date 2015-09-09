@@ -2732,7 +2732,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
                     RILLOGE("LTE radio should be powered by CMCC USIM Card!");
 
                     int lteState = 0;
-                    RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, 4);
+                    RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, sizeof(lteState));
                     RILLOGE("Unsolicited LTE ready is false!");
 
                     goto error;
@@ -2866,8 +2866,9 @@ static void onClass2SmsReceived(void *param)
     if (at_tok_hasmore(&line)) {
         err = at_tok_nextstr(&line, &sms_pdu);
         if (err < 0) goto error;
+        RILLOGD("pdu : %s", sms_pdu);
     }
-    RILLOGD("pdu : %s", sms_pdu);
+
     pdu_length = strlen(sms_pdu);
     if(!convertHexToBin(sms_pdu, pdu_length, buf))
     {
@@ -4022,7 +4023,7 @@ retrycgatt:
                               case 33:
                                 RILLOGD("CGATT fall Back Cause: 33, do ps switch to TD");
                                 lteAttached = 0;
-                                RIL_onUnsolicitedResponse(RIL_UNSOL_LTE_READY, (void *)&lteAttached, 4);
+                                RIL_onUnsolicitedResponse(RIL_UNSOL_LTE_READY, (void *)&lteAttached, sizeof(lteAttached));
                                 break;
                               default:
                                 RILLOGD("CGATT fall Back Cause: other. do nothing");
@@ -4389,7 +4390,7 @@ static void requestBasebandVersion(int channelID, void *data, size_t datalen, RI
         RILLOGE("requestBasebandVersion: Parameter parse error!");
         goto error;
     }
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response)+1);
     at_response_free(p_response);
     return;
 
@@ -9733,7 +9734,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
 #if defined (RIL_SPRD_EXTENSION)
                         err = at_tok_nextstr(&line, &sc_line);
                         RIL_onRequestComplete(t, RIL_E_SUCCESS, sc_line,
-                                strlen(sc_line));
+                                strlen(sc_line)+1);
 #elif defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
                         line++;
                         for ( i = 0; i < strlen(line); i++ )
@@ -9775,7 +9776,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
 
                         }
                         RIL_onRequestComplete(t, RIL_E_SUCCESS, sc_temp,
-                                strlen(sc_temp));
+                                strlen(sc_temp)+1);
 #endif
                     } else {
                         RILLOGD("[sms]at_tok_start fail");
@@ -10302,7 +10303,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                     RILLOGD("[MBBMS]RIL_REQUEST_MBBMS_GSM_AUTHEN: err=%d line=%s", err, line);
                     err = at_tok_start(&line);
                     if (err == 0) {
-                        RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line));
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line)+1);
                     }
                     else {
                         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -10337,7 +10338,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                     RILLOGD("[MBBMS]RIL_REQUEST_MBBMS_USIM_AUTHEN: err=%d line=%s", err, line);
                     err = at_tok_start(&line);
                     if (err == 0) {
-                        RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line));
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line)+1);
                     }
                     else {
                         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -10363,7 +10364,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 card_type = 0;
             snprintf(str, sizeof(str), "%d", card_type);
             RILLOGD("[MBBMS]RIL_REQUEST_MBBMS_SIM_TYPE, card_type =%s", str);
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, str, strlen(str));
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, str, strlen(str)+1);
             break;
         }
         case RIL_REQUEST_GET_REMAIN_TIMES:
@@ -12357,12 +12358,12 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             // report LTE_READY or not, in case of +CEREG:0 ,+CEREG:2;
             // only report STATE_CHANGED in case of +CEREG:1,xxxx, xxxx,x
             if (commas == 0 && (lteState == 0 || lteState == 2)) {
-                RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, 4);
+                RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, sizeof(lteState));
             }
         } else if (isCSFB()) {
             // report LTE_READY or not, in case of +CEREG:2;
             if (commas == 0 && lteState == 2) {
-                //RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, 4);
+                //RIL_onUnsolicitedResponse (RIL_UNSOL_LTE_READY, (void *)&lteState, sizeof(lteState));
             }else if (commas == 0 && lteState == 0) {
                 in4G = 0;
                 bLteDetached = true;
@@ -12680,11 +12681,11 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
     else if (strStartsWith(s, "+CDS:")) {
         RIL_onUnsolicitedResponse (
                 RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT,
-                sms_pdu, strlen(sms_pdu));
+                sms_pdu, strlen(sms_pdu)+1);
     } else if (strStartsWith(s, "+CMGR:")) {
         if (sms_pdu != NULL) {
             RIL_onUnsolicitedResponse (RIL_UNSOL_RESPONSE_NEW_SMS, sms_pdu,
-                    strlen(sms_pdu));
+                    strlen(sms_pdu)+1);
         } else {
             RILLOGD("[cmgr] sms_pdu is NULL");
         }
@@ -13481,7 +13482,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         at_tok_start(&tmp);
         err = at_tok_nexthexint(&tmp, &cell_id);
         if (err < 0) goto out;
-        RIL_onUnsolicitedResponse (RIL_UNSOL_PHY_CELL_ID, (void *)&cell_id, 4);
+        RIL_onUnsolicitedResponse (RIL_UNSOL_PHY_CELL_ID, (void *)&cell_id, sizeof(cell_id));
     }
     /* @} */
     else if(strStartsWith(s, "+CIREPI:")) {
