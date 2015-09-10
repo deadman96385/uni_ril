@@ -949,7 +949,8 @@ int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
     uchar out = data[0];
     uchar act = data[1];
     uchar chl = data[2];
-    char write_buf[512] = {0};
+    char write_buf[1024] = {0};
+
     switch( act ) {
     case 0x01:{
         snprintf(write_buf,
