@@ -36,11 +36,13 @@ OSAL_Status _VIER_processVprComm(
         /*
          * Video vtsp command from modem processor, send to video engine.
          */
-        VIER_dbgPrintf("Got command from VTSP.\n");
+        //VIER_dbgPrintf("Got command from VTSP.\n");
+        OSAL_logMsg("%s: Got command from VTSP\n", __FUNCTION__);
         msg_ptr = (uint8 *)&comm_ptr->u.vtspCmd;
         if (OSAL_SUCCESS != (OSAL_msgQSend(_VIER_Obj_ptr->queue.cmdQVideo,
                 msg_ptr, _VTSP_Q_CMD_MSG_SZ, OSAL_NO_WAIT, NULL))) {
-            VIER_dbgPrintf("Failed to write video engine vtsp command Q.\n");
+            //VIER_dbgPrintf("Failed to write video engine vtsp command Q.\n");
+            OSAL_logMsg("%s: Failed to write video engine vtsp command Q.\n", __FUNCTION__);
             return (OSAL_FAIL);
         }
     }
@@ -191,6 +193,7 @@ OSAL_TaskReturn _VIER_daemon(
     vint          timeout = 10;
 #endif
 
+    OSAL_logMsg("%s: vier task is running\n", __FUNCTION__);
 _VIER_DAEMON_WAIT_VPAD:
     /* Wait for VPAD ready */
     while (OSAL_FALSE == VPAD_IS_READY()) {
@@ -224,6 +227,7 @@ _VIER_DAEMON_LOOP:
      */
     if (OSAL_SUCCESS == VPAD_READ_VIDEO_CMDEVT(comm_ptr, sizeof(VPR_Comm),
             OSAL_NO_WAIT)) {
+        OSAL_logMsg("%s: get video CMDEVT, type %d\n", __FUNCTION__, comm_ptr->type);
         _VIER_processVprComm(vier_ptr, comm_ptr);
     }
 
@@ -244,6 +248,7 @@ _VIER_DAEMON_LOOP:
     }
 
     goto _VIER_DAEMON_LOOP;
+    OSAL_logMsg("%s: vier task exited\n", __FUNCTION__);
     return 0;
 }
 

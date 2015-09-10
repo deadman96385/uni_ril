@@ -236,10 +236,10 @@ static vint _VC_getCommand(
     OSAL_MsgQId  *id_ptr,
     _VTSP_CmdMsg *cmd_ptr)
 {
-
-
-    if (_VTSP_Q_CMD_MSG_SZ != OSAL_msgQRecv(*id_ptr, (char*)cmd_ptr, _VTSP_Q_CMD_MSG_SZ,
-            OSAL_WAIT_FOREVER, NULL)) {
+    int32 ret;
+    if (_VTSP_Q_CMD_MSG_SZ != (ret = OSAL_msgQRecv(*id_ptr, (char*)cmd_ptr, _VTSP_Q_CMD_MSG_SZ,
+            OSAL_WAIT_FOREVER, NULL))) {
+        OSAL_logMsg("%s: failed to receive VTSP, ret %d\n", __FUNCTION__, ret);
         return (_VC_ERROR);
     }
     return (_VC_OK);

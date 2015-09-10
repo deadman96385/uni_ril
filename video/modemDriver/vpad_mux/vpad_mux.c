@@ -222,7 +222,6 @@ OSAL_Status _VPAD_muxWriteDataToFifo(
 {
     vint *fid_ptr = &toFifo->fid;
     char *name_ptr = toFifo->name;
-    static uint32 cnt = 0;
 
 
     /* If a fd doesn't exist then create it. */
@@ -247,10 +246,7 @@ OSAL_Status _VPAD_muxWriteDataToFifo(
 
     /* Update statistics if needed */
     _VPAD_MUX_STATS_UPDATE(toFifo, size);
-    /* Output statistics report if defined, every 16 times print once */
-    if (((cnt ++) & 0xf) == 0) {
-        _VPAD_MUX_STATS_REPORT();
-    }
+
     return (OSAL_SUCCESS);
 }
 
@@ -350,7 +346,7 @@ static OSAL_TaskReturn _VPAD_muxWriteDeviceTask(
     vint            size;
     OSAL_SelectSet  fdSet;
     OSAL_Boolean    flag;
-    static uint32   cnt;
+    uint32   cnt = 0;
 
     size = sizeof(VPR_Comm);
 
@@ -671,6 +667,7 @@ static OSAL_TaskReturn _VPAD_muxReadDeviceTask(
 {
     VPR_Comm *vpr_ptr = &(_VPAD_muxPtr->readTaskBuf);
     vint      size;
+    uint32    cnt = 0;
 
     size = sizeof(VPR_Comm);
 
@@ -682,9 +679,9 @@ _VPAD_READ_TASK_LOOP:
             /* lost vpmd connection */
             _VPAD_muxPtr->isVpmdReady = OSAL_FALSE;
             _VPAD_muxFifoDestroy();
-            VPAD_muxDbgPrintf("VPMD connection is lost.\n");
+            OSAL_logMsg("%s: VPMD connection is lost.\n", __FUNCTION__);
         }
-        VPAD_muxDbgPrintf("VPMD read fail, retry later.\n");
+        OSAL_logMsg("%s: VPMD read fail, retry later.\n");
         OSAL_taskDelay(VPAD_MUX_ERROR_RECOVERY_DELAY);
         goto _VPAD_READ_TASK_LOOP;
     }
@@ -698,6 +695,7 @@ _VPAD_READ_TASK_LOOP:
         case VPMD_VIDEO_CMDEVT_TARGET:
             _VPAD_muxWriteDataToFifo(&_VPAD_muxPtr->outFifo.videoCmdEvtQ,
                     vpr_ptr, vpr_ptr->targetSize, OSAL_WAIT_FOREVER);
+            OSAL_logMsg("%s: receive VPMD_VIDEO_CMDEVT_TARGET, type %d\n", __FUNCTION__, vpr_ptr->type);
             break;
         case VPMD_VIDEO_STREAM_TARGET:
             _VPAD_muxWriteDataToFifo(&_VPAD_muxPtr->outFifo.videoStreamQ,
@@ -773,6 +771,11 @@ _VPAD_READ_TASK_LOOP:
             OSAL_logMsg("_VPAD_mux unknown target:%d\n", vpr_ptr->targetModule);
             break;
     }
+    /* Output statistics report if defined, every 16 times print once */
+    if (((cnt ++) & 0xf) == 0) {
+        _VPAD_MUX_STATS_REPORT();
+    }
+
     goto _VPAD_READ_TASK_LOOP;
 
     return (0);

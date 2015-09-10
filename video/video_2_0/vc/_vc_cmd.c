@@ -320,7 +320,7 @@ void _VC_runDnCmd(
     infc = cmd_ptr->infc;
     /* Check if the infc is Video. */
     if (infc != VTSP_INFC_VIDEO) {
-        _VC_TRACE(__FILE__, __LINE__);
+        OSAL_logMsg("%s: infc is not VTSP_INFC_VIDEO, return\n", __FUNCTION__);
         return;
     }
 
