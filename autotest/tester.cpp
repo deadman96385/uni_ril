@@ -1253,7 +1253,7 @@ int testAudioOUT(const uchar *data, int data_len, uchar *rsp, int rsp_size)
     uchar act = data[1];
     uchar chl = data[2];
     static int fd = -1;
-    char write_buf[256] = {0};
+    char write_buf[1024] = {0};
     int devices = 0;
     FUN_ENTER;
 
