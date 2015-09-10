@@ -851,7 +851,7 @@ dispatchSmsWrite (Parcel &p, RequestInfo *pRI) {
 #endif
 
     free (args.pdu);
-
+    free (args.smsc);
 #ifdef MEMSET_FREED
     memset(&args, 0, sizeof(args));
 #endif
@@ -2349,6 +2349,7 @@ dispatchCallForwardUri(Parcel &p, RequestInfo *pRI) {
 #endif
 
     free (cff.number);
+    free(cff.ruleset);
 
 #ifdef MEMSET_FREED
     memset(&cff, 0, sizeof(cff));
@@ -2594,8 +2595,13 @@ static void dispatchDataProfile(Parcel &p, RequestInfo *pRI) {
         memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
         memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo *));
 #endif
+        for (int i = 0 ; i < num ; i++ ) {
+            free(dataProfiles[i].apn);
+            free(dataProfiles[i].protocol);
+            free(dataProfiles[i].user);
+            free(dataProfiles[i].password);
+        }
     }
-
     return;
 
 invalid:
@@ -3827,7 +3833,7 @@ static int responseRadioCapability(Parcel &p, void *response, size_t responselen
 
     startResponse;
     appendPrintBuf("%s[version=%d,session=%d,phase=%d,\
-            rat=%s,logicalModemUuid=%s,status=%d]",
+            rat=%d,logicalModemUuid=%s,status=%d]",
             printBuf,
             p_cur->version,
             p_cur->session,
@@ -4116,7 +4122,7 @@ static int responseDcRtInfo(Parcel &p, void *response, size_t responselen)
     RIL_DcRtInfo *pDcRtInfo = (RIL_DcRtInfo *)response;
     p.writeInt64(pDcRtInfo->time);
     p.writeInt32(pDcRtInfo->powerState);
-    appendPrintBuf("%s[time=%d,powerState=%d]", printBuf,
+    appendPrintBuf("%s[time=%llu,powerState=%d]", printBuf,
         pDcRtInfo->time,
         pDcRtInfo->powerState);
     closeResponse;
@@ -4440,7 +4446,7 @@ static int responseCallListVoLTE(Parcel &p, void *response, size_t responselen) 
             p_cur->prioritypresent,
             p_cur->priority,
             p_cur->CliValidityPresent);
-        appendPrintBuf("%s,cli=%d],als='%d',%s,%s,%s]",
+        appendPrintBuf("%s,cli=%d],als='%d',%s,%s,%d]",
             printBuf,
             p_cur->numberPresentation,
             p_cur->als,

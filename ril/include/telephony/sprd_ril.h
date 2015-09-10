@@ -370,7 +370,7 @@ typedef struct {
     int             CliValidityPresent; /*CLCCS parameter:<CLI_validity_present> nonzero if CLI_validity has valid info*/
     int             numberPresentation; /*CLCCS parameter:<CLI_validity> 0=Allowed, 1=Restricted, 2=Not Specified/Unknown 3=Payphone*/
 
-    char            als;        /* ALS line indicator if available
+    int            als;        /* ALS line indicator if available
                                    (0 = line 1) */
     char            isVoicePrivacy;     /* nonzero if CDMA voice privacy mode is active */
     char *          name;       /* Remote party name */
@@ -699,7 +699,7 @@ typedef struct {
                                     MMI service code
                                     0 means user doesn't input class */
     char *          ruleset;     /* element of communication diversion XML document, refer 3GPP TS 24.604 [132]*/
-    char            timeSeconds; /* for CF no reply only */
+    int            timeSeconds; /* for CF no reply only */
 }RIL_CallForwardInfoUri;
 
 

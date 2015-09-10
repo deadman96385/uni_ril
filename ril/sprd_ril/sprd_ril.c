@@ -212,9 +212,9 @@ static int s_isstkcall = 0;
 static int add_ip_cid = -1;   //for volte addtional business
 
 /*SPRD: add for VoLTE to handle SRVCC */
-typedef struct {
+typedef struct Srvccpendingrequest{
     char *cmd;
-    struct SrvccPendingRequest *p_next;
+    struct Srvccpendingrequest *p_next;
 }SrvccPendingRequest;
 
 #define VOLTE_ENABLE_PROP         "persist.sys.volte.enable"
@@ -228,11 +228,11 @@ static void excuteSrvccPendingOperate();
 
 #define SIM_ECC_LIST_PROPERTY "ril.ecclist"
 #define SIM_ECC_LIST_CATEGORY_PROPERTY "ril.sim.ecclist.category"
-typedef struct{
+typedef struct Ecc_record{
     char * number;
     int category;
-    struct Ecc_Record *next;
-    struct Ecc_Record *prev;
+    struct Ecc_record *next;
+    struct Ecc_record *prev;
 }Ecc_Record;
 Ecc_Record * s_sim_ecclist = NULL;
 static pthread_mutex_t s_ecclist_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -324,7 +324,7 @@ struct pdp_info pdp[MAX_PDP] = {
     { -1, -1,false,PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
 };
 
-struct pdp_info default_pdp = { -1, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER};
+struct pdp_info default_pdp = { -1,-1,false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER};
 //for lte, attach will occupy a cid for default pdp in cp.
 static int attachPdpIndex = -1;
 
@@ -354,7 +354,7 @@ int getChannel();
 static int getSmsChannel();
 static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_Token t);
 static void getSmsState(int channelID) ;
-static void convertBinToHex(char *bin_ptr, int length, char *hex_ptr);
+static void convertBinToHex(char *bin_ptr, int length, unsigned char *hex_ptr);
 static int convertHexToBin(const char *hex_ptr, int length, char *bin_ptr);
 int parsePdu(char *pdu);
 static RIL_AppType getSimType(int channelID);
@@ -2025,14 +2025,16 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
     RILLOGD(" requestGetSimLockWhiteList type_back = %d tpye_ret = %s",type_back,type_ret);
 
     err = at_tok_nextstr(&line, &numlocks_ret);
-    if (err < 0 || numlocks < 0) goto error;
+    if (err < 0 ) goto error;
     numlocks = atoi(numlocks_ret);
     RILLOGD(" requestGetSimLockWhiteList numlocks = %d numlocks_ret = %s",numlocks,numlocks_ret);
+    if (numlocks < 0) goto error;
 
     switch (type_back) {
         case REQUEST_SIMLOCK_WHITE_LIST_PS:
         {
-            char *imsi_len,*imsi_val[8],j;
+            char *imsi_len,*imsi_val[8];
+            int imsi_index;
             plmn = (char*)alloca(sizeof(char)*numlocks*(19+1));
             memset(plmn, 0, sizeof(char)*numlocks*(19+1));
             strcat(plmn,type_ret);
@@ -2046,15 +2048,15 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
                 if (err < 0) goto error;
                 strcat(plmn,",");
 
-                for(j = 0;j < 8;j++)
+                for(imsi_index = 0;imsi_index < 8;imsi_index++)
                 {
-                    err = at_tok_nextstr(&line,&imsi_val[j]);
+                    err = at_tok_nextstr(&line,&imsi_val[imsi_index]);
                     if (err < 0) goto error;
-                    int toFillLen = strlen(imsi_val[j]);
+                    int toFillLen = strlen(imsi_val[imsi_index]);
                     if (toFillLen == 1) {
                         strcat(plmn,"0");
                     }
-                    strcat(plmn,imsi_val[j]);
+                    strcat(plmn,imsi_val[imsi_index]);
                 }
 
                 if ((i + 1) < numlocks) strcat(plmn,",");
@@ -3730,7 +3732,7 @@ static int checkCmpAnchor(char* apn){
 
     return len-19;
 }
-static bool strictMatchApn(char* pdnApn, char* apn){
+static bool strictMatchApn(char* pdnApn, const char* apn){
     char strApnName[128] = {0};
     RILLOGD("requestSetupDataCall strictMatchApn");
     if(strcmp(pdnApn, "") && strcmp(apn, "")){
@@ -3741,7 +3743,7 @@ static bool strictMatchApn(char* pdnApn, char* apn){
         return false;
     }
 }
-static bool looseMatchApn(char* pdnApn, char* apn){
+static bool looseMatchApn(char* pdnApn, const char* apn){
     static char *plmnList[LOOSE_MATCH_PLMN_LENGTH] = {
         "405862",
     };
@@ -6400,7 +6402,7 @@ static void  requestSIM_IO(int channelID, void *data, size_t datalen, RIL_Token 
             memset(hexUSIM, 0, RESPONSE_EF_SIZE * 2 + TYPE_CHAR_SIZE);
             if (NULL != convertUsimToSim(byteUSIM, usimLen, hexUSIM)) {
                 memset(sr.simResponse, 0, usimLen * 2);
-                strncpy(sr.simResponse, hexUSIM, RESPONSE_EF_SIZE * 2);
+                strncpy(sr.simResponse, (const char *)hexUSIM, RESPONSE_EF_SIZE * 2);
             }
             if (byteUSIM != NULL) {
                 free(byteUSIM);
@@ -7212,7 +7214,7 @@ error:
     at_response_free(p_response);
 }
 
-static void convertBinToHex(char *bin_ptr, int length, char *hex_ptr)
+static void convertBinToHex(char *bin_ptr, int length, unsigned char *hex_ptr)
 {
     int i;
     unsigned char tmp;
@@ -8492,7 +8494,7 @@ static void requestOpenLogicalChannel(int channelID, void *data, size_t datalen,
 
     err = at_tok_nextint(&line, &response[1]);
     if (err < 0){
-        RILLOGD("requestOpenLogicalChannel response is only one: ", response[0]);
+        RILLOGD("requestOpenLogicalChannel response is only one ");
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
@@ -13407,7 +13409,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         Ecc_Record *record = (Ecc_Record *)calloc(1, sizeof(Ecc_Record));
         record->number = (char *)strdup(number);
         record->category = category;
-        RIL_requestTimedCallback (addEmergencyNumbertoEccList, (Ecc_Record *)record, NULL);
+        RIL_requestTimedCallback (addEmergencyNumbertoEccList, (void *)record, NULL);
     }
     /* @} */
 
@@ -14446,7 +14448,7 @@ void open_dev(char *dev,int* fd)
         (*fd) = open(dev, O_RDONLY);
         if( (*fd) < 0){
             sleep(1);
-            RILLOGD("Unable to open log device '%s' , %d, %d", dev,(*fd),strerror(errno));
+            RILLOGD("Unable to open log device '%s' , %d, %s", dev,(*fd),strerror(errno));
         }else if( (*fd) >= 0){
             break;
         }
@@ -14706,7 +14708,7 @@ static void addEmergencyNumbertoEccList(Ecc_Record *record){
 }
 
 static void dialEmergencyWhileCallFailed(void *param){
-    RILLOGD("dialEmergencyWhileCallFailed->address =%s", param);
+    RILLOGD("dialEmergencyWhileCallFailed->address =%s", (char *)param);
 
     if(param != NULL){
         char *number = (char *)param;
@@ -14728,7 +14730,7 @@ static void dialEmergencyWhileCallFailed(void *param){
 }
 
 static void redialWhileCallFailed(void *param){
-    RILLOGD("redialWhileCallFailed->address =%s", param);
+    RILLOGD("redialWhileCallFailed->address =%s", (char *)param);
 
     if(param != NULL){
         char *number = (char *)param;
@@ -15129,16 +15131,14 @@ error1:
 static void requestInitialGroupCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     int err = 0, i;
-    ATResponse *p_response = NULL;
-    const char *numbers_ptr = NULL;
     int cid;
-    const char *numbers = NULL;
+    char *numbers = NULL;
     numbers = (char*)strdup((char *)data);
     char cmd[PROPERTY_VALUE_MAX] = {0};
-    RILLOGE("requestInitialGroupCall numbers = \"%s\"", numbers);
+    //RILLOGE("requestInitialGroupCall numbers = \"%s\"", numbers);
     snprintf(cmd, sizeof(cmd), "AT+CGU=1,\"%s\"", numbers);
     if(numbers != NULL)
-            free(numbers);
+        free(numbers);
     err = at_send_command(ATch_type[channelID], cmd , NULL);
     if (err < 0) {
         goto error;
@@ -15146,27 +15146,22 @@ static void requestInitialGroupCall(int channelID, void *data, size_t datalen, R
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     }
 
-
-    at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    at_response_free(p_response);
     return;
 }
 
 static void requestAddGroupCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     int err = 0, i;
-    ATResponse *p_response = NULL;
-    const char *numbers_ptr = NULL;
     int cid;
-    const char *numbers = NULL;
+    char *numbers = NULL;
     numbers = (char*)strdup((char *)data);
     char cmd[PROPERTY_VALUE_MAX] = {0};
-    RILLOGE("requestAddGroupCall numbers = \"%s\"", numbers);
+    //RILLOGE("requestAddGroupCall numbers = \"%s\"", numbers);
     snprintf(cmd, sizeof(cmd), "AT+CGU=4,\"%s\"", numbers);
     if(numbers != NULL)
         free(numbers);
@@ -15177,14 +15172,11 @@ static void requestAddGroupCall(int channelID, void *data, size_t datalen, RIL_T
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     }
 
-
-    at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    at_response_free(p_response);
     return;
 }
 
