@@ -1663,7 +1663,7 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
             char sim_prop[20];
             pin = data[2];
 
-            RILLOGD("requestFacilityLock :s_modem= %s,prop=%s",s_modem,pin);
+            RILLOGD("requestFacilityLock :s_modem= %s",s_modem);
             RILLOGD("requestFacilityLock :s_multiSimMode= %d,s_sim_num=%d",s_multiSimMode,s_sim_num);
 
             if(s_multiSimMode) {
@@ -1844,7 +1844,7 @@ static void requestFacilityLockByUser(int channelID,  char **data, size_t datale
         goto error1;
 
     getIMEIPassword(channelID,imeiPwd);
-    RILLOGD(" datalen = %d data[0] = %s data[1] = %c pwd = %s", (datalen/sizeof(char *)), data[0], *data[1], imeiPwd);
+
     ret = asprintf(&cmd, "AT+CLCK=\"%s\",%c,\"%s\"",
             data[0], *data[1], imeiPwd);
 
@@ -1911,7 +1911,7 @@ static void getIMEIPassword(int channelID,char imeiPwd[])
         goto error;
 
     line = p_response->p_intermediates->line;
-    RILLOGD(" getIMEIPassword  IMEI = %s length = %d simid = %d\n",line, strlen(line), s_sim_num);
+
     if (strlen(line) != 15) goto error;
     while (*line != '\0')
     {
@@ -3824,13 +3824,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     username = ((const char **)data)[3];
     password = ((const char **)data)[4];
     authtype = ((const char **)data)[5];
-
-    RILLOGD("requestSetupDataCall data[0] '%s'", ((const char **)data)[0]);
-    RILLOGD("requestSetupDataCall data[1] '%s'", ((const char **)data)[1]);
-    RILLOGD("requestSetupDataCall data[2] '%s'", ((const char **)data)[2]);
-    RILLOGD("requestSetupDataCall data[3] '%s'", ((const char **)data)[3]);
-    RILLOGD("requestSetupDataCall data[4] '%s'", ((const char **)data)[4]);
-    RILLOGD("requestSetupDataCall data[5] '%s'", ((const char **)data)[5]);
 
     if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) ){
         add_ip_cid = 0;
@@ -6344,8 +6337,7 @@ static void  requestSIM_IO(int channelID, void *data, size_t datalen, RIL_Token 
     /* FIXME handle pin2 */
 
     if(p_args->pin2 != NULL){
-
-        RILLOGI("Reference-ril. requestSIM_IO pin2 %s",p_args->pin2);
+        RILLOGI("Reference-ril. requestSIM_IO pin2");
     }
     if (p_args->data == NULL) {
         err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
@@ -6911,7 +6903,7 @@ static void  requestEnterSimPin(int channelID, void*  data, size_t  datalen, RIL
         extern int s_sim_num;
         pin = strings[1];
 
-        RILLOGD("requestEnterSimPin :s_modem= %s,prop=%s",s_modem,pin);
+        RILLOGD("requestEnterSimPin :s_modem= %s",s_modem);
         RILLOGD("requestEnterSimPin :s_multiSimMode= %d,s_sim_num=%d",s_multiSimMode,s_sim_num);
 
         if(s_multiSimMode) {
@@ -9927,17 +9919,6 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             }
         }
 
-        RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN apn = %s",
-                initialAttachApn->apn);
-        RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN protocol = %s",
-                initialAttachApn->protocol);
-        RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN authtype = %d",
-                initialAttachApn->authtype);
-        RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN username = %s",
-                initialAttachApn->username);
-        RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN password = %s",
-                initialAttachApn->password);
-
         snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
                 initial_attach_id, initialAttachApn->protocol,
                 initialAttachApn->apn);
@@ -10991,12 +10972,6 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             p_response = NULL;
             if (data != NULL) {
                 initialAttachIMSApn = (RIL_InitialAttachApn *) data;
-
-                RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_IMS_APN apn = %s",initialAttachIMSApn->apn);
-                RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_IMS_APN protocol = %s",initialAttachIMSApn->protocol);
-                RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_IMS_APN authtype = %d",initialAttachIMSApn->authtype);
-                RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_IMS_APN username = %s",initialAttachIMSApn->username);
-                RILLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_IMS_APN password = %s",initialAttachIMSApn->password);
 
                 snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
                         initial_attach_id, initialAttachIMSApn->protocol,initialAttachIMSApn->apn);

@@ -1013,10 +1013,12 @@ dispatchSIM_IO (Parcel &p, RequestInfo *pRI) {
     simIO.v6.aidPtr = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%scmd=0x%X,efid=0x%X,path=%s,%d,%d,%d,%s,pin2=%s,aid=%s", printBuf,
-        simIO.v6.command, simIO.v6.fileid, (char*)simIO.v6.path,
-        simIO.v6.p1, simIO.v6.p2, simIO.v6.p3,
-        (char*)simIO.v6.data,  (char*)simIO.v6.pin2, simIO.v6.aidPtr);
+    if (s_isuserdebug) {
+        appendPrintBuf("%scmd=0x%X,efid=0x%X,path=%s,%d,%d,%d,%s,pin2=%s,aid=%s", printBuf,
+            simIO.v6.command, simIO.v6.fileid, (char*)simIO.v6.path,
+            simIO.v6.p1, simIO.v6.p2, simIO.v6.p3,
+            (char*)simIO.v6.data,  (char*)simIO.v6.pin2, simIO.v6.aidPtr);
+    }
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -1827,8 +1829,10 @@ static void dispatchSetInitialAttachApn(Parcel &p, RequestInfo *pRI)
     pf.password = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%sapn=%s, protocol=%s, authtype=%d, username=%s, password=%s",
-            printBuf, pf.apn, pf.protocol, pf.authtype, pf.username, pf.password);
+    if (s_isuserdebug) {
+        appendPrintBuf("%sapn=%s, protocol=%s, authtype=%d, username=%s, password=%s",
+                printBuf, pf.apn, pf.protocol, pf.authtype, pf.username, pf.password);
+    }
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -1991,8 +1995,10 @@ static void dispatchGetPB(Parcel& p, RequestInfo *pRI)
     simPB.pin2 = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%scommand=%d,fileid=%d,index=%d,pin2=%s", printBuf,
-        simPB.command, simPB.fileid, simPB.index, (char*)simPB.pin2);
+    if (s_isuserdebug) {
+        appendPrintBuf("%scommand=%d,fileid=%d,index=%d,pin2=%s", printBuf,
+                simPB.command, simPB.fileid, simPB.index, (char*)simPB.pin2);
+    }
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -2067,7 +2073,9 @@ static void dispatchAccessPB(Parcel& p, RequestInfo *pRI)
     simAccessPB.pin2 = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%scommand=%d,fileid=%d,index=%d,alphaTag=%s,alphaTagDCS=%d,alphaTagLength=%d,number=%s,email=%s,emailLength=%d,anr=%s,anrA=%s,anrB=%s,anrC=%s,sne=%s,sneLength=%d,sneDCS=%d,pin2=%s", 
+    if (s_isuserdebug) {
+        appendPrintBuf("%scommand=%d,fileid=%d,index=%d,alphaTag=%s,alphaTagDCS=%d,alphaTagLength=%d,number=%s,email=%s,emailLength=%d,anr=%s,anrA=%s,anrB=%s,anrC=%s,sne=%s,sneLength=%d,sneDCS=%d,pin2=%s",
+    }
     printBuf,
     simAccessPB.command,
     simAccessPB.fileid,
@@ -2578,13 +2586,15 @@ static void dispatchDataProfile(Parcel &p, RequestInfo *pRI) {
             status = p.readInt32(&t);
             dataProfiles[i].enabled = (int) t;
 
-            appendPrintBuf("%s [%d: profileId=%d, apn =%s, protocol =%s, authType =%d, \
-                  user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, \
-                  waitTime =%d, enabled =%d]", printBuf, i, dataProfiles[i].profileId,
-                  dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
-                  dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
-                  dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
-                  dataProfiles[i].waitTime, dataProfiles[i].enabled);
+            if (s_isuserdebug) {
+                appendPrintBuf("%s [%d: profileId=%d, apn =%s, protocol =%s, authType =%d, \
+                      user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, \
+                      waitTime =%d, enabled =%d]", printBuf, i, dataProfiles[i].profileId,
+                      dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
+                      dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
+                      dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
+                      dataProfiles[i].waitTime, dataProfiles[i].enabled);
+            }
         }
         closeRequest;
         printRequest(pRI->token, pRI->pCI->requestNumber);
