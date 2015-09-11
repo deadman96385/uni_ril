@@ -973,6 +973,7 @@ int testSIM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 {
     static int data_fd = -1;
+    static int test_audioin_result=2;//need re-test
     int   ret = 0;
     uchar mic = data[0];
     uchar act = data[1];
@@ -1038,14 +1039,16 @@ int testAudioIN(const uchar *data, int data_len, uchar *rsp, int rsp_size)
 
             if(key == 114)
             {
-                ret = RL_PASS;
+                test_audioin_result=0;//pass
             } else if (key == 116)
             {
-                ret = RL_FAIL;
+                test_audioin_result=1;//failed
             } else
             {
-                ret = RL_NA;
+                test_audioin_result=2;//re-test
             }
+            rsp[0]=test_audioin_result;
+            ret = 1;
             snprintf(write_buf, sizeof(write_buf) - 1, "audio_loop_test=0");
             ALOGD("write:%s", write_buf);
             SendAudioTestCmd((const uchar *)write_buf,strlen(write_buf));
