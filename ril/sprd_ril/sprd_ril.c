@@ -224,6 +224,8 @@ typedef struct Srvccpendingrequest{
 
 #define VOLTE_ENABLE_PROP         "persist.sys.volte.enable"
 #define VOLTE_PCSCF_ADDRESS        "persist.sys.volte.pcscf"
+#define VOLTE_OPERATOR_PROP        "ro.operator.volte"
+#define VOLTE_BOOT_TIME_PROP       "persist.sys.volte.boottime"
 
 static VoLTE_SrvccState s_srvccState = SRVCC_PS_TO_CS_SUCCESS;
 static SrvccPendingRequest *s_srvccPendingRequest;
@@ -251,6 +253,9 @@ static void requestInitialGroupCall(int channelID, void *data, size_t datalen, R
 static void requestAddGroupCall(int channelID, void *data, size_t datalen, RIL_Token t);
 static void requestCallForwardU(int channelID, RIL_CallForwardInfo *data, size_t datalen, RIL_Token t);
 static int isVoLteEnable();
+static int isVoLteCmccBoard();
+static int isFirstTimeBoot();
+static void countBootTimes();
 #define NUM_ELEMS(x) (sizeof(x)/sizeof(x[0]))
 
 struct listnode
@@ -11958,6 +11963,10 @@ static void initializeCallback(void *param)
     at_send_command(ATch_type[channelID], "AT+SPDVTDCI="VT_DCI, NULL);
     at_send_command(ATch_type[channelID], "AT+SPDVTTEST=2,650", NULL);
     if(isVoLteEnable()){
+        if(isVoLteCmccBoard()&&isFirstTimeBoot()){
+            countBootTimes();
+            at_send_command(ATch_type[channelID], "AT+CAVIMS=0", NULL);
+        }
         at_send_command(ATch_type[channelID], "AT+CIREG=2", NULL);
         at_send_command(ATch_type[channelID], "AT+CEN=1", NULL);
         at_send_command(ATch_type[channelID], "AT+CIREP=1", NULL);
@@ -15206,3 +15215,48 @@ static int isVoLteEnable(){
         return 0;
     }
 }
+
+static int isVoLteCmccBoard(){
+    char volte_prop[PROPERTY_VALUE_MAX];
+    property_get(VOLTE_OPERATOR_PROP, volte_prop, "0");
+    int value = strcmp(volte_prop, "cmcc");
+    RILLOGI("isVoLteCmccBoard =%s", volte_prop);
+    if (value == 0){
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static void getPropertyName(char* prop_name){
+    extern int s_sim_num;
+    sprintf(prop_name, "%s%d", VOLTE_BOOT_TIME_PROP,s_sim_num);
+}
+
+static int isFirstTimeBoot(){
+    char volte_prop[PROPERTY_VALUE_MAX];
+    char prop_name[PROPERTY_VALUE_MAX];
+    getPropertyName(prop_name);
+    property_get(prop_name, volte_prop, "0");
+    int bootTimes = atoi(volte_prop);
+    RILLOGI("prop[%s] boot time:%d",prop_name,bootTimes);
+    if (bootTimes >= 1){
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+static void countBootTimes(){
+    char volte_prop[PROPERTY_VALUE_MAX];
+    char prop_name[PROPERTY_VALUE_MAX];
+    getPropertyName(prop_name);
+    property_get(prop_name, volte_prop, "0");
+    int bootTimes = atoi(volte_prop);
+    bootTimes++;
+    sprintf(volte_prop, "%d", bootTimes);
+    property_set(prop_name,volte_prop);
+    RILLOGI("prop[%s]countBootTimes =%s", prop_name,volte_prop);
+}
+
+
