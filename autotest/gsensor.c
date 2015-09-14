@@ -14,7 +14,9 @@
 int x_pass, y_pass, z_pass;
 static int thread_run;
 static char device_info[32] = {0};
-static int gsensor_result=0;
+static int gsensor_result = RESULT_FAIL;
+static int gsensor_test_timeout=0;
+
 static int gsensor_open(void)
 {
     int fd;
@@ -145,7 +147,11 @@ static void *gsensor_thread(void *param)
 			gr_flip();
 		}
 		usleep(2*1000);
-		if((now_time-start_time)>=GSENSOR_TIMEOUT) break;//++++++++++++++++++++
+		if((now_time-start_time)>=GSENSOR_TIMEOUT){
+			LOGD(" test timeout GSENSOR_TIMEOUT=%s\n >>>>", __func__,GSENSOR_TIMEOUT);
+			gsensor_test_timeout = 1;
+			break;//++++++++++++++++++++
+		}
 	}
 
 	gsensor_close(fd);
@@ -162,25 +168,33 @@ int test_gsensor_start(void)
 	pthread_t thread;
 	int ret;
 
-
-        INFMSG("  yuebao beging ===%s:\n", __func__);
 	ui_fill_locked();
 	ui_show_title(MENU_TEST_GSENSOR);
 
 	thread_run = 1;
-
-         INFMSG("  yuebao %s:\n", __func__);
+	gsensor_result = RESULT_FAIL;
+	
+         INFMSG("  yuebao %s:entry\n", __func__);
 	pthread_create(&thread, NULL, (void*)gsensor_thread, NULL);
 	//ui_handle_button(LEFT_BTN_NAME, NULL, RIGHT_BTN_NAME);
 	//thread_run = 0;
 	//ret = ui_handle_button(TEXT_PASS, TEXT_FAIL, TEXT_GOBACK);
+
+	INFMSG("  yuebao %s:pthread_join  wait gsensor_thread exit\n", __func__);
 	pthread_join(thread, NULL); /* wait "handle key" thread exit. */
+	INFMSG("  yuebao %s: exit\n", __func__);
 	if(RESULT_PASS == gsensor_result)//++++++++++++
 	{
 		ui_set_color(CL_GREEN);//++++++++++
 		ui_show_text(12, 0, TEXT_TEST_PASS);//++++++
 	}
+	else if(1== gsensor_test_timeout)//+++++++++++++++++
+	{
+		ui_set_color(CL_BLUE);//+++++++++++
+		ui_show_text(12, 0, TEXT_TEST_TIMEOUT);//+++++++++
+	}	
 	else if(RESULT_FAIL== gsensor_result)//+++++++++++++++++
+	
 	{
 		ui_set_color(CL_RED);//+++++++++++
 		ui_show_text(12, 0, TEXT_TEST_FAIL);//+++++++++

@@ -67,6 +67,7 @@ int find_input_dev(int mode, const char *event_name);
 #define SPRD_GSENSOR_OFFSET					60
 #define SPRD_GSENSOR_1G						1024
 #define GSENSOR_TIMEOUT                     			20
+#define LSENSOR_TIMEOUT						20
 /***************end gsensor************/
 
 /**************Lsensor**********/

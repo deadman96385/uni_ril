@@ -95,9 +95,9 @@ static void *lsensor_thread(void *param)
 	LOGD("autotest lsensor  thread_run=%d\n",thread_run);
 
 	lsensor_enable(1);
-	//start_time=time(NULL);
+	start_time=time(NULL);
 	while(thread_run == 1) {
-		//now_time=time(NULL);
+		now_time=time(NULL);
 
 		
 		FD_ZERO(&rfds);
@@ -129,13 +129,22 @@ static void *lsensor_thread(void *param)
 				}
 			}
 		}
-	LOGD("autotest   light_pass=%d,proximity_modifies=%d\n",light_pass,proximity_modifies);
-		if((light_pass == 1 && proximity_modifies > 1)) //||(now_time-start_time)>LSENSOR_TIMEOUT
+		LOGD("autotest   light_pass=%d,proximity_modifies=%d\n",light_pass,proximity_modifies);
+		if((light_pass == 1 && proximity_modifies > 1))
 		{
 			lpsensor_result=RESULT_PASS; 
 //			ui_push_result(RL_PASS);
 			ui_set_color(CL_GREEN);
 			ui_show_text(5, 0, TEXT_TEST_PASS);
+			gr_flip();
+			goto func_end;
+		}
+		if ((now_time-start_time)>LSENSOR_TIMEOUT)
+		{	
+		LOGD("autotest   %s:timeout LSENSOR_TIMEOUT=%s\n",__func__,LSENSOR_TIMEOUT);
+//			ui_push_result(RL_PASS);
+			ui_set_color(CL_BLUE);
+			ui_show_text(5, 0, TEXT_TEST_TIMEOUT);
 			gr_flip();
 			goto func_end;
 		}
@@ -153,7 +162,7 @@ int test_lsensor_start(void)
 	proximity_modifies=0;
 	light_value=0;
 	light_pass=0;
-
+	lpsensor_result=RESULT_FAIL;
 
        INFMSG("  yuebao %s:\n", __func__);
 

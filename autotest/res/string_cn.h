@@ -104,6 +104,7 @@
 #define TEXT_TEST_PASS			"测试成功!"
 #define TEXT_TEST_FAIL			"测试失败!"
 #define TEXT_TEST_NA			"测试未完成!"
+#define TEXT_TEST_TIMEOUT			"测试超时（请在20s内完成）!"
 #define TEXT_SIM_SCANING			"检测SIM卡中..."
 #define TEXT_SIM_RESULT				"检测结果："
 #define TEXT_KEY_ILLUSTRATE			"请分别点击如下按键："

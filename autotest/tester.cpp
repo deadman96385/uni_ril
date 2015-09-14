@@ -1856,17 +1856,38 @@ int testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_size)
 	 FUN_ENTER;	
 	 INFMSG(" deta[0] = 0x%02x\n", *data); 
 
-	 LOGD("entry isEntry=%d....\n",isEntry); //CANNOT ENTRY AUTO TESTMODE("autotest path check fail") if uese LOGI
-  
-	 if(!isEntry){
-		test_result_init();
-		isEntry=1;
-	 }
 
-	 switch (data[0]) {
 
+ 	 switch (data[0]) {
+		//BBAT MODE
+		case 0x01:  //A sensor
+		case 0x02:  //M sensor
+		case 0x03:  //O sensor
+		case 0x04:  //G sensor
+		case 0x05:  //ALS sensor
+		case 0x06:  //presure sensor
+		case 0x07:  //Tempture sensor
+		case 0x08:  //PS sensor
+		case 0x09:
+		case 0x0a:
+		case 0x0b:
+			if( sensorOpen() >= 0 && sensorActivate(data[0]) >= 0 ) {
+				rsp[0] = 0x00;  //PASS
+			} else {
+				rsp[0] = 0x01;
+			}
+			sensorClose();
+			 break;
+
+  		//SKD MODE
 		case 0x20:
 
+			 LOGD("entry isEntry=%d....\n",isEntry); //CANNOT ENTRY AUTO TESTMODE("autotest path check fail") if uese LOGI
+
+			 if(!isEntry){
+				test_result_init();
+				isEntry=1;
+			 }
 			switch (data[1]) {
 					 LOGD("yuebao ==%s= data[1]=0x%02x\n",__FUNCTION__,data[1]);
 					case ITEM_GSENSOR:
@@ -1881,19 +1902,23 @@ int testSensor(const uchar * data, int data_len, uchar *rsp, int rsp_size)
 						
 					default:
 						break;
-				}
+			}
+			if( RESULT_PASS==item_result){
+				 INFMSG("  %s test  PASS\n",__FUNCTION__);
+				rsp[0] = 0x00;
+			} else {
+				 INFMSG("%s   test  FAIL\n",__FUNCTION__);
+				rsp[0] = 0x01;
+			}
+
+			 break;
+
+		default:
+			 break;
 
 	}
 	
-	if( RESULT_PASS==item_result){
-		 INFMSG("  %s test  PASS\n",__FUNCTION__);	
-		rsp[0] = 0x00;
-			
-	} else {
-		 INFMSG("%s   test  FAIL\n",__FUNCTION__);
-		rsp[0] = 0x01;
-				
-	}
+	 ret = 1;
     FUN_EXIT;
     return ret;
 }
