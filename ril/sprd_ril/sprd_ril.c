@@ -1921,16 +1921,18 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
     RILLOGD(" requestGetSimLockWhiteList type_back = %d tpye_ret = %s",type_back,type_ret);
 
     err = at_tok_nextstr(&line, &numlocks_ret);
-    if (err < 0 || numlocks < 0) goto error;
+    if (err < 0) goto error;
     numlocks = atoi(numlocks_ret);
     RILLOGD(" requestGetSimLockWhiteList numlocks = %d numlocks_ret = %s",numlocks,numlocks_ret);
+    if (numlocks < 0) goto error;
 
     switch (type_back) {
         case REQUEST_SIMLOCK_WHITE_LIST_PS:
         {
-            char *imsi_len,*imsi_val[8],j;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(19+1));
-            memset(plmn, 0, sizeof(char)*numlocks*(19+1));
+            char *imsi_len,*imsi_val[8];
+            int j;
+            plmn = (char*)alloca(sizeof(char)*numlocks*(19+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(19+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -1959,8 +1961,8 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             break;
         }
         case REQUEST_SIMLOCK_WHITE_LIST_PN:
-            plmn = (char*)alloca(sizeof(char)*numlocks*(6+1));
-            memset(plmn, 0, sizeof(char)*numlocks*(6+1));
+            plmn = (char*)alloca(sizeof(char)*numlocks*(6+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(6+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -1991,8 +1993,8 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
         case REQUEST_SIMLOCK_WHITE_LIST_PU:
         {
             char *network_subset1,*network_subset2;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(8+1));
-            memset(plmn, 0, sizeof(char)*numlocks*(8+1));
+            plmn = (char*)alloca(sizeof(char)*numlocks*(8+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(8+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -2030,8 +2032,8 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
         case REQUEST_SIMLOCK_WHITE_LIST_PP:
         {
             char *gid1;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(10+1));
-            memset(plmn, 0, sizeof(char)*numlocks*(10+1));
+            plmn = (char*)alloca(sizeof(char)*numlocks*(9+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(9+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -2066,8 +2068,8 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
         case REQUEST_SIMLOCK_WHITE_LIST_PC:
         {
             char *gid1,*gid2;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(10+1));
-            memset(plmn, 0, sizeof(char)*numlocks*(10+1));
+            plmn = (char*)alloca(sizeof(char)*numlocks*(12+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(12+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -2109,7 +2111,7 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             break;
     }
     RILLOGD("telefk requestGetSimLockWhiteList plmn = %s",plmn);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, plmn, sizeof(plmn));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, plmn, strlen(plmn)+1);
     at_response_free(p_response);
     return;
 error:
@@ -8102,6 +8104,9 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             && !(request == RIL_REQUEST_GET_IMEI
                 || request == RIL_REQUEST_GET_IMEISV
                 || request == RIL_REQUEST_SIM_POWER
+                || request == RIL_REQUEST_GET_SIM_LOCK_DUMMYS
+                || request == RIL_REQUEST_GET_SIM_LOCK_WHITE_LIST
+                || request == RIL_REQUEST_GET_SIM_LOCK_INFORMATION
                 || (request == RIL_REQUEST_DIAL && s_isstkcall))
        ) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
@@ -8143,6 +8148,9 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_QUERY_FACILITY_LOCK
                 || request == RIL_REQUEST_SET_FACILITY_LOCK
                 || request == RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER//SPRD: add for phase2 simlock
+                || request == RIL_REQUEST_GET_SIM_LOCK_DUMMYS
+                || request == RIL_REQUEST_GET_SIM_LOCK_WHITE_LIST
+                || request == RIL_REQUEST_GET_SIM_LOCK_INFORMATION
                 || request == RIL_REQUEST_ENTER_SIM_PIN2
                 || request == RIL_REQUEST_ENTER_SIM_PUK
                 || request == RIL_REQUEST_ENTER_SIM_PUK2
