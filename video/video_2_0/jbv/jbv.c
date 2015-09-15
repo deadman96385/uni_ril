@@ -540,6 +540,14 @@ int JBV_init(
         return (-1);
     }
 
+    /* Initialize the JBV Mutex. Available to use. */
+    if (NULL == mJBVMutex) {
+        mJBVMutex = OSAL_semCountCreate(1);
+    }
+
+    /* Wait till mutex is ready. */
+    OSAL_semAcquire(mJBVMutex, OSAL_WAIT_FOREVER);
+
     /* Set all JBV_Obj memory to zero. */
     OSAL_memSet(obj_ptr, 0, sizeof(JBV_Obj));
 
@@ -566,13 +574,11 @@ int JBV_init(
     /* Init state */
     obj_ptr->state = JBV_STATE_EMPTY;
 
-    /* Initialize the JBV Mutex. Available to use. */
-    if (NULL == mJBVMutex) {
-        mJBVMutex = OSAL_semCountCreate(1);
-    }
-
     OSAL_logMsg("accmRate:%d, initLevel:%llu, eMscPrvt:%d\n",
             obj_ptr->accmRate, obj_ptr->initLevel, obj_ptr->eMscPrvt);
+
+    /* Give the mutex. */
+    OSAL_semGive(mJBVMutex);
 
     return (0);
 }
