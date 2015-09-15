@@ -1613,7 +1613,8 @@ int testFM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     	  if( fmOpen() < 0 || fmPlay(freq) < 0 ) {
     	  	ret = -1;
     	  }
-    	  fmCheckStatus(&skd_fm_status_r);
+    	  //fmCheckStatus(&skd_fm_status_r);
+    	  fmCheckStatus(rsp);
     	  fmStop();
     	  fmClose();
     }  
