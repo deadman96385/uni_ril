@@ -98,6 +98,8 @@ volatile unsigned char skd_retvalue = 0x02;//0: pass 1: fail
 
 volatile unsigned char skd_vibrator = 0x02;//0: pass 1: fail
 volatile unsigned char skd_keybacklight = 0x02;//0: pass 1: fail
+volatile unsigned char skd_fm_status_r = 0x02;
+
 
 
 volatile unsigned char skd_gsensor_result = RESULT_FAIL;
@@ -159,7 +161,7 @@ unsigned char skd_tp_r = 0x01;
 	int maincmd=0;
 	int image_width=640 ;
 	int image_height=480;
-	unsigned char skd_fm_status_r = 0x00;
+	
 	
 	typedef int32_t (*at_set_testmode)(int camerinterface,int maincmd ,int subcmd,int cameraid,int width,int height);
 	typedef int (*at_cam_from_buf)(void**pp_image_addr,int size,int *out_size);
@@ -626,6 +628,10 @@ int skd_test_result(const uchar * data, int data_len, uchar * rsp, int rsp_size)
 	case 6:
 		rsp[0]= skd_backlight;
 		break;
+	case 0x15:
+		rsp[0]= skd_fm_status_r;
+		break;
+		
 
 	default:
 		INFMSG("data[0] = 0x%x no stick to!\n", *data);
@@ -1613,8 +1619,7 @@ int testFM(const uchar * data, int data_len, uchar * rsp, int rsp_size)
     	  if( fmOpen() < 0 || fmPlay(freq) < 0 ) {
     	  	ret = -1;
     	  }
-    	  //fmCheckStatus(&skd_fm_status_r);
-    	  fmCheckStatus(rsp);
+    	  fmCheckStatus(&skd_fm_status_r);
     	  fmStop();
     	  fmClose();
     }  
