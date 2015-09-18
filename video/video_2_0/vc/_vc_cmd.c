@@ -413,7 +413,8 @@ void _VC_runDnCmd(
 
             if (_VTSP_STREAM_DIR_ENDED == stream_ptr->streamParam.dir) {
                 /* Stream must be started in order to modify */
-                _VC_LOG("_VTSP_CMD_STREAM_VIDEO_MODIFY, dir is ENDED!\n");
+                //_VC_LOG("_VTSP_CMD_STREAM_VIDEO_MODIFY, dir is ENDED!\n");
+                OSAL_logMsg("%s: _VTSP_CMD_STREAM_VIDEO_MODIFY, dir is ENDED!\n", __FUNCTION__);
                 //_VC_TRACE(__FILE__, __LINE__);
                 break;
             }
@@ -492,8 +493,11 @@ void _VC_runDnCmd(
                     stream_ptr->streamParam.srtpRecvKey);
 
             if (_VC_RTP_ERROR == errval) {
-                DBG("RTP Error infc:%d", infc);
-                DBG("RTP Error remoteDataPort:%d",
+                //DBG("RTP Error infc:%d", infc);
+                //DBG("RTP Error remoteDataPort:%d",
+                //OSAL_netNtohs(stream_ptr->streamParam.remoteAddr.port));
+                OSAL_logMsg("RTP Error infc:%d", infc);
+                OSAL_logMsg("RTP Error remoteDataPort:%d",
                 OSAL_netNtohs(stream_ptr->streamParam.remoteAddr.port));
             }
             /*

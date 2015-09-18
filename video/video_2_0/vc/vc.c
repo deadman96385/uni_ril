@@ -354,7 +354,8 @@ vint _VC_startRtcpSendRecvTask(
             task_ptr->func_ptr,
             task_ptr->arg_ptr))){
 
-        _VC_LOG("Failed to create RTCP Task!!!");
+        //_VC_LOG("Failed to create RTCP Task!!!");
+        OSAL_logMsg("%s: Failed to create RTCP Task!!!\n" , __FUNCTION__);
         return _VC_ERROR;
     }
     return _VC_OK;

@@ -32,7 +32,8 @@ void _VC_algStateStream(
     if (0 != (setMask & _VC_ALG_STREAM_JB)) {
         if (VTSP_STREAM_DIR_RECVONLY == stream_ptr->streamParam.dir
                 || VTSP_STREAM_DIR_SENDRECV == stream_ptr->streamParam.dir) {
-            _VC_LOG("Here we can not dicide if init is needed\n");
+            //_VC_LOG("Here we can not dicide if init is needed\n");
+            OSAL_logMsg("%s:Here we can not dicide if init is needed\n " , __FUNCTION__);
         } else {
             JBV_init(&stream_ptr->dec.jbObj);
         }

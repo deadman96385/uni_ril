@@ -162,7 +162,8 @@ vint _VC_rtcpRecv(
                         rtcp_ptr->feedback.lastFir = message.receivedTime;
                     }
                 } else {
-                    _VC_RTCP_LOG("RTCP received FIR, Ignoring due to restriction period");
+                    //_VC_RTCP_LOG("RTCP received FIR, Ignoring due to restriction period");
+                    OSAL_logMsg("%s:RTCP received FIR, Ignoring due to restriction period\n " , __FUNCTION__);
                 }
                 break;
             default:

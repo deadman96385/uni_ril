@@ -21,7 +21,8 @@ vint _VC_rtpClose(
      * If the socket is open, close it. Then reopen it for next time use.
      */
         if (_VC_netClose(rtp_ptr->socket) != _VC_RTP_OK) {
-            _VC_TRACE(__FILE__, __LINE__);
+            //_VC_TRACE(__FILE__, __LINE__);
+            OSAL_logMsg("%s: failed to close net\n", __FUNCTION__);
             return (_VC_RTP_ERROR);
         }
 

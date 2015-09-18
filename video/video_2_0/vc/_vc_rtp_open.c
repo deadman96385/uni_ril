@@ -167,7 +167,8 @@ vint _VC_rtpOpen(
          * reopen them.
          */
         if (_VC_netClose(rtp_ptr->socket) != _VC_RTP_OK) {
-            _VC_TRACE(__FILE__, __LINE__);
+            //_VC_TRACE(__FILE__, __LINE__);
+            OSAL_logMsg("%s: failed to close net\n", __FUNCTION__);
             return (_VC_RTP_ERROR);
         }
         rtp_ptr->open = 0;
@@ -180,7 +181,8 @@ vint _VC_rtpOpen(
     if (0 == rtp_ptr->open) {
         if ((rtp_ptr->socket = 
                     _VC_netSocket(localAddr.type, rtp_ptr->tos)) < 0) {
-            _VC_TRACE(__FILE__, __LINE__);
+           // _VC_TRACE(__FILE__, __LINE__);
+            OSAL_logMsg("%s: failed to create socket\n", __FUNCTION__);
             return (_VC_RTP_ERROR);
         }
         rtp_ptr->open = 1;
@@ -201,7 +203,8 @@ vint _VC_rtpOpen(
             rtp_ptr->sendActive = _VC_RTP_NOTREADY;
             rtp_ptr->recvActive = _VC_RTP_NOTREADY;
             rtp_ptr->inUse      = _VC_RTP_NOT_BOUND;
-            _VC_TRACE(__FILE__, __LINE__);
+            //_VC_TRACE(__FILE__, __LINE__);
+            OSAL_logMsg("%s: failed to bind net\n", __FUNCTION__);
             return (_VC_RTP_ERROR);
         }
         rtp_ptr->inUse = _VC_RTP_BOUND;

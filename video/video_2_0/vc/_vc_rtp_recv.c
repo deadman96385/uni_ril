@@ -158,7 +158,8 @@ vint _VC_rtpRecv(
     timesel.usec = 10000;
     if (OSAL_FAIL == OSAL_select(&readSet, NULL, &timesel, &boolean)) {
         OSAL_taskDelay(10);
-        _VC_TRACE(__FILE__, __LINE__);
+       // _VC_TRACE(__FILE__, __LINE__);
+        OSAL_logMsg("%s:failed to select RTP\n", __FUNCTION__);
         return (_VC_RTP_ERROR);
     }
     else if (OSAL_TRUE == boolean) {
