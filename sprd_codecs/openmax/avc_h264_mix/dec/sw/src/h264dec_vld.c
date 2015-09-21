@@ -567,7 +567,7 @@ void decode_LUMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACH
     if(currMB->transform_size_8x8_flag)
     {
         inverse_zigZag = g_inverse_8x8_zigzag_tbl_cavlc;
-        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[0][qp];
+        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[1][qp];
 
         for(blk8x8 = 0; blk8x8 < 4; blk8x8++)
         {
@@ -975,7 +975,7 @@ void decode_LUMA_AC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_M
     {
         inverse_zigZag = g_inverse_8x8_zigzag_tbl;
         maxCoeff = 64;
-        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[0][qp];
+        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[1][qp];
 
         for (blk8x8= 0; blk8x8 < 4; blk8x8++)
         {
