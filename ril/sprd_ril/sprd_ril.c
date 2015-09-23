@@ -415,6 +415,7 @@ static pthread_cond_t s_lte_attach_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_lte_attach_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_pdp_mapping_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_lte_cgatt_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t wait_cpin_unlock_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int s_port = -1;
 static const char * s_device_path = NULL;
@@ -11351,7 +11352,9 @@ getSIMStatus(int channelID)
                         cmd = NULL;
                         goto out;
                     }
+                    pthread_mutex_lock(&wait_cpin_unlock_mutex);
                     err = at_send_command(ATch_type[channelID], cmd, &p_response1);
+                    pthread_mutex_unlock(&wait_cpin_unlock_mutex);
                     free(cmd);
                     if(err < 0 || p_response1->success == 0) {
                         at_response_free(p_response1);
