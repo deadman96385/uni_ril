@@ -191,14 +191,14 @@ vint _VC_rtpRecv(
              */
             /*
              * In order to support both IPv4 and IPv6, we have to specify which
-             * type of socket is used. So that the receive function could 
+             * type of socket is used. So that the receive function could
              * prepare data structure to recevice correct data.
              */
             remoteAddr.type = stream_ptr->streamParam.localAddr.type;
 
             while ((pktLen = _VC_netRecvfrom(rtp_ptr->socket, buf_ptr,
                     RTP_BUFSZ_MAX, &remoteAddr)) > 0) {
-    
+
                 /* Reset the headerExtnOffset to 0 */
                 headerExtnOffset = 0;
 
@@ -215,10 +215,12 @@ vint _VC_rtpRecv(
                  * Demux packets.
                  * Bug 2542
                  */
-                if (RTP_VERSION != ((*buf_ptr >> 6) & 3)) { 
+                if (RTP_VERSION != ((*buf_ptr >> 6) & 3)) {
                     /*
                      * Not an RTP packet.
-                    */
+                     */
+                    OSAL_logMsg("%s: not an RTP packet, version=%u, RTP=%u\n",
+                            __FUNCTION__, ((*buf_ptr >> 6) & 3), RTP_VERSION);
                     continue;
                  }
 
@@ -274,7 +276,7 @@ vint _VC_rtpRecv(
                 }
                 else {
                     /* Pkt received on open socket but inactive stream */
-                    /* _VC_TRACE(__FILE__, __LINE__); */
+                    OSAL_logMsg("%s:  Pkt received on open socket but inactive stream\n", __FUNCTION__);
                 }
             }
         }

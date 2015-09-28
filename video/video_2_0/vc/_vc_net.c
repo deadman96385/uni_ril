@@ -66,7 +66,7 @@ OSAL_INLINE OSAL_NetSockId _VC_netSocket(
 OSAL_INLINE vint _VC_netClose(
     OSAL_NetSockId socketFd)
 {
-    if (OSAL_SUCCESS != VIDEO_NET_CLOSE_SOCKET(&socketFd)) { 
+    if (OSAL_SUCCESS != VIDEO_NET_CLOSE_SOCKET(&socketFd)) {
         _VC_TRACE(__FILE__, __LINE__);
         return (_VC_RTP_ERROR);
     }
@@ -159,6 +159,8 @@ OSAL_INLINE OSAL_Boolean _VC_netIsSameAddr(
      * Check type socket type
      */
     if (addr1.type != addr2.type) {
+        OSAL_logMsg("%s: type is not match, t1:%d, t2:%d\n", __FUNCTION__,
+                addr1.type, addr2.type);
         return (OSAL_FALSE);
     }
 
@@ -167,10 +169,15 @@ OSAL_INLINE OSAL_Boolean _VC_netIsSameAddr(
             return (OSAL_TRUE);
         }
         else {
+            OSAL_logMsg("%s: IPv6, but the ip addr not match\n", __FUNCTION__);
             return (OSAL_FALSE);
         }
     }
     else {
+        if (addr1.ipv4 != addr2.ipv4) {
+            OSAL_logMsg("%s: IPv4, but the ip addr not match, a1:%u, a2:%u\n",
+                    __FUNCTION__, addr1.ipv4, addr2.ipv4);
+        }
         return (addr1.ipv4 == addr2.ipv4);
     }
 }

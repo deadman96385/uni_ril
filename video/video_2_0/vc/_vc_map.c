@@ -61,6 +61,12 @@ uvint _VC_dynamicToLocalDecoder(
             return (i);
         }
     }
+    if(VTSP_DECODER_VIDEO_NUM == 2) {
+        OSAL_logMsg("%s: failed to find decodeType. dynamic=%d, decodeType[0]=%d, decodeType[1]=%d\n",
+                __FUNCTION__, dynamic, streamParam_ptr->decodeType[0], streamParam_ptr->decodeType[1]);
+    } else {
+        OSAL_logMsg("%s: failed to find decodeType. dynamic=%d\n", __FUNCTION__, dynamic);
+    }
     return (VTSP_CODER_UNAVAIL);
 }
 
