@@ -460,7 +460,7 @@ const struct cmd_table multi_at_cmd_cvt_table[] = {
         cvt_generic_cmd_req, 5},
 
     {AT_CMD_CHLD, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+CHLD"),
-        cvt_generic_cmd_req, 50},
+        cvt_generic_cmd_req, 30},
     {AT_CMD_VTS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+VTS"),
         cvt_generic_cmd_req, 30},
     {AT_CMD_VTD, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+VTD"),
