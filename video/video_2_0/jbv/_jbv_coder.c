@@ -413,14 +413,20 @@ vint _JBV_processH264(
      */
     if (NALU_SPS == nalu) {
         unit_ptr->firstInSeq = 1;
-        if ((0 <= m1Seqn) &&
-                (NALU_SPS != H264_READ_NALU(obj_ptr->unit[m1Seqn].data_ptr[0]))) {
+       /*bug480990 SPS,PPS and I frame(FU-A) with the same TS, but SPS&PPS mark==1 */
+       /* if ((0 <= m1Seqn) &&
+                (NALU_SPS != H264_READ_NALU(obj_ptr->unit[m1Seqn].data_ptr[0]))) {*/
             /*
              * There is already a packet with firstInSeq set
              * and it's not NALU_SPS, then clear it.
              */
-            obj_ptr->unit[m1Seqn].firstInSeq = 0;
-        }
+       /*     obj_ptr->unit[m1Seqn].firstInSeq = 0;
+        }*/
+    }
+    if(NALU_PPS == nalu && pkt_ptr->mark)
+    {
+       unit_ptr->firstInSeq = 1;
+       OSAL_logMsg("make marker pps firstinseq");
     }
 
     /*
