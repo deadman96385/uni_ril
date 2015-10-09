@@ -87,15 +87,20 @@ int MP4DecGetLastDspFrm(MP4Handle *mp4Handle, void **pOutput)
 
     *pOutput = NULL;
     if(!vop_mode_ptr)
+    {
         return FALSE;
+    }
+
     if(!vop_mode_ptr->pBckRefFrame)
+    {
         return FALSE;
+    }
+
     frm_bfr = vop_mode_ptr->pBckRefFrame->pDecFrame;
     vop_mode_ptr->pBckRefFrame->pDecFrame = NULL;
     if(NULL != frm_bfr)
     {
         *pOutput = frm_bfr->pBufferHeader;
-
         return TRUE;
     } else
     {
@@ -119,8 +124,8 @@ PUBLIC void Mp4GetBufferDimensions(MP4Handle *mp4Handle, int32 *width, int32 *he
     Mp4DecObject *vo = (Mp4DecObject *) mp4Handle->videoDecoderData;
     DEC_VOP_MODE_T *vop_mode_ptr = vo->vop_mode_ptr;
 
-    *width = vop_mode_ptr->FrameWidth;
-    *height = vop_mode_ptr->FrameHeight;
+    *width =( (vop_mode_ptr->OrgFrameWidth + 15) >>4) <<4;
+    *height = ( (vop_mode_ptr->OrgFrameHeight + 15) >>4) <<4;
 
     SPRD_CODEC_LOGD ("%s, %d, width: %d, height: %d", __FUNCTION__, __LINE__, *width, *height);
 }
@@ -189,7 +194,7 @@ PUBLIC MMDecRet MP4DecVolHeader(MP4Handle *mp4Handle, MMDecVideoFormat *video_fo
 
             ret = Mp4Dec_DecMp4Header(vop_mode_ptr, video_format_ptr->i_extra);
             if(MMDEC_OK == ret)
-            {  //revised for bug456978
+            {   //revised for bug456978
                 if (vop_mode_ptr->OrgFrameWidth != 0 && vop_mode_ptr->OrgFrameHeight != 0)
                 {
                     video_format_ptr->frame_width = vop_mode_ptr->OrgFrameWidth;
@@ -201,9 +206,8 @@ PUBLIC MMDecRet MP4DecVolHeader(MP4Handle *mp4Handle, MMDecVideoFormat *video_fo
                     vop_mode_ptr->OrgFrameHeight = video_format_ptr->frame_height;
                 }
 
-
-                vop_mode_ptr->FrameWidth =  ((vop_mode_ptr->OrgFrameWidth  + 15)>>4)<<4;
-                vop_mode_ptr->FrameHeight  = ((vop_mode_ptr->OrgFrameHeight + 15) >>4)<<4;
+                //vop_mode_ptr->FrameWidth =  ((vop_mode_ptr->OrgFrameWidth  + 15)>>4)<<4;
+                //vop_mode_ptr->FrameHeight  = ((vop_mode_ptr->OrgFrameHeight + 15) >>4)<<4;
             }
 
             SPRD_CODEC_LOGD ("%s, %d, ret: %d, org_width: %d, org_height: %d, width: %d, height: %d", __FUNCTION__, __LINE__,
@@ -220,7 +224,7 @@ PUBLIC MMDecRet MP4DecDecode(MP4Handle *mp4Handle, MMDecInput *dec_input_ptr, MM
     MMDecRet ret = MMDEC_ERROR;
     DEC_VOP_MODE_T *vop_mode_ptr = vo->vop_mode_ptr;
 
-    SPRD_CODEC_LOGD ("MP4DecDecode: E, dec_input_ptr->expected_IVOP: %d", dec_input_ptr->expected_IVOP);
+    SPRD_CODEC_LOGD ("MP4DecDecode: E, dec_input_ptr->expected_IVOP: %d, vop_mode_ptr->yuv_format: %d", dec_input_ptr->expected_IVOP, vop_mode_ptr->yuv_format);
 
     mp4Handle->g_mpeg4_dec_err_flag = 0;
 
