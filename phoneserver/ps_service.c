@@ -180,7 +180,7 @@ int get_ipv6addr(const char *prop, int cid)
             usleep(100*1000);
             retry++;
         }
-        if(retry == max_retry)
+        if(retry == max_retry || ppp_info[cid-1].state != PPP_STATE_ACTIVE )
             break;
     }
     return setup_success;

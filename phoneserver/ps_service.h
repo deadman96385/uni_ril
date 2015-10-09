@@ -79,7 +79,7 @@ int cvt_cgdcont_set_rsp(AT_CMD_RSP_T * rsp, unsigned long user_data);
 int cvt_sipconfig_rsp(AT_CMD_RSP_T * rsp, unsigned long user_data);
 int cvt_cgcontrdp_rsp(AT_CMD_RSP_T * rsp, unsigned long user_data);
 int down_netcard(int cid,char* netName);
-static int parse_peer_ip(char* ipaddr,int ipv6_enable);
+int cvt_cend_cmd_ind(AT_CMD_IND_T * ind);
  /* SPRD : for svlte & csfb @{ */
 int isSvLte(void);
 int isLte(void);

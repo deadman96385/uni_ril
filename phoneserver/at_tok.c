@@ -47,7 +47,7 @@ static void skipWhiteSpace(char **p_cur)
 		(*p_cur)++;
 	}
 }
-static void skipNextComma(char **p_cur)
+void skipNextComma(char **p_cur)
 {
 	if (*p_cur == NULL)
 		return;

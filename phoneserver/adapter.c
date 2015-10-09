@@ -572,11 +572,9 @@ const struct ind_table at_ind_cvt_table[] = {
         cvt_generic_cmd_ind},
     {AT_CMD_EEMGINFOPS_IND, AT_CMD_STR("+EEMGINFOPS"), cvt_generic_cmd_ind},
     {AT_CMD_EEMGINFONC_IND, AT_CMD_STR("+EEMGINFONC"), cvt_generic_cmd_ind},
-    {AT_CMD_CESQ_IND, AT_CMD_STR("+CESQ:"), cvt_cesq_cmd_ind}
+    {AT_CMD_CESQ_IND, AT_CMD_STR("+CESQ:"), cvt_cesq_cmd_ind},
+    {AT_CMD_CEND_IND, AT_CMD_STR("+CEND:"), cvt_cend_cmd_ind}
 };
-
-int cvt_cmgs_edit_callback(pty_t * pty, char *cmd, int len, unsigned long user_data);
-int cvt_cmgw_edit_callback(pty_t * pty, char *cmd, int len, unsigned long user_data);
 
 // Returns 1 if found, 0 otherwise. needle must be null-terminated.
 // strstr might not work because WebBox sends garbage before the first OKread
@@ -1623,6 +1621,40 @@ int cvt_ecsq_cmd_ind(AT_CMD_IND_T * ind)
         PHS_LOGE("ind string size > %d\n", MAX_AT_CMD_LEN);
     }
     return AT_RESULT_OK;
+}
+
+int cvt_cend_cmd_ind(AT_CMD_IND_T * ind){
+
+    char *p, *tmp;
+    int commas = 0,err;
+    int cid,end_status;
+    char* line = strdup(ind->ind_str);
+
+    if(line == NULL)
+        return AT_RESULT_NG;
+    tmp = line;
+
+    for (p = tmp; *p != '\0' ;p++) {
+        if (*p == ',') commas++;
+    }
+
+    if(commas == 4){
+        err = at_tok_start(&tmp, ':');
+        if (err < 0) return AT_RESULT_NG;
+
+        err = at_tok_nextint(&tmp, &cid);
+        if (err < 0) return AT_RESULT_NG;
+
+        skipNextComma(&tmp);
+        err = at_tok_nextint(&tmp, &end_status);
+        if (err < 0) return AT_RESULT_NG;
+
+        if(end_status == 104 && cid > 0 && cid < MAX_PPP_NUM){
+            ppp_info[cid-1].state = PPP_STATE_ACT_ERROR;
+        }
+    }
+    free(line);
+    return AT_RESULT_NG;
 }
 
 int cvt_null_cmd_ind(AT_CMD_IND_T __attribute__((unused)) * ind)
