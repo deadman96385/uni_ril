@@ -92,6 +92,7 @@
     ,{RIL_UNSOL_CALL_CSFALLBACK_FINISH, responseCallCsFallBack, WAKE_PARTIAL}//SPRD:add for LTE-CSFB to handle CS fall back of MT call
     /* SPRD: add RAU SUCCESS Report */
     ,{RIL_UNSOL_GPRS_RAU, responseVoid, WAKE_PARTIAL}
+    ,{RIL_UNSOL_SIM_EXPIRED, responseInts, WAKE_PARTIAL}//SPRD:add for Viettel Expired Card
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_UNSOL_RESPONSE_NEW_CB_MSG, responseVoid, WAKE_PARTIAL}

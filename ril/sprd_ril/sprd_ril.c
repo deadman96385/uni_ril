@@ -12308,6 +12308,19 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         }
         */
         /* @} */
+        //SPRD:add for Viettel Expired Card
+    } else if (strStartsWith(s, "+SPEXPIRESIM:")) {
+        int simID;
+        char *tmp;
+        line = strdup(s);
+        tmp = line;
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &simID);
+        if (err < 0) goto out;
+        RILLOGD("SPEXPIRESIM = %d", simID);
+        RIL_onUnsolicitedResponse (RIL_UNSOL_SIM_EXPIRED, &simID, sizeof(simID));
     } else if (strStartsWith(s, "+CUSD:")) {
         char *response[3] = { NULL, NULL, NULL};
         char *tmp;
