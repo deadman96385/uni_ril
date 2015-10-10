@@ -3376,8 +3376,9 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                 }
             }
             if(i >= 3) {
-                RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
+
                 s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
+                RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 return;
             }
         }
@@ -3626,6 +3627,7 @@ static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data, char *qos
     //IPV6
     index = getPDP();
     if(index < 0 || getPDPCid(index) >= 0)
+        s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
         goto error;
 
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
@@ -3897,6 +3899,7 @@ RETRY:
             index = getPDP();
 
             if (index < 0 || getPDPCid(index) >= 0)
+                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                 goto error;
         }
 
@@ -3908,6 +3911,7 @@ RETRY:
                 at_send_command(ATch_type[channelID], cmd, NULL );
             } else {
                 if (deactivateLteDataConnection(channelID, cmd) < 0) {
+                    s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                     goto error;
                 }
             }
@@ -4124,7 +4128,10 @@ retrycgatt:
             if (!strcmp(pdp_type,"IPV4V6")) {
                 fbCause = getSPACTFBcause(channelID);
                 RILLOGD("requestSetupDataCall fall Back Cause = %d", fbCause);
-                if (fbCause < 0) goto error;
+                if (fbCause < 0) {
+                    s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
+                    goto error;
+                }
 
                 if(!strcmp(s_modem, "t")) {
                     property_get(ETH_TD, eth, "veth");
@@ -4225,6 +4232,7 @@ retrycgatt:
                 //IPV6
                 index = getPDP();
                 if(index < 0 || getPDPCid(index) >= 0)
+                    s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                     goto error;
 
                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
