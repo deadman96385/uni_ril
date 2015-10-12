@@ -98,6 +98,8 @@
     ,{RIL_UNSOL_CONN_IMSEN, responseInts, WAKE_PARTIAL}
     ,{RIL_UNSOL_CIREPI, responseInts, WAKE_PARTIAL}
     ,{RIL_UNSOL_GPRS_RAU, responseVoid, WAKE_PARTIAL}
+    /* SPRD: Clear Code 4G to 3G Fallback Report */
+    ,{RIL_UNSOL_CLEAR_CODE_FALLBACK, responseVoid, WAKE_PARTIAL}
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_UNSOL_RESPONSE_NEW_CB_MSG, responseVoid, WAKE_PARTIAL}

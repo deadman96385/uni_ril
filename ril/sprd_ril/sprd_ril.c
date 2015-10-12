@@ -12967,6 +12967,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             if (err < 0) goto out;
             if ((err_code == 3) || (err_code == 6) || (err_code == 7) || (err_code == 8) || (err_code == 14)) { // it means ps business in this sim/usim is rejected by network
                 RIL_onUnsolicitedResponse (RIL_UNSOL_SIM_PS_REJECT, NULL, 0);
+            } else if (err_code == 150) {
+                RIL_onUnsolicitedResponse (RIL_UNSOL_CLEAR_CODE_FALLBACK, NULL, 0);
             }
         }
         /* @} */
