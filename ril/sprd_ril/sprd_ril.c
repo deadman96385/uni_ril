@@ -3626,9 +3626,10 @@ static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data, char *qos
     updatePDPCid(index+1,1);
     //IPV6
     index = getPDP();
-    if(index < 0 || getPDPCid(index) >= 0)
+    if(index < 0 || getPDPCid(index) >= 0){
         s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
         goto error;
+    }
 
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
     at_send_command(ATch_type[channelID], cmd, NULL);
@@ -3898,9 +3899,10 @@ RETRY:
         } else {
             index = getPDP();
 
-            if (index < 0 || getPDPCid(index) >= 0)
+            if (index < 0 || getPDPCid(index) >= 0){
                 s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                 goto error;
+            }
         }
 
         primaryindex = index;
@@ -4231,9 +4233,10 @@ retrycgatt:
             } else if (!strcmp(pdp_type,"IPV4+IPV6")) {
                 //IPV6
                 index = getPDP();
-                if(index < 0 || getPDPCid(index) >= 0)
+                if(index < 0 || getPDPCid(index) >= 0){
                     s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
                     goto error;
+                }
 
                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
                 at_send_command(ATch_type[channelID], cmd, NULL);
