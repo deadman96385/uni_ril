@@ -611,6 +611,7 @@ OSAL_Status _VIER_netSocketSendTo(
      * to modem.
      */
     if (OSAL_TRUE == sock_ptr->error) {
+        VIER_dbgPrintf("there is network error from VPR.\n");
         return (OSAL_FAIL);
     }
 
@@ -621,6 +622,7 @@ OSAL_Status _VIER_netSocketSendTo(
             &sock_ptr->localAddress,
             address_ptr,
             comm_ptr, VPR_NET_TYPE_RTP_SEND_PKT)) {
+        VIER_dbgPrintf(" _VIER_constructVideoPacket Failed.\n");
         return (OSAL_FAIL);
     }
     /* Write to modem processor */

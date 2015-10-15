@@ -50,7 +50,7 @@
 /*
  * Maximum RTP payload size
  */
-#define H264_ENC_MAX_RTP_SIZE (VIDEO_MAX_RTP_SZ - 100)
+#define H264_ENC_MAX_RTP_SIZE (VIDEO_MAX_RTP_SZ - 104)
 
 int H264_encGetData(
     Video_EncObj  *obj_ptr,

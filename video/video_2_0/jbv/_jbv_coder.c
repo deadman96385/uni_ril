@@ -422,11 +422,14 @@ vint _JBV_processH264(
              */
        /*     obj_ptr->unit[m1Seqn].firstInSeq = 0;
         }*/
+        /*sps pps with same timestamp, but sps has no mark*/
+        pkt_ptr->mark = 1;
     }
-    if(NALU_PPS == nalu && pkt_ptr->mark)
+    if(NALU_PPS == nalu)
     {
        unit_ptr->firstInSeq = 1;
-       OSAL_logMsg("make marker pps firstinseq");
+       pkt_ptr->mark = 1;
+       OSAL_logMsg("make marker pps firstinseq and mark");
     }
 
     /*
