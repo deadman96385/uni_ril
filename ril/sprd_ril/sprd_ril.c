@@ -11225,7 +11225,8 @@ setRadioState(int channelID, RIL_RadioState newState)
         RIL_onUnsolicitedResponse (RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED,
                                     NULL, 0);
         // Sim state can change as result of radio state change
-        RIL_onUnsolicitedResponse (RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+        if(sState != RADIO_STATE_OFF)
+            RIL_onUnsolicitedResponse (RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                     NULL, 0);
         /* FIXME onSimReady() and onRadioPowerOn() cannot be called
          * from the AT reader thread
