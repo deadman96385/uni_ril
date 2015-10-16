@@ -310,48 +310,53 @@ vint _JBV_findTsMax(
             /*JBV unit time stamp is greater (newer packet). Update tsMax. */
             tsMax = unit_ptr->ts;
         }
-        else if (tsMax == unit_ptr->ts) {
-            /* Try to find last packet (mark bit set) in sequence. */
-            if (!unit_ptr->mark) {
+        else if (tsMax > unit_ptr->ts){
+            if(foundTs > unit_ptr->ts){
+                tsMax = foundTs;
                 continue;
             }
-            /* Maximum seqn     */
-            xseqn = seqn;
+            tsMax = unit_ptr->ts;
+        }
+        /* Try to find last packet (mark bit set) in sequence. */
+        if (!unit_ptr->mark) {
+            continue;
+        }
+        /* Maximum seqn     */
+        xseqn = seqn;
 
+        /*
+         * Handle frames with the same timestamp.
+         * Set firstInSeq for next packet has the same ts after
+         * mark pkt.
+         */
+        nextSeqn = JBV_NEXT_SEQN(seqn);
+        if ((obj_ptr->unit[nextSeqn].valid) &&
+                (unit_ptr->ts == obj_ptr->unit[nextSeqn].ts)) {
             /*
-             * Handle frames with the same timestamp.
-             * Set firstInSeq for next packet has the same ts after
-             * mark pkt.
-             */
-            nextSeqn = JBV_NEXT_SEQN(seqn);
-            if ((obj_ptr->unit[nextSeqn].valid) &&
-                    (unit_ptr->ts == obj_ptr->unit[nextSeqn].ts)) {
-                /*
-                 * Next packet has the same ts, it's different frame,
-                 * set firstInSeq */
-                obj_ptr->unit[nextSeqn].firstInSeq = 1;
-            }
+             * Next packet has the same ts, it's different frame,
+             * set firstInSeq */
+            obj_ptr->unit[nextSeqn].firstInSeq = 1;
+        }
 
-            /* Now find min seqn. */
-            while (1) {
-                if (!obj_ptr->unit[xseqn].valid) {
-                    tsMax = foundTs;
-                    break;
-                }
-                if (tsMax != obj_ptr->unit[xseqn].ts) {
-                    tsMax = foundTs;
-                    break;
-                }
-                if (obj_ptr->unit[xseqn].firstInSeq) {
-                    m1Seqn = xseqn;
-                    foundTs = tsMax;
-                    break;
-                }
-                xseqn = JBV_PREVIOUS_SEQN(xseqn);
-                if (xseqn == seqn) {
-                    tsMax = foundTs;
-                    break;
-                }
+        /* Now find min seqn. */
+        while (1) {
+            if (!obj_ptr->unit[xseqn].valid) {
+                tsMax = foundTs;
+                break;
+            }
+            if (tsMax != obj_ptr->unit[xseqn].ts) {
+                tsMax = foundTs;
+                break;
+            }
+            if (obj_ptr->unit[xseqn].firstInSeq) {
+                m1Seqn = xseqn;
+                foundTs = tsMax;
+                break;
+            }
+            xseqn = JBV_PREVIOUS_SEQN(xseqn);
+            if (xseqn == seqn) {
+                tsMax = foundTs;
+                break;
             }
         }
     }
