@@ -3722,7 +3722,7 @@ RETRY:
             }
         }
 
-        if (!IsLte || is_default_bearer) {
+        if (is_default_bearer) {
             if(is_default_bearer){
                 snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index+1);
             } else {
@@ -3892,7 +3892,11 @@ retrycgatt:
                     goto done;
                 }
             }
-            snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index+1);
+            if(IsLte){
+                snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index+1);
+            }else{
+                snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index+1);
+            }
             err = at_send_command(ATch_type[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {
                 if (strStartsWith(p_response->finalResponse,"+CME ERROR:")) {
@@ -4005,9 +4009,12 @@ retrycgatt:
                                 at_send_command(ATch_type[channelID], cmd,
                                         NULL);
                             }
-
-                            snprintf(cmd, sizeof(cmd),
-                                    "AT+CGDATA=\"M-ETHER\",%d", index + 1);
+                            if(IsLte){
+                                snprintf(cmd, sizeof(cmd),"AT+CGDATA=\"M-ETHER\",%d", index + 1);
+                            }
+                            else{
+                                snprintf(cmd, sizeof(cmd),"AT+CGDATA=\"PPP\",%d", index + 1);
+                            }
                             err = at_send_command(ATch_type[channelID], cmd,
                                     &p_response);
                             if (err < 0 || p_response->success == 0) {
