@@ -1958,7 +1958,6 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
                 }
 
                 if ((i + 1) < numlocks) strcat(plmn,",");
-                RILLOGD(" requestGetSimLockWhiteList plmn = %s ",plmn);
             }
             break;
         }
@@ -1973,6 +1972,12 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             {
                 err = at_tok_nextstr(&line,&mcc);
                 if (err < 0) goto error;
+                //add for test sim card:mcc=001
+                if (strlen(mcc) == 1) {
+                    strcat(plmn,"00");
+                } else if (strlen(mcc) == 2) {
+                    strcat(plmn,"0");
+                }
                 strcat(plmn,mcc);
 
                 err = at_tok_nextstr(&line,&mnc);
@@ -1989,7 +1994,6 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
                 strcat(plmn,mnc);
 
                 if ((i + 1) < numlocks) strcat(plmn,",");
-                RILLOGD(" requestGetSimLockWhiteList plmn = %s ",plmn);
             }
             break;
         case REQUEST_SIMLOCK_WHITE_LIST_PU:
@@ -2004,8 +2008,15 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             for(i = 0;i < numlocks;i++)
             {
                 err = at_tok_nextstr(&line,&mcc);
-                strcat(plmn,mcc);
                 if (err < 0) goto error;
+                //add for test sim card:mcc=001
+                if (strlen(mcc) == 1) {
+                    strcat(plmn,"00");
+                } else if (strlen(mcc) == 2) {
+                    strcat(plmn,"0");
+                }
+                strcat(plmn,mcc);
+
                 err = at_tok_nextstr(&line,&mnc);
                 if (err < 0) goto error;
                 err = at_tok_nextint(&line, &mnc_digit);
@@ -2034,8 +2045,8 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
         case REQUEST_SIMLOCK_WHITE_LIST_PP:
         {
             char *gid1;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(9+1)+5);
-            memset(plmn, 0, sizeof(char)*numlocks*(9+1)+5);
+            plmn = (char*)alloca(sizeof(char)*numlocks*(10+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(10+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -2043,8 +2054,15 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             for(i = 0;i < numlocks;i++)
             {
                 err = at_tok_nextstr(&line,&mcc);
-                strcat(plmn,mcc);
                 if (err < 0) goto error;
+                //add for test sim card:mcc=001
+                if (strlen(mcc) == 1) {
+                    strcat(plmn,"00");
+                } else if (strlen(mcc) == 2) {
+                    strcat(plmn,"0");
+                }
+                strcat(plmn,mcc);
+
                 err = at_tok_nextstr(&line,&mnc);
                 if (err < 0) goto error;
                 err = at_tok_nextint(&line, &mnc_digit);
@@ -2063,15 +2081,14 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
                 strcat(plmn,gid1);
 
                 if ((i + 1) < numlocks) strcat(plmn,",");
-                RILLOGD(" requestGetSimLockWhiteList plmn = %s ",plmn);
             }
             break;
         }
         case REQUEST_SIMLOCK_WHITE_LIST_PC:
         {
             char *gid1,*gid2;
-            plmn = (char*)alloca(sizeof(char)*numlocks*(12+1)+5);
-            memset(plmn, 0, sizeof(char)*numlocks*(12+1)+5);
+            plmn = (char*)alloca(sizeof(char)*numlocks*(14+1)+5);
+            memset(plmn, 0, sizeof(char)*numlocks*(14+1)+5);
             strcat(plmn,type_ret);
             strcat(plmn,",");
             strcat(plmn,numlocks_ret);
@@ -2079,8 +2096,15 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             for(i = 0;i < numlocks;i++)
             {
                 err = at_tok_nextstr(&line,&mcc);
-                strcat(plmn,mcc);
                 if (err < 0) goto error;
+                //add for test sim card:mcc=001
+                if (strlen(mcc) == 1) {
+                    strcat(plmn,"00");
+                } else if (strlen(mcc) == 2) {
+                    strcat(plmn,"0");
+                }
+                strcat(plmn,mcc);
+
                 err = at_tok_nextstr(&line,&mnc);
                 if (err < 0) goto error;
                 err = at_tok_nextint(&line, &mnc_digit);
@@ -2104,7 +2128,6 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
                 strcat(plmn,gid2);
 
                 if ((i + 1) < numlocks) strcat(plmn,",");
-                RILLOGD(" requestGetSimLockWhiteList plmn = %s ",plmn);
             }
             break;
         }
@@ -2112,7 +2135,7 @@ static void requestGetSimLockWhiteList(int channelID, void *data, size_t datalen
             goto error;
             break;
     }
-    RILLOGD("telefk requestGetSimLockWhiteList plmn = %s",plmn);
+    RILLOGD("requestGetSimLockWhiteList plmn = %s",plmn);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, plmn, strlen(plmn)+1);
     at_response_free(p_response);
     return;
