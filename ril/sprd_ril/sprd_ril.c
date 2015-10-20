@@ -482,6 +482,7 @@ static RIL_InitialAttachApn *initialAttachApn = NULL;
 static int in4G;
 static bool bLteDetached = false;
 static int isTest;
+static bool radioOnERROR = false;
 
 void *setRadioOnWhileSimBusy(void *param);
 static pthread_mutex_t s_hasSimBusyMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -2641,6 +2642,13 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
             }
 
             if (isRadioOn(channelID) != 1) {
+                goto error;
+            }
+
+            if (strStartsWith (p_response->finalResponse,"ERROR"))
+            {
+                radioOnERROR = true;
+                RILLOGD("requestRadioPower: radio on ERROR");
                 goto error;
             }
         }
@@ -10658,6 +10666,8 @@ setRadioState(int channelID, RIL_RadioState newState)
 
     oldState = sState;
 
+    RILLOGD("setRadioState: oldState = %d, newState = %d, s_closed = %d", oldState, newState, s_closed);
+
     if (s_closed > 0) {
         // If we're closed, the only reasonable state is
         // RADIO_STATE_UNAVAILABLE
@@ -11764,6 +11774,23 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RIL_onUnsolicitedResponse (
                 RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
                 NULL, 0);
+
+        char *tmp;
+        int voiceState, channelID;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &voiceState);
+        if (err < 0) goto out;
+
+        if (strStartsWith(s,"+CREG:") && voiceState == 2
+            && sState == RADIO_STATE_OFF && radioOnERROR == true)
+        {
+        RILLOGD("CS Searching network, Radio is on, setRadioState now.");
+        channelID = getChannel();
+        setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
+        radioOnERROR = false;
+        }
     } else if (strStartsWith(s,"+CEREG:")) {
         char *p,*tmp;
         int lteState;
