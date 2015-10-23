@@ -164,16 +164,21 @@ vint _VC_videoStreamSendEncodedData(
                 /* Calculate the Video RTP time stamp. */
                 previousTsMs = rtp_ptr->tsMs;
                 //DBG("previousTsMs:%llu", previousTsMs);
-                if (FRAME_SPS_PPS_SIZE == length) {
-                    /*
-                     * For the first frame, Use the randomly initialized rtpTime.
-                     * Also record the OSAL Time so that we can calculate the time elapsed
-                     * when sending RTCP SR. This is approximately the sending time.
-                     * NOTE: For improved accuracy, rtp_ptr->firstRtpTimeMs value should be adjusted by calculating
-                     * CameraFrameTime-to-Send path latency and subtracting it.
-                     */
-                    OSAL_selectGetTime(&timeval);
-                    rtp_ptr->info.firstRtpTimeMs = (timeval.sec * 1000) + (timeval.usec / 1000);
+                if(previousTsMs ==0){
+                    if (FRAME_SPS_PPS_SIZE == length) {
+                        /*
+                         * For the first frame, Use the randomly initialized rtpTime.
+                         * Also record the OSAL Time so that we can calculate the time elapsed
+                         * when sending RTCP SR. This is approximately the sending time.
+                         * NOTE: For improved accuracy, rtp_ptr->firstRtpTimeMs value should be adjusted by calculating
+                         * CameraFrameTime-to-Send path latency and subtracting it.
+                         */
+                        OSAL_selectGetTime(&timeval);
+                        rtp_ptr->info.firstRtpTimeMs = (timeval.sec * 1000) + (timeval.usec / 1000);
+                    }
+                    else {
+                        OSAL_logMsg("%s: This is not expected. The first frame should be SPS PPS frame\n", __FUNCTION__);
+                    }
                 }
                 else {
                     /*
@@ -183,6 +188,7 @@ vint _VC_videoStreamSendEncodedData(
                      */
                     rtp_ptr->rtpTime += ((tsMs - previousTsMs) * _VC_VIDEO_CLOCK_RATE_IN_KHZ);
                 }
+                //OSAL_logMsg("%s: tsMs=%llu, previousTsMs=%llu, rtpTime=%lu\n", __FUNCTION__, tsMs, previousTsMs, rtp_ptr->rtpTime);
                 /* Update the local Video RTP Time stamp in Milliseconds. */
                 rtp_ptr->tsMs = tsMs;
                 //DBG("currentTsMs:%llu", tsMs);
