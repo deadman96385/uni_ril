@@ -196,6 +196,7 @@ int s_isuserdebug = 0;
 int modem;
 int s_multiSimMode = 0;
 int g_csfb_processing = 0;
+int g_csfb_call_id = 1;
 static const char * s_modem = NULL;
 static int s_testmode = 0;
 static int allow_data = 0;
@@ -4956,7 +4957,7 @@ static void requestCallCsFallBackAccept(int channelID, void *data, size_t datale
     char *cmd;
     int ret, err;
     RILLOGD("requestCallCsFallBackAccept.");
-    ret = asprintf(&cmd, "AT+SCSFB=1,1");
+    ret = asprintf(&cmd, "AT+SCSFB=%d,1",g_csfb_call_id);
       if(ret < 0) {
           RILLOGE("Failed to allocate memory");
           cmd = NULL;
@@ -4977,7 +4978,7 @@ static void requestCallCsFallBackReject(int channelID, void *data, size_t datale
     char *cmd;
     int ret, err;
     RILLOGD("requestCallCsFallBackReject.");
-    ret = asprintf(&cmd, "AT+SCSFB=1,0");
+    ret = asprintf(&cmd, "AT+SCSFB=%d,0",g_csfb_call_id);
       if(ret < 0) {
           RILLOGE("Failed to allocate memory");
           cmd = NULL;
@@ -13362,6 +13363,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         at_tok_start(&tmp);
 
         err = at_tok_nextint(&tmp, &response->id);
+        g_csfb_call_id = response->id;
         if (err < 0) {
             RILLOGD("get id fail");
             response->id = 1;
