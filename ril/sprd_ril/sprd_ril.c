@@ -13586,7 +13586,7 @@ static void setTestMode(int channelID) {
 /* @} */
 
 static int getMaxPDPNum(void) {
-    return isLte() ? MAX_PDP:MAX_PDP/2;
+    return MAX_PDP;
 }
 
 static int getExtraPDPNum(int index){
