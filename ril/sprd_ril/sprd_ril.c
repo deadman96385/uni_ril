@@ -13616,6 +13616,8 @@ static void copyDataReponse(RIL_Data_Call_Response_v11* pSource, RIL_Data_Call_R
     pDest->addresses = pSource->addresses;
     pDest->gateways = pSource->gateways;
     pDest->dnses = pSource->dnses;
+    pDest->pcscf = pSource->pcscf;
+    pDest->mtu = pSource->mtu;
     dumpDataResponse(pDest);
 }
 static void getSIMStatusAgainForSimBusy() {
