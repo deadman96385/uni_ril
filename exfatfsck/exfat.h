@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include "exfatfs.h"
 #include "version.h"
+#include <pthread.h>
 
 #define EXFAT_NAME_MAX 256
 #define EXFAT_ATTRIB_CONTIGUOUS 0x10000
@@ -62,6 +63,7 @@ struct exfat_node
 {
 	struct exfat_node* parent;
 	struct exfat_node* child;
+	struct exfat_node* twins;
 	struct exfat_node* next;
 	struct exfat_node* prev;
 
@@ -77,6 +79,9 @@ struct exfat_node
 	le16_t name[EXFAT_NAME_MAX + 1];
 	le16_t name_hash;
 	int invalid_flag;
+	int has_twin;
+	int cached;
+	int shared;
 };
 
 enum exfat_mode
@@ -137,13 +142,15 @@ struct exfat_human_bytes
 	const char* unit;
 };
 
-extern struct exfat_node *cur_node;
+extern int threads;
 extern int exfat_errors;
 extern int exfat_recovered;
 extern int exfat_info;
 extern int exfat_repair_num;
 extern cluster_t *fat_map;
+extern char *bit_map;
 extern struct timeval fsck_total_time, fsck_p1_time, fsck_p2_time, fsck_p3_time, fsck_p4_time;
+extern pthread_mutex_t mtx;
 unsigned long print_time(struct timeval *time);
 void start_count(struct timeval *);
 void end_count(const char *, struct timeval *);
@@ -185,9 +192,9 @@ ssize_t exfat_generic_pwrite(struct exfat* ef, struct exfat_node* node,
 int exfat_opendir(struct exfat* ef, struct exfat_node* dir,
 		struct exfat_iterator* it, int fatck);
 void exfat_closedir(struct exfat* ef, struct exfat_iterator* it);
-struct exfat_node* exfat_readdir(struct exfat_iterator* it);
+struct exfat_node* exfat_readdir(struct exfat_iterator* it, struct exfat_node *cur_node, int tw);
 int exfat_lookup(struct exfat* ef, struct exfat_node** node,
-		const char* path);
+		const char* path, int tw);
 int exfat_split(struct exfat* ef, struct exfat_node** parent,
 		struct exfat_node** node, le16_t* name, const char* path);
 
@@ -224,7 +231,7 @@ size_t utf16_length(const le16_t* str);
 
 struct exfat_node* exfat_get_node(struct exfat_node* node);
 int exfat_put_node(struct exfat* ef, struct exfat_node* node);
-int exfat_cache_directory(struct exfat* ef, struct exfat_node* dir, int fatck);
+int exfat_cache_directory(struct exfat* ef, struct exfat_node* dir, int ck);
 void exfat_reset_cache(struct exfat* ef);
 void exfat_flush_node(struct exfat* ef, struct exfat_node* node);
 int exfat_unlink(struct exfat* ef, struct exfat_node* node);

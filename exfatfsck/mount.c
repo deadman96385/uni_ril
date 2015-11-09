@@ -277,8 +277,8 @@ error:
 
 int exfat_mount(struct exfat* ef, const char* spec, enum exfat_mode mode)
 {
-	int rc = -EIO;
-	struct exfat_node* node;
+	int rc = -EIO, tw;
+	struct exfat_node* node, *cur_node = NULL;
 	struct exfat_iterator it;
 
 	exfat_tzset();
@@ -414,24 +414,28 @@ int exfat_mount(struct exfat* ef, const char* spec, enum exfat_mode mode)
 			goto error;
 	}
 
+	if (ef->root->twins == NULL)
+		ef->root->has_twin = 0;
 	/* root directory check*/
-	it.parent = ef->root;
-	it.current = NULL;
-	while ((node = exfat_readdir(&it))) {
-		char buffer[EXFAT_NAME_MAX + 1];
-		exfat_get_name(node, buffer, EXFAT_NAME_MAX);
-		exfat_debug("%s: %s", buffer, IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented");
+	for (tw = 0; tw <= ef->root->has_twin; tw++) {
+		it.parent = ef->root;
+		it.current = NULL;
+		while ((node = exfat_readdir(&it, cur_node, tw))) {
+			char buffer[EXFAT_NAME_MAX + 1];
+			exfat_get_name(node, buffer, EXFAT_NAME_MAX);
+			//exfat_debug("%s: %s", buffer, IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented");
 
-		if (node->invalid_flag && exfat_recovered) {
-			if (delete(ef, node) != 0)
-				goto error;
-			exfat_repair("delete dir/file '%s'", buffer);
+			if (node->invalid_flag && exfat_recovered) {
+				if (delete(ef, node) != 0)
+					goto error;
+				exfat_repair("delete dir/file '%s'", buffer);
+			}
+			cur_node = it.current->next;
+			exfat_put_node(ef, node);
 		}
-		cur_node = it.current->next;
-		exfat_put_node(ef, node);
+		it.parent = NULL;
+		it.current = NULL;
 	}
-	it.parent = NULL;
-	it.current = NULL;
 	end_count("Checking boot region and root directory", &fsck_p1_time);
 
 	if (prepare_super_block(ef) != 0)

@@ -24,11 +24,22 @@
 #include <exfatfs.h>
 #include <inttypes.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <atomic-arm.h>
 
-struct exfat_node *cur_node = NULL;
 uint64_t files_count, directories_count;
 int exfat_recovered = 0, exfat_info = 0, exfat_repair_num = 0;
 cluster_t *fat_map = NULL;
+char *bit_map = NULL;
+int root_map = 0;
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+typedef struct {
+	struct exfat ef;
+	char *path;
+	int tw;
+} arg_type;
+typedef int (*func)(void *);
+int threads = 0;
 
 /* we rebuild the bitmap while cluster of node not allocated
  * Note that we did this action only in directory checking!
@@ -94,16 +105,69 @@ static int nodeck(struct exfat* ef, struct exfat_node* node)
 	return rc;
 }
 
-static int dirck(struct exfat* ef, const char* path)
+static int multi_thread(struct exfat *ef, const char *path, func fp)
 {
-	int rc = 0;
+	int s;
+	pthread_t t1, t2;
+	void *status1, *status2;
+	arg_type arg1, arg2;
+
+	arg1.ef = arg2.ef = *ef;
+	arg1.path = arg2.path = path;
+	arg1.tw = 0;
+	arg2.tw = 1;
+
+	exfat_debug("create multi-thread for current node");
+	threads++;
+	s = pthread_create(&t1, NULL, fp, &arg1);
+	if (s != 0) {
+		printf("pthread1 create failed\n");
+		return -ENOMEM;
+	}
+	s = pthread_create(&t2, NULL, fp, &arg2);
+	if (s != 0) {
+		printf("pthread2 create failed\n");
+		return -ENOMEM;
+	}
+	s = pthread_join(t1, &status1);
+	if (s != 0) {
+		printf("pthread1 join failed\n");
+		return -ENOMEM;
+	}
+	s = pthread_join(t2, &status2);
+	if (s != 0) {
+		printf("pthread2 join failed\n");
+		return -ENOMEM;
+	}
+
+	threads--;
+	if ((long)status1 != 0 || (long)status2 != 0)
+		return -1;
+
+	return 0;
+}
+
+static int dirck(void *arg)
+{
+	struct exfat *ef;
+	char *path;
+	int rc = 0, tw;
 	struct exfat_node* parent;
-	struct exfat_node* node;
+	struct exfat_node* node, *cur_node = NULL;
 	struct exfat_iterator it;
 	size_t path_length;
 	char* entry_path;
+	arg_type *arg_temp;
 
-	if (exfat_lookup(ef, &parent, path) != 0)
+	arg_temp = (arg_type *)arg;
+	ef = &(arg_temp->ef);
+	path = arg_temp->path;
+	tw = arg_temp->tw;
+	if (path == NULL) {
+		exfat_debug("pthread start root path");
+		path = "";
+	}
+	if (exfat_lookup(ef, &parent, path, tw) != 0)
 		exfat_bug("directory `%s' is not found", path);
 	if (!(parent->flags & EXFAT_ATTRIB_DIR))
 		exfat_bug("`%s' is not a directory (0x%x)", path, parent->flags);
@@ -118,6 +182,7 @@ static int dirck(struct exfat* ef, const char* path)
 		printf("Failed to allocate memory while checking dir.\n");
 		return -ENOMEM;
 	}
+	memset(entry_path, 0, path_length + 1 + EXFAT_NAME_MAX);
 	strcpy(entry_path, path);
 	strcat(entry_path, "/");
 
@@ -127,12 +192,28 @@ static int dirck(struct exfat* ef, const char* path)
 		printf("Failed to open directory '%s'\n", path);
 		return -EBUSY;
 	}
-	while ((node = exfat_readdir(&it))) {
+
+	if (parent->has_twin) {
+		int result;
+
+		parent->has_twin = 0;/* clear for detach*/
+		exfat_put_node(ef, parent);
+		result = multi_thread(ef, path, dirck);
+		parent->has_twin = 1;/* set for next scan*/
+		free(entry_path);
+		if (result != 0)
+			return -1;
+		else {
+			exfat_put_node(ef, parent);
+			return 0;
+		}
+	}
+	while ((node = exfat_readdir(&it, cur_node, tw))) {
 		le16_t hash;
 		exfat_get_name(node, entry_path + path_length + 1, EXFAT_NAME_MAX);
-		exfat_debug("%s: %s, %"PRIu64" bytes, cluster %u", entry_path,
-				IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented",
-				node->size, node->start_cluster);
+		//exfat_debug("%s: %s, %"PRIu64" bytes, cluster %u", entry_path,
+		//		IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented",
+		//		node->size, node->start_cluster);
 
 		if (node->invalid_flag && exfat_recovered) {
 			if (delete(ef, node) != 0)
@@ -153,20 +234,21 @@ static int dirck(struct exfat* ef, const char* path)
 			}
 		}
 		*/
+		arg_temp->path = entry_path;
 		if (node->flags & EXFAT_ATTRIB_DIR) {
-			directories_count++;
-			if ((rc = dirck(ef, entry_path)) != 0) {
+			android_atomic_inc(&directories_count);
+			if ((rc = dirck(arg_temp)) != 0) {
 				free(entry_path);
 				return rc;
 			}
 		} else {
-			files_count++;
+			android_atomic_inc(&files_count);
 			if (nodeck(ef, node) && exfat_recovered) {
 				char name[EXFAT_NAME_MAX + 1];
 				exfat_get_name(node, name, EXFAT_NAME_MAX);
 				if (delete(ef, node) != 0)
 					return -EIO;
-				files_count--;
+				android_atomic_dec(&files_count);
 				exfat_repair("errors of file '%s' repaired", name);
 			}
 		}
@@ -207,16 +289,16 @@ static uint32_t set_fat_map(struct exfat *ef, struct exfat_node *node)
 				exit(3);
 			}
 		}
-		if (fat_map[cl]) {
+		if (android_atomic_release_cas(0, head, &fat_map[cl])) {
 			exfat_error("Found crosslinked chain(at %d)", cl);
 			return cl;
 		}
-		fat_map[cl] = head;
 		clusters++;
 		last = cl;
 	}
 
-	exfat_debug("Clean chain");
+	node->cached = 1;
+	//exfat_debug("Clean chain");
 	return 0;
 }
 
@@ -232,11 +314,11 @@ static int check_fat_chain(struct exfat *ef, struct exfat_node *node)
 	uint32_t result;
 	int clusters = 0;
 
-	if (node->start_cluster == 0)
+	if (node->start_cluster == 0 || node->cached)
 		return 0;
 
 	exfat_get_name(node, buffer, EXFAT_NAME_MAX);
-	exfat_debug("%s:cluster chain head=%d", buffer, node->start_cluster);
+	//exfat_debug("%s:cluster chain head=%d", buffer, node->start_cluster);
 	result = set_fat_map(ef, node);
 	/* crosslinked at start cluster, mark to delete*/
 	if (result > 0 && result == node->start_cluster) {
@@ -271,25 +353,39 @@ static int check_fat_chain(struct exfat *ef, struct exfat_node *node)
 	return 0;
 }
 
-static int check_fat(struct exfat* ef, const char* path)
+static int check_fat(void *arg)
 {
-	int rc = 0;
-	struct exfat_node* parent;
-	struct exfat_node* node;
+	struct exfat *ef;
+	char *path;
+	int rc = 0, s, tw;
+	struct exfat_node *parent;
+	struct exfat_node *node, *cur_node = NULL;
 	struct exfat_iterator it;
 	size_t path_length;
 	char* entry_path;
+	pthread_t t1, t2;
+	void *status1, *status2;
+	arg_type *arg_temp;
 
-	if (exfat_lookup(ef, &parent, path) != 0)
-		printf("directory `%s' is not found", path);
+	arg_temp = (arg_type *)arg;
+	ef = &(arg_temp->ef);
+	path = arg_temp->path;
+	tw = arg_temp->tw;
+	if (path == NULL) {
+		exfat_debug("pthread start root path");
+		path = "";
+	}
+	if (exfat_lookup(ef, &parent, path, tw) != 0)
+		printf("directory `%s' is not found\n", path);
 	if (!(parent->flags & EXFAT_ATTRIB_DIR))
-		printf("`%s' is not a directory (0x%x)", path, parent->flags);
+		printf("`%s' is not a directory (0x%x)\n", path, parent->flags);
 	if (nodeck(ef, parent) != 0)
 		return -EIO;
 	/* set the root cluster chain map at the very beginning*/
-	if (parent->start_cluster == ef->root->start_cluster) {
+	if (parent->start_cluster == ef->root->start_cluster && root_map == 0 && !parent->cached) {
 		exfat_debug("setting root fat map");
 		set_fat_map(ef, parent);
+		android_atomic_release_cas(0, 1, &root_map);
 	}
 
 	path_length = strlen(path);
@@ -298,6 +394,7 @@ static int check_fat(struct exfat* ef, const char* path)
 		printf("failed to malloc entry_path while checking fat.\n");
 		return -ENOMEM;
 	}
+	memset(entry_path, 0, path_length + 1 + EXFAT_NAME_MAX);
 	strcpy(entry_path, path);
 	strcat(entry_path, "/");
 
@@ -311,7 +408,23 @@ static int check_fat(struct exfat* ef, const char* path)
 		printf("failed to open directory '%s'\n", path);
 		return -EBUSY;
 	}
-	while ((node = exfat_readdir(&it))) {
+
+	if (parent->has_twin) {
+		int result;
+
+		parent->has_twin = 0;/* clear for detach*/
+		exfat_put_node(ef, parent);
+		result = multi_thread(ef, path, check_fat);
+		parent->has_twin = 1;/* set for next scan*/
+		free(entry_path);
+		if (result != 0)
+			return -1;
+		else {
+			exfat_put_node(ef, parent);
+			return 0;
+		}
+	}
+	while ((node = exfat_readdir(&it, cur_node, tw))) {
 		/*
 		if (node->invalid_flag) {
 			cur_node = it.current->next;
@@ -322,8 +435,8 @@ static int check_fat(struct exfat* ef, const char* path)
 		exfat_get_name(node, entry_path + path_length + 1, EXFAT_NAME_MAX);
 		if ((rc = check_fat_chain(ef, node)) < 0)
 			break;
-		exfat_debug("%s(%s) flag=0x%x, references=%d", (node->flags & EXFAT_ATTRIB_DIR) ? "Dir" : "File",
-			entry_path, node->flags, node->references);
+		//exfat_debug("%s(%s) flag=0x%x, references=%d", (node->flags & EXFAT_ATTRIB_DIR) ? "Dir" : "File",
+		//	entry_path, node->flags, node->references);
 		if (node->invalid_flag && exfat_recovered) {
 			if (delete(ef, node) != 0)
 				return -EIO;
@@ -332,8 +445,9 @@ static int check_fat(struct exfat* ef, const char* path)
 			exfat_put_node(ef, node);
 			continue;
 		}
+		arg_temp->path = entry_path;
 		if (node->flags & EXFAT_ATTRIB_DIR) {
-			if ((rc = check_fat(ef, entry_path)) != 0) {
+			if ((rc = check_fat(arg_temp)) != 0) {
 				free(entry_path);
 				return rc;
 			}
@@ -341,6 +455,7 @@ static int check_fat(struct exfat* ef, const char* path)
 		cur_node = it.current->next;
 		exfat_put_node(ef, node);
 	}
+
 	exfat_closedir(ef, &it);
 	exfat_put_node(ef, parent);
 	free(entry_path);
@@ -348,45 +463,79 @@ static int check_fat(struct exfat* ef, const char* path)
 	return rc;
 }
 
-static int check_bitmap(struct exfat* ef, const char* path, char **bit_map)
+static int check_bitmap(void *arg)
 {
-	int rc = 0;
+	struct exfat *ef;
+	char *path;
+	int rc = 0, s, tw;
 	struct exfat_node* parent;
-	struct exfat_node* node;
+	struct exfat_node* node, *cur_node = NULL;
 	struct exfat_iterator it;
 	size_t path_length;
 	char* entry_path;
 	cluster_t cl;
 	uint32_t cluster_num, i;
+	pthread_t t1, t2;
+	void *status1, *status2;
+	arg_type *arg_temp;
 
-	if (exfat_lookup(ef, &parent, path) != 0)
-		printf("directory `%s' is not found", path);
+	arg_temp = (arg_type *)arg;
+	ef = &(arg_temp->ef);
+	path = arg_temp->path;
+	tw = arg_temp->tw;
+	if (path == NULL) {
+		exfat_debug("pthread start root path");
+		path = "";
+	}
+	if (exfat_lookup(ef, &parent, path, tw) != 0)
+		printf("directory `%s' is not found\n", path);
 	if (!(parent->flags & EXFAT_ATTRIB_DIR))
-		printf("`%s' is not a directory (0x%x)", path, parent->flags);
+		printf("`%s' is not a directory (0x%x)\n", path, parent->flags);
 	if (nodeck(ef, parent) != 0)
 		return -EIO;
 
-	if (parent->start_cluster == ef->root->start_cluster) {
+	if (parent->start_cluster == ef->root->start_cluster && root_map == 0) {
 		exfat_debug("set bitmap of root directory");
-		for (cl = parent->start_cluster; cl != EXFAT_CLUSTER_END; cl = exfat_next_cluster(ef, parent, cl))
-			BMAP_SET(*bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+		for (cl = parent->start_cluster; cl != EXFAT_CLUSTER_END; cl = exfat_next_cluster(ef, parent, cl)) {
+			pthread_mutex_lock(&mtx);
+			BMAP_SET(bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+			pthread_mutex_unlock(&mtx);
+		}
+		root_map = 1;
 	}
 	path_length = strlen(path);
 	entry_path = malloc(path_length + 1 + EXFAT_NAME_MAX);
 	if (entry_path == NULL)	{
-		printf("out of memory while checking bitmap");
+		printf("out of memory while checking bitmap\n");
 		return -ENOMEM;
 	}
+	memset(entry_path, 0, path_length + 1 + EXFAT_NAME_MAX);
 	strcpy(entry_path, path);
 	strcat(entry_path, "/");
 
 	if (exfat_opendir(ef, parent, &it, 0) != 0) {
 		free(entry_path);
 		exfat_put_node(ef, parent);
-		printf("failed to open directory '%s'", path);
+		printf("failed to open directory '%s'\n", path);
 		return -EBUSY;
 	}
-	while ((node = exfat_readdir(&it))) {
+
+	if (parent->has_twin) {
+		int result;
+
+		parent->has_twin = 0;/* clear for detach*/
+		exfat_put_node(ef, parent);
+		result = multi_thread(ef, path, check_bitmap);
+		parent->has_twin = 1;/* set for next scan*/
+		free(entry_path);
+		if (result != 0)
+			return -1;
+		else {
+			exfat_put_node(ef, parent);
+			return 0;
+		}
+	}
+	while ((node = exfat_readdir(&it, cur_node, tw))) {
 		/* empty file did not allocate any clusters, ignore*/
 		if (!(node->flags & EXFAT_ATTRIB_DIR) && node->size == 0 && node->start_cluster == 0) {
 			cur_node = it.current->next;
@@ -398,18 +547,25 @@ static int check_bitmap(struct exfat* ef, const char* path, char **bit_map)
 		cluster_num = node->size / CLUSTER_SIZE(*ef->sb);
 		if (node->size % CLUSTER_SIZE(*ef->sb))
 			cluster_num++;
-		exfat_debug("%s: %s, %"PRIu64" bytes, cluster %u", entry_path,
-				IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented",
-				node->size, node->start_cluster);
+		//exfat_debug("%s: %s, %"PRIu64" bytes, cluster %u", entry_path,
+		//		IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented",
+		//		node->size, node->start_cluster);
 		if (IS_CONTIGUOUS(*node)) {
-			for (i = 0, cl = node->start_cluster; i < cluster_num; cl++, i++)
-				BMAP_SET(*bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+			for (i = 0, cl = node->start_cluster; i < cluster_num; cl++, i++) {
+				pthread_mutex_lock(&mtx);
+				BMAP_SET(bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+				pthread_mutex_unlock(&mtx);
+			}
 		} else {
-			for (cl = node->start_cluster; cl != EXFAT_CLUSTER_END; cl = exfat_next_cluster(ef, node, cl))
-				BMAP_SET(*bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+			for (cl = node->start_cluster; cl != EXFAT_CLUSTER_END; cl = exfat_next_cluster(ef, node, cl)) {
+				pthread_mutex_lock(&mtx);
+				BMAP_SET(bit_map, cl - EXFAT_FIRST_DATA_CLUSTER);
+				pthread_mutex_unlock(&mtx);
+			}
 		}
+		arg_temp->path = entry_path;
 		if (node->flags & EXFAT_ATTRIB_DIR) {
-			if ((rc = check_bitmap(ef, entry_path, bit_map)) != 0) {
+			if ((rc = check_bitmap(arg_temp)) != 0) {
 				free(entry_path);
 				return rc;
 			}
@@ -452,7 +608,6 @@ static void get_used_mem()
  */
 static int fsck(struct exfat *ef)
 {
-	char *bit_map = NULL;
 	char bitmap_rest, chunk_rest;
 	uint32_t fat_size;
 	int rc = -EIO, cnt = 0;
@@ -462,6 +617,7 @@ static int fsck(struct exfat *ef)
 	uint64_t bits = 0;
 	cluster_t start_cluster = 0, cur_cl = 0, pre_cl = 0;
 	le32_t first, second;
+	arg_type arg;
 
 	fat_size = SECTOR_SIZE(*ef->sb) * le32_to_cpu(ef->sb->fat_sector_count);
 	exfat_debug("exfat FAT size =%d bytes", fat_size);
@@ -495,8 +651,22 @@ static int fsck(struct exfat *ef)
 			exfat_repair("Invalid value of second FAT entry repaired");
 		}
 	}
-	if (check_fat(ef, "") != 0)
-		goto error;
+
+	arg.ef = *ef;
+	arg.path = "";
+	arg.tw = 0;
+	if (ef->root->twins) {
+		int result;
+
+		ef->root->has_twin = 0;
+		result = multi_thread(ef, "", check_fat);
+		ef->root->has_twin = 1;
+		if (result != 0)
+			goto error;
+	} else
+		if (check_fat(&arg) != 0)
+			goto error;
+	root_map = 0;
 	get_used_mem();
 	end_count("Checking FAT", &fsck_p2_time) ;
 
@@ -512,16 +682,45 @@ static int fsck(struct exfat *ef)
 		exfat_debug("recached failed.Checking stopped");
 		goto error;
 	}
-	if (dirck(ef, "") != 0)
-		goto error;
+	if (ef->root->twins == NULL)
+		ef->root->has_twin = 0;
+
+	arg.ef = *ef;
+	arg.path = "";
+	arg.tw = 0;
+	if (ef->root->twins) {
+		int result;
+
+		ef->root->has_twin = 0;
+		result = multi_thread(ef, "", dirck);
+		ef->root->has_twin = 1;
+		if (result != 0)
+			goto error;
+	} else
+		if (dirck(&arg) != 0)
+			goto error;
+
 	get_used_mem();
 	end_count("Checking directory", &fsck_p3_time);
 
 	printf("Checking bitmap...\n");
 	start_count(&fsck_p4_time);
 	bit_map[0] = 0x07;
-	if (check_bitmap(ef, "", &bit_map) != 0)
-		goto error;
+	arg.ef = *ef;
+	arg.path = "";
+	arg.tw = 0;
+	if (ef->root->twins) {
+		int result;
+
+		ef->root->has_twin = 0;
+		result = multi_thread(ef, "", check_bitmap);
+		ef->root->has_twin = 1;
+		if (result != 0)
+			goto error;
+	} else
+		if (check_bitmap(&arg) != 0)
+			goto error;
+
 	root_start = (ef->root->start_cluster - EXFAT_FIRST_DATA_CLUSTER) / 8;
 	root_rest = (ef->root->start_cluster - EXFAT_FIRST_DATA_CLUSTER) % 8;
 	/*
@@ -542,20 +741,20 @@ static int fsck(struct exfat *ef)
 		if (exfat_recovered) {
 			result = exfat_mkdir(ef, LOSTDIR, EXFAT_ATTRIB_HIDDEN);
 			if (result == 0 || result == -EEXIST) {
-			exfat_debug("cmap[root_start]=%x, bit_map[root_start]=%x", ef->cmap.chunk[root_start], bit_map[root_start]);
-			temp = (ef->cmap.chunk[root_start] & (0xff << root_rest)) ^ (bit_map[root_start] & (0xff << root_rest));
-			for (j = root_rest; j < 8; j++) {
-				if (temp & (1 << j)) {
-					cur_cl = ef->root->start_cluster + j - root_rest;
-					if (start_cluster == 0)
-						start_cluster = cur_cl;
-					if (!CLUSTER_INVALID(ef, pre_cl))
-						set_next_cluster(ef, 0, pre_cl, cur_cl);
-					pre_cl = ef->root->start_cluster + j - root_rest;
-					bits++;
+				exfat_debug("cmap[root_start]=%x, bit_map[root_start]=%x", ef->cmap.chunk[root_start], bit_map[root_start]);
+				temp = (ef->cmap.chunk[root_start] & (0xff << root_rest)) ^ (bit_map[root_start] & (0xff << root_rest));
+				for (j = root_rest; j < 8; j++) {
+					if (temp & (1 << j)) {
+						cur_cl = ef->root->start_cluster + j - root_rest;
+						if (start_cluster == 0)
+							start_cluster = cur_cl;
+						if (!CLUSTER_INVALID(ef, pre_cl))
+							set_next_cluster(ef, 0, pre_cl, cur_cl);
+						pre_cl = ef->root->start_cluster + j - root_rest;
+						bits++;
+					}
 				}
-			}
-			lost_flag = 1;
+				lost_flag = 1;
 			}
 		}
 	}
@@ -705,7 +904,6 @@ int main(int argc, char* argv[])
 		else
 			return 1;
 	}
-
 	get_used_mem();
 	rc = fsck(&ef);
 	end_count("Total Checking time", &fsck_total_time);

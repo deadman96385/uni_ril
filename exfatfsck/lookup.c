@@ -44,10 +44,13 @@ void exfat_closedir(struct exfat* ef, struct exfat_iterator* it)
 	it->current = NULL;
 }
 
-struct exfat_node* exfat_readdir(struct exfat_iterator* it)
+struct exfat_node* exfat_readdir(struct exfat_iterator* it, struct exfat_node *cur_node, int tw)
 {
 	if (it->current == NULL)
-		it->current = it->parent->child;
+		if (tw && it->parent->twins)
+			it->current = it->parent->twins;
+		else
+			it->current = it->parent->child;
 	else
 		it->current = cur_node;
 
@@ -79,11 +82,12 @@ static int compare_name(struct exfat* ef, const le16_t* a, const le16_t* b)
 }
 
 static int lookup_name(struct exfat* ef, struct exfat_node* parent,
-		struct exfat_node** node, const char* name, size_t n)
+		struct exfat_node** node, const char* name, size_t n, int tw)
 {
 	struct exfat_iterator it;
+	struct exfat_node *cur_node = NULL;
 	le16_t buffer[EXFAT_NAME_MAX + 1];
-	int rc;
+	int rc, temp = 0;
 
 	*node = NULL;
 
@@ -94,7 +98,9 @@ static int lookup_name(struct exfat* ef, struct exfat_node* parent,
 	rc = exfat_opendir(ef, parent, &it, 0);
 	if (rc != 0)
 		return rc;
-	while ((*node = exfat_readdir(&it)))
+	if (tw && parent->twins != NULL)
+		temp = 1;
+	while ((*node = exfat_readdir(&it, cur_node, temp)))
 	{
 		if (compare_name(ef, buffer, (*node)->name) == 0)
 		{
@@ -103,6 +109,8 @@ static int lookup_name(struct exfat* ef, struct exfat_node* parent,
 		}
 		cur_node = it.current->next;
 		exfat_put_node(ef, *node);
+		if (tw && parent->twins != NULL)
+			temp = 1;
 	}
 	exfat_closedir(ef, &it);
 	return -ENOENT;
@@ -121,7 +129,7 @@ static size_t get_comp(const char* path, const char** comp)
 }
 
 int exfat_lookup(struct exfat* ef, struct exfat_node** node,
-		const char* path)
+		const char* path, int tw)
 {
 	struct exfat_node* parent;
 	const char* p;
@@ -134,7 +142,7 @@ int exfat_lookup(struct exfat* ef, struct exfat_node** node,
 	{
 		if (n == 1 && *p == '.')				/* skip "." component */
 			continue;
-		rc = lookup_name(ef, parent, node, p, n);
+		rc = lookup_name(ef, parent, node, p, n, tw);
 		if (rc != 0)
 		{
 			exfat_put_node(ef, parent);
@@ -203,7 +211,7 @@ int exfat_split(struct exfat* ef, struct exfat_node** parent,
 				return rc;
 			}
 
-			rc = lookup_name(ef, *parent, node, p, n);
+			rc = lookup_name(ef, *parent, node, p, n, 0);
 			if (rc != 0 && rc != -ENOENT)
 			{
 				exfat_put_node(ef, *parent);
@@ -211,7 +219,7 @@ int exfat_split(struct exfat* ef, struct exfat_node** parent,
 			}
 			return 0;
 		}
-		rc = lookup_name(ef, *parent, node, p, n);
+		rc = lookup_name(ef, *parent, node, p, n, 0);
 		if (rc != 0)
 		{
 			exfat_put_node(ef, *parent);

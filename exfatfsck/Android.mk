@@ -15,6 +15,8 @@ LOCAL_SRC_FILES:= \
 	utils.c
 
 LOCAL_CFLAGS:= -O2 -g -W -Wall -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -DHAVE_CONFIG_H
+# we need to access the atomic header
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/../../../../system/core/include/cutils/
 LOCAL_MODULE:= exfatfsck
 LOCAL_MODULE_TAGS:=
 LOCAL_SYSTEM_SHARED_LIBRARIES:= libc
