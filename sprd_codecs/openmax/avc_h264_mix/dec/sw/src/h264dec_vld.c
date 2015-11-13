@@ -434,13 +434,20 @@ int32 readCoeff4x4_CAVLC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr,
             if (prefix<15)
             {
                 level_code = (prefix<<suffix_length) + READ_FLC(stream, suffix_length);
-            } else if (prefix ==  15)
-            {
-                level_code = (prefix<<suffix_length) + READ_FLC(stream, 12);
-            } else
-            {
-                return -1;
             }
+            else
+            {
+                level_code = 30 + READ_FLC(stream, prefix - 3);	//part
+                if (prefix >= 16)
+                {
+                    if (prefix > 25+3)
+                    {
+                        return -1;
+                    }
+                    level_code += (1<<(prefix-3)) - 4096;
+                }
+            }
+
             mask = -(level_code&1);
             level[i] = (((2+level_code)>>1) ^ mask) - mask;
             if (level_code > suffix_limit[suffix_length])
