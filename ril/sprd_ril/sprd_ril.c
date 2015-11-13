@@ -1023,96 +1023,80 @@ static void deactivateDataConnection(int channelID, void *data, size_t datalen, 
         goto error1;
 
     RILLOGD("deactivateDataConnection, in4G=%d", in4G);
-    if (!IsLte) {
-        if (pdp[cid - 1].cid == cid) {
-            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-            err = at_send_command(ATch_type[channelID], cmd, &p_response);
-            if (err < 0 || p_response->success == 0)
-                goto error;
 
-            putPDP(cid - 1);
-        }
-    } else {
-        RILLOGD("Try to deactivated modem ..., cid=%d", cid);
-        property_get(PROP_END_CONNECTIVITY, prop, "0");
-        is_stk_end_connectivity = atoi(prop);
-        RILLOGD("Try to deactivated is_stk_end_connectivity=%d", is_stk_end_connectivity);
-        if (in4G) {
-            queryAllActivePDN(channelID);
-            if (activePDN == 1) {
-                for (i = 0; i < 11; i++) {
-                    if ((pdn[i].nCid == (i + 1)) && (pdn[i].nCid != cid)) {
-                        RILLOGD("deactivateDataConnection: cid(%d) is not the last one when there is only one(%d)!",cid, pdn[i].nCid);
-                    }
+    RILLOGD("Try to deactivated modem ..., cid=%d", cid);
+    property_get(PROP_END_CONNECTIVITY, prop, "0");
+    is_stk_end_connectivity = atoi(prop);
+    RILLOGD("Try to deactivated is_stk_end_connectivity=%d", is_stk_end_connectivity);
+    if (in4G) {
+        queryAllActivePDN(channelID);
+        if (activePDN == 1) {
+            for (i = 0; i < 11; i++) {
+                if ((pdn[i].nCid == (i + 1)) && (pdn[i].nCid != cid)) {
+                    RILLOGD("deactivateDataConnection: cid(%d) is not the last one when there is only one(%d)!",cid, pdn[i].nCid);
                 }
+            }
+            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
+            RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
+            err = at_send_command(ATch_type[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RILLOGD("last dataconnection data off failed!");
+            }
+            goto done;
+        } else if (activePDN > 1 && (is_stk_end_connectivity == 0)) {
+            if(initialAttachApn != NULL && initialAttachApn->apn != NULL &&
+                (!strcasecmp(pdn[cid - 1].strApn, initialAttachApn->apn) ||
+                    !strcasecmp(strtok(pdn[cid - 1].strApn, "."), initialAttachApn->apn))) {
                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
                 RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
                 err = at_send_command(ATch_type[channelID], cmd, &p_response);
                 if (err < 0 || p_response->success == 0) {
                     RILLOGD("last dataconnection data off failed!");
-                }
+                   }
                 goto done;
-            } else if (activePDN > 1 && (is_stk_end_connectivity == 0)) {
-                if(initialAttachApn != NULL && initialAttachApn->apn != NULL &&
-                    (!strcasecmp(pdn[cid - 1].strApn, initialAttachApn->apn) ||
-                        !strcasecmp(strtok(pdn[cid - 1].strApn, "."), initialAttachApn->apn))) {
-                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-                    RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
-                    err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                    if (err < 0 || p_response->success == 0) {
-                        RILLOGD("last dataconnection data off failed!");
-                       }
-                    goto done;
-                }
+            }
         }
     }
 
-       if ((pdp[cid-1].cid != -1) ||(pdp[getExtraPDPNum(cid-1)].cid != -1)) {
-            if ((pdp[cid-1].cid != -1) &&(pdp[getExtraPDPNum(cid-1)].cid != -1)) {
-                if (in4G && (activePDN == 2)){
-                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-                    RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
-                    err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                    if (err < 0 || p_response->success == 0) {
-                    	RILLOGD("last dataconnection data off failed!");
-                    }
-                }else{
-                       snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-                    if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                        goto error;
-                    }
-                    RILLOGD("dual pdp, need do cgact again");
-                }
-                RILLOGD("dual pdp,need do cgact again");
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getExtraPDPNum(cid));
-                if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                    goto error;
-                }
-            } else {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", (pdp[cid-1].cid != -1) ? cid:getExtraPDPNum(cid));
-                if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                    goto error;
-                }
-            }
-        }
+    if ((pdp[cid-1].cid != -1) ||(pdp[getExtraPDPNum(cid-1)].cid != -1)) {
+         if ((pdp[cid-1].cid != -1) &&(pdp[getExtraPDPNum(cid-1)].cid != -1)) {
+             if (in4G && (activePDN == 2)){
+                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
+                 RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
+                 err = at_send_command(ATch_type[channelID], cmd, &p_response);
+                 if (err < 0 || p_response->success == 0) {
+                     RILLOGD("last dataconnection data off failed!");
+                 }
+             }else{
+                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+                 if (deactivateLteDataConnection(channelID, cmd) < 0) {
+                     goto error;
+                 }
+                 RILLOGD("dual pdp, need do cgact again");
+             }
+             RILLOGD("dual pdp,need do cgact again");
+             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getExtraPDPNum(cid));
+             if (deactivateLteDataConnection(channelID, cmd) < 0) {
+                 goto error;
+             }
+         } else {
+             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", (pdp[cid-1].cid != -1) ? cid:getExtraPDPNum(cid));
+             if (deactivateLteDataConnection(channelID, cmd) < 0) {
+                 goto error;
+             }
+         }
+     }
 done:
-        putPDP(cid - 1);
-        putPDP(getExtraPDPNum(cid - 1));
-    }
+    putPDP(cid - 1);
+    putPDP(getExtraPDPNum(cid - 1));
     property_set(PROP_END_CONNECTIVITY, "0");
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 
 error:
-    if (!IsLte) {
-        if (pdp[cid - 1].cid == cid)
-            putPDP(cid - 1);
-    } else {
         putPDP(cid - 1);
         putPDP(getExtraPDPNum(cid - 1));
-    }
-
 error1:
     property_set(PROP_END_CONNECTIVITY, "0");
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -3754,41 +3738,15 @@ RETRY:
         }
 
         if (is_default_bearer) {
-            if(is_default_bearer){
-                snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index+1);
-            } else {
-            snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0", index+1, pdp_type, apn);
-            err = at_send_command(ATch_type[channelID], cmd, &p_response);
-            if (err < 0 || p_response->success == 0){
-                s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
-                goto error;
-            }
-
-            snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username, password,index+1,atoi(authtype));
-            at_send_command(ATch_type[channelID], cmd, NULL);
-
-            /* Set required QoS params to default */
-            property_get("persist.sys.qosstate", qos_state, "0");
-            if(!strcmp(qos_state, "0")) {
-                snprintf(cmd, sizeof(cmd), "AT+CGEQREQ=%d,2,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0", index+1);
-                at_send_command(ATch_type[channelID], cmd, NULL);
-            }
-                snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
-            }
+            snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index+1);
             err = at_send_command(ATch_type[channelID], cmd, &p_response);
             if (errorHandlingForCGDATA(channelID, p_response, err, index))
                 goto error;
-            if (!is_default_bearer) {
-                pthread_mutex_lock(&pdp[index].mutex);
-                pdp[index].cid = index + 1;
-                pthread_mutex_unlock(&pdp[index].mutex);
-            }else {
-                pthread_mutex_lock(&default_pdp.mutex);
-                default_pdp.cid = index + 1;
-                pthread_mutex_unlock(&default_pdp.mutex);
-            }
 
-        } else {//LTE
+            pthread_mutex_lock(&default_pdp.mutex);
+            default_pdp.cid = index + 1;
+            pthread_mutex_unlock(&default_pdp.mutex);
+        } else {
             int ip_type = -1;
             int fb_ip_type = -1;
             int want_ip_type = -1;
@@ -4009,7 +3967,7 @@ retrycgatt:
 
                             index = getPDPByIndex(getExtraPDPNum(index));
                             if (index < 0 || pdp[index].cid >= 0)
-                                goto error;
+                                goto done;
 
                             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d",
                                     index + 1);
@@ -4022,7 +3980,8 @@ retrycgatt:
                                     &p_response);
                             if (err < 0 || p_response->success == 0) {
                                 s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
-                                goto error;
+                                putPDP(index);
+                                goto done;
                             }
 
                             snprintf(cmd, sizeof(cmd),
