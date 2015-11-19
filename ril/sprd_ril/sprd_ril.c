@@ -11461,7 +11461,7 @@ static void initializeCallback(void *param)
 
     /* set some auto report AT commend on or off */
 
-    at_send_command(ATch_type[channelID], "AT+SPAURC=\"100110111110000000001000010000111111110001000000\"", NULL);
+    at_send_command(ATch_type[channelID], "AT+SPAURC=\"100110111110000000001000010000111111110101000000\"", NULL);
 
     /* SPRD : for svlte & csfb @{ */
     if (isSvLte()) {
