@@ -6612,7 +6612,7 @@ static void  requestScreeState(int channelID, int status, RIL_Token t)
             at_send_command(ATch_type[channelID], "AT+CIREG=2", NULL);
         }
         if(isExistActivePdp()){
-            at_send_command(ATch_type[channelID], "AT*FDY=1,8", NULL);
+            at_send_command(ATch_type[channelID], "AT*FDY=1,5", NULL);
         }
 
         if (sState == RADIO_STATE_SIM_READY) {
