@@ -1323,6 +1323,12 @@ static int callFromCLCCLine(char *line, RIL_Call *p_call)
 
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
+
+        skipNextComma(&line);
+
+        err = at_tok_nextint(&line, &p_call->namePresentation);
+        if (err < 0) goto error;
+        p_call->numberPresentation = p_call->namePresentation;
     }
 
     p_call->uusInfo = NULL;
