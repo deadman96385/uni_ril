@@ -1,0 +1,841 @@
+/**
+ * ril_ss.c --- SS-related requests process functions implementation
+ *
+ * Copyright (C) 2015 Spreadtrum Communications Inc.
+ */
+#define LOG_TAG "RIL"
+
+#include "reference-ril.h"
+#include "ril_ss.h"
+
+#define MO_CALL 0
+#define MT_CALL 1
+
+/**
+ * add AT SPERROR for ussd
+ * for s_ussdError : 0 --- no unsolicited SPERROR
+ *                   1 --- unsolicited SPERROR
+ * for s_ussdRun : 0 --- ussd to end
+ *                 1 --- ussd to start
+ */
+static int s_ussdError = 0;
+static int s_ussdRun = 0;
+
+static void requestSendUSSD(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err, ret, len;
+    int errNum = -1, errCode = -1;
+    char *cmd;
+    char *line = NULL;
+    char *ussdHexRequest;
+    ATResponse  *p_response = NULL;
+
+    s_ussdRun = 1;
+    ussdHexRequest = (char *)(data);
+    ret = asprintf(&cmd, "AT+CUSD=1,\"%s\",15", ussdHexRequest);
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    free(cmd);
+    if (err >= 0) {
+        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+            line = p_response->finalResponse;
+            errCode = at_tok_start(&line);
+            if (errCode >= 0) {
+                errCode = at_tok_nextint(&line, &errNum);
+            }
+        }
+    }
+    if (errNum == 254) {
+        RLOGE("Failed to send ussd by FDN check");
+        s_ussdRun = 0;
+        RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+    } else if (err < 0 || p_response->success == 0) {
+        s_ussdRun = 0;
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+    at_response_free(p_response);
+}
+
+static int forwardFromCCFCLine(char *line, RIL_CallForwardInfo *p_forward) {
+    int err;
+    int state;
+    int mode;
+    int i;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &(p_forward->status));
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &(p_forward->serviceClass));
+    if (err < 0) goto error;
+
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextstr(&line, &(p_forward->number));
+
+        /* tolerate null here */
+        if (err < 0) return 0;
+
+        if (p_forward->number != NULL
+                && 0 == strspn(p_forward->number, "+0123456789")
+           ) {
+            p_forward->number = NULL;
+        }
+
+        err = at_tok_nextint(&line, &p_forward->toa);
+        if (err < 0) goto error;
+
+        if (at_tok_hasmore(&line)) {
+            for (i = 0; i < 2; i++ ) {
+                skipNextComma(&line);
+            }
+
+            if (at_tok_hasmore(&line)) {
+                err = at_tok_nextint(&line, &p_forward->timeSeconds);
+                if (err < 0) goto error;
+            }
+        }
+    }
+
+    return 0;
+
+error:
+    RLOGE("invalid CCFC line\n");
+    return -1;
+}
+
+
+static void requestCallForward(int channelID, RIL_CallForwardInfo *data,
+                                   size_t datalen, RIL_Token t) {
+    int err;
+    int errNum = 0xff;
+    int ret = -1;
+    char *cmd, *line;
+    ATLine *p_cur;
+    ATResponse *p_response = NULL;
+
+    if (datalen != sizeof(*data)) {
+        goto error1;
+    }
+    if (data->serviceClass == 0) {
+        if (data->status == 2) {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",129",
+                data->reason,
+                data->status,
+                data->number ? data->number : "");
+        } else {
+            if (data->timeSeconds != 0 && data->status == 3) {
+                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,,\"\",,%d",
+                        data->reason,
+                        data->status,
+                        data->number ? data->number : "",
+                        data->toa,
+                        data->timeSeconds);
+
+            } else {
+                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d",
+                        data->reason,
+                        data->status,
+                        data->number ? data->number : "",
+                        data->toa);
+            }
+        }
+    } else {
+        if (data->status == 2) {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",129,%d",
+                data->reason,
+                data->status,
+                data->number ? data->number : "",
+                data->serviceClass);
+        } else {
+            if (data->timeSeconds != 0 && data->status == 3) {
+                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d,\"\",,%d",
+                        data->reason,
+                        data->status,
+                        data->number ? data->number : "",
+                        data->toa,
+                        data->serviceClass,
+                        data->timeSeconds);
+            } else {
+                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d",
+                        data->reason,
+                        data->status,
+                        data->number ? data->number : "",
+                        data->toa,
+                        data->serviceClass);
+            }
+        }
+    }
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error1;
+    }
+    err = at_send_command_multiline(s_ATChannels[channelID], cmd, "+CCFC:",
+                                    &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    if (data->status == 2) {
+        RIL_CallForwardInfo **forwardList, *forwardPool;
+        int forwardCount = 0;
+        int validCount = 0;
+        int i;
+
+        for (p_cur = p_response->p_intermediates; p_cur != NULL;
+             p_cur = p_cur->p_next, forwardCount++);
+
+        forwardList = (RIL_CallForwardInfo **)
+            alloca(forwardCount * sizeof(RIL_CallForwardInfo *));
+
+        forwardPool = (RIL_CallForwardInfo *)
+            alloca(forwardCount * sizeof(RIL_CallForwardInfo));
+
+        memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfo));
+
+        /* init the pointer array */
+        for (i = 0; i < forwardCount; i++) {
+            forwardList[i] = &(forwardPool[i]);
+        }
+
+        for (p_cur = p_response->p_intermediates; p_cur != NULL;
+             p_cur = p_cur->p_next) {
+            err = forwardFromCCFCLine(p_cur->line, forwardList[validCount]);
+            forwardList[validCount]->reason = data->reason;
+            if (err == 0) {
+                validCount++;
+            }
+        }
+
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
+                              validCount * sizeof(RIL_CallForwardInfo *));
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+
+    at_response_free(p_response);
+    return;
+
+error:
+    if (data->status == 2) {
+        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+            line = p_response->finalResponse;
+            err = at_tok_start(&line);
+            if (err < 0) goto error1;
+            err = at_tok_nextint(&line, &errNum);
+            if (err < 0) goto error1;
+            if (errNum == 70 || errNum == 254 || errNum == 128 ||
+                errNum == 254) {
+                RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+                at_response_free(p_response);
+                return;
+            }
+        }
+    }
+error1:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestChangeFacilityLock(int channelID, char **data,
+                                           size_t datalen, RIL_Token t) {
+    int err = -1;
+    int errNum = 0xff;
+    int result;
+    char *cmd, *line;
+    ATResponse *p_response = NULL;
+
+    if (datalen != 3 * sizeof(char *)) {
+        goto error;
+    }
+
+    err = asprintf(&cmd, "AT+CPWD=\"%s\",\"%s\",\"%s\"", data[0], data[1],
+                    data[2]);
+    if (err < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+            line = p_response->finalResponse;
+            err = at_tok_start(&line);
+            if (err >= 0) {
+                err = at_tok_nextint(&line, &errNum);
+            }
+        }
+        goto error;
+    }
+    if (*data[1] == '1') {
+        result = 1;
+    } else {
+        result = 0;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(result));
+    at_response_free(p_response);
+    return;
+
+error:
+    if (err < 0 || errNum == 0xff) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else if (errNum == 70 || errNum == 3 || errNum == 128 || errNum == 254) {
+        RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, NULL, 0);
+    }
+    at_response_free(p_response);
+}
+
+static int forwardFromCCFCLineUri(char *line,
+                                      RIL_CallForwardInfoUri *p_forward) {
+    int err;
+    int state;
+    int mode;
+    int i;
+
+    // +CCFCU: <status>,<class1>[,<numbertype>,<ton>,
+    // <number>[,<subaddr>,<satype>[,<time>]]]
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &(p_forward->status));
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &(p_forward->serviceClass));
+    if (err < 0) goto error;
+
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextint(&line, &p_forward->numberType);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &p_forward->ton);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&line, &(p_forward->number));
+
+        /* tolerate null here */
+        if (err < 0) return 0;
+
+        if (at_tok_hasmore(&line)) {
+            for (i = 0; i < 2; i++) {
+                skipNextComma(&line);
+            }
+
+            if (at_tok_hasmore(&line)) {
+                err = at_tok_nextint(&line, &p_forward->timeSeconds);
+                if (err < 0) {
+                    RLOGE("invalid CCFCU timeSeconds\n");
+                }
+                p_forward->timeSeconds = 0;
+            }
+            if (at_tok_hasmore(&line)) {
+                err = at_tok_nextstr(&line, &p_forward->ruleset);
+                if (err < 0) {
+                    RLOGE("invalid CCFCU ruleset\n");
+                    p_forward->ruleset = NULL;
+                }
+            }
+        }
+    }
+
+    return 0;
+
+error:
+    RLOGE("invalid CCFCU line\n");
+    return -1;
+}
+
+static void requestCallForwardUri(int channelID,
+        RIL_CallForwardInfoUri *data, size_t datalen, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    ATLine *p_cur;
+    int err;
+    int errNum = 0xff;
+    char *cmd, *line;
+    int ret = -1;
+
+    if (datalen != sizeof(*data)) {
+        goto error1;
+    }
+
+    if (data->serviceClass == 0) {
+        if (data->status == 2) {
+            ret = asprintf(&cmd, "AT+CCFCU=%d,%d",
+                data->reason,
+                data->status);
+        } else {
+            if (data->timeSeconds != 0 && data->status == 3) {
+                ret = asprintf(&cmd,
+                        "AT+CCFCU=%d,%d,%d,%d,\"%s\",,\"\",\"\",,%d",
+                        data->reason,
+                        data->status,
+                        data->numberType,
+                        data->ton,
+                        data->number ? data->number : "",
+                        data->timeSeconds);
+
+            } else {
+                ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\"",
+                        data->reason,
+                        data->status,
+                        data->numberType,
+                        data->ton,
+                        data->number ? data->number : "");
+            }
+        }
+    } else {
+        if (data->status == 2) {
+            ret = asprintf(&cmd, "AT+CCFCU=%d,%d",
+                    data->reason,
+                    data->status);
+        } else {
+            if (data->timeSeconds != 0 && data->status == 3) {
+                ret = asprintf(&cmd,
+                        "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\",\"\",,%d",
+                        data->reason,
+                        data->status,
+                        data->numberType,
+                        data->ton,
+                        data->number ? data->number : "",
+                        data->serviceClass,
+                        data->ruleset ? data->ruleset : "",
+                        data->timeSeconds);
+            } else {
+                ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\"",
+                        data->reason,
+                        data->status,
+                        data->numberType,
+                        data->ton,
+                        data->number ? data->number : "",
+                        data->serviceClass,
+                        data->ruleset ? data->ruleset : "");
+            }
+        }
+    }
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error1;
+    }
+    err = at_send_command_multiline(s_ATChannels[channelID], cmd, "+CCFCU:",
+                                    &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    if (data->status == 2) {
+        RIL_CallForwardInfoUri **forwardList, *forwardPool;
+        int forwardCount = 0;
+        int validCount = 0;
+        int i;
+
+        for (p_cur = p_response->p_intermediates; p_cur != NULL;
+             p_cur = p_cur->p_next, forwardCount++);
+
+        forwardList = (RIL_CallForwardInfoUri **)
+            alloca(forwardCount * sizeof(RIL_CallForwardInfoUri *));
+
+        forwardPool = (RIL_CallForwardInfoUri *)
+            alloca(forwardCount * sizeof(RIL_CallForwardInfoUri));
+
+        memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfoUri));
+
+        /* init the pointer array */
+        for (i = 0; i < forwardCount ; i++) {
+            forwardList[i] = &(forwardPool[i]);
+        }
+
+        for (p_cur = p_response->p_intermediates; p_cur != NULL;
+             p_cur = p_cur->p_next) {
+            err = forwardFromCCFCLineUri(p_cur->line, forwardList[validCount]);
+            forwardList[validCount]->reason = data->reason;
+            if (err == 0) {
+                validCount++;
+            }
+        }
+
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
+                              validCount * sizeof(RIL_CallForwardInfoUri *));
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+
+    at_response_free(p_response);
+    return;
+
+error:
+    if (data->status == 2) {
+        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+            line = p_response->finalResponse;
+            err = at_tok_start(&line);
+            if (err < 0) goto error1;
+            err = at_tok_nextint(&line, &errNum);
+            if (err < 0) goto error1;
+            if (errNum == 70 || errNum == 254 || errNum == 128 ||
+                errNum == 254) {
+                RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+                at_response_free(p_response);
+                return;
+            }
+        }
+    }
+
+error1:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
+                         int channelID) {
+    int err;
+    ATResponse *p_response = NULL;
+
+    switch (request) {
+        case RIL_REQUEST_SEND_USSD:
+            requestSendUSSD(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_CANCEL_USSD: {
+            p_response = NULL;
+            err = at_send_command(s_ATChannels[channelID], "AT+CUSD=2",
+                                  &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_REQUEST_GET_CLIR: {
+            int errNum = 0xff;
+            int response[2] = {1, 1};
+            char *line = NULL;
+
+            p_response = NULL;
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                                            "AT+CLIR?", "+CLIR: ", &p_response);
+            if (err >= 0 && p_response->success) {
+                char *line = p_response->p_intermediates->line;
+
+                err = at_tok_start(&line);
+                if (err >= 0) {
+                    err = at_tok_nextint(&line, &response[0]);
+
+                    if (err >= 0)
+                        err = at_tok_nextint(&line, &response[1]);
+                }
+                if (err >= 0) {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, response,
+                                          sizeof(response));
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            } else {
+                if (err >= 0) {
+                    if (strStartsWith(p_response->finalResponse,
+                                      "+CME ERROR:")) {
+                        line = p_response->finalResponse;
+                        err = at_tok_start(&line);
+                        if (err >= 0) {
+                            err = at_tok_nextint(&line, &errNum);
+                        }
+                    }
+                }
+                if (err >= 0 && (errNum == 70 || errNum == 3 || errNum == 128 ||
+                                 errNum == 254)) {
+                    RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_REQUEST_SET_CLIR: {
+            int n = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+            snprintf(cmd, sizeof(cmd), "AT+CLIR=%d", n);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS: {
+             if (isVoLteEnable()) {
+                // requestCallForwardU(channelID, data, datalen, t);
+             } else {
+                requestCallForward(channelID, data, datalen, t);
+             }
+            break;
+        }
+        case RIL_REQUEST_SET_CALL_FORWARD: {
+             if (isVoLteEnable()) {
+                // requestCallForwardU(channelID, data, datalen, t);
+             } else {
+                requestCallForward(channelID, data, datalen, t);
+             }
+            break;
+        }
+        case RIL_REQUEST_QUERY_CALL_WAITING: {
+            int c = ((int *)data)[0];
+            int errNum = 0xff;
+            int mode, serviceClass;
+            int response[2] = {0, 0};
+            char cmd[AT_COMMAND_LEN] = {0};
+            char *line;
+            ATLine *p_cur;
+            p_response = NULL;
+
+            if (c == 0) {
+                snprintf(cmd, sizeof(cmd), "AT+CCWA=1,2");
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+CCWA=1,2,%d", c);
+            }
+            err = at_send_command_multiline(s_ATChannels[channelID], cmd,
+                                            "+CCWA: ", &p_response);
+            if (err >= 0 && p_response->success) {
+                for (p_cur = p_response->p_intermediates; p_cur != NULL;
+                     p_cur = p_cur->p_next) {
+                    line = p_cur->line;
+                    err = at_tok_start(&line);
+                    if (err >= 0) {
+                        err = at_tok_nextint(&line, &mode);
+                        if (err >= 0) {
+                            err = at_tok_nextint(&line, &serviceClass);
+                            if (err >= 0) {
+                                response[0] = mode;
+                                response[1] |= serviceClass;
+                            }
+                        }
+                    }
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, response,
+                                      sizeof(response));
+            } else {
+                if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+                    line = p_response->finalResponse;
+                    err = at_tok_start(&line);
+                    if (err >= 0) {
+                        err = at_tok_nextint(&line, &errNum);
+                        if (err >= 0 && (errNum == 70 || errNum == 3 ||
+                                         errNum == 128 || errNum == 254)) {
+                            RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE,
+                                                  NULL, 0);
+                        } else {
+                            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE,
+                                                  NULL, 0);
+                        }
+                    } else {
+                        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL,
+                                              0);
+                    }
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_REQUEST_SET_CALL_WAITING: {
+            int enable = ((int *)data)[0];
+            int c = ((int *)data)[1];
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+
+            if (c == 0) {
+                snprintf(cmd, sizeof(cmd), "AT+CCWA=1,%d", enable);
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+CCWA=1,%d,%d", enable, c);
+            }
+
+            err = at_send_command(s_ATChannels[channelID], cmd,  &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_REQUEST_CHANGE_BARRING_PASSWORD:
+            requestChangeFacilityLock(channelID, data, datalen, t);
+            break;
+        case  RIL_REQUEST_QUERY_CLIP: {
+            p_response = NULL;
+            int response[2] = {0, 0};
+
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                    "AT+CLIP?", "+CLIP: ", &p_response);
+            if (err >= 0 && p_response->success) {
+                char *line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err >= 0) {
+                    err = at_tok_nextint(&line, &response[0]);
+                    if (err >= 0) {
+                        err = at_tok_nextint(&line, &response[1]);
+                    }
+                }
+
+                if (err >= 0) {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
+                                          sizeof(response));
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+
+            at_response_free(p_response);
+            break;
+        }
+        // TODO: for now, not realized.
+        // case RIL_REQUEST_SET_SUPP_SVC_NOTIFICATION:
+        //    break;
+        case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI:
+            requestCallForwardUri(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_SET_CALL_FORWARD_URI:
+            requestCallForwardUri(channelID, data, datalen, t);
+            break;
+        default:
+            return 0;
+    }
+
+    return 1;
+}
+
+int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
+    int err;
+    char *line = NULL;
+
+    if (strStartsWith(s, "+CUSD:")) {
+        char *response[3] = {NULL, NULL, NULL};
+        char *tmp;
+        char *buf = NULL;
+
+        s_ussdRun = 0;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &(response[0]));
+        if (err < 0) {
+            RLOGE("Error code not present");
+            goto out;
+        }
+
+        err = at_tok_nextstr(&tmp, &(response[1]));
+        if (err == 0) {
+            /* Convert the response, which is in the GSM 03.38 [25]
+             * default alphabet, to UTF-8
+             * Since the GSM alphabet characters contain a character
+             * above 2048 (the Euro symbol)
+             * the string can theoretically expand by 3/2 in length
+             * when converted to UTF-8, so we allocate a new buffer, twice
+             * the size of the one holding the hex string.*/
+            err = at_tok_nextstr(&tmp, &(response[2]));
+            if (err < 0) {
+                RLOGD("%s fail", s);
+                goto out;
+            }
+            RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, &response,
+                                      3 * sizeof(char *), socket_id);
+        } else {
+            if (s_ussdError == 1) {  /* for ussd */
+                RLOGD("+CUSD ussdError");
+                // 4: network does not support the current operation
+                response[0] = "4";
+                s_ussdError = 0;
+            }
+
+            RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, &response[0],
+                                      1 * sizeof(char *), socket_id);
+        }
+    } else if (strStartsWith(s, "+CSSI:")) {
+        RIL_SuppSvcNotification *response = NULL;
+        int code = 0;
+        char *tmp;
+
+        response =(RIL_SuppSvcNotification *)
+                malloc(sizeof(RIL_SuppSvcNotification));
+        if (response == NULL) {
+            goto out;
+        }
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &code);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            free(response);
+            goto out;
+        }
+        response->notificationType = MO_CALL;
+        response->code = code;
+        response->index = 0;
+        response->type = 0;
+        response->number = NULL;
+
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SUPP_SVC_NOTIFICATION, response,
+                                  sizeof(RIL_SuppSvcNotification), socket_id);
+        free(response);
+    } else if (strStartsWith(s, "+CSSU:")) {
+        RIL_SuppSvcNotification *response = NULL;
+        int code = 0;
+        char *tmp;
+
+        response = (RIL_SuppSvcNotification *)
+                malloc(sizeof(RIL_SuppSvcNotification));
+        if (response == NULL) {
+            goto out;
+        }
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &code);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            free(response);
+            goto out;
+        }
+        response->notificationType = MT_CALL;
+        response->code = code;
+        response->index = 0;
+        response->type = 0;
+        response->number = NULL;
+
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SUPP_SVC_NOTIFICATION, response,
+                                  sizeof(RIL_SuppSvcNotification), socket_id);
+        free(response);
+    } else {
+        return 0;
+    }
+
+out:
+    free(line);
+    return 1;
+}
