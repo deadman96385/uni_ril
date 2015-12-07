@@ -413,6 +413,7 @@ LOCAL void H264Dec_fill_frame_num_gap (H264DecContext *img_ptr, DEC_DECODED_PICT
     {
         DEC_STORABLE_PICTURE_T *picture_ptr;
         DEC_FRAME_STORE_T *frame_store_ptr = H264Dec_get_one_free_pic_buffer (img_ptr, dpb_ptr);
+        DEC_STORABLE_PICTURE_T *prev = dpb_ptr->delayed_pic_ptr;
 
 #if _H264_PROTECT_ & _LEVEL_HIGH_
         if (frame_store_ptr == PNULL || frame_store_ptr->frame == PNULL)
@@ -443,7 +444,12 @@ LOCAL void H264Dec_fill_frame_num_gap (H264DecContext *img_ptr, DEC_DECODED_PICT
         picture_ptr->imgUAddr = NULL;
         picture_ptr->imgVAddr = NULL;
         picture_ptr->pBufferHeader= NULL;
-
+        if (prev)
+        {
+            picture_ptr->imgYUV[0] = prev->imgYUV[0];
+            picture_ptr->imgYUV[1] = prev->imgYUV[1];
+            picture_ptr->imgYUV[2] = prev->imgYUV[2];
+        }
         img_ptr->frame_num = unused_short_term_frm_num;
         if (img_ptr->g_active_sps_ptr->pic_order_cnt_type!=0)
         {
@@ -511,11 +517,11 @@ PUBLIC MMDecRet H264Dec_init_picture (H264DecContext *img_ptr)
         if (img_ptr->g_active_sps_ptr->gaps_in_frame_num_value_allowed_flag == 0)
         {
             /*advanced error concealment would be called here to combat unitentional loss of pictures*/
-            SPRD_CODEC_LOGW("an unintentional loss of picture occures!\n");
+            SPRD_CODEC_LOGW("an unintentional loss of picture occures! pre_frame_num: %d, frame_num: %d\n",
+                            img_ptr->pre_frame_num, img_ptr->frame_num);
             //	return;
         }
-        //H264Dec_fill_frame_num_gap(img_ptr, dpb_ptr);
-        H264Dec_clear_delayed_buffer(img_ptr);
+        H264Dec_fill_frame_num_gap(img_ptr, dpb_ptr);
     }
 
     fs = H264Dec_get_one_free_pic_buffer(img_ptr, dpb_ptr);
