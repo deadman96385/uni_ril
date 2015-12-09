@@ -1208,9 +1208,10 @@ done:
         putPDP(secondary_cid -1);
         putPDP(cid - 1);
     }
+    /*
     if(isVoLteEnable() && !isExistActivePdp()){ // for ddr, power consumptioon
         at_send_command(ATch_type[channelID], "AT+SPVOOLTE=1", NULL);
-    }
+    }*/
     property_set(PROP_END_CONNECTIVITY, "0");
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -3798,9 +3799,10 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) ){
         add_ip_cid = 0;
     }
+    /*
     if(isVoLteEnable() && !isExistActivePdp()){  // for ddr, power consumptioon
         at_send_command(ATch_type[channelID], "AT+SPVOOLTE=0", NULL);
-    }
+    } */
 
 RETRY:
     bLteDetached = false;
