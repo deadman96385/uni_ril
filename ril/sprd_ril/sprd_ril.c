@@ -11774,21 +11774,15 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                 RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
                 NULL, 0);
 
-        char *tmp;
-        int voiceState, channelID;
-        line = strdup(s);
-        tmp = line;
-        at_tok_start(&tmp);
-        err = at_tok_nextint(&tmp, &voiceState);
-        if (err < 0) goto out;
-
-        if (strStartsWith(s,"+CREG:") && voiceState == 2
-            && sState == RADIO_STATE_OFF && radioOnERROR == true)
+        int channelID;
+        if (strStartsWith(s,"+CREG:") && sState == RADIO_STATE_OFF
+             && radioOnERROR == true)
         {
-        RILLOGD("CS Searching network, Radio is on, setRadioState now.");
+        RILLOGD("Radio is on, setRadioState now.");
         channelID = getChannel();
         setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
         radioOnERROR = false;
+        putChannel(channelID);
         }
     } else if (strStartsWith(s,"+CEREG:")) {
         char *p,*tmp;
