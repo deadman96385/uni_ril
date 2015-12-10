@@ -186,7 +186,8 @@ typedef enum {
 #define LOOSE_MATCH_PLMN_LENGTH 1
 
 #define PERSIST_VOICE_CLEAR_CODE_PROPERTY "persist.sys.voice_clear_code"
-
+#define PERSIET_SYS_DDR_STATUS            "persist.sys.ddr.status"
+#define PROPPERTY_VALUE_ENABLE            "1"
 // {for sleep log}
 #define BUFFER_SIZE  (12*1024*4)
 #define CONSTANT_DIVIDE  32768.0
@@ -1183,7 +1184,7 @@ static void deactivateDataConnection(int channelID, void *data, size_t datalen, 
                     RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
                     err = at_send_command(ATch_type[channelID], cmd, &p_response);
                     if (err < 0 || p_response->success == 0) {
-                    	RILLOGD("last dataconnection data off failed!");
+                        RILLOGD("last dataconnection data off failed!");
                     }
                 }else{
                     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
@@ -1208,10 +1209,14 @@ done:
         putPDP(secondary_cid -1);
         putPDP(cid - 1);
     }
-    /*
-    if(isVoLteEnable() && !isExistActivePdp()){ // for ddr, power consumptioon
-        at_send_command(ATch_type[channelID], "AT+SPVOOLTE=1", NULL);
-    }*/
+
+    if (isVoLteEnable() && !isExistActivePdp()) { // for ddr, power consumptioon
+        property_get(PERSIET_SYS_DDR_STATUS, prop,"0");
+        RILLOGD("volte ddr power prop = %s", prop);
+        if (!strcmp(prop, PROPPERTY_VALUE_ENABLE)) {
+            at_send_command(ATch_type[channelID], "AT+SPVOOLTE=1", NULL);
+        }
+    }
     property_set(PROP_END_CONNECTIVITY, "0");
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -3799,10 +3804,14 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) ){
         add_ip_cid = 0;
     }
-    /*
-    if(isVoLteEnable() && !isExistActivePdp()){  // for ddr, power consumptioon
-        at_send_command(ATch_type[channelID], "AT+SPVOOLTE=0", NULL);
-    } */
+
+    if(isVoLteEnable() && !isExistActivePdp()) {  // for ddr, power consumptioon
+        property_get(PERSIET_SYS_DDR_STATUS, prop,"0");
+        RILLOGD("volte ddr power prop = %s", prop);
+        if (!strcmp(prop, PROPPERTY_VALUE_ENABLE)) {
+            at_send_command(ATch_type[channelID], "AT+SPVOOLTE=0", NULL);
+        }
+    }
 
 RETRY:
     bLteDetached = false;
