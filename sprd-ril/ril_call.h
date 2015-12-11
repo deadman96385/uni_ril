@@ -28,9 +28,9 @@ typedef struct {
     int num_type;
     int bs_type;
     int cause;
-    int location; /* if cause = 57 and location <= 2,
-                  * it means current sim hasn't start vt service
-                  */
+    int location;  /* if cause = 57 and location <= 2,
+                    * it means current sim hasn't start vt service
+                    */
 } RIL_VideoPhone_DSCI;
 
 typedef struct ListNode {
@@ -38,6 +38,24 @@ typedef struct ListNode {
     struct ListNode *next;
     struct ListNode *prev;
 } ListNode;
+
+/* add for VoLTE to handle +CLCCS */
+typedef enum {
+    VOLTE_CALL_IDEL = 1,
+    VOLTE_CALL_CALLING_MO = 2,
+    VOLTE_CALL_CONNECTING_MO = 3,
+    VOLTE_CALL_ALERTING_MO = 4,
+    VOLTE_CALL_ALERTING_MT = 5,
+    VOLTE_CALL_ACTIVE = 6,
+    VOLTE_CALL_RELEASED_MO = 7,
+    VOLTE_CALL_RELEASED_MT = 8,
+    VOLTE_CALL_USER_BUSY = 9,
+    VOLTE_CALL_USER_DETERMINED_BUSY = 10,
+    VOLTE_CALL_WAITING_MO = 11,
+    VOLTE_CALL_WAITING_MT = 12,
+    VOLTE_CALL_HOLD_MO = 13,
+    VOLTE_CALL_HOLD_MT = 14
+} RIL_VoLTE_CallState;
 
 extern ListNode s_DTMFList[SIM_COUNT];
 

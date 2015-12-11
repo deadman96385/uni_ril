@@ -36,10 +36,10 @@ endif
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADER)/librilutils
 LOCAL_C_INCLUDES += external/nanopb-c
 
-LOCAL_MODULE:= libril
+LOCAL_MODULE:= librilsprd
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_COPY_HEADERS_TO := libril
+LOCAL_COPY_HEADERS_TO := librilsprd
 LOCAL_COPY_HEADERS := ril_ex.h
 
 include $(BUILD_SHARED_LIBRARY)
@@ -61,7 +61,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_CFLAGS := -DRIL_SHLIB
 
-LOCAL_MODULE:= libril_static
+LOCAL_MODULE:= libril_static_sp
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)

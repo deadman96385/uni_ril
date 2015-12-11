@@ -14,7 +14,7 @@ LOCAL_PROTOC_OPTIMIZE_TYPE := nanopb-c-enable_malloc
 
 LOCAL_CFLAGS :=
 
-LOCAL_MODULE:= librilutils
+LOCAL_MODULE:= librilutils_sp
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -43,7 +43,7 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
 src_proto := $(LOCAL_PATH)
-LOCAL_MODULE := sap-api-java-static
+LOCAL_MODULE := sap-api-java-static_sp
 LOCAL_SRC_FILES := proto/sap-api.proto
 LOCAL_PROTOC_OPTIMIZE_TYPE := micro
 

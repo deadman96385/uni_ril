@@ -122,51 +122,64 @@ void process_calls(int _calls) {
 
 static int clccStateToRILState(int state, RIL_CallState *p_state) {
     switch (state) {
-        case 0: *p_state = RIL_CALL_ACTIVE;   return 0;
-        case 1: *p_state = RIL_CALL_HOLDING;  return 0;
-        case 2: *p_state = RIL_CALL_DIALING;  return 0;
-        case 3: *p_state = RIL_CALL_ALERTING; return 0;
-        case 4: *p_state = RIL_CALL_INCOMING; return 0;
-        case 5: *p_state = RIL_CALL_WAITING;  return 0;
-        default: return -1;
+        case RIL_CALL_ACTIVE:
+            *p_state = RIL_CALL_ACTIVE;
+            return 0;
+        case RIL_CALL_HOLDING:
+            *p_state = RIL_CALL_HOLDING;
+            return 0;
+        case RIL_CALL_DIALING:
+            *p_state = RIL_CALL_DIALING;
+            return 0;
+        case RIL_CALL_ALERTING:
+            *p_state = RIL_CALL_ALERTING;
+            return 0;
+        case RIL_CALL_INCOMING:
+            *p_state = RIL_CALL_INCOMING;
+            return 0;
+        case RIL_CALL_WAITING:
+            *p_state = RIL_CALL_WAITING;
+            return 0;
+        default:
+            return -1;
     }
 }
 
 static int voLTEStateToRILState(int state, RIL_CallState *p_state) {
     switch (state) {
-        case 1:  /* VoLTE_CallState-> VOLTE_CALL_IDEL */
-        case 7:  /* VoLTE_CallState-> VOLTE_CALL_RELEASED_MO */
-        case 8:  /* VoLTE_CallState-> VOLTE_CALL_RELEASED_MT */
-        case 9:  /* VoLTE_CallState-> VOLTE_CALL_USER_BUSY */
-        case 10:  /* VoLTE_CallState-> VOLTE_CALL_USER_DETERMINED_BUSY */
+        case VOLTE_CALL_IDEL:
+        case VOLTE_CALL_RELEASED_MO:
+        case VOLTE_CALL_RELEASED_MT:
+        case VOLTE_CALL_USER_BUSY:
+        case VOLTE_CALL_USER_DETERMINED_BUSY:
             return -1;
-        case 2:  /* VoLTE_CallState-> VOLTE_CALL_CALLING_MO */
+        case VOLTE_CALL_CALLING_MO:
             *p_state = RIL_CALL_DIALING;
             return 0;
-        case 3:
+        case VOLTE_CALL_CONNECTING_MO:
             *p_state = RIL_CALL_DIALING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_CONNECTING_MO */
-        case 4:
+            return 0;
+        case VOLTE_CALL_ALERTING_MO:
             *p_state = RIL_CALL_ALERTING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_ALERTING_MO */
-        case 5:
+            return 0;
+        case VOLTE_CALL_ALERTING_MT:
             *p_state = RIL_CALL_INCOMING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_ALERTING_MT */
-        case 6:
+            return 0;
+        case VOLTE_CALL_ACTIVE:
             *p_state = RIL_CALL_ACTIVE;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_ACTIVE */
-        case 11:
+            return 0;
+        case VOLTE_CALL_WAITING_MO:
             *p_state = RIL_CALL_DIALING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_WAITING_MO */
-        case 12:
+            return 0;
+        case VOLTE_CALL_WAITING_MT:
             *p_state = RIL_CALL_WAITING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_WAITING_MT */
-        case 13:
+            return 0;
+        case VOLTE_CALL_HOLD_MO:
             *p_state = RIL_CALL_HOLDING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_HOLD_MO */
-        case 14:
+            return 0;
+        case VOLTE_CALL_HOLD_MT:
             *p_state = RIL_CALL_HOLDING;
-            return 0;  /* VoLTE_CallState-> VOLTE_CALL_HOLD_MT */
+            return 0;
         default:
             return -1;
     }
