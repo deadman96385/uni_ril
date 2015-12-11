@@ -12,7 +12,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
     liblog \
     libcutils \
-    libril_sp \
+    libril \
     libdl
 
 # temporary hack for broken vendor rils
