@@ -3042,7 +3042,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
 
             if((ncid == cid) && (t== NULL)){    //for bug407591
                 RILLOGD(" No need to get ip,fwk will do deact by check ip");
-				responses[cid - 1].status = PDP_FAIL_OPERATOR_BARRED;
+                responses[cid - 1].status = PDP_FAIL_OPERATOR_BARRED;
                 continue;
             }
 
@@ -11191,13 +11191,6 @@ static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t)
     int maxPDPNum = getMaxPDPNum();
     extern int s_sim_num;
     char cmd[30];
-
-    for(i = 0; i < maxPDPNum; i++) {
-        if (pdp[i].cid > 0) {
-            RILLOGD("pdp[%d].state = %d", i, pdp[i].state);
-            putPDP(i);
-        }
-    }
 
     if (!strcmp(s_modem, "l")&&isSvLte()) {
         putPDP(attachPdpIndex);
