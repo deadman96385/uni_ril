@@ -275,7 +275,7 @@ static int32 get_CBR_IsliceQP(RC_INOUT_PARAS *rc_inout_paras, int32 nSlice_mb_in
         if (pGOP->avg_GOP_bits * pGOP->nRem_GOPNum < pGOP->nRem_bits) {
             pGOP->nRem_bits = pGOP->avg_GOP_bits * pGOP->nRem_GOPNum;
         }
-        nTargetBits = pGOP->nRem_bits * pRC->nIP_Ratio/pGOP->nRemNumFrames;
+        nTargetBits = (pGOP->nRem_bits/pGOP->nRemNumFrames)* pRC->nIP_Ratio;
         if (nTargetBits > pRC->nMaxOneFrameBits * pRC->nIntra_Period) {
             nTargetBits = pRC->nMaxOneFrameBits * pRC->nIntra_Period;
         }
@@ -382,16 +382,11 @@ static int32 get_VBR_IsliceQP(RC_INOUT_PARAS *rc_inout_paras, int32 nSlice_mb_in
     if (0 != pGOP->last_PframeNum) {
         pGOP->last_PframeBits = pGOP->last_PframeBits/pGOP->last_PframeNum;
         nAvg_prev_QP = pGOP->last_PQP/pGOP->last_PframeNum;
-
-        pGOP->last_IQP = Clip3(pRC->nMinQP, pRC->nMaxQP, pGOP->last_IQP);
-        nAvg_prev_QP = Clip3(pRC->nMinQP, pRC->nMaxQP, nAvg_prev_QP);
     } else {
-        pGOP->last_PframeBits = pGOP->last_PframeBits;
         nAvg_prev_QP = pGOP->last_PQP;
-
-        pGOP->last_IQP = Clip3(pRC->nMinQP, pRC->nMaxQP, pGOP->last_IQP);
-        nAvg_prev_QP = Clip3(pRC->nMinQP, pRC->nMaxQP, nAvg_prev_QP);
     }
+    pGOP->last_IQP = Clip3(pRC->nMinQP, pRC->nMaxQP, pGOP->last_IQP);
+    nAvg_prev_QP = Clip3(pRC->nMinQP, pRC->nMaxQP, nAvg_prev_QP);
 
     for (i = -6; i <= 6; i++) {
         GOP_init_QP = nAvg_prev_QP + i;
@@ -416,7 +411,7 @@ static int32 get_VBR_IsliceQP(RC_INOUT_PARAS *rc_inout_paras, int32 nSlice_mb_in
 
     // 3. Update PIC parameters
     if (0 != pGOP->nRemNumFrames) {
-        pPIC->target_bits = pGOP->nRem_bits * pRC->nIP_Ratio / pGOP->nRemNumFrames;
+        pPIC->target_bits = (pGOP->nRem_bits / pGOP->nRemNumFrames) * pRC->nIP_Ratio;
     }
     if (pPIC->target_bits > pRC->nMaxOneFrameBits) {
         pPIC->target_bits = pRC->nMaxOneFrameBits;
@@ -543,6 +538,7 @@ static int32 getPsliceQP(RC_INOUT_PARAS *rc_inout_paras, int32 nSlice_mb_index, 
 
     // 4. get QP base on ratio and prev_frame_qp
     if (pRC->nCodec_type == RC_VP8) {
+        curr_qp = prev_frame_qp;
     } else {	//H.264, HEVC
         if (nTargetBits <= 0) { //overdue
             if(pRC->nRate_control_en == RC_GOP_CBR) {
@@ -701,7 +697,11 @@ void updatePicPara_GOPRC(RC_INOUT_PARAS *rc_inout_paras, int32 bits)
             delta_bits = BitsS - (int)(pRC->nBitrate * pGOP->nEncoded_num);
         }
         pGOP->nRem_bits -= BitsS;
+        pGOP->nRem_bits = Clip3(((int)0xc0000000), ((int)0x40000000), pGOP->nRem_bits);
+
         pGOP->curr_buf_full += delta_bits;
+        pGOP->curr_buf_full = Clip3(((int)0xc0000000), ((int)0x40000000), pGOP->curr_buf_full);
+
         pGOP->last_frameBits = BitsS;
 
         //======================================

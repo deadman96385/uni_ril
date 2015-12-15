@@ -120,7 +120,7 @@ MMEncRet H264EncInit(AVCHandle *avcHandle, MMCodecBuffer *pExtaMemBfr,
     H264EncObject *vo = (H264EncObject *) avcHandle->videoEncoderData;
     ENC_IMAGE_PARAMS_T *img_ptr;
     uint32 frame_buf_size;
-	uint32 slice_num = SLICE_MB;
+    uint32 slice_num = SLICE_MB;
     MMEncRet ret;
 
     CHECK_MALLOC(pExtaMemBfr, "pExtaMemBfr");
@@ -292,9 +292,10 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
 {
     H264EncObject *vo = (H264EncObject *) avcHandle->videoEncoderData;
     MMEncConfig *enc_config = vo->g_h264_enc_config;
-    uint32 target_bitrate_max;
+    ENC_IMAGE_PARAMS_T *img_ptr = vo->g_enc_image_ptr;
+    uint32 target_bitrate_max, target_bitrate_min;
     uint32 mb_rate, total_mbs = (vo->g_enc_image_ptr->width * vo->g_enc_image_ptr->height)>>8;
-    uint32 i, level_idx;
+    int32 i, level_idx;
     uint32 max_framerate;
     LEVEL_LIMITS_T *level_infos = &g_level_infos;
 
@@ -303,7 +304,7 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
     SPRD_CODEC_LOGD ("%s, configure, FrameRate: %d, targetBitRate: %d, intra_period: %d, QP_I: %d, QP_P: %d",
                      __FUNCTION__, pConf->FrameRate, pConf->targetBitRate, pConf->PFrames+1, pConf->QP_IVOP, pConf->QP_PVOP);
 
-    for (level_idx = 0; level_idx < g_level_num; level_idx++) {
+    for (level_idx = 0; level_idx < (int32)g_level_num; level_idx++) {
         if (level_infos[level_idx].level == AVC_LEVEL4_1) {
             //now, max level4.1
             break;
@@ -313,7 +314,7 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
 
     mb_rate = total_mbs * max_framerate;//enc_config->FrameRate;
     level_idx = 0;
-    for (i = (g_level_num-1); i >= 0; i--) {
+    for (i = (int32)(g_level_num-1); i >= 0; i--) {
         if ((level_infos[i].MaxMBPS <= mb_rate) && (level_infos[i].MaxFS <= total_mbs)) {
             level_idx = i;
             if ((level_infos[i].MaxMBPS < mb_rate) || (level_infos[i].MaxFS < total_mbs)) {
@@ -338,13 +339,16 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
     }
 
     target_bitrate_max = level_infos[level_idx].MaxBR * 1200;
-    SPRD_CODEC_LOGD("%s, target_bitrate_max: %d, pConf->targetBitRate: %d", __FUNCTION__, target_bitrate_max, pConf->targetBitRate);
+    target_bitrate_min = ((total_mbs << 8)*8*pConf->FrameRate)/200; // 200 is max compress ratio
+    SPRD_CODEC_LOGD("%s, target_bitrate_min: %d, target_bitrate_max: %d, pConf->targetBitRate: %d", __FUNCTION__, target_bitrate_min, target_bitrate_max, pConf->targetBitRate);
 
-    if (pConf->targetBitRate > target_bitrate_max) {
+    if (pConf->targetBitRate < target_bitrate_min) {
+        pConf->targetBitRate = target_bitrate_min;
+    } else if (pConf->targetBitRate > target_bitrate_max) {
         pConf->targetBitRate = target_bitrate_max;
         pConf->QP_IVOP = 1;
         pConf->QP_PVOP = 1;
-    } else if(pConf->targetBitRate > (target_bitrate_max*3/16)) {
+    } else if(pConf->targetBitRate > (target_bitrate_max*3/8)) {
         pConf->QP_IVOP = 15;
         pConf->QP_PVOP = 15;
     } else {
@@ -358,6 +362,9 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
     enc_config->QP_IVOP				= pConf->QP_IVOP;
     enc_config->QP_PVOP				= pConf->QP_PVOP;
     enc_config->EncSceneMode			= pConf->EncSceneMode;
+    if (enc_config->EncSceneMode == SCENE_NORMAL){
+        img_ptr->slice_mb = img_ptr->frame_height_in_mbs *img_ptr->frame_width_in_mbs;
+    }
 
     if (enc_config->RateCtrlEnable) {
         vo->rc_inout_paras.nRate_control_en = enc_config->RateCtrlEnable;
