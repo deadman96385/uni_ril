@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/ril/reference-ril/at_tok.h
+/* //vendor/sprd/proprietories-source/ril/sprd-ril/at_tok.h
 **
 ** Copyright 2006, The Android Open Source Project
 **

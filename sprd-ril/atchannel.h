@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/ril/reference-ril/atchannel.h
+/* //vendor/sprd/proprietories-source/ril/sprd-ril/atchannel.h
 **
 ** Copyright 2006, The Android Open Source Project
 **

@@ -5,7 +5,7 @@
  */
 #define LOG_TAG "RIL"
 
-#include "reference-ril.h"
+#include "sprd-ril.h"
 #include "ril_ss.h"
 
 #define MO_CALL 0

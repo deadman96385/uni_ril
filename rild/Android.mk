@@ -23,7 +23,7 @@ LOCAL_CFLAGS := -DRIL_SHLIB
 LOCAL_MODULE:= sprdrild
 LOCAL_MODULE_TAGS := optional
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/librilsprd
-LOCAL_MODULE_STEM_32 := sprdrild32
+LOCAL_MODULE_STEM_32 := sprdrild
 LOCAL_MODULE_STEM_64 := sprdrild64
 LOCAL_MULTILIB := both
 include $(BUILD_EXECUTABLE)
@@ -43,7 +43,7 @@ LOCAL_CFLAGS := \
 
 LOCAL_MODULE:= sprdradiooptions
 LOCAL_MODULE_TAGS := debug
-LOCAL_MODULE_STEM_32 := sprdradiooptions32
+LOCAL_MODULE_STEM_32 := sprdradiooptions
 LOCAL_MODULE_STEM_64 := sprdradiooptions64
 LOCAL_MULTILIB := both
 

@@ -4948,6 +4948,7 @@ extern "C" void RIL_register(const RIL_RadioFunctions *callbacks) {
     int fdListen;
     char socket_name[20];
 
+    RLOGI("librilsprd Compile date: %s, %s", __DATE__, __TIME__);
     RLOGI("SIM_COUNT: %d", SIM_COUNT);
 
     if (callbacks == NULL) {

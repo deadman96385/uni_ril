@@ -4,8 +4,9 @@
  * Copyright (C) 2015 Spreadtrum Communications Inc.
  */
 
-#define LOG_TAG "RIL_DATA"
+#define LOG_TAG "RIL"
 
+#include "sprd-ril.h"
 #include "ril_data.h"
 #include "ril_network.h"
 #include "ril_call.h"

@@ -6,7 +6,7 @@
 
 #define LOG_TAG "RIL"
 
-#include "reference-ril.h"
+#include "sprd-ril.h"
 #include "ril_sim.h"
 #include "ril_utils.h"
 

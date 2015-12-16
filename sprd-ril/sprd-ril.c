@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/ril/reference-ril/reference-ril.c
+/* //vendor/sprd/proprietories-source/ril/sprd-ril/sprd-ril.c
 **
 ** Copyright 2006, The Android Open Source Project
 **
@@ -23,7 +23,7 @@
 #include <termios.h>
 #include "hardware/qemu_pipe.h"
 
-#include "reference-ril.h"
+#include "sprd-ril.h"
 #include "ril_sim.h"
 #include "ril_network.h"
 #include "ril_ss.h"
@@ -827,6 +827,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_attr_t attr;
 
     s_rilEnv = env;
+
+    RLOGI("libsprd-ril Compile date: %s, %s", __DATE__, __TIME__);
 
     while ( -1 != (opt = getopt(argc, argv, "m:n:"))) {
         switch (opt) {

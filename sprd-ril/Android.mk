@@ -6,7 +6,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    reference-ril.c \
+    sprd-ril.c \
     atchannel.c \
     misc.c \
     at_tok.c \
@@ -50,7 +50,7 @@ else
 #build executable
 LOCAL_MODULE:= libsprd-ril
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_STEM_32 := libsprd-ril32
+LOCAL_MODULE_STEM_32 := libsprd-ril
 LOCAL_MODULE_STEM_64 := libsprd-ril64
 LOCAL_MULTILIB := both
 include $(BUILD_EXECUTABLE)

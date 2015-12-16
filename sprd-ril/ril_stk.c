@@ -5,7 +5,7 @@
  */
 #define LOG_TAG "RIL"
 
-#include <reference-ril.h>
+#include "sprd-ril.h"
 #include <ril_stk.h>
 
 int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,

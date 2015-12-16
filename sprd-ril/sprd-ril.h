@@ -1,5 +1,5 @@
 /**
- * reference-ril.h --- functions/struct/variables declaration and definition
+ * sprd-ril.h --- functions/struct/variables declaration and definition
  *
  * Copyright (C) 2015 Spreadtrum Communications Inc.
  */

@@ -8,8 +8,6 @@
 #ifndef RIL_DATA_H_
 #define RIL_DATA_H_
 
-#include "reference-ril.h"
-
 #define MAX_PDP                         6
 #define MAX_PDP_CP                      11
 #define MINIMUM_APN_LEN                 19
