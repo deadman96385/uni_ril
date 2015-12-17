@@ -171,6 +171,7 @@ typedef enum {
 #define PROP_DEFAULT_BEARER  "gsm.stk.default_bearer"
 #define PROP_OPEN_CHANNEL  "gsm.stk.open_channel"
 #define PROP_OPERATOP_PLMN  "gsm.sim.operator.numeric"
+#define PROP_OPERATOP_NAME  "gsm.sim.operator.alpha"
 
 #define PROP_END_CONNECTIVITY  "gsm.stk.end_connectivity"
 
@@ -3729,6 +3730,30 @@ static bool strictMatchApn(char* pdnApn, const char* apn){
         return false;
     }
 }
+static void getProperty(char prop[], char* str){
+    if(strcmp(prop,"")){
+        char *str1 = strtok(prop, ",");
+        RILLOGD("getProperty str1= %s", str1);
+        if(s_multiSimMode) {
+            extern int s_sim_num;
+            if (s_sim_num == 0) {
+                strcpy(str, str1);
+            } else if (s_sim_num == 1) {
+                char *str2 = strtok(NULL, ",");
+                RILLOGD("getProperty str2= %s", str2);
+                if(str2 == NULL){
+                    strcpy(str, str1);
+               }else{
+                    strcpy(str, str2);
+               }
+            }
+        } else {
+            strcpy(str, str1);
+        }
+    }else{
+        strcpy(str, "");
+    }
+}
 static bool looseMatchApn(char* pdnApn, const char* apn){
     static char *plmnList[LOOSE_MATCH_PLMN_LENGTH] = {
         "405862",
@@ -3737,39 +3762,29 @@ static bool looseMatchApn(char* pdnApn, const char* apn){
         "internetims",
     };
     char prop[PROPERTY_VALUE_MAX] = {0};
-    char *plmn;
-    int i;
-    bool plmnMatch = false;
-    property_get(PROP_OPERATOP_PLMN, prop, "");
-    plmn = (char*)alloca(sizeof(char) * 10);
-    if(strcmp(prop,"")){
-        char *plmn1 = strtok(prop, ",");
-        if(s_multiSimMode) {
-            extern int s_sim_num;
-            if (s_sim_num == 0) {
-                strcpy(plmn, plmn1);
-            } else if (s_sim_num == 1) {
-                char *plmn2 = strtok(NULL, ",");
-                if(plmn2 == NULL){
-                    strcpy(plmn, plmn1);
-               }else{
-                    strcpy(plmn, plmn2);
-               }
-            }
-        } else {
-            strcpy(plmn, plmn1);
-        }
-    }else{
-        strcpy(plmn, "");
+    char *plmn, *name;
+//    int i;
+//    bool plmnMatch = false;
+//    property_get(PROP_OPERATOP_PLMN, prop, "");
+//    plmn = (char*)alloca(sizeof(char) * 10);
+//    plmn = getProperty(prop);
+//    RILLOGD("requestSetupDataCall looseMatchApn");
+//    for(i = 0;i < LOOSE_MATCH_PLMN_LENGTH; i++){
+//        if(!strcmp(plmn,plmnList[i]) && strictMatchApn(pdnApn, matchApnList[i])){
+//            plmnMatch = true;
+//            break;
+//        }
+//    }
+//    return plmnMatch && !strcasecmp(apn, initialAttachApn->apn);
+    name = (char*)alloca(sizeof(char) * 128);
+    memset(name, 0, sizeof(char) * 128);
+    property_get(PROP_OPERATOP_NAME, prop, "");
+    getProperty(prop, name);
+    if(strcasestr(name,"Jio") || strcasestr(name,"Reliance")){
+        return !strcasecmp(apn, initialAttachApn->apn);
+    }else {
+        return false;
     }
-    RILLOGD("requestSetupDataCall looseMatchApn");
-    for(i = 0;i < LOOSE_MATCH_PLMN_LENGTH; i++){
-        if(!strcmp(plmn,plmnList[i]) && strictMatchApn(pdnApn, matchApnList[i])){
-            plmnMatch = true;
-            break;
-        }
-    }
-    return plmnMatch && !strcasecmp(apn, initialAttachApn->apn);
 }
 static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
@@ -9909,8 +9924,8 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *) data;
             if (pIAApn->apn != NULL) {
                 if ((initialAttachApn->apn != NULL)
-                        && (strcmp(initialAttachApn->apn, pIAApn->apn) == 0)) {
-                    need_ipchange = 1;
+                        && strcmp(initialAttachApn->apn, pIAApn->apn)) {
+                    need_ipchange++;
                     free(initialAttachApn->apn);
                 }
                 initialAttachApn->apn = (char *) malloc(
@@ -9919,10 +9934,10 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             }
 
             if (pIAApn->protocol != NULL) {
-                if (need_ipchange && (initialAttachApn->protocol != NULL)
+                if ((initialAttachApn->protocol != NULL)
                         && strcmp(initialAttachApn->protocol,
                                 pIAApn->protocol)) {
-                    need_ipchange = 2;
+                    need_ipchange++;
                     free(initialAttachApn->protocol);
                 }
                 initialAttachApn->protocol = (char *) malloc(
@@ -9964,7 +9979,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                     initial_attach_id);
             err = at_send_command(ATch_type[channelID], cmd, NULL);
         }
-        if (need_ipchange == 2) {
+        if (need_ipchange >= 1) {
             at_send_command(ATch_type[channelID], "AT+SPIPTYPECHANGE=1", NULL);
         }
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
