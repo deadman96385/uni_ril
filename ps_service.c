@@ -23,31 +23,21 @@
 #include "pty.h"
 #include "at_tok.h"
 #include <cutils/properties.h>
+#include <cutils/sockets.h>
+#include <netutils/ifc.h>
+#include <net/if.h>
 
 #undef  PHS_LOGD
-#define PHS_LOGD(x...)  ALOGD( x )
+#define PHS_LOGD(x...)  ALOGD(x)
 
-#define SYS_IFCONFIG_UP             "sys.ifconfig.up"
-#define SYS_IP_SET                  "sys.data.setip"
-#define SYS_IP_CLEAR                "sys.data.clearip"
-#define SYS_MTU_SET                 "sys.data.setmtu"
-#define SYS_IFCONFIG_DOWN           "sys.ifconfig.down"
-#define SYS_NO_ARP                  "sys.data.noarp"
-#define SYS_NO_ARP_IPV6             "sys.data.noarp.ipv6"
-#define SYS_IPV6_DISABLE            "sys.data.IPV6.disable"
 #define SYS_NET_ADDR                "sys.data.net.addr"
-#define SYS_IPV6_ON                 "sys.data.ipv6.on"
 #define SYS_NET_ACTIVATING_TYPE     "sys.data.activating.type"
-#define NET_IFACE_RETRY_MAX             1000
 #define DEFAULT_PUBLIC_DNS2         "204.117.214.10"
 // Due to real network limited, 2409:8084:8000:0010:2002:4860:4860:8888 maybe not correct
 #define DEFAULT_PUBLIC_DNS2_IPV6    "2409:8084:8000:0010:2002:4860:4860:8888"
 #define MODEM_CONFIG                "persist.radio.modem.config"
 
-#define SYS_GSPS_ETH_UP_PROP        "ril.gsps.eth.up"
-#define SYS_GSPS_ETH_DOWN_PROP      "ril.gsps.eth.down"
-#define SYS_GSPS_ETH_LOCALIP_PROP   "sys.gsps.eth.localip"
-#define SYS_GSPS_ETH_PEERIP_PROP    "sys.gsps.eth.peerip"
+#define GSPS_ETH_UP_PROP            "ril.gsps.eth.up"
 #define GSPS_IPV4_ADDR_HEADER       "192.168."
 #define DHCP_DNSMASQ_LEASES_FILE    "/data/misc/dhcp/dnsmasq.leases"
 
@@ -59,45 +49,11 @@ mutex ps_service_mutex;
 extern const char *s_modem;
 
 extern int findInBuf(char *buf, int len, char *needle);
-
-static int parse_peer_ip(char *ipaddr, int ipv6_enable) {
-    FILE *fp = NULL;
-    char line[FILE_BUFFER_LENGTH] = {0};
-    char *ptr = NULL, *p = NULL;
-    int ret = 0;
-
-    if (ipv6_enable) {
-        return ret;
-    }
-    if ((fp = fopen(DHCP_DNSMASQ_LEASES_FILE, "r")) == NULL) {
-        PHS_LOGE("Fail to open %s, error : %s.", DHCP_DNSMASQ_LEASES_FILE,
-                strerror(errno));
-        ret = -1;
-        goto _CLOSE;
-    }
-
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        PHS_LOGD("read file: %s ", line);
-        if ((ptr = strstr(line, GSPS_IPV4_ADDR_HEADER)) != NULL) {
-            p = strchr(ptr, ' ');
-            if (p == NULL) {
-                return -1;
-            }
-            *p = '\0';
-            strcpy(ipaddr, ptr);
-            PHS_LOGD("IP address : %s", ipaddr);
-            goto _CLOSE;
-        }
-    }
-    ret = -1;
-    _CLOSE: if (fp != NULL) {
-        fclose(fp);
-    }
-    return ret;
-}
+static int upNetInterface(int cidIndex, IP_TYPE ipType);
 
 void ps_service_init(void) {
     int i;
+
     memset(pdp_info, 0x0, sizeof(pdp_info));
     for (i = 0; i < MAX_PDP_NUM; i++) {
         pdp_info[i].state = PDP_STATE_IDLE;
@@ -107,7 +63,7 @@ void ps_service_init(void) {
     mutex_init(&ps_service_mutex, NULL);
 }
 
-int get_ipv6addr(const char *prop, int cid) {
+int get_ipv6addr(const char *prop, int cidIndex) {
     char netInterface[NET_INTERFACE_LENGTH] = {0};
     const int maxRetry = 120;  // wait 12s
     int retry = 0;
@@ -115,7 +71,7 @@ int get_ipv6addr(const char *prop, int cid) {
     char cmd[MAX_CMD] = {0};
     const int ipv6AddrLen = 32;
 
-    snprintf(netInterface, sizeof(netInterface), "%s%d", prop, cid - 1);
+    snprintf(netInterface, sizeof(netInterface), "%s%d", prop, cidIndex);
     PHS_LOGD("query interface %s", netInterface);
     while (!setup_success) {
         char rawaddrstr[INET6_ADDRSTRLEN], addrstr[INET6_ADDRSTRLEN];
@@ -150,7 +106,7 @@ int get_ipv6addr(const char *prop, int cid) {
                 PHS_LOGD("getipv6addr found fe80");
                 continue;
             }
-            sprintf(cmd, "setprop net.%s%d.ipv6_ip %s", prop, cid - 1, addrstr);
+            sprintf(cmd, "setprop net.%s%d.ipv6_ip %s", prop, cidIndex, addrstr);
             system(cmd);
             PHS_LOGD("getipv6addr propset %s ", cmd);
             setup_success = 1;
@@ -168,32 +124,22 @@ int get_ipv6addr(const char *prop, int cid) {
     return setup_success;
 }
 
-int down_netcard(int cid, char* netinterface) {
+int down_netcard(int cid, char *netinterface) {
     int index = cid - 1;
     char linker[MAX_CMD] = {0};
-    int count = 0;
 
-    if (cid < 1 || cid >= MAX_PDP_NUM || netinterface == NULL)
+    if (cid < 1 || cid >= MAX_PDP_NUM || netinterface == NULL) {
         return 0;
+    }
     PHS_LOGD("down cid %d, network interface %s ", cid, netinterface);
-    snprintf(linker, sizeof(linker), "addr flush dev %s%d", netinterface,
-            index);
-    property_set(SYS_IP_CLEAR, linker);
-    /* set property */
-    snprintf(linker, sizeof(linker), "link set %s%d down", netinterface, index);
-    property_set(SYS_IFCONFIG_DOWN, linker);
-    /* start data_off */
-    property_set("ctl.start", "data_off");
+    snprintf(linker, sizeof(linker), "%s%d", netinterface, index);
+    if (ifc_disable(linker)) {
+        PHS_LOGE("ifc_disable %s fail: %s\n", linker, strerror(errno));
+    }
+    if (ifc_clear_addresses(linker)) {
+        PHS_LOGE("ifc_clear_addresses %s fail: %s\n", linker, strerror(errno));
+    }
 
-    /* wait up to 10s for data_off execute complete */
-    do {
-        property_get(SYS_IFCONFIG_DOWN, linker, "");
-        if (!strcmp(linker, "done"))
-            break;
-        count++;
-        PHS_LOGD("wait data_off exec %d times...", count);
-        usleep(10 * 1000);
-    } while (count < NET_IFACE_RETRY_MAX);
     PHS_LOGD("data_off execute done");
     return 1;
 }
@@ -339,13 +285,8 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req) {
     PHS_LOGD("PDP activate result:ret = %d,state=%d", ret,
              pdp_info[pdp_index].state);
     if (ret == AT_RESULT_TIMEOUT) {
-        PHS_LOGD("PDP activate timeout ");
-        pdp_info[pdp_index].state = PDP_STATE_IDLE;
-        adapter_pty_end_cmd(req->recv_pty);
-        adapter_free_cmux_for_ps(mux);
-        adapter_pty_write(req->recv_pty, "ERROR\r", strlen("ERROR\r"));
-        mutex_unlock(&ps_service_mutex);
-        return AT_RESULT_OK;
+        PHS_LOGD("CGDATA PDP activate timeout ");
+        goto ERROR;
     }
 
     if (pdp_info[pdp_index].state != PDP_STATE_CONNECT) {
@@ -356,8 +297,9 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req) {
             sprintf(error_str, "+CME ERROR: %d\r",
                     pdp_info[pdp_index].error_num);
             adapter_pty_write(req->recv_pty, error_str, strlen(error_str));
-        } else
+        } else {
             adapter_pty_write(req->recv_pty, "ERROR\r", strlen("ERROR\r"));
+        }
         pdp_info[pdp_index].state = PDP_STATE_IDLE;
         mutex_unlock(&ps_service_mutex);
         return AT_RESULT_OK;
@@ -381,249 +323,24 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req) {
         ret = adapter_cmux_write(mux, atCmdStr, strlen(atCmdStr), req->timeout);
         if (ret == AT_RESULT_TIMEOUT) {
             PHS_LOGD("PDP deactivate timeout ");
-            pdp_info[pdp_index].state = PDP_STATE_IDLE;
-            adapter_pty_end_cmd(req->recv_pty);
-            adapter_free_cmux_for_ps(mux);
-            adapter_pty_write(req->recv_pty, "ERROR\r", strlen("ERROR\r"));
-            mutex_unlock(&ps_service_mutex);
-            return AT_RESULT_OK;
+            goto ERROR;
         }
     }
 
     if (pdp_info[pdp_index].state == PDP_STATE_ACTIVE) {
         PHS_LOGD("PS connected successful");
-        snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-        property_get(ETH_SP, prop, "veth");
+
         // if fallback, need map ipv4 and ipv6 to one net device
         if (dispose_data_fallback(master_cid, cid)) {
             cid = master_cid;
         }
 
-        PHS_LOGD("PS ip_state = %d", pdp_info[cid-1].ip_state);
-        if (pdp_info[cid - 1].ip_state == IPV4V6) {
-            property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
-            PHS_LOGD("IPV6 activating");
-            snprintf(linker, sizeof(linker), "addr add %s/64 dev %s%d",
-                    pdp_info[cid - 1].ipv6laddr, prop, cid - 1);
-            property_set(SYS_IP_SET, linker);
-            PHS_LOGD("IPV6 setip linker = %s", linker);
-
-            snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop,
-                    cid - 1);
-            property_set(SYS_MTU_SET, linker);
-            PHS_LOGD("IPV6 setmtu linker = %s", linker);
-
-            snprintf(linker, sizeof(linker), "-6 link set %s%d arp off", prop,
-                    cid - 1);
-            property_set(SYS_NO_ARP_IPV6, linker);
-            PHS_LOGD("IPV6 arp linker = %s", linker);
-
-            // up the net interface
-            snprintf(linker, sizeof(linker), "link set %s%d up", prop, cid - 1);
-            property_set(SYS_IFCONFIG_UP, linker);
-            PHS_LOGD("IPV6 setip linker = %s", linker);
-
-            // enable IPV6
-            snprintf(linker, sizeof(linker), "0");
-            property_set(SYS_IPV6_DISABLE, linker);
-            PHS_LOGD("IPV6 able linker = %s", linker);
-            // set net card addr
-            snprintf(linker, sizeof(linker), "%s%d", prop, cid - 1);
-            property_set(SYS_NET_ADDR, linker);
-            PHS_LOGD("Net interface addr linker = %s", linker);
-            property_get(SYS_GSPS_ETH_UP_PROP, gspsprop, "0");
-            PHS_LOGD("GSPS up prop = %s", gspsprop);
-            if (atoi(gspsprop)) {
-                char peerip[IPV6_ADDR_SIZE] = {0};
-                if (parse_peer_ip(peerip, TRUE) == 0) {
-                    property_set(SYS_GSPS_ETH_LOCALIP_PROP,
-                            pdp_info[cid - 1].ipv6laddr);
-                    property_set(SYS_GSPS_ETH_PEERIP_PROP, peerip);
-                }
-            }
-
-            /* start data_on */
-            property_set("ctl.start", "data_on");
-            /* wait up to 10s for data_on execute complete */
-            do {
-                property_get(SYS_IFCONFIG_UP, linker, "");
-                if (!strcmp(linker, "done"))
-                    break;
-                count++;
-                PHS_LOGD("wait data_on exec %d times...", count);
-                usleep(10 * 1000);
-            } while (count < NET_IFACE_RETRY_MAX);
-
-            snprintf(ipv6_dhcpcd_cmd, sizeof(ipv6_dhcpcd_cmd),
-                    "dhcpcd_ipv6:%s%d", prop, cid - 1);
-            property_set("ctl.start", ipv6_dhcpcd_cmd);
-            if (!get_ipv6addr(prop, cid)) {
-                PHS_LOGD(
-                        "getipv6addr state ipv4v6 get IPv6 address timeout ,just use ipv4");
-                // Just use IPV4
-                pdp_info[cid - 1].ip_state = IPV4;
-            } else {
-                PHS_LOGD("IPV6 data_on execute done");
-                usleep(100 * 1000);
-            }
-            property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
-            // set ip addr mtu to check
-            snprintf(linker, sizeof(linker), "addr add %s dev %s%d",
-                    pdp_info[cid - 1].ipladdr, prop, cid - 1);
-            property_set(SYS_IFCONFIG_UP, linker);
-            PHS_LOGD("IPV4 setip linker = %s", linker);
-
-            snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop,
-                    cid - 1);
-            property_set(SYS_MTU_SET, linker);
-            PHS_LOGD("IPV4 setmtu linker = %s", linker);
-
-            // no arp
-            snprintf(linker, sizeof(linker), "link set %s%d arp off", prop,
-                    cid - 1);
-            property_set(SYS_NO_ARP, linker);
-            PHS_LOGD("IPV4 arp linker = %s", linker);
-            if (atoi(gspsprop)) {
-                char peerip[IPV6_ADDR_SIZE] = "";
-                if (parse_peer_ip(peerip, FALSE) == 0) {
-                    property_set(SYS_GSPS_ETH_LOCALIP_PROP,
-                            pdp_info[cid - 1].ipladdr);
-                    property_set(SYS_GSPS_ETH_PEERIP_PROP, peerip);
-                }
-            }
-            /* start data_on */
-            property_set("ctl.start", "data_on");
-            /* wait up to 10s for data_on execute complete */
-            do {
-                property_get(SYS_IFCONFIG_UP, linker, "");
-                if (!strcmp(linker, "done"))
-                    break;
-                count++;
-                PHS_LOGD("wait data_on exec %d times...", count);
-                usleep(10 * 1000);
-            } while (count < NET_IFACE_RETRY_MAX);
-            PHS_LOGD("IPV4 data_on execute done");
-        } else {
-            int ipv6_enable = FALSE;
-            if (pdp_info[cid - 1].ip_state == IPV4) {
-                /* set property */
-                property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
-                PHS_LOGD("IPV4 activating");
-                snprintf(linker, sizeof(linker), "addr add %s dev %s%d",
-                        pdp_info[cid - 1].ipladdr, prop, cid - 1);
-                property_set(SYS_IP_SET, linker);
-                PHS_LOGD("IPV4 setip linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop,
-                        cid - 1);
-                property_set(SYS_MTU_SET, linker);
-                PHS_LOGD("IPV4 setmtu linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), " ");
-                property_set(SYS_NO_ARP_IPV6, linker);
-                PHS_LOGD("IPV4 arp linker = %s", linker);
-
-                // up the net interface
-                snprintf(linker, sizeof(linker), "link set %s%d up", prop,
-                        cid - 1);
-                property_set(SYS_IFCONFIG_UP, linker);
-                PHS_LOGD("IPV4 ifconfig linker = %s", linker);
-
-                // no arp
-                snprintf(linker, sizeof(linker), "link set %s%d arp off", prop,
-                        cid - 1);
-                property_set(SYS_NO_ARP, linker);
-                PHS_LOGD("IPV4 arp linker = %s", linker);
-
-                // disable IPV6
-                property_get(SYS_IPV6_ON, ipv6_on, "0");
-                if (!strcmp(ipv6_on, "1")) {  // add for cts bug442490
-                    snprintf(linker, sizeof(linker), "0");
-                } else {
-                    snprintf(linker, sizeof(linker), "1");
-                }
-                property_set(SYS_IPV6_DISABLE, linker);
-                PHS_LOGD("IPV6 disable linker = %s", linker);
-
-            } else if (pdp_info[cid - 1].ip_state == IPV6) {
-                property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
-                PHS_LOGD("IPV6 activating");
-                ipv6_enable = TRUE;
-                snprintf(linker, sizeof(linker), "addr add %s/64 dev %s%d",
-                        pdp_info[cid - 1].ipv6laddr, prop, cid - 1);
-                property_set(SYS_IP_SET, linker);
-                PHS_LOGD("IPV6 setip linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop,
-                        cid - 1);
-                property_set(SYS_MTU_SET, linker);
-                PHS_LOGD("IPV6 setmtu linker = %s", linker);
-
-                // up the net interface
-                snprintf(linker, sizeof(linker), "link set %s%d up", prop,
-                        cid - 1);
-                property_set(SYS_IFCONFIG_UP, linker);
-                PHS_LOGD("IPV6 ifconfig linker = %s", linker);
-
-                // no arp
-                snprintf(linker, sizeof(linker), "link set %s%d arp off", prop,
-                        cid - 1);
-                property_set(SYS_NO_ARP, linker);
-                PHS_LOGD("IPV6 arp linker = %s", linker);
-
-                // able IPV6
-                snprintf(linker, sizeof(linker), "0");
-                property_set(SYS_IPV6_DISABLE, linker);
-                PHS_LOGD("IPV6 disable linker = %s", linker);
-            }
-            // set net card addr
-            snprintf(linker, sizeof(linker), "%s%d", prop, cid - 1);
-            property_set(SYS_NET_ADDR, linker);
-            PHS_LOGD("Netcard addr linker = %s", linker);
-
-            property_get(SYS_GSPS_ETH_UP_PROP, gspsprop, "0");
-            if (atoi(gspsprop)) {
-                char peerip[IPV6_ADDR_SIZE] = "";
-                if (parse_peer_ip(peerip, ipv6_enable) == 0) {
-                    if (ipv6_enable == TRUE)
-                        property_set(SYS_GSPS_ETH_LOCALIP_PROP,
-                                pdp_info[cid - 1].ipv6laddr);
-                    else
-                        property_set(SYS_GSPS_ETH_LOCALIP_PROP,
-                                pdp_info[cid - 1].ipladdr);
-                    property_set(SYS_GSPS_ETH_PEERIP_PROP, peerip);
-                }
-            }
-
-            /* start data_on */
-            property_set("ctl.start", "data_on");
-            /* wait up to 10s for data_on execute complete */
-            do {
-                property_get(SYS_IFCONFIG_UP, linker, "");
-                if (!strcmp(linker, "done"))
-                    break;
-                count++;
-                PHS_LOGD("wait data_on exec %d times...", count);
-                usleep(10 * 1000);
-            } while (count < NET_IFACE_RETRY_MAX);
-
-            if (pdp_info[cid - 1].ip_state == IPV6) {
-                snprintf(ipv6_dhcpcd_cmd, sizeof(ipv6_dhcpcd_cmd),
-                        "dhcpcd_ipv6:%s%d", prop, cid - 1);
-                property_set("ctl.start", ipv6_dhcpcd_cmd);
-                if (!get_ipv6addr(prop, cid)) {
-                    PHS_LOGD("getipv6addr state v6 get IPv6 address timeout ");
-                    pdp_info[pdp_index].state = PDP_STATE_IDLE;
-                    adapter_pty_end_cmd(req->recv_pty);
-                    adapter_free_cmux_for_ps(mux);
-                    adapter_pty_write(req->recv_pty, "ERROR\r",
-                            strlen("ERROR\r"));
-                    mutex_unlock(&ps_service_mutex);
-                    return AT_RESULT_OK;
-                }
-            }
-            PHS_LOGD("data_on execute done");
+        PHS_LOGD("PS ip_state = %d", pdp_info[pdp_index].ip_state);
+        if (upNetInterface(pdp_index, pdp_info[pdp_index].ip_state) == 0) {
+            PHS_LOGD("get IPv6 address timeout ");
+            goto ERROR;
         }
+        PHS_LOGD("data_on execute done");
 
         adapter_pty_end_cmd(req->recv_pty);
         adapter_free_cmux_for_ps(mux);
@@ -631,9 +348,10 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req) {
         mutex_unlock(&ps_service_mutex);
         return AT_RESULT_OK;
     }
+ERROR:
     adapter_pty_write(req->recv_pty, "ERROR\r", strlen("ERROR\r"));
-    PHS_LOGD(
-            "Getting IP addr and PDP activate error :%d", pdp_info[pdp_index].state);
+    PHS_LOGD("Getting IP addr and PDP activate error :%d",
+            pdp_info[pdp_index].state);
     pdp_info[pdp_index].state = PDP_STATE_IDLE;
     adapter_pty_end_cmd(req->recv_pty);
     adapter_free_cmux_for_ps(mux);
@@ -698,7 +416,6 @@ int cvt_sipconfig_rsp(AT_CMD_RSP_T * rsp,
     input = rsp->rsp_str;
     input[rsp->len - 1] = '\0';
     if (findInBuf(input, rsp->len, "+SIPCONFIG")) {
-
         do {
             err = at_tok_start(&input, ':');
             if (err < 0) {
@@ -751,43 +468,7 @@ int cvt_sipconfig_rsp(AT_CMD_RSP_T * rsp,
                             sizeof(pdp_info[cid - 1].dns2addr));
                 }
 
-                snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-                property_get(ETH_SP, prop, "veth");
-                /* set property */
-                snprintf(linker, sizeof(linker), "addr add %s dev %s%d", ip,
-                        prop, cid - 1);
-                property_set(SYS_IP_SET, linker);
-                PHS_LOGD("setip linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), "link set %s%d mtu 1500", prop,
-                        cid - 1);
-                property_set(SYS_MTU_SET, linker);
-                PHS_LOGD("setmtu linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), "link set %s%d up", prop,
-                        cid - 1);
-                property_set(SYS_IFCONFIG_UP, linker);
-                PHS_LOGD("setup linker = %s", linker);
-
-                snprintf(linker, sizeof(linker), "link set %s%d arp off", prop,
-                        cid - 1);
-                property_set(SYS_NO_ARP, linker);
-                PHS_LOGD("IPV4 arp linker = %s", linker);
-
-                /* start data_on */
-                property_set("ctl.start", "data_on");
-                /* wait up to 10s for data_on execute complete */
-                do {
-                    property_get(SYS_IFCONFIG_UP, linker, "");
-                    if (!strcmp(linker, "done"))
-                        break;
-                    count++;
-                    PHS_LOGD("wait data_on exec %d times...", count);
-                    usleep(10 * 1000);
-                } while (count < NET_IFACE_RETRY_MAX);
-
-                PHS_LOGD("data_on execute done");
-
+                upNetInterface(cid - 1, IPV4);
                 sprintf(cmd, "setprop net.%s%d.ip %s", prop, cid - 1, ip);
                 system(cmd);
                 if (dns1_hex != 0x0)
@@ -1035,7 +716,6 @@ int cvt_cgact_deact_rsp(AT_CMD_RSP_T * rsp, unsigned long user_data) {
     }
 
     if (adapter_cmd_is_end(rsp->rsp_str, rsp->len) == TRUE) {
-
         adapter_cmux_deregister_callback(rsp->recv_cmux);
         adapter_pty_write((pty_t *)user_data, rsp->rsp_str, rsp->len);
         adapter_pty_end_cmd((pty_t *)user_data);
@@ -1052,7 +732,6 @@ int cvt_cgact_deact_rsp1(AT_CMD_RSP_T * rsp,
         return AT_RESULT_NG;
     }
     if (adapter_cmd_is_end(rsp->rsp_str, rsp->len) == TRUE) {
-
         adapter_cmux_deregister_callback(rsp->recv_cmux);
         adapter_wakeup_cmux(rsp->recv_cmux);
         return AT_RESULT_OK;
@@ -1068,7 +747,6 @@ int cvt_cgact_deact_rsp2(AT_CMD_RSP_T * rsp, unsigned long user_data) {
     }
 
     if (adapter_cmd_is_end(rsp->rsp_str, rsp->len) == TRUE) {
-
         adapter_cmux_deregister_callback(rsp->recv_cmux);
         adapter_pty_write((pty_t *)user_data, rsp->rsp_str, rsp->len);
         adapter_pty_end_cmd((pty_t *)user_data);
@@ -1155,7 +833,6 @@ int cvt_cgdcont_read_rsp(AT_CMD_RSP_T * rsp, unsigned long user_data) {
     input = rsp->rsp_str;
     input[in_len - 1] = '\0';
     if (findInBuf(input, in_len, "+CGDCONT")) {
-
         do {
             err = at_tok_start(&input, ':');
             if (err < 0) {
@@ -1361,7 +1038,6 @@ IP_TYPE read_ip_addr(char *raw, char *rsp) {
     if (raw != NULL) {
         len = strlen(raw);
         for (num = 0; num < len; num++) {
-
             if (raw[num] == '.') {
                 comma_count++;
             }
@@ -1614,4 +1290,103 @@ bool isLTE(void) {
         return true;
     }
     return false;
+}
+
+int ifc_set_noarp(const char *ifname) {
+    struct ifreq ifr;
+    int fd;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    memset(&ifr, 0, sizeof(struct ifreq));
+    strlcpy(ifr.ifr_name, ifname, IFNAMSIZ);
+
+    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+        return -1;
+    }
+
+    ifr.ifr_flags = ifr.ifr_flags | IFF_NOARP;
+    return ioctl(fd, SIOCSIFFLAGS, &ifr);
+}
+
+/*
+ * return value: 1: success
+ *               0: getIpv6 header 64bit failed
+ */
+static int upNetInterface(int cidIndex, IP_TYPE ipType) {
+    char linker[MAX_CMD] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char ETH_SP[PROPERTY_NAME_MAX] = {0};  // "ro.modem.*.eth"
+    char gspsprop[PROPERTY_VALUE_MAX] = {0};
+    IP_TYPE actIPType = ipType;
+    char ifName[MAX_CMD] = {0};
+    int isAutoTest = 0;
+    int err = -1;
+
+    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+    property_get(ETH_SP, prop, "veth");
+
+    // set net interface name
+    snprintf(ifName, sizeof(ifName), "%s%d", prop, cidIndex);
+    property_set(SYS_NET_ADDR, ifName);
+    PHS_LOGD("Net interface addr linker = %s", ifName);
+
+    property_get(GSPS_ETH_UP_PROP, gspsprop, "0");
+    PHS_LOGD("GSPS up prop = %s", gspsprop);
+    isAutoTest = atoi(gspsprop);
+
+    if (ipType != IPV4) {
+        actIPType = IPV6;
+    }
+    do {
+        snprintf(linker, sizeof(linker), "%s%d", prop, cidIndex);
+        PHS_LOGD("set IP linker = %s", linker);
+
+        /* config ip addr */
+        if (actIPType != IPV4) {
+            property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
+            err = ifc_add_address(linker, pdp_info[cidIndex].ipv6laddr, 64);
+        } else {
+            property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
+            err = ifc_add_address(linker, pdp_info[cidIndex].ipladdr, 32);
+        }
+        if (err != 0) {
+            PHS_LOGE("ifc_add_address %s fail: %s\n", linker, strerror(errno));
+        }
+
+        if (ifc_set_noarp(linker)) {
+            PHS_LOGE("ifc_set_noarp %s fail: %s\n", linker, strerror(errno));
+        }
+
+        // up the net interface
+        if (ifc_enable(linker)) {
+            PHS_LOGE("ifc_enable %s fail: %s\n", linker, strerror(errno));
+        }
+
+        /* Get IPV6 Header 64bit */
+        if (actIPType != IPV4) {
+            if (!get_ipv6addr(prop, cidIndex)) {
+                PHS_LOGD("get IPv6 address timeout, actIPType = %d", actIPType);
+                if (actIPType == IPV4V6) {
+                    pdp_info[cidIndex].ip_state = IPV4;
+                } else {
+                    return 0;
+                }
+            }
+        }
+
+        /* if IPV4V6 actived, need set IPV4 again */
+        if (ipType == IPV4V6 && actIPType != IPV4) {
+            actIPType = IPV4;
+        } else {
+            break;
+        }
+    } while (ipType == IPV4V6);
+
+    property_set(GSPS_ETH_UP_PROP, "0");
+
+    return 1;
 }

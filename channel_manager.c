@@ -28,6 +28,8 @@
 #include <private/android_filesystem_config.h>
 #include "cutils/properties.h"
 #include <hardware_legacy/power.h>
+#include <sys/prctl.h>
+#include <sys/capability.h>
 
 #define MODEM_TYPE         "ro.radio.modemtype"
 #define PTY_NAME_LENGTH    32
@@ -946,7 +948,7 @@ static void *signal_process() {
                     if ((rxlev_array[i] == rxlev_array[i + 1])) {
                         if (rxlev_array[i] == rxlev[sim_index]) {
                             nosigUpdate[sim_index]++;
-                        } else if (rsrp_array[i] <= 0 || rxlev_array[i] > 31) {
+                        } else if (rxlev_array[i] <= 0 || rxlev_array[i] > 31) {
                             rxlev_array[i] = rxlev[sim_index];
                         }
                     } else
@@ -1123,6 +1125,20 @@ static void release_wakeLock() {
     release_wake_lock(ANDROID_WAKE_LOCK_NAME);
 }
 
+void switchUser(void) {
+    struct __user_cap_header_struct header;
+    struct __user_cap_data_struct cap;
+
+    prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+
+    setuid(AID_SYSTEM);
+    header.version = _LINUX_CAPABILITY_VERSION;
+    header.pid = 0;
+    cap.effective = cap.permitted = (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW);
+    cap.inheritable = 0;
+    capset(&header, &cap);
+    return;
+}
 /*## operation initialize all channel manager's objects  according to phone server configuration  file*/
 static void channel_manager_init(void) {
     chnmng.me = &chnmng;
@@ -1137,7 +1153,8 @@ static void channel_manager_init(void) {
     chnmng_cmux_Init(chnmng.me);
     chnmng_pty_Init(chnmng.me);
 
-    setuid(AID_SYSTEM); /* switch user to system  */
+    /* switch user to system  */
+    switchUser();
 
     chnmng_start_thread(chnmng.me);
     release_wakeLock();
