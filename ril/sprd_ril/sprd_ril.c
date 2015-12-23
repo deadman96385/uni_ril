@@ -365,6 +365,7 @@ static void stopQueryNetwork(int channelID, void *data, size_t datalen, RIL_Toke
 static bool hasSimBusy = false;
 static void* dump_sleep_log();
 static void getIMEIPassword(int channeID,char pwd[]);//SPRD add for simlock
+static void radioPowerOnTimeout();
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -11768,14 +11769,10 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                 NULL, 0);
 
         int channelID;
-        if (strStartsWith(s,"+CREG:") && sState == RADIO_STATE_OFF
-             && radioOnERROR == true)
-        {
-        RILLOGD("Radio is on, setRadioState now.");
-        channelID = getChannel();
-        setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
-        radioOnERROR = false;
-        putChannel(channelID);
+        if (radioOnERROR && strStartsWith(s, "+CREG:") && sState == RADIO_STATE_OFF) {
+            RILLOGD("Radio is on, setRadioState now.");
+            radioOnERROR = false;
+            RIL_requestTimedCallback(radioPowerOnTimeout, NULL, NULL);
         }
     } else if (strStartsWith(s,"+CEREG:")) {
         char *p,*tmp;
@@ -14571,4 +14568,10 @@ static int isVoLteEnable(){
     } else {
         return 0;
     }
+}
+
+static void radioPowerOnTimeout() {
+    int channelID = getChannel();
+    setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
+    putChannel(channelID);
 }
