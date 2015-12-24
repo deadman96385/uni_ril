@@ -9,6 +9,7 @@
 #include "sprd-ril.h"
 #include "ril_sim.h"
 #include "ril_utils.h"
+#include "ril_network.h"
 
 #define RIL_SIM_PIN_PROPERTY "ril.sim.pin"
 
@@ -1102,6 +1103,79 @@ error:
     at_response_free(p_response);
 }
 
+static void requestInitISIM(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    int err;
+    int response = 0;
+    char cmd[AT_COMMAND_LEN] = {0};
+    char *line;
+    const char **strings = (const char **)data;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+ISIM=1",
+                                     "+ISIM:", &p_response);
+    if (err >= 0 && p_response->success) {
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err >= 0) {
+            err = at_tok_nextint(&line, &response);
+            if (err >= 0) {
+                RLOGD("Response of ISIM is %d", response);
+            }
+        }
+    }
+    AT_RESPONSE_FREE(p_response);
+
+    /* 7 means the number of data from fwk, represents 7 AT commands value */
+    if (datalen == 7 * sizeof(char *) && strings[0] != NULL &&
+        strlen(strings[0]) > 0) {
+        if (response == 0) {
+            memset(cmd, 0, sizeof(cmd));
+            RLOGE("requestInitISIM impu = \"%s\"", strings[2]);
+            snprintf(cmd, sizeof(cmd), "AT+IMPU=\"%s\"", strings[2]);
+            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+
+            memset(cmd, 0, sizeof(cmd));
+            RLOGD("requestInitISIM impi = \"%s\"", strings[3]);
+            snprintf(cmd, sizeof(cmd), "AT+IMPI=\"%s\"", strings[3]);
+            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+
+            memset(cmd, 0, sizeof(cmd));
+            RLOGD("requestInitISIM domain = \"%s\"", strings[4]);
+            snprintf(cmd, sizeof(cmd), "AT+DOMAIN=\"%s\"", strings[4]);
+            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+
+            memset(cmd, 0, sizeof(cmd));
+            RLOGD("requestInitISIM xcap = \"%s\"", strings[5]);
+            snprintf(cmd, sizeof(cmd), "AT+XCAPRTURI=\"%s\"", strings[5]);
+            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+
+            memset(cmd, 0, sizeof(cmd));
+            RLOGD("requestInitISIM bsf = \"%s\"", strings[6]);
+            snprintf(cmd, sizeof(cmd), "AT+BSF=\"%s\"", strings[6]);
+            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+        }
+        memset(cmd, 0, sizeof(cmd));
+        RLOGD("requestInitISIM instanceId = \"%s\"", strings[1]);
+        snprintf(cmd, sizeof(cmd), "AT+INSTANCEID=\"%s\"", strings[1]);
+        err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+
+        memset(cmd, 0, sizeof(cmd));
+        RLOGD("requestInitISIM confuri = \"%s\"", strings[0]);
+        snprintf(cmd, sizeof(cmd), "AT+CONFURI=0,\"%s\"", strings[0]);
+        err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
+
+        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+        s_imsISIM[socket_id] = 1;
+        if (s_imsConn[socket_id] == 1) {
+            at_send_command(s_ATChannels[channelID], "AT+IMSEN=1", NULL);
+        }
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
+}
+
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int err;
@@ -1185,6 +1259,29 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL:
             requestTransmitApdu(channelID, data, datalen, t);
             break;
+        /* IMS request @{ */
+        case RIL_REQUEST_INIT_ISIM:
+            requestInitISIM(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_ENABLE_IMS: {
+            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=1" , NULL);
+            if (err < 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            break;
+        }
+        case RIL_REQUEST_DISABLE_IMS: {
+            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=0" , NULL);
+            if (err < 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            break;
+        }
+        /* }@ */
         default:
             return 0;
     }

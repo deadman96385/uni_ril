@@ -7,6 +7,7 @@
 
 #include "sprd-ril.h"
 #include "ril_call.h"
+#include "ril_network.h"
 
 static EccList *s_eccList[SIM_COUNT];
 ListNode s_DTMFList[SIM_COUNT];
@@ -79,10 +80,15 @@ void list_remove(RIL_SOCKET_ID socket_id, ListNode *item) {
     pthread_mutex_unlock(&s_listMutex[socket_id]);
 }
 
-void sendCallStateChanged(void *param) {
+void reportCallStateChanged(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0,
-                              socket_id);
+    if (s_imsRegistered[socket_id]) {
+        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
+                                  NULL, 0, socket_id);
+    } else {
+        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL,
+                                  0, socket_id);
+    }
 }
 
 void process_calls(int _calls) {
@@ -445,7 +451,7 @@ static void requestGetCurrentCalls(int channelID, void *data,
 #endif
     {
         if (bVideoCall == 0) {
-            RIL_requestTimedCallback(sendCallStateChanged,
+            RIL_requestTimedCallback(reportCallStateChanged,
                     (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
         }
     }
@@ -1008,7 +1014,7 @@ static void requestGetCurrentCallsVoLTE(int channelID, void *data,
 #endif
     {
         if (bVideoCall == 0) {
-            RIL_requestTimedCallback(sendCallStateChanged, NULL,
+            RIL_requestTimedCallback(reportCallStateChanged, NULL,
                                      &TIMEVAL_CALLSTATEPOLL);
         } else {
             // TODO: VoLTE
@@ -1020,8 +1026,42 @@ static void requestGetCurrentCallsVoLTE(int channelID, void *data,
     return;
 }
 
-int processCallRequest(int request, void *data, size_t datalen,
-        RIL_Token t, int channelID) {
+static void requestVideoPhoneDial(int channelID, void *data,
+                                      size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    RIL_VideoPhone_Dial *p_dial;
+    ATResponse   *p_response = NULL;
+    int err;
+    char *cmd;
+    int ret;
+
+    p_dial = (RIL_VideoPhone_Dial *)data;
+
+#ifdef NEW_AT
+    ret = asprintf(&cmd, "ATD=%s", p_dial->address);
+#else
+    ret = asprintf(&cmd, "AT^DVTDIAL=\"%s\"", p_dial->address);
+#endif
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+    at_response_free(p_response);
+}
+
+int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
+                          int channelID) {
     int ret = 1;
     int err;
     ATResponse *p_response = NULL;
@@ -1199,6 +1239,9 @@ int processCallRequest(int request, void *data, size_t datalen,
             }
             break;
         }
+        case RIL_REQUEST_VIDEOPHONE_DIAL:
+            requestVideoPhoneDial(channelID, data, datalen, t);
+            break;
         /* }@ */
         default:
             ret = 0;
@@ -1348,8 +1391,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         strStartsWith(s, "RING") ||
         strStartsWith(s, "NO CARRIER") ||
         strStartsWith(s, "+CCWA")) {
-        RIL_onUnsolicitedResponse(
-                RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0, socket_id);
+        reportCallStateChanged((void *)&s_socketId[socket_id]);
     } else if (strStartsWith(s, "^DSCI:")) {
         RIL_VideoPhone_DSCI *response = NULL;
         response = (RIL_VideoPhone_DSCI *)alloca(sizeof(RIL_VideoPhone_DSCI));
@@ -1423,35 +1465,108 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     RIL_requestTimedCallback(redialWhileCallFailed,
                                              (CallbackPara *)cbPara, NULL);
                 } else {
-                    RIL_onUnsolicitedResponse(
-                            RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0,
-                            socket_id);
+                    reportCallStateChanged((void *)&s_socketId[socket_id]);
                 }
-
             } else {
-                RIL_onUnsolicitedResponse(
-                        RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0,
-                        socket_id);
+                reportCallStateChanged((void *)&s_socketId[socket_id]);
             }
         } else {
             if (response->type == 0) {
-                RIL_onUnsolicitedResponse(
-                        RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0,
-                        socket_id);
+                reportCallStateChanged((void *)&s_socketId[socket_id]);
                 goto out;
             } else if (response->type == 1) {
                 // TODO: for videoPhone
             }
         }
-    } else if (strStartsWith(s, "+CMCCSI")) {
-        RIL_onUnsolicitedResponse(
-                RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
-                NULL, 0, socket_id);
+    } else if (strStartsWith(s, "+CMCCSI:")) {
+        RIL_IMSPHONE_CMCCSI *response = NULL;
+        response = (RIL_IMSPHONE_CMCCSI *)alloca(sizeof(RIL_IMSPHONE_CMCCSI));
+        char *tmp = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &response->id);
+        if (err < 0) {
+            RLOGD("get id fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->idr);
+        if (err < 0) {
+            RLOGD("get idr fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->neg_stat_present);
+        if (err < 0) {
+            RLOGD("get neg_stat_present fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->neg_stat);
+        if (err < 0) {
+            RLOGD("get neg_stat fail");
+            goto out;
+        }
+        err = at_tok_nextstr(&tmp, &response->SDP_md);
+        if (err < 0) {
+            RLOGD("get SDP_md fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->cs_mod);
+        if (err < 0) {
+            RLOGD("get cs_mod fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->ccs_stat);
+        if (err < 0) {
+            RLOGD("get ccs_stat fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->mpty);
+        if (err < 0) {
+            RLOGD("get mpty fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->num_type);
+        if (err < 0) {
+            RLOGD("get num_type fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->ton);
+        if (err < 0) {
+            RLOGD("get ton fail");
+            goto out;
+        }
+        err = at_tok_nextstr(&tmp, &response->number);
+        if (err < 0) {
+            RLOGD("get number fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->exit_type);
+        if (err < 0) {
+            RLOGD("get exit_type fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->exit_cause);
+        if (err < 0) {
+            RLOGD("get exit_cause fail");
+            goto out;
+        }
+        if (s_imsRegistered[socket_id]) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
+                                      response, sizeof(RIL_IMSPHONE_CMCCSI),
+                                      socket_id);
+        }
+    } else if (strStartsWith(s, "+CMCCSS")) {
+        /* CMCCSS1, CMCCSS2, ... CMCCSS7, just report IMS state change */
+        if (s_imsRegistered[socket_id]) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
+                                      NULL, 0, socket_id);
+        }
     } else {
         ret = 0;
     }
     /* unused unsolicited response
-    RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED
     RIL_UNSOL_CALL_RING
     RIL_UNSOL_ENTER_EMERGENCY_CALLBACK_MODE
     RIL_UNSOL_RINGBACK_TONE

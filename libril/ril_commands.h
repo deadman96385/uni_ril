@@ -155,16 +155,8 @@
     {RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY, dispatchInts, responseVoid},
     {RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY, dispatchVoid, responseInts},
     {RIL_REQUEST_INIT_ISIM, dispatchStrings, responseInts},
-    {RIL_REQUEST_REGISTER_IMS_IMPU, dispatchString, responseVoid},
-    {RIL_REQUEST_REGISTER_IMS_IMPI, dispatchString, responseVoid},
-    {RIL_REQUEST_REGISTER_IMS_DOMAIN, dispatchString, responseVoid},
-    {RIL_REQUEST_ENABLE_IMS, dispatchVoid, responseVoid},
-    {RIL_REQUEST_DISABLE_IMS, dispatchVoid, responseVoid},
-    {RIL_REQUEST_REGISTER_IMS_IMEI, dispatchString, responseVoid},
     {RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE, dispatchInts, responseVoid},
-    {RIL_REQUEST_REGISTER_IMS_XCAP, dispatchString, responseVoid},
-    {RIL_REQUEST_REGISTER_IMS_BSF, dispatchString, responseVoid},
     {RIL_REQUEST_SET_IMS_SMSC, dispatchString, responseVoid},
     {RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE, dispatchVoid, responseVoid},
     {RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN, dispatchSetInitialAttachApn, responseVoid},
@@ -172,5 +164,7 @@
     {RIL_REQUEST_SET_CALL_FORWARD_URI, dispatchCallForwardUri, responseVoid},
     {RIL_REQUEST_IMS_INITIAL_GROUP_CALL, dispatchString, responseVoid},
     {RIL_REQUEST_IMS_ADD_TO_GROUP_CALL, dispatchString, responseVoid},
-    {RIL_REQUEST_IMS_SET_CONFERENCE_URI, dispatchString, responseVoid}
+    {RIL_REQUEST_VIDEOPHONE_DIAL, dispatchVideoPhoneDial, responseVoid},
+    {RIL_REQUEST_ENABLE_IMS, dispatchVoid, responseVoid},
+    {RIL_REQUEST_DISABLE_IMS, dispatchVoid, responseVoid}
     /* }@ */

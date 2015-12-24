@@ -357,6 +357,7 @@ static void dispatchDataProfile(Parcel &p, RequestInfo *pRI);
 static void dispatchRadioCapability(Parcel &p, RequestInfo *pRI);
 /* IMS request response function @{ */
 static void dispatchCallForwardUri(Parcel &p, RequestInfo *pRI);
+static void dispatchVideoPhoneDial(Parcel& p, RequestInfo *pRI);
 /* }@ */
 
 static int responseInts(Parcel &p, void *response, size_t responselen);
@@ -585,7 +586,9 @@ static int processCommandBuffer(void *buffer, size_t buflen,
         }
         soc_id = (RIL_SOCKET_ID)simId;
         RLOGD("simId = %d", soc_id);
-    } else if (request < 1 || request >= (int32_t)NUM_ELEMS(s_commands)) {
+    } else if (request < 1 ||
+               (request > RIL_REQUEST_LAST && request < RIL_IMS_REQUEST_BASE) ||
+               (request > RIL_IMS_REQUEST_LAST)) {
         Parcel pErr;
         RLOGE("unsupported request code %d token %d", request, token);
         // FIXME this should perhaps return a response
@@ -595,6 +598,10 @@ static int processCommandBuffer(void *buffer, size_t buflen,
 
         sendResponse(pErr, socket_id, socket_type);
         return 0;
+    }
+
+    if (request > RIL_IMS_REQUEST_BASE && request <= RIL_IMS_REQUEST_LAST) {
+        request = request - RIL_IMS_REQUEST_BASE + RIL_REQUEST_LAST;
     }
 
     pRI = (RequestInfo *)calloc(1, sizeof(RequestInfo));
@@ -1202,7 +1209,7 @@ static status_t constructCdmaSms(Parcel &p, RequestInfo *pRI __unused,
     rcsm.sAddress.number_plan = (RIL_CDMA_SMS_NumberPlan)t;
 
     status = p.read(&ut, sizeof(ut));
-    rcsm.sAddress.number_of_digits= (uint8_t)ut;
+    rcsm.sAddress.number_of_digits = (uint8_t)ut;
 
     digitLimit = MIN((rcsm.sAddress.number_of_digits), RIL_CDMA_SMS_ADDRESS_MAX);
     for (digitCount = 0; digitCount < digitLimit; digitCount++) {
@@ -1239,8 +1246,8 @@ static status_t constructCdmaSms(Parcel &p, RequestInfo *pRI __unused,
     }
 
     startRequest;
-    appendPrintBuf("%suTeleserviceID=%d, bIsServicePresent=%d, uServicecategory=%d, \
-            sAddress.digit_mode=%d, sAddress.Number_mode=%d, sAddress.number_type=%d, ",
+    appendPrintBuf("%suTeleserviceID = %d, bIsServicePresent = %d, uServicecategory = %d, \
+            sAddress.digit_mode = %d, sAddress.Number_mode = %d, sAddress.number_type = %d, ",
             printBuf, rcsm.uTeleserviceID, rcsm.bIsServicePresent, rcsm.uServicecategory,
             rcsm.sAddress.digit_mode, rcsm.sAddress.number_mode, rcsm.sAddress.number_type);
     closeRequest;
@@ -1543,8 +1550,8 @@ static void dispatchCdmaBrSmsCnf(Parcel &p, RequestInfo *pRI) {
             status = p.readInt32(&t);
             cdmaBci[i].selected = (uint8_t)t;
 
-            appendPrintBuf("%s[%d: service_category=%d, language =%d, \
-                           entries.bSelected =%d]", printBuf, i,
+            appendPrintBuf("%s[%d: service_category = %d, language = %d, \
+                           entries.bSelected = %d]", printBuf, i,
                            cdmaBci[i].service_category, cdmaBci[i].language,
                            cdmaBci[i].selected);
         }
@@ -1663,7 +1670,6 @@ static void dispatchRilCdmaSmsWriteArgs(Parcel &p, RequestInfo *pRI) {
 invalid:
     invalidCommandBlock(pRI);
     return;
-
 }
 
 // For backwards compatibility in RIL_REQUEST_SETUP_DATA_CALL.
@@ -2174,6 +2180,48 @@ invalid:
     return;
 }
 
+static void dispatchVideoPhoneDial(Parcel& p, RequestInfo *pRI) {
+    RIL_VideoPhone_Dial dial;
+    int32_t t;
+    status_t status;
+
+    memset(&dial, 0, sizeof(dial));
+
+    dial.address = strdupReadString(p);
+    dial.sub_address = strdupReadString(p);
+
+    status = p.readInt32(&t);
+    dial.clir = (int)t;
+
+    if (status != NO_ERROR || dial.address == NULL) {
+        goto invalid;
+    }
+
+    startRequest;
+    appendPrintBuf("%saddress=%s,sub_address=%s,clir=%d", printBuf,
+                   dial.address, dial.sub_address, dial.clir);
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+
+    CALL_ONREQUEST(pRI->pCI->requestNumber, &dial, sizeof(dial), pRI, pRI->socket_id);
+
+#ifdef MEMSET_FREED
+    memsetString(dial.address);
+    memsetString(dial.sub_address);
+#endif
+
+    free(dial.address);
+    free(dial.sub_address);
+
+#ifdef MEMSET_FREED
+    memset(&dial, 0, sizeof(dial));
+#endif
+
+    return;
+invalid:
+    invalidCommandBlock(pRI);
+    return;
+}
 static int blockingWrite(int fd, const void *buffer, size_t len) {
     size_t writeOffset = 0;
     const uint8_t *toWrite;
@@ -2934,8 +2982,8 @@ static int responseCdmaInformationRecords(Parcel &p,
                 p.writeInt32(infoRec->rec.signal.alertPitch);
                 p.writeInt32(infoRec->rec.signal.signal);
 
-                appendPrintBuf("%sisPresent=%X, signalType=%X, \
-                                alertPitch=%X, signal=%X, ",
+                appendPrintBuf("%sisPresent = %X, signalType = %X, \
+                                alertPitch = %X, signal = %X, ",
                    printBuf, (int)infoRec->rec.signal.isPresent,
                    (int)infoRec->rec.signal.signalType,
                    (int)infoRec->rec.signal.alertPitch,
@@ -3634,8 +3682,8 @@ static int responseGsmBrSmsCnf(Parcel &p, void *response, size_t responselen) {
         p.writeInt32(p_cur[i]->toCodeScheme);
         p.writeInt32(p_cur[i]->selected);
 
-        appendPrintBuf("%s [%d: fromServiceId=%d, toServiceId=%d, \
-                fromCodeScheme=%d, toCodeScheme=%d, selected =%d]",
+        appendPrintBuf("%s [%d: fromServiceId = %d, toServiceId = %d, \
+                fromCodeScheme = %d, toCodeScheme = %d, selected = %d]",
                 printBuf, i, p_cur[i]->fromServiceId, p_cur[i]->toServiceId,
                 p_cur[i]->fromCodeScheme, p_cur[i]->toCodeScheme,
                 p_cur[i]->selected);
@@ -3658,8 +3706,8 @@ static int responseCdmaBrSmsCnf(Parcel &p, void *response, size_t responselen) {
         p.writeInt32(p_cur[i]->language);
         p.writeInt32(p_cur[i]->selected);
 
-        appendPrintBuf("%s [%d: srvice_category=%d, language =%d, \
-              selected =%d], ",
+        appendPrintBuf("%s [%d: srvice_category = %d, language = %d, \
+              selected = %d], ",
               printBuf, i, p_cur[i]->service_category, p_cur[i]->language,
               p_cur[i]->selected);
     }
@@ -3710,7 +3758,7 @@ static int responseCdmaSms(Parcel &p, void *response, size_t responselen) {
         p.write(&(p_cur->sSubAddress.digits[digitCount]), sizeof(uct));
     }
 
-    digitLimit= MIN((p_cur->uBearerDataLen), RIL_CDMA_SMS_BEARER_DATA_MAX);
+    digitLimit = MIN((p_cur->uBearerDataLen), RIL_CDMA_SMS_BEARER_DATA_MAX);
     p.writeInt32(p_cur->uBearerDataLen);
     for (digitCount = 0; digitCount < digitLimit; digitCount++) {
        p.write(&(p_cur->aBearerData[digitCount]), sizeof(uct));
@@ -3988,7 +4036,7 @@ static int responseCMCCSI(Parcel &p, void *response, size_t responselen) {
     p.writeInt32(p_cur->idr);
     p.writeInt32(p_cur->neg_stat_present);
     p.writeInt32(p_cur->neg_stat);
-    p.writeInt32(p_cur->SDP_md);
+    writeStringToParcel(p, p_cur->SDP_md);
     p.writeInt32(p_cur->cs_mod);
     p.writeInt32(p_cur->ccs_stat);
     p.writeInt32(p_cur->mpty);
@@ -4805,7 +4853,7 @@ static void startListen(RIL_SOCKET_ID socket_id, SocketListenParam *socket_liste
     int ret;
     char socket_name[10];
 
-    memset(socket_name, 0, sizeof(char)*10);
+    memset(socket_name, 0, sizeof(char) * 10);
 
     switch (socket_id) {
         case RIL_SOCKET_1:
@@ -4860,7 +4908,7 @@ static void startListenIMS(RIL_SOCKET_ID socket_id, SocketListenParam *socket_li
     int ret;
     char socket_name[20];
 
-    memset(socket_name, 0, sizeof(char)*20);
+    memset(socket_name, 0, sizeof(char) * 20);
 
     snprintf(socket_name, sizeof(socket_name), "ims_socket%d", (socket_id + 1));
 
@@ -5771,6 +5819,24 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_DC_RT_INFO: return "GET_DC_RT_INFO";
         case RIL_REQUEST_SET_DC_RT_INFO_RATE: return "SET_DC_RT_INFO_RATE";
         case RIL_REQUEST_SET_DATA_PROFILE: return "SET_DATA_PROFILE";
+        /* @{ */
+        case RIL_REQUEST_GET_IMS_CURRENT_CALLS: return "GET_IMS_CURRENT_CALLS";
+        case RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY: return "SET_IMS_VOICE_CALL_AVAILABILITY";
+        case RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY: return "GET_IMS_VOICE_CALL_AVAILABILITY";
+        case RIL_REQUEST_INIT_ISIM: return "INIT_ISIM";
+        case RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE: return "IMS_CALL_REQUEST_MEDIA_CHANGE";
+        case RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE: return "IMS_CALL_RESPONSE_MEDIA_CHANGE";
+        case RIL_REQUEST_SET_IMS_SMSC: return "SET_IMS_SMSC";
+        case RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE: return "IMS_CALL_FALL_BACK_TO_VOICE";
+        case RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN: return "SET_IMS_INITIAL_ATTACH_APN";
+        case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI: return "QUERY_CALL_FORWARD_STATUS_URI";
+        case RIL_REQUEST_SET_CALL_FORWARD_URI: return "SET_CALL_FORWARD_URI";
+        case RIL_REQUEST_IMS_INITIAL_GROUP_CALL: return "IMS_INITIAL_GROUP_CALL";
+        case RIL_REQUEST_IMS_ADD_TO_GROUP_CALL: return "IMS_ADD_TO_GROUP_CALL";
+        case RIL_REQUEST_VIDEOPHONE_DIAL: return "VIDEOPHONE_DIAL";
+        case RIL_REQUEST_ENABLE_IMS: return "ENABLE_IMS";
+        case RIL_REQUEST_DISABLE_IMS: return "DISABLE_IMS";
+        /* }@ */
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED: return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED: return "UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED";
@@ -5814,6 +5880,9 @@ const char *requestToString(int request) {
         case RIL_UNSOL_DC_RT_INFO_CHANGED: return "UNSOL_DC_RT_INFO_CHANGED";
         case RIL_REQUEST_SHUTDOWN: return "SHUTDOWN";
         case RIL_UNSOL_RADIO_CAPABILITY: return "RIL_UNSOL_RADIO_CAPABILITY";
+        /* IMS unsolicited response @{ */
+        case RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED: return "IMS_CALL_STATE_CHANGED";
+        /* }@ */
         default: return "<unknown request>";
     }
 }
@@ -5876,7 +5945,7 @@ static void listenCallback_EXT(int fd, short flags __unused, void *param) {
     if (p_info->type == RIL_ATCI_SOCKET) {
         /* note: we can only send one AT command at a connection */
         persist = false;
-    } else if (p_info->type == RIL_TELEPHONY_SOCKET) {
+    } else if (p_info->type == RIL_IMS_SOCKET) {
         persist = true;
     }
     ril_event_set(p_info->commands_event, p_info->fdCommand, persist,

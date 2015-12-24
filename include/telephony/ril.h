@@ -108,8 +108,6 @@ typedef enum {
     RIL_E_SUBSCRIPTION_NOT_SUPPORTED = 26,      /* Subscription not supported by RIL */
     RIL_E_SS_MODIFIED_TO_SS = 27,               /* SS request modified to different SS request */
     RIL_E_LCE_NOT_SUPPORTED = 36                /* LCE service not supported(36 in RILConstants.java) */
-
-
 } RIL_Errno;
 
 typedef enum {
@@ -237,8 +235,8 @@ typedef enum {
 
 /* Source for cdma subscription */
 typedef enum {
-   CDMA_SUBSCRIPTION_SOURCE_RUIM_SIM = 0,
-   CDMA_SUBSCRIPTION_SOURCE_NV = 1
+    CDMA_SUBSCRIPTION_SOURCE_RUIM_SIM = 0,
+    CDMA_SUBSCRIPTION_SOURCE_NV = 1
 } RIL_CdmaSubscriptionSource;
 
 /* User-to-User signaling Info activation types derived from 3GPP 23.087 v8.0 */
@@ -549,14 +547,14 @@ typedef struct {
 }RIL_CallForwardInfo;
 
 typedef struct {
-   char * cid;         /* Combination of LAC and Cell Id in 32 bits in GSM.
+    char * cid;         /* Combination of LAC and Cell Id in 32 bits in GSM.
                         * Upper 16 bits is LAC and lower 16 bits
                         * is CID (as described in TS 27.005)
                         * Primary Scrambling Code (as described in TS 25.331)
                         *         in 9 bits in UMTS
                         * Valid values are hexadecimal 0x0000 - 0xffffffff.
                         */
-   int    rssi;        /* Received RSSI in GSM,
+    int    rssi;        /* Received RSSI in GSM,
                         * Level index of CPICH Received Signal Code Power in UMTS
                         */
 } RIL_NeighboringCell;
@@ -647,7 +645,7 @@ typedef enum {
     PDP_FAIL_VOICE_REGISTRATION_FAIL = -1,
     PDP_FAIL_DATA_REGISTRATION_FAIL = -2,
 
-   /* reasons for data call drop - network/modem disconnect */
+    /* reasons for data call drop - network/modem disconnect */
     PDP_FAIL_SIGNAL_LOST = -3,
     PDP_FAIL_PREF_RADIO_TECH_CHANGED = -4,/* preferred technology has changed, should retry
                                              with parameters appropriate for new technology */
@@ -908,7 +906,6 @@ typedef struct {
                */
 } RIL_CDMA_SignalStrength;
 
-
 typedef struct {
     int dbm;  /* Valid values are positive integers.  This value is the actual RSSI value
                * multiplied by -1.  Example: If the actual RSSI is -75, then this response
@@ -1056,42 +1053,42 @@ typedef struct {
 
 /** RIL_CellInfoGsm */
 typedef struct {
-  RIL_CellIdentityGsm   cellIdentityGsm;
-  RIL_GW_SignalStrength signalStrengthGsm;
+    RIL_CellIdentityGsm   cellIdentityGsm;
+    RIL_GW_SignalStrength signalStrengthGsm;
 } RIL_CellInfoGsm;
 
 /** RIL_CellInfoWcdma */
 typedef struct {
-  RIL_CellIdentityWcdma cellIdentityWcdma;
-  RIL_SignalStrengthWcdma signalStrengthWcdma;
+    RIL_CellIdentityWcdma cellIdentityWcdma;
+    RIL_SignalStrengthWcdma signalStrengthWcdma;
 } RIL_CellInfoWcdma;
 
 /** RIL_CellInfoCdma */
 typedef struct {
-  RIL_CellIdentityCdma      cellIdentityCdma;
-  RIL_CDMA_SignalStrength   signalStrengthCdma;
-  RIL_EVDO_SignalStrength   signalStrengthEvdo;
+    RIL_CellIdentityCdma      cellIdentityCdma;
+    RIL_CDMA_SignalStrength   signalStrengthCdma;
+    RIL_EVDO_SignalStrength   signalStrengthEvdo;
 } RIL_CellInfoCdma;
 
 /** RIL_CellInfoLte */
 typedef struct {
-  RIL_CellIdentityLte        cellIdentityLte;
-  RIL_LTE_SignalStrength_v8  signalStrengthLte;
+    RIL_CellIdentityLte        cellIdentityLte;
+    RIL_LTE_SignalStrength_v8  signalStrengthLte;
 } RIL_CellInfoLte;
 
 /** RIL_CellInfoTdscdma */
 typedef struct {
-  RIL_CellIdentityTdscdma cellIdentityTdscdma;
-  RIL_TD_SCDMA_SignalStrength signalStrengthTdscdma;
+    RIL_CellIdentityTdscdma cellIdentityTdscdma;
+    RIL_TD_SCDMA_SignalStrength signalStrengthTdscdma;
 } RIL_CellInfoTdscdma;
 
 // Must be the same as CellInfo.TYPE_XXX
 typedef enum {
-  RIL_CELL_INFO_TYPE_GSM    = 1,
-  RIL_CELL_INFO_TYPE_CDMA   = 2,
-  RIL_CELL_INFO_TYPE_LTE    = 3,
-  RIL_CELL_INFO_TYPE_WCDMA  = 4,
-  RIL_CELL_INFO_TYPE_TD_SCDMA  = 5
+    RIL_CELL_INFO_TYPE_GSM    = 1,
+    RIL_CELL_INFO_TYPE_CDMA   = 2,
+    RIL_CELL_INFO_TYPE_LTE    = 3,
+    RIL_CELL_INFO_TYPE_WCDMA  = 4,
+    RIL_CELL_INFO_TYPE_TD_SCDMA  = 5
 } RIL_CellInfoType;
 
 // Must be the same as CellInfo.TIMESTAMP_TYPE_XXX
@@ -1104,32 +1101,32 @@ typedef enum {
 } RIL_TimeStampType;
 
 typedef struct {
-  RIL_CellInfoType  cellInfoType;   /* cell type for selecting from union CellInfo */
-  int               registered;     /* !0 if this cell is registered 0 if not registered */
-  RIL_TimeStampType timeStampType;  /* type of time stamp represented by timeStamp */
-  uint64_t          timeStamp;      /* Time in nanos as returned by ril_nano_time */
-  union {
-    RIL_CellInfoGsm     gsm;
-    RIL_CellInfoCdma    cdma;
-    RIL_CellInfoLte     lte;
-    RIL_CellInfoWcdma   wcdma;
-    RIL_CellInfoTdscdma tdscdma;
-  } CellInfo;
+    RIL_CellInfoType  cellInfoType;   /* cell type for selecting from union CellInfo */
+    int               registered;     /* !0 if this cell is registered 0 if not registered */
+    RIL_TimeStampType timeStampType;  /* type of time stamp represented by timeStamp */
+    uint64_t          timeStamp;      /* Time in nanos as returned by ril_nano_time */
+    union {
+        RIL_CellInfoGsm     gsm;
+        RIL_CellInfoCdma    cdma;
+        RIL_CellInfoLte     lte;
+        RIL_CellInfoWcdma   wcdma;
+        RIL_CellInfoTdscdma tdscdma;
+    } CellInfo;
 } RIL_CellInfo;
 
 /* Names of the CDMA info records (C.S0005 section 3.7.5) */
 typedef enum {
-  RIL_CDMA_DISPLAY_INFO_REC,
-  RIL_CDMA_CALLED_PARTY_NUMBER_INFO_REC,
-  RIL_CDMA_CALLING_PARTY_NUMBER_INFO_REC,
-  RIL_CDMA_CONNECTED_NUMBER_INFO_REC,
-  RIL_CDMA_SIGNAL_INFO_REC,
-  RIL_CDMA_REDIRECTING_NUMBER_INFO_REC,
-  RIL_CDMA_LINE_CONTROL_INFO_REC,
-  RIL_CDMA_EXTENDED_DISPLAY_INFO_REC,
-  RIL_CDMA_T53_CLIR_INFO_REC,
-  RIL_CDMA_T53_RELEASE_INFO_REC,
-  RIL_CDMA_T53_AUDIO_CONTROL_INFO_REC
+    RIL_CDMA_DISPLAY_INFO_REC,
+    RIL_CDMA_CALLED_PARTY_NUMBER_INFO_REC,
+    RIL_CDMA_CALLING_PARTY_NUMBER_INFO_REC,
+    RIL_CDMA_CONNECTED_NUMBER_INFO_REC,
+    RIL_CDMA_SIGNAL_INFO_REC,
+    RIL_CDMA_REDIRECTING_NUMBER_INFO_REC,
+    RIL_CDMA_LINE_CONTROL_INFO_REC,
+    RIL_CDMA_EXTENDED_DISPLAY_INFO_REC,
+    RIL_CDMA_T53_CLIR_INFO_REC,
+    RIL_CDMA_T53_RELEASE_INFO_REC,
+    RIL_CDMA_T53_AUDIO_CONTROL_INFO_REC
 } RIL_CDMA_InfoRecName;
 
 /* Display Info Rec as defined in C.S0005 section 3.7.5.1
@@ -1142,8 +1139,8 @@ typedef enum {
 */
 
 typedef struct {
-  char alpha_len;
-  char alpha_buf[CDMA_ALPHA_INFO_BUFFER_LENGTH];
+    char alpha_len;
+    char alpha_buf[CDMA_ALPHA_INFO_BUFFER_LENGTH];
 } RIL_CDMA_DisplayInfoRecord;
 
 /* Called Party Number Info Rec as defined in C.S0005 section 3.7.5.2
@@ -1152,94 +1149,93 @@ typedef struct {
 */
 
 typedef struct {
-  char len;
-  char buf[CDMA_NUMBER_INFO_BUFFER_LENGTH];
-  char number_type;
-  char number_plan;
-  char pi;
-  char si;
+    char len;
+    char buf[CDMA_NUMBER_INFO_BUFFER_LENGTH];
+    char number_type;
+    char number_plan;
+    char pi;
+    char si;
 } RIL_CDMA_NumberInfoRecord;
 
 /* Redirecting Number Information Record as defined in C.S0005 section 3.7.5.11 */
 typedef enum {
-  RIL_REDIRECTING_REASON_UNKNOWN = 0,
-  RIL_REDIRECTING_REASON_CALL_FORWARDING_BUSY = 1,
-  RIL_REDIRECTING_REASON_CALL_FORWARDING_NO_REPLY = 2,
-  RIL_REDIRECTING_REASON_CALLED_DTE_OUT_OF_ORDER = 9,
-  RIL_REDIRECTING_REASON_CALL_FORWARDING_BY_THE_CALLED_DTE = 10,
-  RIL_REDIRECTING_REASON_CALL_FORWARDING_UNCONDITIONAL = 15,
-  RIL_REDIRECTING_REASON_RESERVED
+    RIL_REDIRECTING_REASON_UNKNOWN = 0,
+    RIL_REDIRECTING_REASON_CALL_FORWARDING_BUSY = 1,
+    RIL_REDIRECTING_REASON_CALL_FORWARDING_NO_REPLY = 2,
+    RIL_REDIRECTING_REASON_CALLED_DTE_OUT_OF_ORDER = 9,
+    RIL_REDIRECTING_REASON_CALL_FORWARDING_BY_THE_CALLED_DTE = 10,
+    RIL_REDIRECTING_REASON_CALL_FORWARDING_UNCONDITIONAL = 15,
+    RIL_REDIRECTING_REASON_RESERVED
 } RIL_CDMA_RedirectingReason;
 
 typedef struct {
-  RIL_CDMA_NumberInfoRecord redirectingNumber;
-  /* redirectingReason is set to RIL_REDIRECTING_REASON_UNKNOWN if not included */
-  RIL_CDMA_RedirectingReason redirectingReason;
+    RIL_CDMA_NumberInfoRecord redirectingNumber;
+    /* redirectingReason is set to RIL_REDIRECTING_REASON_UNKNOWN if not included */
+    RIL_CDMA_RedirectingReason redirectingReason;
 } RIL_CDMA_RedirectingNumberInfoRecord;
 
 /* Line Control Information Record as defined in C.S0005 section 3.7.5.15 */
 typedef struct {
-  char lineCtrlPolarityIncluded;
-  char lineCtrlToggle;
-  char lineCtrlReverse;
-  char lineCtrlPowerDenial;
+    char lineCtrlPolarityIncluded;
+    char lineCtrlToggle;
+    char lineCtrlReverse;
+    char lineCtrlPowerDenial;
 } RIL_CDMA_LineControlInfoRecord;
 
 /* T53 CLIR Information Record */
 typedef struct {
-  char cause;
+    char cause;
 } RIL_CDMA_T53_CLIRInfoRecord;
 
 /* T53 Audio Control Information Record */
 typedef struct {
-  char upLink;
-  char downLink;
+    char upLink;
+    char downLink;
 } RIL_CDMA_T53_AudioControlInfoRecord;
 
 typedef struct {
+    RIL_CDMA_InfoRecName name;
 
-  RIL_CDMA_InfoRecName name;
+    union {
+        /* Display and Extended Display Info Rec */
+        RIL_CDMA_DisplayInfoRecord           display;
 
-  union {
-    /* Display and Extended Display Info Rec */
-    RIL_CDMA_DisplayInfoRecord           display;
+        /* Called Party Number, Calling Party Number, Connected Number Info Rec */
+        RIL_CDMA_NumberInfoRecord            number;
 
-    /* Called Party Number, Calling Party Number, Connected Number Info Rec */
-    RIL_CDMA_NumberInfoRecord            number;
+        /* Signal Info Rec */
+        RIL_CDMA_SignalInfoRecord            signal;
 
-    /* Signal Info Rec */
-    RIL_CDMA_SignalInfoRecord            signal;
+        /* Redirecting Number Info Rec */
+        RIL_CDMA_RedirectingNumberInfoRecord redir;
 
-    /* Redirecting Number Info Rec */
-    RIL_CDMA_RedirectingNumberInfoRecord redir;
+        /* Line Control Info Rec */
+        RIL_CDMA_LineControlInfoRecord       lineCtrl;
 
-    /* Line Control Info Rec */
-    RIL_CDMA_LineControlInfoRecord       lineCtrl;
+        /* T53 CLIR Info Rec */
+        RIL_CDMA_T53_CLIRInfoRecord          clir;
 
-    /* T53 CLIR Info Rec */
-    RIL_CDMA_T53_CLIRInfoRecord          clir;
-
-    /* T53 Audio Control Info Rec */
-    RIL_CDMA_T53_AudioControlInfoRecord  audioCtrl;
-  } rec;
+        /* T53 Audio Control Info Rec */
+        RIL_CDMA_T53_AudioControlInfoRecord  audioCtrl;
+    } rec;
 } RIL_CDMA_InformationRecord;
 
 #define RIL_CDMA_MAX_NUMBER_OF_INFO_RECS 10
 
 typedef struct {
-  char numberOfInfoRecs;
-  RIL_CDMA_InformationRecord infoRec[RIL_CDMA_MAX_NUMBER_OF_INFO_RECS];
+    char numberOfInfoRecs;
+    RIL_CDMA_InformationRecord infoRec[RIL_CDMA_MAX_NUMBER_OF_INFO_RECS];
 } RIL_CDMA_InformationRecords;
 
 /* See RIL_REQUEST_NV_READ_ITEM */
 typedef struct {
-  RIL_NV_Item itemID;
+    RIL_NV_Item itemID;
 } RIL_NV_ReadItem;
 
 /* See RIL_REQUEST_NV_WRITE_ITEM */
 typedef struct {
-  RIL_NV_Item   itemID;
-  char *        value;
+    RIL_NV_Item   itemID;
+    char *        value;
 } RIL_NV_WriteItem;
 
 typedef enum {
@@ -1414,18 +1410,17 @@ typedef struct {
 #define RIL_NUM_TX_POWER_LEVELS     5
 
 typedef struct {
+    /* period (in ms) when modem is power collapsed */
+    uint32_t sleep_mode_time_ms;
 
-  /* period (in ms) when modem is power collapsed */
-  uint32_t sleep_mode_time_ms;
+    /* period (in ms) when modem is awake and in idle mode*/
+    uint32_t idle_mode_time_ms;
 
-  /* period (in ms) when modem is awake and in idle mode*/
-  uint32_t idle_mode_time_ms;
+    /* period (in ms) for which Tx is active */
+    uint32_t tx_mode_time_ms[RIL_NUM_TX_POWER_LEVELS];
 
-  /* period (in ms) for which Tx is active */
-  uint32_t tx_mode_time_ms[RIL_NUM_TX_POWER_LEVELS];
-
-  /* period (in ms) for which Rx is active */
-  uint32_t rx_mode_time_ms;
+    /* period (in ms) for which Rx is active */
+    uint32_t rx_mode_time_ms;
 } RIL_ActivityStatsInfo;
 
 /* IMS @{ */
@@ -1491,7 +1486,7 @@ typedef struct {
     int idr;
     int neg_stat_present;
     int neg_stat;
-    int SDP_md;
+    char *SDP_md;
     int cs_mod;
     int ccs_stat;
     int mpty;
@@ -1501,6 +1496,18 @@ typedef struct {
     int exit_type;
     int exit_cause;
 } RIL_IMSPHONE_CMCCSI;
+
+/* Used by RIL_REQUEST_VIDEOPHONE_DIAL */
+typedef struct {
+    char * address;
+    char * sub_address;
+    int clir;
+            /* (same as 'n' paremeter in TS 27.007 7.7 "+CLIR"
+             * clir == 0 on "use subscription default value"
+             * clir == 1 on "CLIR invocation" (restrict CLI presentation)
+             * clir == 2 on "CLIR suppression" (allow CLI presentation)
+             */
+} RIL_VideoPhone_Dial;
 /* }@ */
 
 /**
@@ -5137,26 +5144,20 @@ typedef struct {
 #define RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY     (RIL_IMS_REQUEST_BASE + 2)
 #define RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY     (RIL_IMS_REQUEST_BASE + 3)
 #define RIL_REQUEST_INIT_ISIM                           (RIL_IMS_REQUEST_BASE + 4)
-#define RIL_REQUEST_REGISTER_IMS_IMPU                   (RIL_IMS_REQUEST_BASE + 5)
-#define RIL_REQUEST_REGISTER_IMS_IMPI                   (RIL_IMS_REQUEST_BASE + 6)
-#define RIL_REQUEST_REGISTER_IMS_DOMAIN                 (RIL_IMS_REQUEST_BASE + 7)
-#define RIL_REQUEST_ENABLE_IMS                          (RIL_IMS_REQUEST_BASE + 8)
-#define RIL_REQUEST_DISABLE_IMS                         (RIL_IMS_REQUEST_BASE + 9)
-#define RIL_REQUEST_REGISTER_IMS_IMEI                   (RIL_IMS_REQUEST_BASE + 10)
-#define RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE       (RIL_IMS_REQUEST_BASE + 11)
-#define RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE      (RIL_IMS_REQUEST_BASE + 12)
-#define RIL_REQUEST_REGISTER_IMS_XCAP                   (RIL_IMS_REQUEST_BASE + 13)
-#define RIL_REQUEST_REGISTER_IMS_BSF                    (RIL_IMS_REQUEST_BASE + 14)
-#define RIL_REQUEST_SET_IMS_SMSC                        (RIL_IMS_REQUEST_BASE + 15)
-#define RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE         (RIL_IMS_REQUEST_BASE + 16)
-#define RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN          (RIL_IMS_REQUEST_BASE + 17)
-#define RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI       (RIL_IMS_REQUEST_BASE + 18)
-#define RIL_REQUEST_SET_CALL_FORWARD_URI                (RIL_IMS_REQUEST_BASE + 19)
-#define RIL_REQUEST_IMS_INITIAL_GROUP_CALL              (RIL_IMS_REQUEST_BASE + 20)
-#define RIL_REQUEST_IMS_ADD_TO_GROUP_CALL               (RIL_IMS_REQUEST_BASE + 21)
-#define RIL_REQUEST_IMS_SET_CONFERENCE_URI              (RIL_IMS_REQUEST_BASE + 22)
+#define RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE       (RIL_IMS_REQUEST_BASE + 5)
+#define RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE      (RIL_IMS_REQUEST_BASE + 6)
+#define RIL_REQUEST_SET_IMS_SMSC                        (RIL_IMS_REQUEST_BASE + 7)
+#define RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE         (RIL_IMS_REQUEST_BASE + 8)
+#define RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN          (RIL_IMS_REQUEST_BASE + 9)
+#define RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI       (RIL_IMS_REQUEST_BASE + 10)
+#define RIL_REQUEST_SET_CALL_FORWARD_URI                (RIL_IMS_REQUEST_BASE + 11)
+#define RIL_REQUEST_IMS_INITIAL_GROUP_CALL              (RIL_IMS_REQUEST_BASE + 12)
+#define RIL_REQUEST_IMS_ADD_TO_GROUP_CALL               (RIL_IMS_REQUEST_BASE + 13)
+#define RIL_REQUEST_VIDEOPHONE_DIAL                     (RIL_IMS_REQUEST_BASE + 14)
+#define RIL_REQUEST_ENABLE_IMS                          (RIL_IMS_REQUEST_BASE + 15)
+#define RIL_REQUEST_DISABLE_IMS                         (RIL_IMS_REQUEST_BASE + 16)
 
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_SET_CONFERENCE_URI
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_DISABLE_IMS
 
 /***********************************************************************/
 #define RIL_IMS_UNSOL_RESPONSE_BASE 6000
@@ -5318,8 +5319,8 @@ struct RIL_Env {
      * soon as possible
      */
 
-    void (*RequestTimedCallback) (RIL_TimedCallback callback,
-                                   void *param, const struct timeval *relativeTime);
+    void (*RequestTimedCallback)(RIL_TimedCallback callback,
+                                  void *param, const struct timeval *relativeTime);
 };
 
 
@@ -5343,7 +5344,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
  * @param callbacks user-specifed callback function
  */
 
-void RIL_register (const RIL_RadioFunctions *callbacks);
+void RIL_register(const RIL_RadioFunctions *callbacks);
 
 /**
  *
@@ -5394,7 +5395,7 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
  * @param relativeTime a relative time value at which the callback is invoked
  */
 
-void RIL_requestTimedCallback (RIL_TimedCallback callback,
+void RIL_requestTimedCallback(RIL_TimedCallback callback,
                                void *param, const struct timeval *relativeTime);
 
 #endif /* RIL_SHLIB */

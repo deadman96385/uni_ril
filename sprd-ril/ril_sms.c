@@ -572,6 +572,30 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        /* IMS request @{ */
+        case RIL_REQUEST_SET_IMS_SMSC: {
+            char *cmd;
+            int ret;
+            p_response = NULL;
+            RLOGD("[sms]RIL_REQUEST_SET_IMS_SMSC (%s)", (char *)(data));
+            ret = asprintf(&cmd, "AT+PSISMSC=\"%s\"", (char *)(data));
+            if (ret < 0) {
+                RLOGE("Failed to allocate memory!");
+                cmd = NULL;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            free(cmd);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        /* }@ */
         default:
             return 0;
     }

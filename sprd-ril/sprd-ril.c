@@ -35,6 +35,7 @@
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
 #define VOLTE_ENABLE_PROP "persist.sys.volte.enable"
+#define VOLTE_PCSCF_PROP  "persist.sys.volte.pcscf"
 #define MODEM_CONFIG_PROP "persist.radio.modem.config"
 
 enum ChannelState {
@@ -325,15 +326,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
                  request == RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY ||
                  request == RIL_REQUEST_INIT_ISIM ||
-                 request == RIL_REQUEST_REGISTER_IMS_IMPU ||
-                 request == RIL_REQUEST_REGISTER_IMS_IMPI ||
-                 request == RIL_REQUEST_REGISTER_IMS_DOMAIN ||
-                 request == RIL_REQUEST_REGISTER_IMS_IMEI ||
-                 request == RIL_REQUEST_REGISTER_IMS_XCAP ||
-                 request == RIL_REQUEST_REGISTER_IMS_BSF ||
                  request == RIL_REQUEST_SET_IMS_SMSC ||
-                 request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
-                 request == RIL_REQUEST_IMS_SET_CONFERENCE_URI
+                 request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN
               /* }@ */)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -490,6 +484,13 @@ void setRadioState(int channelID, RIL_RadioState newState) {
 
     pthread_mutex_unlock(&s_radioStateMutex[socket_id]);
 
+    /* Bug 503887 add ISIM for volte. @{ */
+    if (newState == RADIO_STATE_OFF || newState == RADIO_STATE_UNAVAILABLE) {
+        s_imsISIM[socket_id] = -1;
+        s_imsConn[socket_id] = -1;
+    }
+    /* }@ */
+
     /* do these outside of the mutex */
     if (*p_radioState != oldState) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED,
@@ -608,6 +609,24 @@ static void initializeCallback(void *param) {
     at_send_command(s_ATChannels[channelID], "AT+SPDVTDCI="VT_DCI, NULL);
     at_send_command(s_ATChannels[channelID], "AT+SPDVTTEST=2,650", NULL);
     at_send_command(s_ATChannels[channelID], "AT+CEN=1", NULL);
+    if (isVoLteEnable()) {
+        at_send_command(s_ATChannels[channelID], "AT+CIREG=2", NULL);
+        at_send_command(s_ATChannels[channelID], "AT+CIREP=1", NULL);
+        at_send_command(s_ATChannels[channelID], "AT+CMCCS=2", NULL);
+        char address[PROPERTY_VALUE_MAX];
+        property_get(VOLTE_PCSCF_PROP, address, "");
+        if (strcmp(address, "") != 0) {
+            RLOGD("Set PCSCF address = %s", address);
+            char cmd[AT_COMMAND_LEN];
+            char *p_address = address;
+            if (strchr(p_address, '[') != NULL) {
+                snprintf(cmd, sizeof(cmd), "AT+PCSCF=2,\"%s\"", address);
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+PCSCF=1,\"%s\"", address);
+            }
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
+    }
 
     /* set some auto report AT command on or off */
     if (isVoLteEnable()) {
@@ -830,7 +849,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     RLOGI("libsprd-ril Compile date: %s, %s", __DATE__, __TIME__);
 
-    while ( -1 != (opt = getopt(argc, argv, "m:n:"))) {
+    while (-1 != (opt = getopt(argc, argv, "m:n:"))) {
         switch (opt) {
             case 'm':
                 s_modem = optarg;
@@ -879,7 +898,7 @@ int main(int argc, char **argv) {
     int fd = -1;
     int opt;
 
-    while ( -1 != (opt = getopt(argc, argv, "p:d:"))) {
+    while (-1 != (opt = getopt(argc, argv, "p:d:"))) {
         switch (opt) {
             case 'p':
                 s_port = atoi(optarg);

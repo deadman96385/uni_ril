@@ -14,6 +14,9 @@
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 
 int s_PSAttachAllowed[SIM_COUNT]; // 0--false 1--ture
+int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
+int s_imsISIM[SIM_COUNT];
+int s_imsConn[SIM_COUNT];
 LTE_PS_REG_STATE s_PSRegState[SIM_COUNT] = {
         STATE_OUT_OF_SERVICE
 #if (SIM_COUNT >= 2)
@@ -429,7 +432,8 @@ static void requestRegistrationState(int channelID, int request,
             if (err < 0) goto error;
             break;
         }
-        case 2: {  /* +CREG: <stat>, <lac>, <cid> */
+        case 2: {  /* +CREG: <stat>, <lac>, <cid> or
+                      +CIREG: <n>, <reg_info>, [<ext_info>] */
             err = at_tok_nextint(&line, &response[0]);
             if (err < 0) goto error;
             err = at_tok_nexthexint(&line, &response[1]);
@@ -541,6 +545,8 @@ static void requestRegistrationState(int channelID, int request,
             goto error;
         }
     } else if (request == RIL_REQUEST_IMS_REGISTRATION_STATE) {
+        s_imsRegistered[socket_id] = response[1];
+        RLOGD("s_imsRegistered[%d] = %d", socket_id, s_imsRegistered[socket_id]);
         RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
     }
     at_response_free(p_response);
@@ -1612,6 +1618,14 @@ int processNetworkRequests(int request, void *data, size_t datalen,
     return 1;
 }
 
+static void onConn(void *param) {
+    int channelID;
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    channelID = getChannel(socket_id);
+    at_send_command(s_ATChannels[channelID], "AT+IMSEN=1", NULL);
+    putChannel(channelID);
+}
+
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     char *line = NULL;
     int err;
@@ -1758,6 +1772,40 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
                                   &response, sizeof(response), socket_id);
+    } else if (strStartsWith(s, "^CONN:")) {
+        int cid;
+        int type;
+        int active;
+        int index = 0;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &cid);
+        if (err < 0) {
+            RLOGD("get cid fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &type);
+        if (err < 0) {
+            RLOGD("get type fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &active);
+        if (err < 0) {
+            RLOGD("get active fail");
+            goto out;
+        }
+
+        if (cid == 11) {
+            s_imsConn[socket_id] = active;
+            if (active == 1 && s_imsISIM[socket_id] == 1) {
+                RIL_requestTimedCallback(onConn,
+                                        (void *)&s_socketId[socket_id], NULL);
+            }
+        }
     } else {
         return 0;
     }

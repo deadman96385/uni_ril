@@ -1559,6 +1559,8 @@ void requestAllowData(int channelID, void *data, size_t datalen,
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
+    int err;
+    ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
@@ -1596,6 +1598,44 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         // TODO: for now, not realized
         // case RIL_REQUEST_SET_DATA_PROFILE:
         //     break;
+        /* IMS request @{ */
+        case RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            char qosState[PROPERTY_VALUE_MAX] = {0};
+            int initialAttachId = 11;  // use index of 11
+            RIL_InitialAttachApn *initialAttachIMSApn = NULL;
+            p_response = NULL;
+            if (data != NULL) {
+                initialAttachIMSApn = (RIL_InitialAttachApn *)data;
+
+                snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
+                          initialAttachId, initialAttachIMSApn->protocol,
+                          initialAttachIMSApn->apn);
+                err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+
+                snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d",
+                          initialAttachIMSApn->username,
+                          initialAttachIMSApn->password,
+                          initialAttachId, initialAttachIMSApn->authtype);
+                err = at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+                /* Set required QoS params to default */
+                property_get("persist.sys.qosstate", qosState, "0");
+                if (!strcmp(qosState, "0")) {
+                    snprintf(cmd, sizeof(cmd),
+                            "AT+CGEQREQ=%d,2,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                            initialAttachId);
+                    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                at_response_free(p_response);
+            } else {
+                RLOGD("INITIAL_ATTACH_IMS_APN data is null");
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+            break;
+        }
+        /* }@ */
         default :
             ret = 0;
             break;

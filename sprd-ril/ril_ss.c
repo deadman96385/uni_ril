@@ -97,7 +97,7 @@ static int forwardFromCCFCLine(char *line, RIL_CallForwardInfo *p_forward) {
         if (err < 0) goto error;
 
         if (at_tok_hasmore(&line)) {
-            for (i = 0; i < 2; i++ ) {
+            for (i = 0; i < 2; i++) {
                 skipNextComma(&line);
             }
 
@@ -715,12 +715,14 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
         // TODO: for now, not realized.
         // case RIL_REQUEST_SET_SUPP_SVC_NOTIFICATION:
         //    break;
+        /* IMS request @{ */
         case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI:
             requestCallForwardUri(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SET_CALL_FORWARD_URI:
             requestCallForwardUri(channelID, data, datalen, t);
             break;
+        /* }@ */
         default:
             return 0;
     }
