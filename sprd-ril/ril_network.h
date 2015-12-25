@@ -49,7 +49,8 @@ extern bool s_oneSimOnly;
 extern int s_in4G[SIM_COUNT];
 extern int s_workMode[SIM_COUNT];
 extern int s_desiredRadioState[SIM_COUNT];
-extern LTE_PS_REG_STATE s_LTERegState[SIM_COUNT];
+extern int s_PSAttachAllowed[SIM_COUNT];
+extern LTE_PS_REG_STATE s_PSRegState[SIM_COUNT];
 extern pthread_mutex_t s_LTEAttachMutex[SIM_COUNT];
 
 int processNetworkRequests(int request, void *data, size_t datalen, RIL_Token t, int channelID);

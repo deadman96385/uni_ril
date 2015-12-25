@@ -13,7 +13,8 @@
 #define SIM_PRESENT_PROP        "ril.sim.present"
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 
-LTE_PS_REG_STATE s_LTERegState[SIM_COUNT] = {
+int s_PSAttachAllowed[SIM_COUNT]; // 0--false 1--ture
+LTE_PS_REG_STATE s_PSRegState[SIM_COUNT] = {
         STATE_OUT_OF_SERVICE
 #if (SIM_COUNT >= 2)
         ,STATE_OUT_OF_SERVICE
@@ -355,6 +356,7 @@ static void requestRegistrationState(int channelID, int request,
     const char *prefix;
     ATResponse *p_response = NULL;
 
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     bool islte = isLte();
 
     if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
@@ -502,11 +504,10 @@ static void requestRegistrationState(int channelID, int request,
     }
 
     if (islte && request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
         if (response[0] == 1 || response[0] == 5) {
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
-            if (s_LTERegState[socket_id] == STATE_OUT_OF_SERVICE) {
-                s_LTERegState[socket_id] = STATE_IN_SERVICE;
+            if (s_PSRegState[socket_id] == STATE_OUT_OF_SERVICE) {
+                s_PSRegState[socket_id] = STATE_IN_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
             if (response[3] == 14) {
@@ -516,8 +517,8 @@ static void requestRegistrationState(int channelID, int request,
             }
         } else {
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
-            if (s_LTERegState[socket_id] == STATE_IN_SERVICE) {
-                s_LTERegState[socket_id] = STATE_OUT_OF_SERVICE;
+            if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+                s_PSRegState[socket_id] = STATE_OUT_OF_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
             s_in4G[socket_id] = 0;
@@ -532,8 +533,13 @@ static void requestRegistrationState(int channelID, int request,
     } else if (request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
         sprintf(res[4], "3");
         responseStr[5] = res[4];
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, responseStr,
-                              6 * sizeof(char *));
+        if (s_PSAttachAllowed[socket_id] == 1 ||
+            s_PSRegState[socket_id] != STATE_IN_SERVICE) {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, responseStr,
+                                  6 * sizeof(char *));
+        } else {
+            goto error;
+        }
     } else if (request == RIL_REQUEST_IMS_REGISTRATION_STATE) {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
     }
@@ -1722,18 +1728,18 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             }
             RLOGD("netType is %d", netType);
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
-            if (s_LTERegState[socket_id] == STATE_OUT_OF_SERVICE) {
-                s_LTERegState[socket_id] = STATE_IN_SERVICE;
+            if (s_PSRegState[socket_id] == STATE_OUT_OF_SERVICE) {
+                s_PSRegState[socket_id] = STATE_IN_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
-            RLOGD("s_LTERegState is IN SERVICE");
+            RLOGD("s_PSRegState is IN SERVICE");
         } else {
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
-            if (s_LTERegState[socket_id] == STATE_IN_SERVICE) {
-                s_LTERegState[socket_id] = STATE_OUT_OF_SERVICE;
+            if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+                s_PSRegState[socket_id] = STATE_OUT_OF_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
-            RLOGD("s_LTERegState is OUT OF SERVICE.");
+            RLOGD("s_PSRegState is OUT OF SERVICE.");
         }
         RIL_onUnsolicitedResponse(
                 RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,

@@ -573,9 +573,9 @@ static int deactivateLteDataConnection(int channelID, char *cmd) {
                                         NULL);
                     }
                     pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
-                    s_LTERegState[socket_id] = STATE_OUT_OF_SERVICE;
+                    s_PSRegState[socket_id] = STATE_OUT_OF_SERVICE;
                     pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
-                    RLOGD("set s_LTERegState: OUT OF SERVICE.");
+                    RLOGD("set s_PSRegState: OUT OF SERVICE.");
                 }
             }
         }
@@ -1538,6 +1538,12 @@ void requestAllowData(int channelID, void *data, size_t datalen,
     s_dataAllowed[socket_id] = ((int*)data)[0];
     RLOGD("s_desiredRadioState[%d] = %d", socket_id,
           s_desiredRadioState[socket_id]);
+    if (s_PSAttachAllowed[socket_id] == 0) {
+        s_PSAttachAllowed[socket_id] = 1;
+        RIL_onUnsolicitedResponse(
+                RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+                NULL, 0, socket_id);
+    }
     if (s_desiredRadioState[socket_id] > 0) {
         if (s_dataAllowed[socket_id]) {
             attachGPRS(channelID, data, datalen, t);
@@ -1557,10 +1563,10 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
             if (isLte()) {
-                RLOGD("SETUP_DATA_CALL s_LTERegState[%d] = %d", socket_id,
-                      s_LTERegState[socket_id]);
+                RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
+                      s_PSRegState[socket_id]);
                 if (s_workMode[socket_id] == 10 ||
-                    s_LTERegState[socket_id] == STATE_IN_SERVICE) {
+                    s_PSRegState[socket_id] == STATE_IN_SERVICE) {
                     requestSetupDataCall(channelID, data, datalen, t);
                 } else {
                     s_lastPDPFailCause[socket_id] =
