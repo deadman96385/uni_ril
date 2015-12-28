@@ -303,6 +303,7 @@ static int dir_scan(struct exfat* ef, const struct exfat_node* parent,
 			}
 
 			init_node_meta2(*node, meta2);
+			if (!(meta2->flags & EXFAT_FLAG_CONTIGUOUS)) {
 			cluster_t cl;
 			for (cl = (*node)->start_cluster; cl != EXFAT_CLUSTER_END; cl = exfat_next_cluster(ef, (*node), cl)) {
 				if (CLUSTER_INVALID(ef, cl)) {
@@ -320,6 +321,7 @@ static int dir_scan(struct exfat* ef, const struct exfat_node* parent,
 					} while ((entry->type != EXFAT_ENTRY_FILE) && (continuations-- > 0));
 					return 0;
 				}
+			}
 			}
 			--continuations;
 			break;
