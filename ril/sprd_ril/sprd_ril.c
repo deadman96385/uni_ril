@@ -188,6 +188,7 @@ typedef enum {
 #define PERSIST_VOICE_CLEAR_CODE_PROPERTY "persist.sys.voice_clear_code"
 #define PERSIET_SYS_DDR_STATUS            "persist.sys.ddr.status"
 #define PROPPERTY_VALUE_ENABLE            "1"
+#define PERSIST_CURRENT_CARRIER "persist.sys.current.carrier"
 // {for sleep log}
 #define BUFFER_SIZE  (12*1024*4)
 #define CONSTANT_DIVIDE  32768.0
@@ -4136,8 +4137,11 @@ retrycgatt:
                 snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, index);
                 property_get(cmd, prop, "0");
                 ip_type = atoi(prop);
-
-                if (fbCause == 52) {
+                char is_tecel_version[PROPERTY_VALUE_MAX];
+                memset(is_tecel_version, 0, sizeof(is_tecel_version));
+                property_get(PERSIST_CURRENT_CARRIER, is_tecel_version, "default");
+                RILLOGD("requestSetupDataCall is_tecel_version = %s", is_tecel_version);
+                if (fbCause == 52 && ((strcmp(is_tecel_version, "telcel")) || index == 0)) {
 
                             if (ip_type == IPV4) {
                                 pdp_type = "IPV6";
