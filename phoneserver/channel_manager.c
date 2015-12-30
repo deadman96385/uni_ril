@@ -1059,7 +1059,8 @@ int main(int argc, char *argv[])
     int ret;
 
     //PHS_LOGD("chnmng start phone server");
-    PHS_LOGD("Phoneserver version: %s ",version_string);
+    PHS_LOGD("Phoneserver version: %s",version_string);
+    PHS_LOGD("Phoneserver Compile date: %s, %s ", __DATE__, __TIME__);
 
     if (0 == strcmp(argv[1], "-m") && (argc > 2)) {
         modem = argv[2];

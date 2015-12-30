@@ -5407,6 +5407,7 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
     }
 
     //modem = *s_modem;
+    RILLOGD("sprd_libril Compile date: %s, %s", __DATE__, __TIME__);
     RILLOGD("it's %s modem rild%d libril", s_modem, s_sim_num);
 
     if(!strcmp(s_modem, "t")) {

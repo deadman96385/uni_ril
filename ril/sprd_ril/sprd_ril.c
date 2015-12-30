@@ -13992,6 +13992,7 @@ mainLoop(void *param)
     int channel_nums;
     struct channel_description *descriptions;
 
+    RILLOGD("sprd_reference ril Compile date: %s, %s", __DATE__, __TIME__);
     if(param)
         sim_num= *((int*)param);
 
