@@ -385,6 +385,7 @@ static void forceDetachDataconnection(int channelID, void *data, size_t datalen,
 static bool hasSimBusy = false;
 static void* dump_sleep_log();
 static void getIMEIPassword(int channeID,char pwd[]);//SPRD add for simlock
+static void radioPowerOnTimeout();
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -507,6 +508,7 @@ static RIL_InitialAttachApn *initialAttachApn = NULL;
 static int in4G;
 static bool bLteDetached = false;
 static int isTest;
+static bool radioOnERROR = false;
 
 void *setRadioOnWhileSimBusy(void *param);
 static pthread_mutex_t s_hasSimBusyMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -2741,6 +2743,13 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
             }
 
             if (isRadioOn(channelID) != 1) {
+                goto error;
+            }
+
+            if (strStartsWith (p_response->finalResponse,"ERROR"))
+            {
+                radioOnERROR = true;
+                RILLOGD("requestRadioPower: radio on ERROR");
                 goto error;
             }
         }
@@ -11232,6 +11241,8 @@ setRadioState(int channelID, RIL_RadioState newState)
 
     oldState = sState;
 
+    RILLOGD("setRadioState: oldState = %d, newState = %d, s_closed = %d", oldState, newState, s_closed);
+
     if (s_closed > 0) {
         // If we're closed, the only reasonable state is
         // RADIO_STATE_UNAVAILABLE
@@ -12396,6 +12407,13 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RIL_onUnsolicitedResponse (
                 RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
                 NULL, 0);
+
+        if (radioOnERROR && strStartsWith(s, "+CREG:") && sState == RADIO_STATE_OFF)
+        {
+            RILLOGD("Radio is on, setRadioState now.");
+            radioOnERROR = false;
+            RIL_requestTimedCallback(radioPowerOnTimeout, NULL, NULL);
+        }
     } else if (strStartsWith(s,"+CEREG:")) {
         char *p,*tmp;
         int lteState;
@@ -15375,4 +15393,10 @@ static int isVoLteEnable(){
     } else {
         return 0;
     }
+}
+
+static void radioPowerOnTimeout() {
+    int channelID = getChannel();
+    setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
+    putChannel(channelID);
 }
