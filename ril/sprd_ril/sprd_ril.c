@@ -2755,18 +2755,13 @@ error:
 
 static void requestShutdown(int channelID, RIL_Token t)
 {
-    int onOff;
-
     int err;
-    ATResponse *p_response = NULL;
 
     if (sState != RADIO_STATE_OFF) {
-        err = at_send_command(ATch_type[channelID], "AT+SFUN=5", &p_response);
-        err = at_send_command(ATch_type[channelID], "AT+SFUN=3", &p_response);
-        setRadioState(channelID, RADIO_STATE_UNAVAILABLE);
+        err = at_send_command(ATch_type[channelID], "AT+SFUN=5", NULL);
     }
-
-    at_response_free(p_response);
+    err = at_send_command(ATch_type[channelID], "AT+SFUN=3", NULL);
+    setRadioState(channelID, RADIO_STATE_UNAVAILABLE);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 }
@@ -8621,6 +8616,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_GET_IMEISV
                 || request == RIL_REQUEST_SIM_POWER
                 || request == RIL_REQUEST_GET_HD_VOICE_STATE
+                || request == RIL_REQUEST_SHUTDOWN
                 || (request == RIL_REQUEST_DIAL && s_isstkcall))
        ) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
@@ -8632,6 +8628,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
      */
     if (sState == RADIO_STATE_OFF
             && !(request == RIL_REQUEST_RADIO_POWER
+                || request == RIL_REQUEST_SHUTDOWN
 #if defined (RIL_SPRD_EXTENSION)
                 || request == RIL_REQUEST_SIM_POWER
                 || request == RIL_REQUEST_GET_REMAIN_TIMES
