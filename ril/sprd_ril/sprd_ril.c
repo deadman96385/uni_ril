@@ -230,6 +230,7 @@ typedef struct Srvccpendingrequest{
 
 #define VOLTE_ENABLE_PROP         "persist.sys.volte.enable"
 #define VOLTE_PCSCF_ADDRESS        "persist.sys.volte.pcscf"
+#define VOLTE_IOT                  "persist.sys.volte.iot"
 
 static VoLTE_SrvccState s_srvccState = SRVCC_PS_TO_CS_SUCCESS;
 static SrvccPendingRequest *s_srvccPendingRequest;
@@ -3791,19 +3792,22 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     int is_default_bearer;
     int is_open_channel;
     int nRetryTimes = 0;
+    int is_VoLTE_IOT = 0;
 
     property_get(PROP_DEFAULT_BEARER, prop, "0");
     is_default_bearer = atoi(prop);
     property_get(PROP_OPEN_CHANNEL, prop, "0");
     is_open_channel = atoi(prop);
     RILLOGD("requestSetupDataCall is_default_bearer = %d, is_open_channel = %d", is_default_bearer, is_open_channel);
-
+    property_get(VOLTE_IOT, prop, "0");
+    is_VoLTE_IOT = atoi(prop);
+    RILLOGD("requestSetupDataCall is_VoLTE_IOT = %d", is_VoLTE_IOT);
     apn = ((const char **)data)[2];
     username = ((const char **)data)[3];
     password = ((const char **)data)[4];
     authtype = ((const char **)data)[5];
 
-    if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) ){
+    if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) || is_VoLTE_IOT == 1){
         add_ip_cid = 0;
     }
 
