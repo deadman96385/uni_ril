@@ -7,7 +7,7 @@ include $(CLEAR_VARS)
 #LOCAL_C_INCLUDES :=$(LOCAL_PATH)/../include
 
 LOCAL_SRC_FILES := \
-    atci.cpp
+    sprd_atci.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     liblog \

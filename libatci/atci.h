@@ -1,14 +1,14 @@
-#ifndef ATCI_H_
-#define ATCI_H_
+#ifndef SPRD_ATCI_H
+#define SPRD_ATCI_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const char *sendCmd(int phoneId, const char *atCmd);
+const char *sendCmd(int phoneId, const char* atCmd);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // ATCI_H_
+#endif // SPRD_ATCI_H
