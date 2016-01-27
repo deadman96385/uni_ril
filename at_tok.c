@@ -45,7 +45,6 @@ static void skipWhiteSpace(char **p_cur) {
         (*p_cur)++;
     }
 }
-
 static void skipNextComma(char **p_cur) {
     if (*p_cur == NULL)
         return;
@@ -56,7 +55,6 @@ static void skipNextComma(char **p_cur) {
         (*p_cur)++;
     }
 }
-
 static char *nextTok(char **p_cur) {
     char *ret = NULL;
     skipWhiteSpace(p_cur);
@@ -94,7 +92,7 @@ static int at_tok_nextint_base(char **p_cur, int *p_out, int base, int uns) {
 
         else
             l = strtol(ret, &end, base);
-        *p_out = (int)l;
+        *p_out = (int) l;
         if (end == ret) {
             return -1;
         }
@@ -128,11 +126,12 @@ int at_tok_nextbool(char **p_cur, char *p_out) {
     if (ret < 0) {
         return -1;
     }
+    // booleans should be 0 or 1
     if (!(result == 0 || result == 1)) {
         return -1;
     }
     if (p_out != NULL) {
-        *p_out = (char)result;
+        *p_out = (char) result;
     }
     return ret;
 }

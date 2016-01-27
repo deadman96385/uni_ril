@@ -1,7 +1,10 @@
-/**
- * debug.h --- debug.h implementation for the phoneserver
+/*
  *
- * Copyright (C) 2015 Spreadtrum Communications Inc.
+ * debug.h: debug.h implementation for the phoneserver
+
+ *Copyright (C) 2009,  spreadtrum
+ *
+ * Author: jim.cui <jim.cui@spreadtrum.com.cn>
  *
  */
 

@@ -1,11 +1,13 @@
-/**
- * pty.h --- pty implementation for the phoneserver
+
+/*
  *
- * Copyright (C) 2015 Spreadtrum Communications Inc.
+ * pty.h: pty implementation for the phoneserver
+ *
+ *
  */
 
-#ifndef PTY_H_
-#define PTY_H_
+#ifndef pty_H
+#define pty_H
 
 #include "os_api.h"
 #include "cmux.h"
@@ -28,6 +30,8 @@ struct pty_ops {
     int (*pty_write)(void * const pty, char *buf, int len);
 };
 struct pty_t {
+
+    /***    User explicit entries    ***/
     void *me;
     char *buffer; /*##for reading from channel pty  ## */
     int (*edit_callback)(struct pty_t * pty, char *str, int len,
@@ -49,4 +53,4 @@ struct pty_t {
 };
 struct pty_ops *pty_get_operations(void);
 
-#endif  // PTY_H_
+#endif /*  */

@@ -1,9 +1,12 @@
-/**
- * receive_thread.c: channel  implementation for the phoneserver
+/*
  *
- * Copyright (C) 2015 Spreadtrum Communications Inc.
- */
+ * receive_thread.c: channel  implementation for the phoneserver
 
+ *Copyright (C) 2009,  spreadtrum
+ *
+ * Author: jim.cui <jim.cui@spreadtrum.com.cn>
+ *
+ */
 #include "receive_thread.h"
 #include "os_api.h"
 #include "config.h"
@@ -17,8 +20,11 @@
 #undef  PHS_LOGD
 #define PHS_LOGD(x...)  ALOGD( x )
 
+int s_isuserdebug = 0;
+
 #if AT_DEBUG
-void AT_DUMP(const char *prefix, const char *buff, int len) {
+void AT_DUMP(const char *prefix, const char *buff, int len)
+{
     if (len < 0)
     len = strlen(buff);
     PHS_LOGD("%s len=%d /:%s", prefix, len, buff);
@@ -34,7 +40,6 @@ void AT_DUMP(const char *prefix, const char *buff, int len) {
  */
 static char *findNextEOL(char *cur) {
     if (cur[0] == '>' && cur[1] == ' ' && cur[2] == '\0') {
-
         /* SMS prompt character...not \r terminated */
         return cur + 2;
     }
@@ -69,10 +74,10 @@ static char *readline(struct receive_thread_t *me) {
         p_read = me->s_ATBufferCur;
     } else { /* *s_ATBufferCur != '\0' */
         /* there's data in the buffer from the last read */
+
         // skip over leading newlines
-        while (*me->s_ATBufferCur == '\r' || *me->s_ATBufferCur == '\n') {
+        while (*me->s_ATBufferCur == '\r' || *me->s_ATBufferCur == '\n')
             me->s_ATBufferCur++;
-        }
         p_eol = findNextEOL(me->s_ATBufferCur);
         if (p_eol == NULL) {
             /* a partial line. move it up and prepare to read more */
@@ -95,17 +100,20 @@ static char *readline(struct receive_thread_t *me) {
         }
 
         do {
+            //PHS_LOGD("Before read << ");
             count = read(me->mux->muxfd, p_read,
                     MAX_AT_RESPONSE - (p_read - me->mux->buffer));
+            //PHS_LOGD("After read count: %d, p_read: %s<< ", count, p_read);
         } while (count < 0 && errno == EINTR);
 
         if (count > 0) {
-            AT_DUMP("CHNMNG:readline << ", p_read, count);;
+            AT_DUMP("CHNMNG:readline << ", p_read, count);
+            //PHS_LOGD("Rev TID [%d] :read pread= %p,count=%ld\n", me->tid, p_read,count);
+            //p_read[count] = '\0';
             while (count > 0) {
                 if (*p_read == '\0') {
                     *p_read = ' ';
-                    PHS_LOGD(
-                            "\n receive thread reads in string end char!!!!!!\n");
+                    PHS_LOGD("\n receive thread reads in string end char!!!!!!\n");
                 }
                 p_read++;
                 count--;
@@ -115,6 +123,7 @@ static char *readline(struct receive_thread_t *me) {
             while (*me->s_ATBufferCur == '\r' || *me->s_ATBufferCur == '\n')
                 me->s_ATBufferCur++;
             p_eol = findNextEOL(me->s_ATBufferCur);
+            //p_read += count;
         } else if (count <= 0) {
             /* read error encountered or EOF reached */
             if (count == 0) {
@@ -133,6 +142,7 @@ static char *readline(struct receive_thread_t *me) {
     me->s_ATBufferCur = p_eol + 1; /* this will always be <= p_read,    */
 
     /* and there will be a \0 at *p_read */
+    //PHS_LOGD("Receive thread's TID [%d] CHNMNG:AT< %s\n", me->tid, ret);
     return ret;
 }
 void *receive_data(struct receive_thread_t *me) {
@@ -147,20 +157,24 @@ void *receive_data(struct receive_thread_t *me) {
     me->buffer = me->mux->buffer;
     pid_t tid = gettid();
     me->tid = tid;
+    /*PHS_LOGD("Rev TID [%d] : enter receive thread :mux=%s\n", tid, me->mux->name);*/
     while (1) {
-        atstr = readline(me);  // read a completed at response
+        //PHS_LOGD("Rev TID [%d] MUX :%s Waiting for resp  \n", tid, me->mux->name);
+        atstr = readline(me); //read a completed at response
         if (atstr != NULL) {
             tmp_buff[0] = '\0';
             snprintf(tmp_buff, sizeof(tmp_buff), "%s%c", atstr, me->end_char);
             memset(atstr, 0, strlen(atstr));
             received = strlen(tmp_buff);
-            PHS_LOGD("Rev TID[%d]:%s:%s\n", tid, me->mux->name, tmp_buff);
+            if (s_isuserdebug) {
+                PHS_LOGD("Rev TID [%d]: mux=%s:%s\n", tid, me->mux->name, tmp_buff);
+            }
             phoneserver_deliver_at_rsp(me->mux, tmp_buff, received);
         }
     }
     return NULL;
 }
-struct receive_thread_ops rcvops = {.receive_data = receive_data, };
+struct receive_thread_ops rcvops = { .receive_data = receive_data, };
 struct receive_thread_ops *receive_thread_get_operations(void) {
     return &rcvops;
 }

@@ -1,7 +1,11 @@
-/**
- * send_ thread.c: channel implementation for the phoneserver
+/*
  *
- * Copyright (C) 2015 Spreadtrum Communications Inc.
+ * send_ thread.c: channel implementation for the phoneserver
+
+ *Copyright (C) 2009,  spreadtrum
+ *
+ * Author: jim.cui <jim.cui@spreadtrum.com.cn>
+ *
  */
 
 #include "send_thread.h"
@@ -13,6 +17,9 @@
 #include <fcntl.h>
 #include "config.h"
 
+//#undef  PHS_LOGD
+//#define PHS_LOGD(x...)  ALOGD( x )
+
 /*## operation deliver_cmd_req(char*,pty_type) */
 static void send_thread_deliver_cmd_req(struct send_thread_t * const me,
         char *cmd_str, int len) {
@@ -21,6 +28,7 @@ static void send_thread_deliver_cmd_req(struct send_thread_t * const me,
 
 /**
  * Returns a pointer to the end of the next line
+
  * returns NULL if there is no complete line
  */
 static char *findNextEOL(char *cur) {
@@ -53,13 +61,15 @@ static char *readline(struct send_thread_t *me) {
         me->s_ATBufferCur = me->pty->buffer;
         p_read = me->s_ATBufferCur;
     } else { /* *s_ATBufferCur != '\0' */
-
         /* there's data in the buffer from the last read */
 
         // skip over leading newlines
         while (*me->s_ATBufferCur == '\r' || *me->s_ATBufferCur == '\n')
             me->s_ATBufferCur++;
+        //PHS_LOGD("Send thread's TID [%d] CHNMNG:findNextEOL:\n", me->tid);
         p_eol = findNextEOL(me->s_ATBufferCur);
+        //PHS_LOGD("Send thread's TID [%d] CHNMNG:end findNextEOL:\n",
+        //       me->tid);
         if (p_eol == NULL) {
             /* a partial line. move it up and prepare to read more */
             size_t len;
@@ -101,7 +111,13 @@ static char *readline(struct send_thread_t *me) {
             // skip over leading newlines
             while (*me->s_ATBufferCur == '\r' || *me->s_ATBufferCur == '\n')
                 me->s_ATBufferCur++;
+            // PHS_LOGD("Send thread's TID [%d] CHNMNG:findNextEOL:\n",
+            //       me->tid);
             p_eol = findNextEOL(me->s_ATBufferCur);
+            /*PHS_LOGD
+             ("Send thread's TID [%d] CHNMNG:end findNextEOL:\n",
+             me->tid);
+             */
             p_read += count;
         } else if (count <= 0) {
 
@@ -120,6 +136,9 @@ static char *readline(struct send_thread_t *me) {
     me->end_char = *p_eol;
     *p_eol = '\0';
     me->s_ATBufferCur = p_eol + 1; /* this will always be <= p_read,    */
+
+    /* and there will be a \0 at *p_read */
+    //PHS_LOGD("Send thread's TID [%d] CHNMNG:AT> %s\n", me->tid, ret);
     return ret;
 }
 void *send_data(struct send_thread_t *me) {
@@ -135,23 +154,27 @@ void *send_data(struct send_thread_t *me) {
     PHS_LOGD("Send TID [%d] enter send thread :pty=%s\n", tid, me->pty->name);
     memset(buffer, 0, SERIAL_BUFFSIZE);
     while (1) {
+        //PDEBUG("Waiting for command\n");
         memset(buffer, 0, SERIAL_BUFFSIZE);
-        atstr = readline(me);  // read a completed at response
+        atstr = readline(me); //read a completed at response
         if (atstr != NULL) {
             tmp_buff[0] = '\0';
             snprintf(tmp_buff, sizeof(tmp_buff), "%s%c", atstr, me->end_char);
             memset(atstr, 0, strlen(atstr));
             received = strlen(tmp_buff);
-            PHS_LOGD("Send TID [%d] PS_PTY: %s Received %d bytes[%s]\n",
-                     tid, me->pty->name, received, tmp_buff);
+            PHS_LOGD("Send TID [%d] PS_PTY : %s Received %d bytes command[%s]\n", tid, me->pty->name, received, tmp_buff);
+
+            //mutex_lock(&me->pty->receive_lock);  //get channel lock
             me->ops->send_thread_deliver_cmd_req(me, tmp_buff, received);
         }
     }
     return NULL;
 }
-struct send_thread_ops sndthreadops = {.send_thread_deliver_cmd_req =
-        send_thread_deliver_cmd_req, .send_data = send_data, };
-
+struct send_thread_ops sndthreadops = {
+    /*## operation deliver_cmd_req(char*,pty_type) */
+    .send_thread_deliver_cmd_req = send_thread_deliver_cmd_req,
+    .send_data = send_data,
+};
 struct send_thread_ops *send_thread_get_operations(void) {
     return &sndthreadops;
 }

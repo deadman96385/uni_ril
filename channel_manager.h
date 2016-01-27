@@ -1,11 +1,14 @@
-/**
- * channel_manager.h --- channel manager implementation for the phoneserver
+
+/*
  *
- * Copyright (C) 2015 Spreadtrum Communications Inc.
+ * channel_manager.h: channel manager implementation for the phoneserver
+ *
+ *
  */
 
-#ifndef CHANNEL_MANAGER_H_
-#define CHANNEL_MANAGER_H_
+#ifndef channel_manager_H
+
+#define channel_manager_H
 
 /* link itsAdapter */
 #include "adapter.h"
@@ -17,46 +20,34 @@
 #include "pty.h"
 /* link itsReceive_thread */
 #include "receive_thread.h"
+/* link itsRedirect_table */
+//#include "redirect_table.h"
 /* link itsSend_thread */
 #include "send_thread.h"
 #include "os_api.h"
-
-#ifdef SIM_COUNT_PHONESERVER_1
-#define SIM_COUNT 1
-#elif  SIM_COUNT_PHONESERVER_3
-#define SIM_COUNT 3
-#elif  SIM_COUNT_PHONESERVER_4
-#define SIM_COUNT 4
-#else
-#define SIM_COUNT 2
-#endif
-
 struct chnmng_ops {
+
+    /* Operations */
     /*## operation free_cmux(cmux_struct) */
-    void (*channel_manager_free_cmux)(void *const chnmng,
-                struct cmux_t *cmux);
+    void (*channel_manager_free_cmux)(void * const chnmng,
+            struct cmux_t * cmux);
+
     /*## operation get_cmux(cmd_type) */
-    struct cmux_t *(*channel_manager_get_cmux)(void *const chnmng,
-                    const AT_CMD_TYPE_T type, int block);
+    struct cmux_t *(*channel_manager_get_cmux)(void * const chnmng,
+            const AT_CMD_TYPE_T type, int block);
 };
 struct channel_manager_t {
     void *me;
-    char itsBuffer[MULTI_CHN_NUM][4 + SERIAL_BUFFSIZE];/*## link itsBuffer PHS_MUX_NUM+PTY_CHN_NUM */
-    struct cmux_t itsCmux[MUX_NUM];/*## link itsCmux 11 */
-    struct chns_config_t *itschns_config;/*## link itsCmux_config */
-    struct pty_t itsPty[MULTI_PTY_CHN_NUM];/*## link itsPty */
+    char itsBuffer[MULTI_CHN_NUM][4 + SERIAL_BUFFSIZE]; /*## link itsBuffer PHS_MUX_NUM+PTY_CHN_NUM */
+    struct cmux_t itsCmux[MUX_NUM]; /*## link itsCmux  11 */
+    struct chns_config_t *itschns_config; /*## link itsCmux_config */
+    struct pty_t itsPty[MULTI_PTY_CHN_NUM]; /*## link itsPty */
     struct pty_t itsMngPty;
-    struct receive_thread_t itsReceive_thread[MULTI_PHS_MUX_NUM];/*## link itsReceive_thread  5 */
-    struct send_thread_t itsSend_thread[MULTI_PTY_CHN_NUM];/*## link itsSend_thread  3 */
-    sem get_mux_lock;
-    sem array_lock;
+    struct receive_thread_t itsReceive_thread[MULTI_PHS_MUX_NUM]; /*## link itsReceive_thread  5 */
+    struct send_thread_t itsSend_thread[MULTI_PTY_CHN_NUM]; /*## link itsSend_thread  3 */
+    sem get_mux_lock;sem array_lock;
     int block_count;
-    struct chnmng_ops *ops;
-    sem gsm_sem;
-    sem csm_sem;
-    sem psm_sem;
-    sem miscm_sem;
-    sem indm_sem;
+    struct chnmng_ops *ops;sem gsm_sem;sem csm_sem;sem psm_sem;sem miscm_sem;sem indm_sem;
 
     pty_t *gsm_wait_array[GSM_WAIT_NUM];
     pty_t *csm_wait_array[CSM_WAIT_NUM];
@@ -78,6 +69,7 @@ struct channel_manager_t {
     pty_t *normal3_wait_array[NORMAL3_WAIT_NUM];
     pty_t *slow4_wait_array[SLOW4_WAIT_NUM];
     pty_t *normal4_wait_array[NORMAL4_WAIT_NUM];
+
 };
 
 /* Operations */
@@ -91,4 +83,4 @@ void channel_manager_free_cmux(const struct cmux_t *cmux);
 /*## operation get_cmux(cmd_type) */
 struct cmux_t *channel_manager_get_cmux(const AT_CMD_TYPE_T type, int block);
 
-#endif  // CHANNEL_MANAGER_H_
+#endif /*  */
