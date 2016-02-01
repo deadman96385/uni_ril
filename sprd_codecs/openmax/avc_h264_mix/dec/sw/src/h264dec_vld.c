@@ -96,22 +96,21 @@ PUBLIC void H264Dec_init_vld_table(void)
 }
 
 //now, bits = 9, max_depth = 2
-PUBLIC int32 get_vlc_s16 (DEC_BS_T *stream, const int16 tbl[][2], uint32 bits)
+PUBLIC int32 get_vlc_s16 (DEC_BS_T *bs_ptr, const int16 tbl[][2], uint32 bits)
 {
     int32 n;
     uint32 idx;
     int32 code;
     int32 val16;
-    int32 flush_bits = 0;
+    int32 flush_nbits = 0;
 
-    val16 = BITSTREAMSHOWBITS(stream, 30);
+    val16 = SHOW_FLC(30);
     idx = val16 >> (30-bits);
     code = tbl[idx][0];
     n = tbl[idx][1];
 
-    if (n < 0)
-    {
-        flush_bits = bits;
+    if (n < 0) {
+        flush_nbits = bits;
         val16 <<= (bits);
         idx = (val16 >> (30+n)) & g_msk[-n];
         idx += code;
@@ -119,29 +118,28 @@ PUBLIC int32 get_vlc_s16 (DEC_BS_T *stream, const int16 tbl[][2], uint32 bits)
         n = tbl[idx][1];
     }
 
-    flush_bits += n;
-    BITSTREAMFLUSHBITS(stream, (uint32)flush_bits);
+    flush_nbits += n;
+    FLUSH_FLC((uint32)flush_nbits);
 
     return code;
 }
 
 //now, bits = 9, max_depth = 2
-PUBLIC int32 get_vlc_s8 (DEC_BS_T *stream, const int8 tbl[][2], uint32 bits)
+PUBLIC int32 get_vlc_s8 (DEC_BS_T *bs_ptr, const int8 tbl[][2], uint32 bits)
 {
     int32 n;
     uint32 idx;
     int32 code;
     int32 val16;
-    int32 flush_bits = 0;
+    int32 flush_nbits = 0;
 
-    val16 = BITSTREAMSHOWBITS(stream, 30);
+    val16 = SHOW_FLC(30);
     idx = val16 >> (30-bits);
     code = tbl[idx][0];
     n = tbl[idx][1];
 
-    if (n < 0)
-    {
-        flush_bits = bits;
+    if (n < 0) {
+        flush_nbits = bits;
         val16 <<= (bits);
         idx = (val16 >> (30+n)) & g_msk[-n];
         idx += code;
@@ -149,29 +147,27 @@ PUBLIC int32 get_vlc_s8 (DEC_BS_T *stream, const int8 tbl[][2], uint32 bits)
         n = tbl[idx][1];
     }
 
-    flush_bits += n;
-    BITSTREAMFLUSHBITS(stream, (uint32)flush_bits);
+    flush_nbits += n;
+    FLUSH_FLC((uint32)flush_nbits);
 
     return code;
 }
 
-int get_level_prefix (DEC_BS_T *stream)
+int get_level_prefix (DEC_BS_T *bs_ptr)
 {
     int32 len;
-    int32 val = BITSTREAMSHOWBITS(stream, 32);
+    int32 val = SHOW_FLC(32);
 
     /*get (leading zero number)*/
 #ifndef _ARM_CLZ_OPT_
     {
         uint32 msk = 0x80000000;
-        if (!val)
-        {
-            stream->error_flag |= ER_BSM_ID;
+        if (!val) {
+            bs_ptr->error_flag |= ER_BSM_ID;
             return 0;
         }
         len = 0;
-        while (!((uint32)val & msk))
-        {
+        while (!((uint32)val & msk)) {
             len++;
             msk = msk >> 1;
         }
@@ -185,7 +181,7 @@ int get_level_prefix (DEC_BS_T *stream)
     }
 #endif
 #endif
-    BITSTREAMFLUSHBITS(stream, (uint32)(len+1));
+    FLUSH_FLC((uint32)(len+1));
 
     return len;
 }
@@ -221,16 +217,13 @@ int32 get_cabac_cbf_ctx(DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T * mb_cache_pt
 
     int32 	ctx_idx;
 
-    switch (cat)
-    {
+    switch (cat) {
     case LUMA_DC:
-        if (lmb_avail)
-        {
+        if (lmb_avail) {
             coded_flag_a = (mb_cache_ptr->vld_dc_coded_flag >> 0) & 1;
         }
 
-        if (tmb_avail)
-        {
+        if (tmb_avail) {
             coded_flag_b = (mb_cache_ptr->vld_dc_coded_flag >> 4) & 1;
         }
         break;
@@ -257,17 +250,14 @@ int32 get_cabac_cbf_ctx(DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T * mb_cache_pt
     {
         int shift_bits;
 
-        if (lmb_avail)
-        {
+        if (lmb_avail) {
             shift_bits = (blk_id == 0) ? 1 : 2;
             coded_flag_a = (mb_cache_ptr->vld_dc_coded_flag >> shift_bits) & 1;
-        } else
-        {
+        } else {
             coded_flag_a = default_value;
         }
 
-        if (tmb_avail)
-        {
+        if (tmb_avail) {
             shift_bits = (blk_id == 0) ? 5 : 6;
             coded_flag_b = (mb_cache_ptr->vld_dc_coded_flag >> shift_bits) & 1;
         } else
@@ -278,7 +268,6 @@ int32 get_cabac_cbf_ctx(DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T * mb_cache_pt
     break;
 
     case CHROMA_AC:
-
     {
         int32 map_id = g_blk_order_map_tbl[blk_id];
         int8 *nnz_ref_ptr = mb_cache_ptr->nnz_cache;
@@ -296,7 +285,6 @@ int32 get_cabac_cbf_ctx(DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T * mb_cache_pt
     }
 
     break;
-
     }
 
     ctx_idx = 2*coded_flag_b+coded_flag_a;
@@ -311,137 +299,107 @@ int32 get_cabac_cbf_ctx(DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T * mb_cache_pt
   * @param max_coeff number of coefficients in the block
   * @return < 0 if an error occurred
   */
-int32 readCoeff4x4_CAVLC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr, int16 *block, int32 n, const uint8 *scantable, const uint32 *qmul, int32 max_coeff)
+int32 readCoeff4x4_CAVLC (H264DecContext *vo, DEC_MB_CACHE_T *mb_cache_ptr, int16 *block, int32 n, const uint8 *scantable, const uint32 *qmul, int32 max_coeff)
 {
-    DEC_BS_T * stream = img_ptr->bitstrm_ptr;
+    DEC_BS_T *bs_ptr = vo->bitstrm_ptr;
     static const int32 coeff_token_table_index[17] = {0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
     int level[16];
     int zeros_left, coeff_num, coeff_token, total_coeff, i, j, trailing_ones, run_before;
     uint32 code;
 
-    if (n == CHROMA_DC_BLOCK_INDEX)
-    {
+    if (n == CHROMA_DC_BLOCK_INDEX) {
         int32 idx, n;
 
-        idx = BITSTREAMSHOWBITS(stream, CHROMA_DC_COEFF_TOKEN_VLC_BITS);
+        idx = SHOW_FLC(CHROMA_DC_COEFF_TOKEN_VLC_BITS);
         coeff_token = chroma_dc_coeff_token_vlc.table[idx][0];
         n 		    = chroma_dc_coeff_token_vlc.table[idx][1];
-        BITSTREAMFLUSHBITS(stream, ((uint32) n));
+        FLUSH_FLC((uint32) n);
 
         total_coeff = coeff_token>>2;
-    } else
-    {
-        if (n == LUMA_DC_BLOCK_INDEX)
-        {
+    } else {
+        if (n == LUMA_DC_BLOCK_INDEX) {
             total_coeff = pred_non_zero_count (mb_cache_ptr, 0);
             total_coeff = IClip(0, 16, total_coeff);
-            coeff_token = get_vlc_s16(stream, coeff_token_vlc[coeff_token_table_index[total_coeff]].table, COEFF_TOKEN_VLC_BITS);
+            coeff_token = get_vlc_s16(bs_ptr, coeff_token_vlc[coeff_token_table_index[total_coeff]].table, COEFF_TOKEN_VLC_BITS);
             total_coeff = coeff_token>>2;
-        } else
-        {
+        } else {
             total_coeff = pred_non_zero_count (mb_cache_ptr, n);
             total_coeff = IClip(0, 16, total_coeff);
-            coeff_token = get_vlc_s16(stream, coeff_token_vlc[coeff_token_table_index[total_coeff]].table, COEFF_TOKEN_VLC_BITS);
+            coeff_token = get_vlc_s16(bs_ptr, coeff_token_vlc[coeff_token_table_index[total_coeff]].table, COEFF_TOKEN_VLC_BITS);
             total_coeff = coeff_token>>2;
             mb_cache_ptr->nnz_cache[g_blk_order_map_tbl[n] ] = total_coeff;
         }
     }
 
     //FIXME set last_non_zero
-    if (total_coeff <= 0)
+    if (total_coeff <= 0) {
         return 0;
+    }
 
-    if (total_coeff > max_coeff)
-    {
+    if (total_coeff > max_coeff) {
         return -1;
     }
 
     trailing_ones = coeff_token&3;
 
-    code = READ_FLC(stream, trailing_ones);
+    code = READ_FLC(trailing_ones);
     code = code << (32 - trailing_ones);
-    for (i = 0; i < trailing_ones; i++)
-    {
+    for (i = 0; i < trailing_ones; i++) {
         //	level[i] = 1 - 2*READ_BITS1(stream);
         level[i] = 1 - 2*((code>>31) & 0x1);
         code <<= 1;
     }
 
-    if (i < total_coeff)
-    {
-        int level_code, mask;
-        int suffix_length = total_coeff > 10 && trailing_ones < 3;
-        int prefix = get_level_prefix(stream);
+    if (i < total_coeff) {
+        int32 level_code, mask;
+        int32 suffix_length = total_coeff > 10 && trailing_ones < 3;
+        int32 prefix = get_level_prefix(bs_ptr);
 
         //first coefficient has suffix_length equal to 0 or 1
-        if (prefix < 14)
-        {   //FIXME try to build a large unified VLC table for all this
-            if (suffix_length)
-            {
-                level_code = (prefix<<suffix_length) + READ_FLC(stream, suffix_length);	//part
-            } else
-            {
+        if (prefix < 14) {   //FIXME try to build a large unified VLC table for all this
+            if (suffix_length) {
+                level_code = (prefix<<suffix_length) + READ_FLC(suffix_length);	//part
+            } else {
                 level_code = (prefix<<suffix_length);	//part
             }
-        } else if (prefix == 14)
-        {
-            if (suffix_length)
-            {
-                level_code = (prefix<<suffix_length) + READ_FLC(stream, suffix_length);	//part
-            } else
-            {
-                level_code = prefix + READ_FLC(stream, 4);	//part
+        } else if (prefix == 14) {
+            if (suffix_length) {
+                level_code = (prefix<<suffix_length) + READ_FLC(suffix_length);	//part
+            } else {
+                level_code = prefix + READ_FLC(4);	//part
             }
-        }
-#if 0
-        else if (prefix == 15)
-        {
-            level_code = (prefix<<suffix_length) + READ_FLC(stream, 12);	//part
-            if (suffix_length == 0)	level_code += 15;	//FIXME doesn't make (much) sense
-        } else
-        {
-            return -1;
-        }
-#else
-        else
-        {
-            level_code = 30 + READ_FLC(stream, prefix - 3);	//part
-            if (prefix >= 16)
-            {
-                if (prefix > 25+3)
-                {
+        } else {
+            level_code = 30 + READ_FLC(prefix - 3);	//part
+            if (prefix >= 16) {
+                if (prefix > 25+3) {
                     return -1;
                 }
                 level_code += (1<<(prefix-3)) - 4096;
             }
         }
-#endif
 
-        if (trailing_ones < 3)	level_code += 2;
+        if (trailing_ones < 3) {
+            level_code += 2;
+        }
 
         suffix_length = 1;
-        if (level_code > 5)
+        if (level_code > 5) {
             suffix_length++;
+        }
         mask = -(level_code&1);
         level[i] = (((2+level_code)>>1) ^ mask) - mask;
         i++;
 
         //remaining coefficients have suffix_length >0
-        for (; i <total_coeff; i++)
-        {
+        for (; i <total_coeff; i++) {
             static const int suffix_limit[7] = {0, 5, 11, 23, 47, 95, (1<<30)};
-            prefix = get_level_prefix(stream);
-            if (prefix<15)
-            {
-                level_code = (prefix<<suffix_length) + READ_FLC(stream, suffix_length);
-            }
-            else
-            {
-                level_code = 30 + READ_FLC(stream, prefix - 3);	//part
-                if (prefix >= 16)
-                {
-                    if (prefix > 25+3)
-                    {
+            prefix = get_level_prefix(bs_ptr);
+            if (prefix<15) {
+                level_code = (prefix<<suffix_length) + READ_FLC(suffix_length);
+            } else {
+                level_code = (15<<suffix_length) + READ_FLC(prefix - 3);	//part
+                if (prefix >= 16) {
+                    if (prefix > 25+3) {
                         return -1;
                     }
                     level_code += (1<<(prefix-3)) - 4096;
@@ -450,53 +408,45 @@ int32 readCoeff4x4_CAVLC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr,
 
             mask = -(level_code&1);
             level[i] = (((2+level_code)>>1) ^ mask) - mask;
-            if (level_code > suffix_limit[suffix_length])
+            if (level_code > suffix_limit[suffix_length]) {
                 suffix_length++;
+            }
         }
     }
 
-    if (total_coeff == max_coeff)
-    {
+    if (total_coeff == max_coeff) {
         zeros_left = 0;
-    } else
-    {
+    } else {
         int32 idx, nn;
-        if (n == CHROMA_DC_BLOCK_INDEX)
-        {
-            idx = BITSTREAMSHOWBITS(stream, CHROMA_DC_TOTAL_ZEROS_VLC_BITS);
+        if (n == CHROMA_DC_BLOCK_INDEX) {
+            idx = SHOW_FLC(CHROMA_DC_TOTAL_ZEROS_VLC_BITS);
             zeros_left = chroma_dc_total_zeros_vlc[total_coeff-1].table[idx][0];
             nn 		 = chroma_dc_total_zeros_vlc[total_coeff-1].table[idx][1];
-            BITSTREAMFLUSHBITS(stream, ((uint32)nn));
-        }
-        else
-        {
-            idx = BITSTREAMSHOWBITS(stream, TOTAL_ZEROS_VLC_BITS);
+            FLUSH_FLC((uint32)nn);
+        } else {
+            idx = SHOW_FLC(TOTAL_ZEROS_VLC_BITS);
             zeros_left = total_zeros_vlc[total_coeff-1].table[idx][0];
             nn 		 = total_zeros_vlc[total_coeff-1].table[idx][1];
-            BITSTREAMFLUSHBITS(stream, ((uint32)nn));
+            FLUSH_FLC((uint32)nn);
         }
     }
 
     coeff_num = zeros_left + total_coeff - 1;
     coeff_num = Clip3(0, 15, coeff_num);  //Added for bug310935
     j = scantable[coeff_num];
-    if (n > 24)
-    {
+    if (n > 24) {
         block[j] = level[0];
-        for (i = 1; i < total_coeff; i++)
-        {
-            if (zeros_left <= 0)
+        for (i = 1; i < total_coeff; i++) {
+            if (zeros_left <= 0) {
                 run_before = 0;
-            else if (zeros_left < 7)
-            {
+            } else if (zeros_left < 7) {
                 int32 idx, nn;
-                idx = BITSTREAMSHOWBITS(stream, RUN_VLC_BITS);
+                idx = SHOW_FLC(RUN_VLC_BITS);
                 run_before = run_vlc[zeros_left-1].table[idx][0];
                 nn 		   = run_vlc[zeros_left-1].table[idx][1];
-                BITSTREAMFLUSHBITS(stream, ((uint32)nn));
-            } else
-            {
-                run_before = get_vlc_s8(stream, run7_vlc.table, RUN7_VLC_BITS);
+                FLUSH_FLC((uint32)nn);
+            } else {
+                run_before = get_vlc_s8(bs_ptr, run7_vlc.table, RUN7_VLC_BITS);
             }
             zeros_left -= run_before;
             coeff_num -= 1+run_before;
@@ -505,24 +455,20 @@ int32 readCoeff4x4_CAVLC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr,
 
             block[j] = level[i];
         }
-    } else
-    {
+    } else {
         block[j] = (level[0] * qmul[j] + 32)>>6;
-        for (i = 1; i < total_coeff; i++)
-        {
-            if (zeros_left <= 0)
+        for (i = 1; i < total_coeff; i++) {
+            if (zeros_left <= 0) {
                 run_before = 0;
-            else if (zeros_left < 7)
-            {
+            } else if (zeros_left < 7) {
                 //run_before = get_vlc_s8(stream, run_vlc[zeros_left-1].table, RUN_VLC_BITS, 1);
                 int32 idx, nn;
-                idx = BITSTREAMSHOWBITS(stream, RUN_VLC_BITS);
+                idx = SHOW_FLC(RUN_VLC_BITS);
                 run_before = run_vlc[zeros_left-1].table[idx][0];
                 nn 		   = run_vlc[zeros_left-1].table[idx][1];
-                BITSTREAMFLUSHBITS(stream, ((uint32)nn));
-            } else
-            {
-                run_before = get_vlc_s8(stream, run7_vlc.table, RUN7_VLC_BITS);
+                FLUSH_FLC((uint32)nn);
+            } else {
+                run_before = get_vlc_s8(bs_ptr, run7_vlc.table, RUN7_VLC_BITS);
             }
             zeros_left -= run_before;
             coeff_num -= 1+run_before;
@@ -533,15 +479,14 @@ int32 readCoeff4x4_CAVLC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr,
         }
     }
 
-    if (zeros_left < 0)
-    {
+    if (zeros_left < 0) {
         return -1;
     }
 
     return total_coeff;
 }
 
-void decode_LUMA_DC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp)
+void decode_LUMA_DC (H264DecContext *vo, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp)
 {
     int16 DC[16];
     int32 total_coeff;
@@ -553,16 +498,15 @@ void decode_LUMA_DC (H264DecContext *img_ptr, DEC_MB_CACHE_T *mb_cache_ptr, int3
     memset_8words_zero(DC);
 #endif
 
-    total_coeff = readCoeff4x4_CAVLC(img_ptr, mb_cache_ptr,DC, LUMA_DC_BLOCK_INDEX, inverse_zigZag, NULL, 16);
-    if (total_coeff > 0 && total_coeff < 17)
-    {
-        itrans_lumaDC (img_ptr, DC, mb_cache_ptr->coff_Y, qp);
+    total_coeff = readCoeff4x4_CAVLC(vo, mb_cache_ptr,DC, LUMA_DC_BLOCK_INDEX, inverse_zigZag, NULL, 16);
+    if (total_coeff > 0 && total_coeff < 17) {
+        itrans_lumaDC (vo, DC, mb_cache_ptr->coff_Y, qp);
     }
 
     return;
 }
 
-void decode_LUMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int qp )
+void decode_LUMA_AC (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int qp )
 {
     int32 numCoeff, maxCoeff;
     int32 blk4x4,blk8x8;
@@ -571,15 +515,12 @@ void decode_LUMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACH
     const uint8 *inverse_zigZag;
     const uint32 *quant_mat;
 
-    if(currMB->transform_size_8x8_flag)
-    {
+    if(currMB->transform_size_8x8_flag) {
         inverse_zigZag = g_inverse_8x8_zigzag_tbl_cavlc;
-        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[1][qp];
+        quant_mat= (currMB->is_intra) ? vo->dequant8_buffer[0][qp] : vo->dequant8_buffer[1][qp];
 
-        for(blk8x8 = 0; blk8x8 < 4; blk8x8++)
-        {
-            if(cbp & (1 << blk8x8))
-            {
+        for(blk8x8 = 0; blk8x8 < 4; blk8x8++) {
+            if(cbp & (1 << blk8x8)) {
                 int8 *nnz;
 
 #ifndef _NEON_OPT_
@@ -588,46 +529,38 @@ void decode_LUMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACH
                 clear_Nx16words (coeff, 2);
 #endif
 
-                for(blk4x4 = 0; blk4x4 < 4; blk4x4++)
-                {
-                    numCoeff = readCoeff4x4_CAVLC(img_ptr, mb_cache_ptr, coeff, ((blk8x8<<2) + blk4x4), inverse_zigZag+16*blk4x4, quant_mat, 16);
+                for(blk4x4 = 0; blk4x4 < 4; blk4x4++) {
+                    numCoeff = readCoeff4x4_CAVLC(vo, mb_cache_ptr, coeff, ((blk8x8<<2) + blk4x4), inverse_zigZag+16*blk4x4, quant_mat, 16);
                 }
                 nnz = &(mb_cache_ptr->nnz_cache[g_blk_order_map_tbl[(blk8x8<<2)+0]]);
                 nnz[0] += (nnz[1] + nnz[12] + nnz[13]);
             }
             coeff += 16*4;
         }
-    } else
-    {
+    } else {
         inverse_zigZag = g_inverse_zigzag_tbl;
-        quant_mat = (currMB->is_intra) ? img_ptr->dequant4_buffer[0][qp] : img_ptr->dequant4_buffer[3][qp];
+        quant_mat = (currMB->is_intra) ? vo->dequant4_buffer[0][qp] : vo->dequant4_buffer[3][qp];
 
-        if (currMB->mb_type == I16MB)
-        {
+        if (currMB->mb_type == I16MB) {
             maxCoeff = 15;
             inverse_zigZag += 1;
-        } else
-        {
+        } else {
             maxCoeff = 16;
         }
 
-        for (blk4x4 = 0; blk4x4 < 16; blk4x4++)
-        {
-            if ( cbp & (1 << (blk4x4/4)) )
-            {
-                if (/*(numCoeff > 0) &&*/ (currMB->mb_type != I16MB))
-                {
+        for (blk4x4 = 0; blk4x4 < 16; blk4x4++) {
+            if (cbp & (1 << (blk4x4/4))) {
+                if (/*(numCoeff > 0) &&*/ (currMB->mb_type != I16MB)) {
 #ifndef _NEON_OPT_
                     memset (coeff, 0, 16*sizeof(int16));
 #else
                     memset_8words_zero(coeff);
 #endif
                 }
-                numCoeff = readCoeff4x4_CAVLC(img_ptr, mb_cache_ptr, coeff, blk4x4, inverse_zigZag, quant_mat, maxCoeff);
+                numCoeff = readCoeff4x4_CAVLC(vo, mb_cache_ptr, coeff, blk4x4, inverse_zigZag, quant_mat, maxCoeff);
 
                 coeff += 16;
-            } else
-            {
+            } else {
                 blk4x4 += 3;  //go to next 8x8 block
                 coeff  += 16*4;
             }
@@ -637,7 +570,7 @@ void decode_LUMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACH
     return;
 }
 
-void decode_CHROMA_DC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int qp_uv[2])
+void decode_CHROMA_DC (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int qp_uv[2])
 {
     int32 uv;
     int16 DC[4];
@@ -649,16 +582,13 @@ void decode_CHROMA_DC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CA
     const uint8 inverse_zigZag[4] = {0, 1, 2, 3};
 
     /*dc coeff for uv*/
-    for (uv = 0; uv < 2; uv++)
-    {
+    for (uv = 0; uv < 2; uv++) {
         ((int32 *)DC) [0] = ((int32 *)DC) [1] = 0;
 
-        total_coeff = readCoeff4x4_CAVLC(img_ptr, mb_cache_ptr,DC, CHROMA_DC_BLOCK_INDEX, inverse_zigZag, NULL, 4);
-        if (total_coeff > 0 && total_coeff < 5)
-        {
+        total_coeff = readCoeff4x4_CAVLC(vo, mb_cache_ptr,DC, CHROMA_DC_BLOCK_INDEX, inverse_zigZag, NULL, 4);
+        if (total_coeff > 0 && total_coeff < 5) {
             mb_cache_ptr->cbp_uv |= 0xf << (4*uv);
-        } else
-        {
+        } else {
             continue;
         }
 
@@ -672,7 +602,7 @@ void decode_CHROMA_DC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CA
         n2 = m0 - m1;
         n3 = m2 - m3;
 
-        quantizer = (currMB->is_intra)? img_ptr->dequant4_buffer[uv+1][qp_uv[uv]][0]: img_ptr->dequant4_buffer[uv+4][qp_uv[uv]][0];
+        quantizer = (currMB->is_intra)? vo->dequant4_buffer[uv+1][qp_uv[uv]][0]: vo->dequant4_buffer[uv+4][qp_uv[uv]][0];
         m0 = (n0 + n1) * quantizer;
         m1 = (n2 + n3) * quantizer;
         m2 = (n0 - n1) * quantizer;
@@ -688,7 +618,7 @@ void decode_CHROMA_DC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CA
     return;
 }
 
-LOCAL void decode_CHROMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp_uv[2])
+LOCAL void decode_CHROMA_AC (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp_uv[2])
 {
     int32 uv;
     int32 numCoeff;
@@ -698,20 +628,16 @@ LOCAL void decode_CHROMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC
     const uint32 *quant_mat;
     const uint8 *inverse_zigZag = g_inverse_zigzag_tbl + 1;
 
-    for (uv = 0; uv < 2; uv++)
-    {
-        quant_mat = (currMB->is_intra)? img_ptr->dequant4_buffer[uv+1][qp_uv[uv]]: img_ptr->dequant4_buffer[uv+4][qp_uv[uv]];
+    for (uv = 0; uv < 2; uv++) {
+        quant_mat = (currMB->is_intra)? vo->dequant4_buffer[uv+1][qp_uv[uv]]: vo->dequant4_buffer[uv+4][qp_uv[uv]];
         coeff = mb_cache_ptr->coff_UV[uv];
 
-        for (blk4x4 = 0; blk4x4 < 4; blk4x4++)
-        {
+        for (blk4x4 = 0; blk4x4 < 4; blk4x4++) {
             blkIndex = uv * 4 + blk4x4 + 16;
-            numCoeff = readCoeff4x4_CAVLC(img_ptr, mb_cache_ptr, coeff, blkIndex, inverse_zigZag, quant_mat, 15);
-            if (numCoeff > 0 && numCoeff < 17)
-            {
+            numCoeff = readCoeff4x4_CAVLC(vo, mb_cache_ptr, coeff, blkIndex, inverse_zigZag, quant_mat, 15);
+            if (numCoeff > 0 && numCoeff < 17) {
                 mb_cache_ptr->cbp_uv |= 0x1 << (uv*4 + blk4x4);
-            } else
-            {
+            } else {
                 coeff += 16;
                 continue;
             }
@@ -723,52 +649,46 @@ LOCAL void decode_CHROMA_AC (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC
     return;
 }
 
-void decode_mb_cavlc (void *img_ptr, DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T *mb_cache_ptr)
+void decode_mb_cavlc (void *vo, DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T *mb_cache_ptr)
 {
     int32 qp_uv, qp_c[2];
-    int32 qp;
+    int32 qp = mb_info_ptr->qp;
 #ifdef _NEON_OPT_
     int32 i;
     int16 *coeff;
     int16x8_t v16x8 = vmovq_n_s16(0);
 #endif
 
-    qp = mb_info_ptr->qp;
-
-
-    if (mb_info_ptr->mb_type == I16MB)
-    {
+    if (mb_info_ptr->mb_type == I16MB) {
 #ifndef _NEON_OPT_
         memset (mb_cache_ptr->coff_Y, 0, 16*16*sizeof(int16));
 #else
         clear_Nx16words(mb_cache_ptr->coff_Y, 8);
 #endif
-        decode_LUMA_DC ((H264DecContext *)img_ptr, mb_cache_ptr, qp);	//luma DC
+        decode_LUMA_DC ((H264DecContext *)vo, mb_cache_ptr, qp);	//luma DC
     }
 
-    decode_LUMA_AC ((H264DecContext *)img_ptr, mb_info_ptr, mb_cache_ptr, qp);
+    decode_LUMA_AC ((H264DecContext *)vo, mb_info_ptr, mb_cache_ptr, qp);
 
-    qp_uv = qp + ((H264DecContext *)img_ptr)->chroma_qp_offset;
+    qp_uv = qp + ((H264DecContext *)vo)->chroma_qp_offset;
     qp_uv = IClip(0, 51, qp_uv);
     qp_c[0] = g_QP_SCALER_CR_TBL[qp_uv];
 
-    qp_uv = qp + ((H264DecContext *)img_ptr)->second_chroma_qp_index_offset;
+    qp_uv = qp + ((H264DecContext *)vo)->second_chroma_qp_index_offset;
     qp_uv = IClip(0, 51, qp_uv);
     qp_c[1] = g_QP_SCALER_CR_TBL[qp_uv];
 
-    if (mb_info_ptr->cbp > 15)
-    {
+    if (mb_info_ptr->cbp > 15) {
 #ifndef _NEON_OPT_
         memset (mb_cache_ptr->coff_UV, 0, 2*4*16*sizeof(int16));
 #else
         clear_Nx16words(mb_cache_ptr->coff_UV, 4);
 #endif
-        decode_CHROMA_DC((H264DecContext *)img_ptr, mb_info_ptr, mb_cache_ptr, qp_c);
+        decode_CHROMA_DC((H264DecContext *)vo, mb_info_ptr, mb_cache_ptr, qp_c);
     }
 
-    if (mb_info_ptr->cbp > 31)
-    {
-        decode_CHROMA_AC ((H264DecContext *)img_ptr, mb_info_ptr, mb_cache_ptr, qp_c);
+    if (mb_info_ptr->cbp > 31) {
+        decode_CHROMA_AC ((H264DecContext *)vo, mb_info_ptr, mb_cache_ptr, qp_c);
     }
 }
 
@@ -790,7 +710,7 @@ void decode_mb_cavlc (void *img_ptr, DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T 
 
 static int32 readCoeff4x4_CABAC(void *img, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_T *mb_cache_ptr, int16 *block, int32 cat, int32 n, const uint8 *scantable, const uint32 *qmul, int32 max_coeff)
 {
-    H264DecContext *img_ptr = (H264DecContext *)img;
+    H264DecContext *vo = (H264DecContext *)img;
     int32 index[64];
     int32 last;
     int32 coeff_count = 0;
@@ -801,20 +721,11 @@ static int32 readCoeff4x4_CABAC(void *img, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_
     uint8 *abs_level_m1_ctx_base;
     int8 *pNnzRef = mb_cache_ptr->nnz_cache;
 
-//#ifndef ARCH_X86
-//#define CABAC_ON_STACK
-//#endif
-//#ifdef CABAC_ON_STACK
 #define CC &cc
     CABACContext cc;
-    cc.range     = img_ptr->cabac.range;
-    cc.low       = img_ptr->cabac.low;
-    cc.bitstrm_ptr = img_ptr->cabac.bitstrm_ptr;
-    // 	cc.bytestream= img_ptr->cabac.bytestream;
-//#else
-//#define CC &h->cabac
-//#endif
-
+    cc.range     = vo->cabac.range;
+    cc.low       = vo->cabac.low;
+    cc.bitstrm_ptr = vo->cabac.bitstrm_ptr;
 
     /* cat: 0-> DC 16x16  n = 0
      *      1-> AC 16x16  n = luma4x4idx
@@ -825,56 +736,38 @@ static int32 readCoeff4x4_CABAC(void *img, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_
      */
 
     /* read coded block flag */
-    if( cat != 5 )
-    {
-        if( get_cabac( CC, &img_ptr->cabac_state[85 + get_cabac_cbf_ctx( currMB, mb_cache_ptr, cat, n ) ] ) == 0 )
-        {
-            if( cat == 1 || cat == 2 || cat == 4)
+    if( cat != 5 ) {
+        if( get_cabac( CC, &vo->cabac_state[85 + get_cabac_cbf_ctx( currMB, mb_cache_ptr, cat, n ) ] ) == 0 ) {
+            if( cat == 1 || cat == 2 || cat == 4) {
                 pNnzRef [g_blk_order_map_tbl[n]] = 0;
-            //	else if( cat == 4 )
-            // 		pNnzRef [g_blk_order_map_tbl[n]] = 0;
-//#ifdef CABAC_ON_STACK
-            img_ptr->cabac.range     = cc.range;
-            img_ptr->cabac.low       = cc.low;
-            //		img_ptr->cabac.bytestream = cc.bytestream;
-//#endif
+            }
+            vo->cabac.range     = cc.range;
+            vo->cabac.low       = cc.low;
             return 0;
         }
     }
 
-    significant_coeff_ctx_base = img_ptr->cabac_state + significant_coeff_flag_offset[cat];
-    last_coeff_ctx_base = img_ptr->cabac_state + last_coeff_flag_offset[cat];
-    abs_level_m1_ctx_base = img_ptr->cabac_state + coeff_abs_level_m1_offset[cat];
+    significant_coeff_ctx_base = vo->cabac_state + significant_coeff_flag_offset[cat];
+    last_coeff_ctx_base = vo->cabac_state + last_coeff_flag_offset[cat];
+    abs_level_m1_ctx_base = vo->cabac_state + coeff_abs_level_m1_offset[cat];
 
-    if( cat == 5 )
-    {
+    if( cat == 5 ) {
         const uint8 *sig_off = significant_coeff_flag_offset_8x8;
 
         DECODE_SIGNIFICANCE( 63, sig_off[last], last_coeff_flag_offset_8x8[last] );
-    } else
-    {
+    } else  {
         DECODE_SIGNIFICANCE( max_coeff - 1, last, last );
     }
 
-    if( cat == 0 )
-    {
-        //h->cbp_table[h->mb_xy] |= 0x100;
+    if( cat == 0 ) {
         mb_cache_ptr->vld_dc_coded_flag |=  (1 << 8);
-    } else if( cat == 1 || cat == 2 )
-    {
+    } else if( cat == 1 || cat == 2 ) {
         pNnzRef [g_blk_order_map_tbl[n]] = coeff_count;
-    } else if( cat == 3 )
-    {
-        //h->cbp_table[h->mb_xy] |= 0x40 << n;
+    } else if( cat == 3 ) {
         mb_cache_ptr->vld_dc_coded_flag |=  (1 << (9+n));
-    } else if( cat == 4 )
-    {
+    } else if( cat == 4 ) {
         pNnzRef [g_blk_order_map_tbl[n]] = coeff_count;
-    } else
-    {
-        //assert( cat == 5 );
-        //fill_rectangle(&h->non_zero_count_cache[scan8[n]], 2, 2, 8, coeff_count, 1);
-
+    } else {
         //	n = n << 2; //start of 8x8 block
         pNnzRef [g_blk_order_map_tbl[n++]] = coeff_count;
         pNnzRef [g_blk_order_map_tbl[n++]] = coeff_count;
@@ -882,71 +775,63 @@ static int32 readCoeff4x4_CABAC(void *img, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_
         pNnzRef [g_blk_order_map_tbl[n++]] = coeff_count;
     }
 
-    for( coeff_count--; coeff_count >= 0; coeff_count-- )
-    {
+    for( coeff_count--; coeff_count >= 0; coeff_count-- ) {
         uint8 *ctx = coeff_abs_level1_ctx[node_ctx] + abs_level_m1_ctx_base;
-
         int j= scantable[index[coeff_count]];
 
-        if( get_cabac( CC, ctx ) == 0 )
-        {
+        if( get_cabac( CC, ctx ) == 0 ) {
             node_ctx = coeff_abs_level_transition[0][node_ctx];
-            if( !qmul )
-            {
+            if( !qmul ) {
                 block[j] = get_cabac_bypass_sign( CC, -1);
-            } else
-            {
+            } else {
                 block[j] = (get_cabac_bypass_sign( CC, -qmul[j]) + 32) >> 6;
             }
-        } else
-        {
-            int coeff_abs = 2;
+        } else {
+            int32 coeff_abs = 2;
+
             ctx = coeff_abs_levelgt1_ctx[node_ctx] + abs_level_m1_ctx_base;
             node_ctx = coeff_abs_level_transition[1][node_ctx];
 
-            while( coeff_abs < 15 && get_cabac( CC, ctx ) )
-            {
+            while( coeff_abs < 15 && get_cabac( CC, ctx ) ) {
                 coeff_abs++;
             }
 
-            if( coeff_abs >= 15 )
-            {
+            if( coeff_abs >= 15 ) {
                 int j = 0;
-                while( get_cabac_bypass( CC ) )
-                {
+                while( get_cabac_bypass( CC ) ) {
                     j++;
                 }
 
                 coeff_abs=1;
-                while( j-- )
-                {
+                while( j-- ) {
                     coeff_abs += coeff_abs + get_cabac_bypass( CC );
                 }
                 coeff_abs+= 14;
             }
 
-            if( !qmul )
-            {
-                if( get_cabac_bypass( CC ) ) block[j] = -coeff_abs;
-                else                                block[j] =  coeff_abs;
-            } else
-            {
-                if( get_cabac_bypass( CC ) ) block[j] = (-coeff_abs * qmul[j] + 32) >> 6;
-                else                                block[j] = ( coeff_abs * qmul[j] + 32) >> 6;
+            if( !qmul ) {
+                if( get_cabac_bypass( CC ) ) {
+                    block[j] = -coeff_abs;
+                } else {
+                    block[j] =  coeff_abs;
+                }
+            } else {
+                if( get_cabac_bypass( CC ) ) {
+                    block[j] = (-coeff_abs * qmul[j] + 32) >> 6;
+                } else {
+                    block[j] = ( coeff_abs * qmul[j] + 32) >> 6;
+                }
             }
         }
     }
 
-//#ifdef CABAC_ON_STACK
-    img_ptr->cabac.range     = cc.range     ;
-    img_ptr->cabac.low       = cc.low       ;
-//	img_ptr->cabac.bytestream= cc.bytestream;
-//#endif
+    vo->cabac.range = cc.range;
+    vo->cabac.low = cc.low;
 
     return coeff_count;
 }
 
-void decode_LUMA_DC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_T * mb_cache_ptr, int qp)
+void decode_LUMA_DC_cabac (H264DecContext *vo, DEC_MB_INFO_T * currMB, DEC_MB_CACHE_T * mb_cache_ptr, int qp)
 {
     int16 DC[16];
     int32 total_coeff;
@@ -958,17 +843,15 @@ void decode_LUMA_DC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T * currMB, DEC_
     memset_8words_zero(DC);
 #endif
 
-    total_coeff = readCoeff4x4_CABAC (img_ptr, currMB, mb_cache_ptr, DC, LUMA_DC, 0, inverse_zigZag, NULL, 16);
-
-    if (total_coeff)
-    {
-        itrans_lumaDC (img_ptr, DC, mb_cache_ptr->coff_Y, qp);
+    total_coeff = readCoeff4x4_CABAC (vo, currMB, mb_cache_ptr, DC, LUMA_DC, 0, inverse_zigZag, NULL, 16);
+    if (total_coeff) {
+        itrans_lumaDC (vo, DC, mb_cache_ptr->coff_Y, qp);
     }
 
     return;
 }
 
-void decode_LUMA_AC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T * mb_cache_ptr, int32 qp)
+void decode_LUMA_AC_cabac (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T * mb_cache_ptr, int32 qp)
 {
     int32 maxCoeff;
     int32 blk4x4, blk8x8;
@@ -978,51 +861,40 @@ void decode_LUMA_AC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_M
     const uint32 *quant_mat ;
     int32 blk_type;
 
-    if (currMB->transform_size_8x8_flag)
-    {
+    if (currMB->transform_size_8x8_flag) {
         inverse_zigZag = g_inverse_8x8_zigzag_tbl;
         maxCoeff = 64;
-        quant_mat= (currMB->is_intra) ? img_ptr->dequant8_buffer[0][qp] : img_ptr->dequant8_buffer[1][qp];
+        quant_mat= (currMB->is_intra) ? vo->dequant8_buffer[0][qp] : vo->dequant8_buffer[1][qp];
 
-        for (blk8x8= 0; blk8x8 < 4; blk8x8++)
-        {
-            if (cbp & (1 << blk8x8))
-            {
+        for (blk8x8= 0; blk8x8 < 4; blk8x8++) {
+            if (cbp & (1 << blk8x8)) {
 #ifndef _NEON_OPT_
                 memset(coeff, 0, 64*sizeof(int16));
 #else
                 clear_Nx16words(coeff, 2);
 #endif
-                readCoeff4x4_CABAC (img_ptr, currMB, mb_cache_ptr, coeff, 5, (blk8x8<<2), inverse_zigZag, quant_mat, maxCoeff);
+                readCoeff4x4_CABAC (vo, currMB, mb_cache_ptr, coeff, 5, (blk8x8<<2), inverse_zigZag, quant_mat, maxCoeff);
             }
 
             coeff += 16*4;
         }
-    } else
-    {
-        quant_mat = (currMB->is_intra) ? img_ptr->dequant4_buffer[0][qp] : img_ptr->dequant4_buffer[3][qp];
+    } else {
+        quant_mat = (currMB->is_intra) ? vo->dequant4_buffer[0][qp] : vo->dequant4_buffer[3][qp];
 
-        if (currMB->mb_type == I16MB)
-        {
+        if (currMB->mb_type == I16MB) {
             inverse_zigZag = g_inverse_zigzag_tbl + 1; //g_inverse_zigzag_cabac_I16_ac_tbl;
             blk_type = LUMA_AC_I16;
             maxCoeff = 15;
-        } else
-        {
+        } else {
             inverse_zigZag = g_inverse_zigzag_tbl;
             blk_type = LUMA_AC;
-            //	mb_type = MB_TYPE_LUMA_4x4;
             maxCoeff = 16;
         }
 
-        for (blk8x8= 0; blk8x8 < 4; blk8x8++)
-        {
-            if (cbp & (1 << blk8x8))
-            {
-                for (blk4x4 = 0; blk4x4 < 4; blk4x4++)
-                {
-                    if (/*(numCoeff > 0) &&*/ (currMB->mb_type != I16MB))
-                    {
+        for (blk8x8= 0; blk8x8 < 4; blk8x8++) {
+            if (cbp & (1 << blk8x8)) {
+                for (blk4x4 = 0; blk4x4 < 4; blk4x4++) {
+                    if (currMB->mb_type != I16MB) {
 #ifndef _NEON_OPT_
                         memset(coeff, 0, 16*sizeof(int16));
 #else
@@ -1030,11 +902,10 @@ void decode_LUMA_AC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_M
 #endif
                     }
 
-                    readCoeff4x4_CABAC (img_ptr, currMB, mb_cache_ptr, coeff, blk_type, ((blk8x8<<2) + blk4x4), inverse_zigZag, quant_mat, maxCoeff);
+                    readCoeff4x4_CABAC (vo, currMB, mb_cache_ptr, coeff, blk_type, ((blk8x8<<2) + blk4x4), inverse_zigZag, quant_mat, maxCoeff);
                     coeff += 16;
                 }
-            } else
-            {
+            } else {
                 coeff += 16*4;
             }
         }
@@ -1043,9 +914,8 @@ void decode_LUMA_AC_cabac (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_M
     return;
 }
 
-void decode_CHROMA_DC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp_uv[2])
+void decode_CHROMA_DC_cabac_sw (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T *mb_cache_ptr, int32 qp_uv[2])
 {
-//	int k;
     int32 uv;
     int16 DC[4];
     int32 total_coeff;
@@ -1056,17 +926,13 @@ void decode_CHROMA_DC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, 
     const uint8 inverse_zigZag[4] = {0, 1, 2, 3};
 
     /*dc coeff for uv*/
-    for (uv = 0; uv < 2; uv++)
-    {
+    for (uv = 0; uv < 2; uv++) {
         ((int32 *)DC) [0] = ((int32 *)DC) [1] = 0;
 
-        total_coeff = readCoeff4x4_CABAC (img_ptr, currMB, mb_cache_ptr, DC, CHROMA_DC, uv, inverse_zigZag, NULL, 4);
-
-        if (total_coeff)
-        {
+        total_coeff = readCoeff4x4_CABAC (vo, currMB, mb_cache_ptr, DC, CHROMA_DC, uv, inverse_zigZag, NULL, 4);
+        if (total_coeff) {
             mb_cache_ptr->cbp_uv |= 0xf << (4*uv);
-        } else
-        {
+        } else {
             continue;
         }
 
@@ -1080,7 +946,7 @@ void decode_CHROMA_DC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, 
         n2 = m0 - m1;
         n3 = m2 - m3;
 
-        quantizer = (currMB->is_intra)? img_ptr->dequant4_buffer[uv+1][qp_uv[uv]][0]: img_ptr->dequant4_buffer[uv+4][qp_uv[uv]][0];
+        quantizer = (currMB->is_intra)? vo->dequant4_buffer[uv+1][qp_uv[uv]][0]: vo->dequant4_buffer[uv+4][qp_uv[uv]][0];
         m0 = (n0 + n1) * quantizer;
         m1 = (n2 + n3) * quantizer;
         m2 = (n0 - n1) * quantizer;
@@ -1096,7 +962,7 @@ void decode_CHROMA_DC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, 
     return;
 }
 
-void decode_CHROMA_AC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T * mb_cache_ptr, int32 qp_uv[2])
+void decode_CHROMA_AC_cabac_sw (H264DecContext *vo, DEC_MB_INFO_T *currMB, DEC_MB_CACHE_T * mb_cache_ptr, int32 qp_uv[2])
 {
     int32 uv;
     int32 numCoeff;
@@ -1106,25 +972,17 @@ void decode_CHROMA_AC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, 
     const uint32 *quant_mat;
     const uint8 *inverse_zigZag = g_inverse_zigzag_tbl + 1;//g_inverse_zigzag_cabac_I16_ac_tbl;
 
-    for (uv = 0; uv < 2; uv++)
-    {
-        quant_mat = (currMB->is_intra)? img_ptr->dequant4_buffer[uv+1][qp_uv[uv]]: img_ptr->dequant4_buffer[uv+4][qp_uv[uv]];
+    for (uv = 0; uv < 2; uv++) {
+        quant_mat = (currMB->is_intra)? vo->dequant4_buffer[uv+1][qp_uv[uv]]: vo->dequant4_buffer[uv+4][qp_uv[uv]];
         coeff = mb_cache_ptr->coff_UV[uv];
 
-        for (blk4x4 = 0; blk4x4 < 4; blk4x4++)
-        {
+        for (blk4x4 = 0; blk4x4 < 4; blk4x4++) {
             blkIndex = uv * 4 + blk4x4 + 16;
 
-#if 0
-            numCoeff = readCoeff4x4_CABAC_sw (currMB, mb_cache_ptr, MB_TYPE_CHROMA_AC, CHROMA_AC, blkIndex) ;
-#else
-            numCoeff = readCoeff4x4_CABAC (img_ptr, currMB, mb_cache_ptr, coeff, CHROMA_AC, blkIndex, inverse_zigZag, quant_mat, 15);
-#endif
-            if (numCoeff)
-            {
+            numCoeff = readCoeff4x4_CABAC (vo, currMB, mb_cache_ptr, coeff, CHROMA_AC, blkIndex, inverse_zigZag, quant_mat, 15);
+            if (numCoeff) {
                 mb_cache_ptr->cbp_uv |= 0x1 << (uv*4 + blk4x4);
-            } else
-            {
+            } else {
                 coeff += 16;
                 continue;
             }
@@ -1137,7 +995,7 @@ void decode_CHROMA_AC_cabac_sw (H264DecContext *img_ptr, DEC_MB_INFO_T *currMB, 
 
 void decode_mb_cabac (void *img, DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T *mb_cache_ptr)
 {
-    H264DecContext *img_ptr = (H264DecContext *)img;
+    H264DecContext *vo = (H264DecContext *)img;
     int32 qp_uv, qp_c[2];
     int32 qp;
 #ifdef _NEON_OPT_
@@ -1147,43 +1005,38 @@ void decode_mb_cabac (void *img, DEC_MB_INFO_T *mb_info_ptr, DEC_MB_CACHE_T *mb_
 #endif
 
     qp = mb_info_ptr->qp;
-
     mb_cache_ptr->vld_dc_coded_flag = (mb_cache_ptr->vld_dc_coded_flag & 0xff);
 
-    if (mb_info_ptr->mb_type == I16MB)
-    {
+    if (mb_info_ptr->mb_type == I16MB) {
 #ifndef _NEON_OPT_
         memset (mb_cache_ptr->coff_Y, 0, 16*16*sizeof(int16));
 #else
         clear_Nx16words(mb_cache_ptr->coff_Y, 8);
 #endif
-        decode_LUMA_DC_cabac(img_ptr,mb_info_ptr, mb_cache_ptr, qp);
+        decode_LUMA_DC_cabac(vo,mb_info_ptr, mb_cache_ptr, qp);
     }
 
-    decode_LUMA_AC_cabac(img_ptr, mb_info_ptr, mb_cache_ptr, qp);
+    decode_LUMA_AC_cabac(vo, mb_info_ptr, mb_cache_ptr, qp);
 
-    qp_uv = qp + img_ptr->chroma_qp_offset;
+    qp_uv = qp + vo->chroma_qp_offset;
     qp_uv = IClip(0, 51, qp_uv);
     qp_c[0] = g_QP_SCALER_CR_TBL[qp_uv];
 
-
-    qp_uv = qp + img_ptr->second_chroma_qp_index_offset;
+    qp_uv = qp + vo->second_chroma_qp_index_offset;
     qp_uv = IClip(0, 51, qp_uv);
     qp_c[1] = g_QP_SCALER_CR_TBL[qp_uv];
 
-    if (mb_info_ptr->cbp > 15)
-    {
+    if (mb_info_ptr->cbp > 15) {
 #ifndef _NEON_OPT_
         memset (mb_cache_ptr->coff_UV, 0, 2*4*16*sizeof(int16));
 #else
         clear_Nx16words(mb_cache_ptr->coff_UV, 4);
 #endif
-        decode_CHROMA_DC_cabac_sw(img_ptr,mb_info_ptr, mb_cache_ptr, qp_c);
+        decode_CHROMA_DC_cabac_sw(vo,mb_info_ptr, mb_cache_ptr, qp_c);
     }
 
-    if (mb_info_ptr->cbp > 31)
-    {
-        decode_CHROMA_AC_cabac_sw(img_ptr,mb_info_ptr, mb_cache_ptr, qp_c);
+    if (mb_info_ptr->cbp > 31) {
+        decode_CHROMA_AC_cabac_sw(vo,mb_info_ptr, mb_cache_ptr, qp_c);
     }
 
     mb_info_ptr->dc_coded_flag = (mb_cache_ptr->vld_dc_coded_flag >> 8) & 0x7;

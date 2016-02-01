@@ -21,8 +21,8 @@
 	1. inverse quantization
 	2: put to MB's DC position
 */
-#if 1//WIN32
-void itrans_lumaDC (H264DecContext *img_ptr, int16 * DCCoeff, int16 * pCoeffIq, int32 qp)
+#ifndef _NEON_OPT_
+void itrans_lumaDC (H264DecContext *vo, int16 * DCCoeff, int16 * pCoeffIq, int32 qp)
 {
     int i;
     int16 blk_tmp [16];
@@ -30,7 +30,7 @@ void itrans_lumaDC (H264DecContext *img_ptr, int16 * DCCoeff, int16 * pCoeffIq, 
     int32 n0, n1, n2, n3;
     int16 * p_blk, *p_blkIn;
     const uint8 *blkIndex = g_blKIndex;
-    int32 quantizer = img_ptr->dequant4_buffer[0][qp][0];
+    int32 quantizer = vo->dequant4_buffer[0][qp][0];
 
     p_blk = blk_tmp;
     p_blkIn = DCCoeff;
@@ -86,7 +86,7 @@ description: inverse transform the 4x4 block
 			 saturate the addition and put currMB->pred_Y;
 
 */
-#if 1//WIN32
+#ifndef _NEON_OPT_
 void itrans_4x4 (int16 *coff, uint8 *pred, int32 width_p, uint8 *rec, int32 width_r)
 {
     int32 i;
@@ -162,7 +162,7 @@ void itrans_4x4 (int16 *coff, uint8 *pred, int32 width_p, uint8 *rec, int32 widt
 }
 #endif
 
-#if 1//WIN32
+#ifndef _NEON_OPT_
 void itrans_8x8 (int16 *coff, uint8 *pred, int32 width_p, uint8 *rec, int32 width_r)
 {
     int i;
