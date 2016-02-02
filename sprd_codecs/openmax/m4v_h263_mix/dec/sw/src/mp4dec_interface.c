@@ -267,7 +267,7 @@ FLV_RE_DEC:
     }
 
     SPRD_CODEC_LOGD ("%s, %d, ret: %d, pic_type: %d", __FUNCTION__, __LINE__, ret, vop_mode_ptr->VopPredType);
-    if(ret != MMDEC_OK)
+    if(ret != MMDEC_OK && !vop_mode_ptr->VT_used)
     {
         //modified by xwluo, 20100511
         mp4Handle->g_mpeg4_dec_err_flag |= 1<<1;
