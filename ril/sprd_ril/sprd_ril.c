@@ -3888,10 +3888,11 @@ retrycgatt:
 
                 goto error;
             }
-
             pthread_mutex_lock(&pdp[index].mutex);
             pdp[index].cid = index + 1;
             pthread_mutex_unlock(&pdp[index].mutex);
+            //not do ipv6 fall back
+            goto done;
             if (!strcmp(pdp_type,"IPV4V6")) {
                 fbCause = getSPACTFBcause(channelID);
                 RILLOGD("requestSetupDataCall fall Back Cause = %d", fbCause);
