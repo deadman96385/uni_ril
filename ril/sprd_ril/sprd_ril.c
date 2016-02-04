@@ -12302,10 +12302,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RILLOGD("SPEXPIRESIM = %d", simID);
         RIL_onUnsolicitedResponse (RIL_UNSOL_SIM_EXPIRED, &simID, sizeof(simID));
     } else if (strStartsWith(s, "+CUSD:")) {
-        char *response[3] = {NULL, NULL, NULL};
+        char *response[3] = { NULL, NULL, NULL};
         char *tmp;
         char *buf = NULL;
-        char *hexStr = NULL;
 
         ussdRun = 0;
         line = strdup(s);
@@ -12318,7 +12317,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             goto out;
         }
 
-        err = at_tok_nextstr(&tmp, &hexStr);
+        err = at_tok_nextstr(&tmp, &(response[1]));
         if (err == 0) {
             /* Convert the response, which is in the GSM 03.38 [25]
              * default alphabet, to UTF-8
@@ -12332,27 +12331,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                 RILLOGD("%s fail", s);
                 goto out;
             }
-            /* convert hex string to string @{ */
-            RILLOGD("convert hex string to string");
-            response[1] = (char *)calloc(1024, sizeof(char));
-            char digit[64], pline[64];
-            char *endptr = NULL;
-            int i, value;
-            memset(digit, 0, sizeof(digit));
-            memset(pline, 0, sizeof(pline));
-            for (i = 0; i < strlen(hexStr) / 2; i++) {
-                memcpy(pline, hexStr + i * 2, 2);
-                value = strtol(pline, &endptr, 16);
-                snprintf(digit, sizeof(digit), "%c", value);
-                strcat(response[1], digit);
-            }
-            RILLOGD("the string is %s", response[1]);
-            /* }@ */
-
             RIL_onUnsolicitedResponse(
                     RIL_UNSOL_ON_USSD,
                     &response,3*sizeof(char*));
-            free(response[1]);
         } else {
             if (ussdError == 1) {/* for ussd */
                 RILLOGD("+CUSD ussdError");
