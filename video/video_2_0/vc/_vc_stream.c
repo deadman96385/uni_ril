@@ -280,7 +280,7 @@ void _VC_populateFlags(
      * But should only contain one frame in buffer for 
      * I-Frame / P-Frame / B-Frame.
      */
-    while(offset < pSize) {
+    while(offset + 4 <= pSize) {
         /* For H.264 raw format, every NALU should begin with 00 00 00 01 */
         if ((*(uint8 *) (data + offset + 0) == 0x00) &&
             (*(uint8 *) (data + offset + 1) == 0x00) &&

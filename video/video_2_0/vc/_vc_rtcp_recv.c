@@ -115,6 +115,7 @@ vint _VC_rtcpRecv(
                 }
                 break;
             case VTSP_EVENT_RTCP_FB_TMMBN:
+                OSAL_logMsg("%s: RTCP received TMMBN\n", __FUNCTION__);
                 mantissa = ((message.arg3 >> 9) & 0x1ffff);
                 exponent = ((message.arg3 >> 26) & 0x3f);
                 _VC_RTCP_LOG("RTCP received TMMBN SSRC %x", message.arg2);
@@ -126,6 +127,9 @@ vint _VC_rtcpRecv(
                 if (rtcp_ptr->configure.enableMask & VTSP_MASK_RTCP_FB_TMMBR) {
                     /* Store the received TMMBN value in kbps. */
                     rtcp_ptr->feedback.recvTmmbnInKbps = (bitrateBps >> 10);
+                    rtcp_ptr->feedback.state = _VC_TMMBR_STATE_DONE;
+                    OSAL_logMsg("%s: received TMMBN, recvTmmbnInKbps=%u Kbps\n",
+                            __FUNCTION__, rtcp_ptr->feedback.recvTmmbnInKbps);
                 }
                 break;
             case VTSP_EVENT_RTCP_FB_PLI:
