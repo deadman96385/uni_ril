@@ -4707,26 +4707,14 @@ static void requestEccDial(int channelID, void *data, size_t datalen, RIL_Token 
         case 0: clir = ""; break;   /*subscription default*/
         case 1: clir = "I"; break;  /*invocation*/
         case 2: clir = "i"; break;  /*suppression*/
-        default: ;
+        default: break;
     }
 
-    if(isVoLteEnable()){
-        token = strchr(p_dial->address, '/');
-        if(token)
-            *token = '@';
-        category = getEccRecordCategory(p_dial->address);
-
-        if(category != -1){
-            ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address,category, clir);
-        } else {
-            ret = asprintf(&cmd, "ATD%s,#%s;", p_dial->address, clir);
-        }
+    category = getEccRecordCategory(p_dial->address);
+    if (category != -1) {
+        ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address, category, clir);
     } else {
-        categoryFromJava = strchr(p_dial->address, '/');
-        if(categoryFromJava != NULL){
-            *categoryFromJava = '@';
-        }
-        ret = asprintf(&cmd, "ATD%s,#%s;", p_dial->address, clir);
+        ret = asprintf(&cmd, "ATD%s@,#%s;", p_dial->address, clir);
     }
 
     if(ret < 0) {
