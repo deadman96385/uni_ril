@@ -12,6 +12,8 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/capability.h>
+#include <sys/prctl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -1127,6 +1129,33 @@ static void release_wakeLock() {
     release_wake_lock(ANDROID_WAKE_LOCK_NAME);
 }
 
+void switchUser(void) {
+    struct __user_cap_header_struct capheader;
+    struct __user_cap_data_struct capdata[2];
+
+    memset(&capheader, 0, sizeof(capheader));
+    memset(&capdata, 0, sizeof(capdata));
+
+    if (prctl(PR_SET_KEEPCAPS, 1) < 0) {
+        return;
+    }
+    if (setuid(AID_SYSTEM) != 0) {
+        return;
+    }
+
+    setuid(AID_SYSTEM);
+    capheader.version = _LINUX_CAPABILITY_VERSION_3;
+    capheader.pid = 0;
+
+    capdata[CAP_TO_INDEX(CAP_BLOCK_SUSPEND)].permitted = CAP_TO_MASK(CAP_BLOCK_SUSPEND);
+    capdata[CAP_TO_INDEX(CAP_AUDIT_CONTROL)].permitted |= CAP_TO_MASK(CAP_AUDIT_CONTROL);
+    capdata[0].effective = capdata[0].permitted;
+    capdata[1].effective = capdata[1].permitted;
+    capdata[0].inheritable = 0;
+    capdata[1].inheritable = 0;
+    capset(&capheader, &capdata[0]);
+}
+
 /*## operation initialize all channel manager's objects  according to phone server configuration  file*/
 static void channel_manager_init(void) {
     chnmng.me = &chnmng;
@@ -1141,7 +1170,8 @@ static void channel_manager_init(void) {
     chnmng_cmux_Init(chnmng.me);
     chnmng_pty_Init(chnmng.me);
 
-    setuid(AID_SYSTEM); /* switch user to system  */
+    /* switch user to system  */
+    switchUser();
 
     chnmng_start_thread(chnmng.me);
     release_wakeLock();
