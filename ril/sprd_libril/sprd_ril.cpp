@@ -75,7 +75,7 @@ int modem;
 #define PROPERTY_RIL_IMPL "gsm.version.ril-impl"
 
 // match with constant in RIL.java
-#define MAX_COMMAND_BYTES (8 * 1024)
+#define MAX_COMMAND_BYTES (8 * 0xFFFF)
 
 // Basically: memset buffers that the client library
 // shouldn't be using anymore in an attempt to find
@@ -94,7 +94,7 @@ int modem;
 #define RIL_ERRNO_INVALID_RESPONSE -1
 
 // request, response, and unsolicited msg print macro
-#define PRINTBUF_SIZE 8096
+#define PRINTBUF_SIZE 8 * 0xFFFF
 
 // Enable RILC log
 #define RILC_LOG 1
@@ -6305,6 +6305,7 @@ requestToString(int request) {
         case RIL_REQUEST_IMS_SEND_SMS: return "IMS_SEND_SMS";
         case RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC: return "SIM_TRANSMIT_APDU_BASIC";
         case RIL_REQUEST_SIM_OPEN_CHANNEL: return "SIM_OPEN_CHANNEL";
+        case RIL_REQUEST_SIM_OPEN_CHANNEL_WITH_P2: return "SIM_OPEN_CHANNEL_WITH_P2";
         case RIL_REQUEST_SIM_CLOSE_CHANNEL: return "SIM_CLOSE_CHANNEL";
         case RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL: return "SIM_TRANSMIT_APDU_CHANNEL";
         case RIL_REQUEST_GET_RADIO_CAPABILITY: return "RIL_REQUEST_GET_RADIO_CAPABILITY";
@@ -6549,6 +6550,7 @@ requestToString(int request) {
 
         case RIL_REQUEST_SHUTDOWN: return "SHUTDOWN";
         case RIL_UNSOL_RADIO_CAPABILITY: return "RIL_UNSOL_RADIO_CAPABILITY";
+        case RIL_REQUEST_SIM_GET_ATR: return "SIM_GET_ATR";
         default: return "<unknown request>";
     }
 }

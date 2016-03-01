@@ -149,7 +149,9 @@
     {RIL_REQUEST_SET_DATA_PROFILE, dispatchDataProfile, responseVoid},
     {RIL_REQUEST_SHUTDOWN, dispatchVoid, responseVoid},
     {RIL_REQUEST_GET_RADIO_CAPABILITY, dispatchVoid, responseRadioCapability},
-    {RIL_REQUEST_SET_RADIO_CAPABILITY, dispatchRadioCapability, responseRadioCapability}
+    {RIL_REQUEST_SET_RADIO_CAPABILITY, dispatchRadioCapability, responseRadioCapability},
+    {RIL_REQUEST_SIM_GET_ATR, dispatchVoid, responseString},
+    {RIL_REQUEST_SIM_OPEN_CHANNEL_WITH_P2, dispatchStrings, responseInts}
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     ,{RIL_REQUEST_IMS_REGISTRATION_STATE, dispatchVoid, responseInts}
     ,{RIL_REQUEST_IMS_SEND_SMS, dispatchImsSendSms, responseImsSendSms}

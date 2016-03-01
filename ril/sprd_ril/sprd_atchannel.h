@@ -86,7 +86,7 @@ typedef struct {
 typedef void (*ATUnsolHandler)(const char *s, const char *sms_pdu);
 //add AT channel data structure,  Data member move from atchannel.c
 //#define MAX_AT_RESPONSE (8 * 1024)  //move from reference_ril.c
-#define MAX_AT_RESPONSE 0x1000
+#define MAX_AT_RESPONSE (8 * 0xFFFF)
 
 /* define one channel for each open connection */
 struct ATChannels {
