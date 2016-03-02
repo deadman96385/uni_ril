@@ -231,7 +231,6 @@ typedef struct Srvccpendingrequest{
 
 #define VOLTE_ENABLE_PROP         "persist.sys.volte.enable"
 #define VOLTE_PCSCF_ADDRESS        "persist.sys.volte.pcscf"
-#define VOLTE_IOT                  "persist.sys.volte.iot"
 
 static VoLTE_SrvccState s_srvccState = SRVCC_PS_TO_CS_SUCCESS;
 static SrvccPendingRequest *s_srvccPendingRequest;
@@ -820,9 +819,6 @@ static void putPDP(int cid)
     {
         goto done1;
     }
-    if(add_ip_cid == (cid +1)){
-        add_ip_cid = -1;
-    }
     pdp[cid].state = PDP_IDLE;
 done1:
     if( (pdp[cid].secondary_cid > 0) && (pdp[cid].secondary_cid <= MAX_PDP) ){
@@ -955,6 +951,20 @@ int setPDPMapping(int primary,int secondary){
     pdp[secondary].isPrimary = false;
     pthread_mutex_unlock(&pdp[secondary].mutex);
     return 1;
+}
+
+int getActivedCid() {
+    int i = 0;
+    for (; i < MAX_PDP; i++) {
+        pthread_mutex_lock(&pdp[i].mutex);
+        if (pdp[i].state == PDP_BUSY && pdp[i].cid != -1) {
+            RILLOGD("get Actived Cid = %d", pdp[i].cid);
+            pthread_mutex_unlock(&pdp[i].mutex);
+            return i;
+        }
+        pthread_mutex_unlock(&pdp[i].mutex);
+    }
+    return -1;
 }
 /*
 static int getPDP(int *index)
@@ -1119,6 +1129,57 @@ static int deactivateLteDataConnection(int channelID, char *cmd)
     return ret;
 }
 
+static void updateAdditionBusinessCid(int channelID) {
+    char cmd[256] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char eth[PROPERTY_VALUE_MAX] = {0};
+    char ipv4[PROPERTY_VALUE_MAX] = {0};
+    char ipv6[PROPERTY_VALUE_MAX] = {0};
+    int ip_type = 0;
+    int cidIndex = getActivedCid();
+
+    if (cidIndex < 0 || cidIndex > MAX_PDP) {
+        RILLOGD("No actived cid");
+        return;
+    }
+
+    if(!strcmp(s_modem, "t")) {
+        property_get(ETH_TD, eth, "veth");
+    } else if(!strcmp(s_modem, "w")) {
+        property_get(ETH_W, eth, "veth");
+    } else if(!strcmp(s_modem, "l")) {
+        property_get(ETH_L, eth, "veth");
+    } else if(!strcmp(s_modem, "tl")) {
+        property_get(ETH_TL, eth, "veth");
+    } else if(!strcmp(s_modem, "lf")) {
+        property_get(ETH_LF, eth, "veth");
+    } else {
+        RILLOGE("Unknown modem type");
+        return;
+    }
+    snprintf(prop, sizeof(prop), "net.%s%d.ip_type", eth, cidIndex);
+    property_get(prop, cmd, "0");
+    ip_type = atoi(cmd);
+
+    if (ip_type & IPV4) {
+        snprintf(prop, sizeof(ipv4), "net.%s%d.ip", eth, cidIndex);
+        property_get(prop, ipv4, "");
+    } else {
+        strcpy(ipv4, "0.0.0.0");
+    }
+
+    if (ip_type & IPV6) {
+        snprintf(prop, sizeof(cmd), "net.%s%d.ipv6_ip", eth, cidIndex);
+        property_get(prop, ipv6, "");
+    } else {
+        strcpy(ipv6, "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF");
+    }
+
+    snprintf(cmd, sizeof(cmd),"AT+XCAPIP=%d,\"%s,[%s]\"", cidIndex +1, ipv4, ipv6);
+    RILLOGD("Addition Business Cmd = %s", cmd);
+    at_send_command(ATch_type[channelID],cmd,NULL);
+    add_ip_cid = cidIndex + 1;
+}
 
 static void deactivateDataConnection(int channelID, void *data, size_t datalen, RIL_Token t)
 {
@@ -1225,6 +1286,10 @@ done:
     property_set(PROP_END_CONNECTIVITY, "0");
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+
+    if(cid == add_ip_cid || secondary_cid == add_ip_cid) {
+        updateAdditionBusinessCid(channelID);
+    }
     return;
 
 error:
@@ -1234,6 +1299,9 @@ error:
     } else {
         putPDP(getFallbackCid(cid-1) -1);
         putPDP(cid - 1);
+    }
+    if(cid == add_ip_cid) {
+        updateAdditionBusinessCid(channelID);
     }
 
 error1:
@@ -3154,9 +3222,6 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
             if (err < 0)
                 goto error;
 
-            responses[i].type = alloca(strlen(out) + 1);
-            strcpy(responses[i].type, out);
-
             /* APN ignored for v5 */
             err = at_tok_nextstr(&line, &out);
             if (err < 0)
@@ -3188,6 +3253,8 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
             dnslist = alloca(dnslist_sz);
 
             if (ip_type == IPV4) {
+                responses[i].type = alloca(strlen("IP") + 1);
+                strcpy(responses[i].type, "IP");
                 snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid-1);
                 property_get(cmd, prop, NULL);
                 RILLOGE("IPV4 cmd=%s, prop = %s", cmd,prop);
@@ -3208,6 +3275,8 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                 }
                 responses[i].dnses = dnslist;
             } else if (ip_type == IPV6) {
+                responses[i].type = alloca(strlen("IPV6") + 1);
+                strcpy(responses[i].type, "IPV6");
                 snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid-1);
                 property_get(cmd, prop, NULL);
                 RILLOGE("IPV6 cmd=%s, prop = %s", cmd,prop);
@@ -3331,7 +3400,7 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                                     sizeof(RIL_Data_Call_Response_v11));
                             }
                         }
-                        if (add_ip_cid ==0 &&  !(IsLte && bLteDetached) && isVoLteEnable() ) {
+                        if (!(IsLte && bLteDetached) && isVoLteEnable() ) {
                             char cmd[180] = {0};
                             char prop0[PROPERTY_VALUE_MAX] = {0};
                             char prop1[PROPERTY_VALUE_MAX] = {0};
@@ -3944,7 +4013,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     int is_default_bearer;
     int is_open_channel;
     int nRetryTimes = 0;
-    int is_VoLTE_IOT = 0;
     char *fbIPType = NULL;
 
     property_get(PROP_DEFAULT_BEARER, prop, "0");
@@ -3952,9 +4020,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     property_get(PROP_OPEN_CHANNEL, prop, "0");
     is_open_channel = atoi(prop);
     RILLOGD("requestSetupDataCall is_default_bearer = %d, is_open_channel = %d", is_default_bearer, is_open_channel);
-    property_get(VOLTE_IOT, prop, "0");
-    is_VoLTE_IOT = atoi(prop);
-    RILLOGD("requestSetupDataCall is_VoLTE_IOT = %d", is_VoLTE_IOT);
     apn = ((const char **)data)[2];
     username = ((const char **)data)[3];
     password = ((const char **)data)[4];
@@ -3963,10 +4028,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
         pdp_type = ((const char **)data)[6];
     } else {
         pdp_type = "IP";
-    }
-
-    if((strstr(apn,"wap") == NULL) && ( add_ip_cid == -1) || is_VoLTE_IOT == 1){
-        add_ip_cid = 0;
     }
 
     if(isVoLteEnable() && !isExistActivePdp()) {  // for ddr, power consumptioon
@@ -4434,9 +4495,6 @@ error:
         } else {
             putPDP(primaryindex);
         }
-    }
-    if(add_ip_cid == 0){
-        add_ip_cid = -1;
     }
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     if(p_response)
