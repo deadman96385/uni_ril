@@ -734,7 +734,6 @@ MMEncRet H264EncGenHeader(AVCHandle *avcHandle, MMEncOut *pOutput, int is_sps)
 //    *((volatile uint32*)(&img_ptr->pOneFrameBitstream[img_ptr->stm_offset])) = 0x01000000;
     img_ptr->stm_offset = ( VSP_READ_REG(BSM_CTRL_REG_BASE_ADDR + TOTAL_BITS_OFF,"TOTAL_BITS") >> 3);
     img_ptr->stm_offset += VSP_READ_REG(BSM_CTRL_REG_BASE_ADDR + DSTUF_NUM_OFF,"DSTUF_NUM");
-    img_ptr->stm_offset = (img_ptr->stm_offset+7)&(~0x7); // DWORD aligned
 
     img_ptr->pOneFrameBitstream[0] = 0x0;
     img_ptr->pOneFrameBitstream[1] = 0x0;
