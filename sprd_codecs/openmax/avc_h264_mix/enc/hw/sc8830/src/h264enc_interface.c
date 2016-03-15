@@ -748,14 +748,14 @@ HEADER_EXIT:
     SPRD_CODEC_LOGD ("%s, %d, exit generating header, error_flag: %0x", __FUNCTION__, __LINE__, vo->error_flag);
     if (is_sps)
     {
-        vo->sps_header_len = pOutput->strmSize;
+        vo->sps_header_len = (pOutput->strmSize+7)&(~0x7); // DWORD aligned
         vo->sps_header = (uint8 *)H264Enc_MemAlloc (vo, pOutput->strmSize, 8, INTER_MEM);
         CHECK_MALLOC(vo->sps_header, "vo->sps_header");
 
         SCI_MEMCPY(vo->sps_header, img_ptr->pOneFrameBitstream, pOutput->strmSize);
     } else
     {
-        vo->pps_header_len = pOutput->strmSize;
+        vo->pps_header_len = (pOutput->strmSize+7)&(~0x7); // DWORD aligned
         vo->pps_header = (uint8 *)H264Enc_MemAlloc (vo, pOutput->strmSize, 8, INTER_MEM);
         CHECK_MALLOC(vo->sps_header, "vo->sps_header");
 
