@@ -174,7 +174,7 @@ typedef enum {
 #define PROP_OPERATOP_NAME  "gsm.sim.operator.alpha"
 
 #define PROP_END_CONNECTIVITY  "gsm.stk.end_connectivity"
-
+#define PROP_HARDWARE_VERSION  "sys.hardware.version"
 
 #define PROP_BUILD_TYPE "ro.build.type"
 
@@ -14583,6 +14583,34 @@ mainLoop(void *param)
     }
 }
 
+void setHwVerPorp() {
+    int ret = -1;
+    int fd = -1;
+    char cmdline[1024];
+    char *pKeyWord = "hardware.version=";
+    char *pHwVer = NULL;
+    char *token = NULL;
+
+    memset(cmdline, 0, 1024);
+    fd = open("/proc/cmdline", O_RDONLY);
+    if (fd > 0) {
+        ret = read(fd, cmdline, sizeof(cmdline));
+        if (ret > 0) {
+            pHwVer = strstr(cmdline, pKeyWord);
+            if (pHwVer != NULL) {
+                pHwVer += strlen(pKeyWord);
+                token = strchr(pHwVer, ' ');
+                if (token) {
+                    *token = '\0';
+                }
+                RILLOGD("Hardware.version = %s", pHwVer);
+                property_set(PROP_HARDWARE_VERSION, pHwVer);
+            }
+        }
+        close(fd);
+    }
+}
+
 #ifdef RIL_SHLIB
 
 pthread_t s_tid_mainloop;
@@ -14674,7 +14702,12 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
         ret = pthread_create(&s_tid_mainloop, &attr, mainLoop, NULL);
         RILLOGD("RIL enter single sim card mode!");
     }
-     sem_wait(&w_sem);
+    sem_wait(&w_sem);
+
+    if (s_sim_num == 0) {
+        setHwVerPorp();
+    }
+
     return &s_callbacks;
 }
 #else /* RIL_SHLIB */
