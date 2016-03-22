@@ -3809,27 +3809,34 @@ static bool strictMatchApn(char* pdnApn, const char* apn){
     }
 }
 static void getProperty(char prop[], char* str){
+    if(NULL == str){
+        return;
+    }
     if(strcmp(prop,"")){
         char *str1 = strtok(prop, ",");
         RILLOGD("getProperty str1= %s", str1);
         if(s_multiSimMode) {
             extern int s_sim_num;
             if (s_sim_num == 0) {
-                strcpy(str, str1);
+                if(str1 != NULL){
+                    strcpy(str, str1);
+                }
             } else if (s_sim_num == 1) {
                 char *str2 = strtok(NULL, ",");
                 RILLOGD("getProperty str2= %s", str2);
                 if(str2 == NULL){
-                    strcpy(str, str1);
+                    if(str1 != NULL){
+                        strcpy(str, str1);
+                    }
                }else{
                     strcpy(str, str2);
                }
             }
         } else {
-            strcpy(str, str1);
+            if(str1 != NULL){
+                strcpy(str, str1);
+            }
         }
-    }else{
-        strcpy(str, "");
     }
 }
 static bool looseMatchApn(char* pdnApn, const char* apn){
@@ -3858,6 +3865,7 @@ static bool looseMatchApn(char* pdnApn, const char* apn){
     memset(name, 0, sizeof(char) * 128);
     property_get(PROP_OPERATOP_NAME, prop, "");
     getProperty(prop, name);
+    RILLOGD( "operator alpha  = %s", name);
     if(strcasestr(name,"Jio") || strcasestr(name,"Reliance")){
         return !strcasecmp(apn, initialAttachApn->apn);
     }else {
