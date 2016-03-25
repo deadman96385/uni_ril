@@ -48,6 +48,19 @@ extern "C" {
 typedef void * RIL_Token;
 
 typedef enum {
+    RIL_SOCKET_1,
+    RIL_SOCKET_2,
+    RIL_SOCKET_NUM
+} RIL_SOCKET_ID;
+
+typedef enum {
+    RIL_TELEPHONY_SOCKET
+#if defined (OFONO_SOCKET_SUPPORTED)
+    ,RIL_OFONO_SOCKET
+#endif
+} RIL_SOCKET_TYPE;
+
+typedef enum {
     RIL_E_SUCCESS = 0,
     RIL_E_RADIO_NOT_AVAILABLE = 1,     /* If radio did not start or is resetting */
     RIL_E_GENERIC_FAILURE = 2,

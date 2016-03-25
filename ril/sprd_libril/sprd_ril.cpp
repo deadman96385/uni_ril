@@ -144,6 +144,7 @@ typedef struct RequestInfo {
     struct RequestInfo *p_next;
     char cancelled;
     char local;         // responses to local commands do not go back to command process
+    RIL_SOCKET_TYPE socket_type;
 } RequestInfo;
 
 typedef struct UserCallbackInfo {
@@ -153,6 +154,17 @@ typedef struct UserCallbackInfo {
     struct UserCallbackInfo *p_next;
 } UserCallbackInfo;
 
+typedef struct SocketListenParam {
+    RIL_SOCKET_ID socket_id;
+    int fdListen;
+    int fdCommand;
+    char* processName;
+    struct ril_event* commands_event;
+    struct ril_event* listen_event;
+    void (*processCommandsCallback)(int fd, short flags, void *param);
+    RecordStream *p_rs;
+    RIL_SOCKET_TYPE type;
+} SocketListenParam;
 
 /*******************************************************************/
 
@@ -173,6 +185,7 @@ struct commthread_data_t {
     RecordStream *p_rs;
     char *buffer;
     size_t buflen;
+    RIL_SOCKET_TYPE socket_type;
 };
 
 threadpool_t *threadpool_d;
@@ -187,6 +200,19 @@ static struct ril_event s_listen_event;
 static struct ril_event s_wake_timeout_event;
 static struct ril_event s_debug_event;
 
+static SocketListenParam s_rilSocketParam;
+
+#if defined (OFONO_SOCKET_SUPPORTED)
+/* OFONO socket @{ */
+#define SOCKET_NAME_OFONO "ofono_socket"
+#define SOCKET2_NAME_OFONO "ofono_socket2"
+
+static struct ril_event s_ofonoListenEvent;
+static struct ril_event s_ofonoCommandsEvent;
+static SocketListenParam s_ofonoSocketParam;
+static pthread_mutex_t s_ofonoWriteMutex;
+/* }@ */
+#endif
 
 static const struct timeval TIMEVAL_WAKE_TIMEOUT = {1,0};
 
@@ -223,7 +249,6 @@ int s_isuserdebug = 0;
 static int s_multiSimMode;
 const char * s_modem = NULL;
 static int s_sim_num;
-
 
 #if RILC_LOG
     static char printBuf[PRINTBUF_SIZE];
@@ -537,7 +562,7 @@ issueLocalRequest(int request, void *data, int len) {
 
 
 static int
-processCommandBuffer(void *buffer, size_t buflen) {
+processCommandBuffer(void *buffer, size_t buflen, RIL_SOCKET_TYPE socket_type) {
     Parcel p;
     status_t status;
     int32_t request;
@@ -597,6 +622,7 @@ processCommandBuffer(void *buffer, size_t buflen) {
     pRI = (RequestInfo *)calloc(1, sizeof(RequestInfo));
 
     pRI->token = token;
+    pRI->socket_type = socket_type;
     pRI->pCI = &(s_commands[request]);
 
     ret = pthread_mutex_lock(&s_pendingRequestsMutex);
@@ -2655,12 +2681,20 @@ blockingWrite(int fd, const void *buffer, size_t len) {
 }
 
 static int
-sendResponseRaw (const void *data, size_t dataSize) {
-    int fd = s_fdCommand;
+sendResponseRaw (const void *data, size_t dataSize, RIL_SOCKET_TYPE socket_type) {
+    int fd = s_rilSocketParam.fdCommand;;
     int ret;
     uint32_t header;
+    pthread_mutex_t *writeMutex = &s_writeMutex;
 
-    if (s_fdCommand < 0) {
+#if defined (OFONO_SOCKET_SUPPORTED)
+    if (socket_type == RIL_OFONO_SOCKET) {
+        fd = s_ofonoSocketParam.fdCommand;
+        writeMutex = &s_ofonoWriteMutex;
+    }
+#endif
+
+    if (fd < 0) {
         return -1;
     }
 
@@ -2697,9 +2731,9 @@ sendResponseRaw (const void *data, size_t dataSize) {
 }
 
 static int
-sendResponse (Parcel &p) {
+sendResponse (Parcel &p, RIL_SOCKET_TYPE socket_type) {
     printResponse;
-    return sendResponseRaw(p.data(), p.dataSize());
+    return sendResponseRaw(p.data(), p.dataSize(), socket_type);
 }
 
 /** response is an int* pointing to an array of ints*/
@@ -4677,11 +4711,10 @@ void CommandThread(void *arg) {
     pid_t tid;
     tid = gettid();
     commthread_data_t *user_data = (commthread_data_t *)arg;
-    processCommandBuffer(user_data->buffer, user_data->buflen);
+    processCommandBuffer(user_data->buffer, user_data->buflen, user_data->socket_type);
     RILLOGI("-->CommandThread [%d] free one command\n",tid);
     free(user_data->buffer);
     free(user_data);
-
 }
 
 void list_init(struct listnode *node)
@@ -4722,7 +4755,7 @@ static void processCommandsCallback(int fd, short flags, void *param) {
     struct listnode * cmd_item = NULL;
     struct listnode * cmd = NULL;
     int ret = 0;
-    RecordStream *p_rs= (RecordStream *)param;
+    RecordStream *p_rs = NULL;
     Parcel p;
     status_t status;
     int32_t request;
@@ -4730,9 +4763,12 @@ static void processCommandsCallback(int fd, short flags, void *param) {
     CommandInfo *pCI;
     char prop[10];
 
-    RILLOGI("enter processCommandsCallback\n");
+    SocketListenParam *p_info = (SocketListenParam *)param;
+    p_rs = p_info->p_rs;
 
-    assert(fd == s_fdCommand);
+    RILLOGI("enter processCommandsCallback, socket type = %d", p_info->type);
+
+    assert(fd == p_info->fdCommand);
 
     for (;;) {
          void *p_record;
@@ -4772,6 +4808,7 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                 exit(-1);
             }
             user_data->buflen = recordlen;
+            user_data->socket_type = p_info->type;
 
             memcpy(user_data->buffer,p_record,recordlen);
 
@@ -4990,7 +5027,7 @@ slowDispatch(void *param) {
         for (cmd_item = (&slow_cmd_list)->next; cmd_item != (&slow_cmd_list);
                 cmd_item = (&slow_cmd_list)->next) {
             processCommandBuffer(cmd_item->user_data->buffer,
-                cmd_item->user_data->buflen);
+                cmd_item->user_data->buflen, cmd_item->user_data->socket_type);
             RILLOGI("-->slowDispatch [%d] free one command\n",tid);
             list_remove(cmd_item);  /* remove list node first, then free it */
             free(cmd_item->user_data->buffer);
@@ -5020,7 +5057,7 @@ static void * normalDispatch(void *param) {
                 RILLOGI("-->Normal Dispatch sim list\n",tid);
             }
             processCommandBuffer(cmd_item->user_data->buffer,
-                cmd_item->user_data->buflen);
+                cmd_item->user_data->buflen, cmd_item->user_data->socket_type);
             RILLOGI("-->Normal Dispatch [%d] free one command\n",tid);
             list_remove(cmd_item);  /* remove list node first, then free it */
             free(cmd_item->user_data->buffer);
@@ -5047,7 +5084,11 @@ static void onNewCommandConnect() {
 
     // Send last NITZ time data, in case it was missed
     if (s_lastNITZTimeData != NULL) {
-        sendResponseRaw(s_lastNITZTimeData, s_lastNITZTimeDataSize);
+        sendResponseRaw(s_lastNITZTimeData, s_lastNITZTimeDataSize, RIL_TELEPHONY_SOCKET);
+
+#if defined (OFONO_SOCKET_SUPPORTED)
+        sendResponseRaw(s_lastNITZTimeData, s_lastNITZTimeDataSize, RIL_OFONO_SOCKET);
+#endif
 
         free(s_lastNITZTimeData);
         s_lastNITZTimeData = NULL;
@@ -5072,6 +5113,8 @@ static void listenCallback (int fd, short flags, void *param) {
     int err;
     int is_phone_socket;
     RecordStream *p_rs;
+
+    SocketListenParam *p_info = (SocketListenParam *)param;
 
     struct sockaddr_un peeraddr;
     socklen_t socklen = sizeof (peeraddr);
@@ -5141,15 +5184,93 @@ static void listenCallback (int fd, short flags, void *param) {
 
     RILLOGI("libril: new connection");
 
+    p_info->fdCommand = s_fdCommand;
     p_rs = record_stream_new(s_fdCommand, MAX_COMMAND_BYTES);
+    p_info->p_rs = p_rs;
 
     ril_event_set (&s_commands_event, s_fdCommand, 1,
-        processCommandsCallback, p_rs);
+        processCommandsCallback, p_info);
 
     rilEventAddWakeup (&s_commands_event);
 
     onNewCommandConnect();
 }
+
+#if defined (OFONO_SOCKET_SUPPORTED)
+static void listenCallbackOFONO(int fd, short flags, void *param) {
+    int ret;
+    int fdCommand;
+    RecordStream *p_rs;
+
+    SocketListenParam *p_info = (SocketListenParam *)param;
+
+    assert(fd == p_info->fdListen);
+
+    struct sockaddr_un peeraddr;
+    socklen_t socklen = sizeof(peeraddr);
+
+    fdCommand = accept(fd, (sockaddr *)&peeraddr, &socklen);
+
+    if (fdCommand < 0) {
+        RILLOGE("[OFONO] Error on accept() errno:%d", errno);
+        return;
+    }
+
+    ret = fcntl(fdCommand, F_SETFL, O_NONBLOCK);
+
+    if (ret < 0) {
+        RILLOGE("[OFONO] Error setting O_NONBLOCK errno:%d", errno);
+    }
+
+    RILLOGD("libril: new connection to ofono_socket");
+
+    p_info->fdCommand = fdCommand;
+    p_rs = record_stream_new(p_info->fdCommand, MAX_COMMAND_BYTES);
+    p_info->p_rs = p_rs;
+
+    ril_event_set(p_info->commands_event, p_info->fdCommand, true,
+            p_info->processCommandsCallback, p_info);
+    rilEventAddWakeup(p_info->commands_event);
+}
+
+static void startListenOFONO(RIL_SOCKET_ID socket_id, SocketListenParam *socket_listen_p) {
+    int fdListen = -1;
+    int ret;
+    char socket_name[20];
+
+    memset(socket_name, 0, sizeof(char) * 20);
+
+    if (socket_id == RIL_SOCKET_1) {
+        snprintf(socket_name, sizeof(socket_name), "ofono_socket");
+    } else if (socket_id == RIL_SOCKET_2) {
+        snprintf(socket_name, sizeof(socket_name), "ofono_socket2");
+    }
+
+    RILLOGD("Start to listen %s", socket_name);
+
+    fdListen = socket_local_server(socket_name,
+            ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+    if (fdListen < 0) {
+        RILLOGE("Failed to get socket %s", socket_name);
+        exit(-1);
+    }
+
+    ret = listen(fdListen, 4);
+
+    if (ret < 0) {
+        RILLOGE("Failed to listen on control socket '%d': %s",
+             fdListen, strerror(errno));
+        exit(-1);
+    }
+    socket_listen_p->fdListen = fdListen;
+
+    /* note: non-persistent so we can accept only one connection at a time */
+    ril_event_set(socket_listen_p->listen_event, fdListen, false,
+                listenCallbackOFONO, socket_listen_p);
+
+    rilEventAddWakeup(socket_listen_p->listen_event);
+}
+#endif
 
 static void freeDebugCallbackArgs(int number, char **args) {
     for (int i = 0; i < number; i++) {
@@ -5605,10 +5726,20 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
     }
 #endif
 
-
+    s_rilSocketParam = {
+                (RIL_SOCKET_ID)(s_sim_num),     /* socket_id */
+                s_fdListen,                     /* fdListen */
+                -1,                             /* fdCommand */
+                PHONE_PROCESS,                  /* processName */
+                &s_commands_event,              /* commands_event */
+                &s_listen_event,                /* listen_event */
+                processCommandsCallback,        /* processCommandsCallback */
+                NULL,                           /* p_rs */
+                RIL_TELEPHONY_SOCKET            /* RIL_SOCKET_TYPE */
+                };
     /* note: non-persistent so we can accept only one connection at a time */
     ril_event_set (&s_listen_event, s_fdListen, false,
-                listenCallback, NULL);
+                listenCallback, &s_rilSocketParam);
 
     rilEventAddWakeup (&s_listen_event);
 
@@ -5655,6 +5786,20 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
      rilEventAddWakeup(&s_debug_event);
 #endif
 
+#if defined (OFONO_SOCKET_SUPPORTED)
+     s_ofonoSocketParam = {
+                 (RIL_SOCKET_ID)s_sim_num,      /* socket_id */
+                 -1,                            /* fdListen */
+                 -1,                            /* fdCommand */
+                 NULL,                          /* processName */
+                 &s_ofonoCommandsEvent,         /* commands_event */
+                 &s_ofonoListenEvent,           /* listen_event */
+                 processCommandsCallback,       /* processCommandsCallback */
+                 NULL,                          /* p_rs */
+                 RIL_OFONO_SOCKET               /* RIL_SOCKET_TYPE */
+                 };
+    startListenOFONO((RIL_SOCKET_ID)(s_sim_num), &s_ofonoSocketParam);
+#endif
 }
 
 static int
@@ -5689,6 +5834,8 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
     RequestInfo *pRI;
     int ret;
     size_t errorOffset;
+    int fd = s_rilSocketParam.fdCommand;
+    RIL_SOCKET_TYPE socket_type = RIL_TELEPHONY_SOCKET;
 
     pRI = (RequestInfo *)t;
 
@@ -5696,6 +5843,14 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
         RILLOGE ("RIL_onRequestComplete: invalid RIL_Token");
         return;
     }
+
+    socket_type = pRI->socket_type;
+
+#if defined (OFONO_SOCKET_SUPPORTED)
+    if (socket_type == RIL_OFONO_SOCKET) {
+        fd = s_ofonoSocketParam.fdCommand;
+    }
+#endif
 
     if (pRI->local > 0) {
         // Locally issued command...void only!
@@ -5732,10 +5887,10 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
             appendPrintBuf("%s fails by %s", printBuf, failCauseToString(e));
         }
 
-        if (s_fdCommand < 0) {
+        if (fd < 0) {
             RILLOGD ("RIL onRequestComplete: Command channel closed");
         }
-        sendResponse(p);
+        sendResponse(p, socket_type);
     }
 
 done:
@@ -6004,7 +6159,12 @@ void RIL_onUnsolicitedResponse(int unsolResponse, void *data,
         break;
     }
 
-    ret = sendResponse(p);
+#if defined (OFONO_SOCKET_SUPPORTED)
+    ret = sendResponse(p, RIL_OFONO_SOCKET);
+#endif
+
+    ret = sendResponse(p, RIL_TELEPHONY_SOCKET);
+
     if (ret != 0 && unsolResponse == RIL_UNSOL_NITZ_TIME_RECEIVED) {
 
         // Unfortunately, NITZ time is not poll/update like everything
