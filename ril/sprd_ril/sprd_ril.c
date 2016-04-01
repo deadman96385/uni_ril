@@ -11252,7 +11252,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             break;
         }
         case RIL_REQUEST_VOLTE_SET_CONFERENCE_URI: {
-            char cmd[100] = {0};
+            char cmd[256] = {0};
             const char *uri = NULL;
             uri = (char*)(data);
             RILLOGE("RIL_REQUEST_VOLTE_SET_CONFERENCE_URI uri = \"%s\"", uri);
