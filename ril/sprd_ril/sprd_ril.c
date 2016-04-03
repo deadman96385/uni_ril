@@ -186,7 +186,6 @@ typedef enum {
 
 #define LOOSE_MATCH_PLMN_LENGTH 1
 
-#define PERSIST_VOICE_CLEAR_CODE_PROPERTY "persist.sys.voice_clear_code"
 #define PERSIET_SYS_DDR_STATUS            "persist.sys.ddr.status"
 #define PROPPERTY_VALUE_ENABLE            "1"
 #define PERSIST_CURRENT_CARRIER "persist.sys.current.carrier"
@@ -4531,10 +4530,10 @@ void requestLastDataFailCause(int channelID, void *data, size_t datalen, RIL_Tok
 void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     int response = CALL_FAIL_ERROR_UNSPECIFIED;
-    char voice_clearcode_property[PROPERTY_VALUE_MAX];
-    memset(voice_clearcode_property, 0, sizeof(voice_clearcode_property));
-    property_get(PERSIST_VOICE_CLEAR_CODE_PROPERTY, voice_clearcode_property, "0");
-    RILLOGD("%s is %s", PERSIST_VOICE_CLEAR_CODE_PROPERTY, voice_clearcode_property);
+    char carrierVersion[PROPERTY_VALUE_MAX];
+    memset(carrierVersion, 0, sizeof(carrierVersion));
+    property_get(PERSIST_CURRENT_CARRIER, carrierVersion, "");
+    RILLOGD("%s is %s", PERSIST_CURRENT_CARRIER, carrierVersion);
     int fanalresponse[2]={CALL_FAIL_ERROR_UNSPECIFIED,CALL_FAIL_ERROR_UNSPECIFIED};
 
     pthread_mutex_lock(&s_call_mutex);
@@ -4578,7 +4577,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
             response = CALL_FAIL_ERROR_UNSPECIFIED;
     }
     pthread_mutex_unlock(&s_call_mutex);
-    if(!strcmp(voice_clearcode_property, "1")) {
+    if(!strcmp(carrierVersion, "telcel")) {
         fanalresponse[0]=response;
         fanalresponse[1]=call_fail_cause;
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &fanalresponse,
@@ -12525,7 +12524,11 @@ static void initializeCallback(void *param)
     /* @} */
 
     /* set RAU SUCCESS report to AP @{*/
-    at_send_command(ATch_type[channelID], "AT+SPREPORTRAU=1", NULL);
+    char carrierVersion[PROPERTY_VALUE_MAX];
+    property_get(PERSIST_CURRENT_CARRIER, carrierVersion, "");
+    if (!strcmp(carrierVersion, "telcel")) {
+        at_send_command(ATch_type[channelID], "AT+SPREPORTRAU=1", NULL);
+    }
     /* @} */
 
     /* SPRD : for non-CMCC version @{ */
