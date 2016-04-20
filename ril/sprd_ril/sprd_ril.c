@@ -384,6 +384,7 @@ static bool hasSimBusy = false;
 static void* dump_sleep_log();
 static void getIMEIPassword(int channeID,char pwd[]);//SPRD add for simlock
 static void radioPowerOnTimeout();
+static void queryIMSRegisterThread(void *param);//SPRD add for disable ims
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -459,6 +460,8 @@ static int s_init_sim_ready = 0; // for svlte, setprop only once
 static int attaching = 0;
 static pthread_mutex_t attachingMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t attachingCond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t imsDisableMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t imsDisableCond = PTHREAD_COND_INITIALIZER;
 
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
 #define RIL_DATA_PREFER_PROPERTY  "persist.sys.dataprefer.simid"
@@ -11309,12 +11312,24 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         }
 
         case RIL_REQUEST_DISABLE_IMS: {
-            err = at_send_command(ATch_type[channelID], "AT+IMSEN=0" , NULL);
-            if (err < 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-            } else {
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            struct timespec tv;
+            pthread_attr_t attr;
+            pthread_t ims_tid;
+
+            at_send_command(ATch_type[channelID], "AT+IMSEN=0" , NULL);
+
+            tv.tv_sec = time(NULL) + 25;
+            tv.tv_nsec = 0;
+            pthread_attr_init (&attr);
+            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+            err = pthread_create(&ims_tid, &attr, queryIMSRegisterThread, ATch_type[channelID]);
+            if(err >= 0) {
+                //wait for report the ims diable condition
+                pthread_mutex_lock(&imsDisableMutex);
+                pthread_cond_timedwait(&imsDisableCond, &imsDisableMutex, &tv);
+                pthread_mutex_unlock(&imsDisableMutex);
             }
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
 
@@ -15898,4 +15913,44 @@ static void radioPowerOnTimeout() {
     int channelID = getChannel();
     setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
     putChannel(channelID);
+}
+
+static void queryIMSRegisterThread(void *param) {
+    ATResponse *p_response = NULL;
+    int skip, imsReg = -1;
+    int err;
+    char *line;
+    int retryTimes = 8;
+    struct ATChannels* channel = (struct ATChannels *) param;
+    do {
+        RILLOGD("queryDiableIMS Thread: AT+CIREG?");
+        err = at_send_command_singleline(channel, "AT+CIREG?", "+CIREG:", &p_response);
+        if (err != 0 || p_response->success == 0)
+            break;
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0)  break;
+        err = at_tok_nextint(&line, &skip);
+        if (err < 0)  break;
+        err = at_tok_nextint(&line, &imsReg);
+        if (err < 0)  break;
+        if(imsReg == 0) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
+                    &imsReg, sizeof(imsReg));
+            break;
+        }
+        retryTimes--;
+        at_response_free(p_response);
+        p_response = NULL;
+        sleep(1);
+    } while(retryTimes > 0);
+
+    RILLOGD("queryDiableIMS Thread err = %d, imsReg = %d", err, imsReg);
+    if (p_response != NULL) {
+        at_response_free(p_response);
+    }
+    // Send signal to main thread
+    pthread_mutex_lock(&imsDisableMutex);
+    pthread_cond_signal(&imsDisableCond);
+    pthread_mutex_unlock(&imsDisableMutex);
 }
