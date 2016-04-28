@@ -362,7 +362,7 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
     enc_config->QP_IVOP				= pConf->QP_IVOP;
     enc_config->QP_PVOP				= pConf->QP_PVOP;
     enc_config->EncSceneMode			= pConf->EncSceneMode;
-    if (enc_config->EncSceneMode == SCENE_NORMAL){
+    if (enc_config->EncSceneMode == SCENE_NORMAL) {
         img_ptr->slice_mb = img_ptr->frame_height_in_mbs *img_ptr->frame_width_in_mbs;
     }
 
@@ -371,7 +371,7 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
         if ((enc_config->EncSceneMode == 2) /*WFD*/ || (enc_config->EncSceneMode == 1)/*volte*/)
         {
             vo->rc_inout_paras.nRate_control_en = RC_GOP_CBR;
-        } else	//(enc_config->EncSceneMode == 0)/*Normal*/ 
+        } else	//(enc_config->EncSceneMode == 0)/*Normal*/
         {
             vo->rc_inout_paras.nRate_control_en = RC_GOP_VBR;
         }
@@ -400,9 +400,47 @@ MMEncRet H264EncSetConf(AVCHandle *avcHandle, MMEncConfig *pConf)
         init_GOPRC(&(vo->rc_inout_paras));
     }
 
-    SPRD_CODEC_LOGD ("%s, actual, FrameRate: %d, targetBitRate: %d, intra_period: %d, QP_I: %d, QP_P: %d, level: %s, RC_mode: %d",
+    //for volte
+    switch (total_mbs)
+    {
+    case 3600: // 1280x720
+        img_ptr->sps->i_level_idc = AVC_LEVEL3_1;
+        break;
+    case 1200: // 640x480
+        if (enc_config->FrameRate == 15) {
+            img_ptr->sps->i_level_idc = AVC_LEVEL2_2;
+        } else {
+            img_ptr->sps->i_level_idc = AVC_LEVEL3;
+        }
+        break;
+    case 300: // 320x240
+        if (enc_config->FrameRate == 15) {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1_2;
+        } else {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1_3;
+        }
+        break;
+    case 396: // 352x288
+        if (enc_config->FrameRate == 15) {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1_2;
+        } else {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1_3;
+        }
+        break;
+    case 99: // 176x144
+        if (enc_config->FrameRate == 15) {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1;
+        } else {
+            img_ptr->sps->i_level_idc = AVC_LEVEL1_1;
+        }
+        break;
+    default:
+        break;
+    }
+
+    SPRD_CODEC_LOGD ("%s, actual, FrameRate: %d, targetBitRate: %d, intra_period: %d, QP_I: %d, QP_P: %d, level: %s, RC_mode: %d, img_ptr->sps->i_level_idc: %d",
                      __FUNCTION__, enc_config->FrameRate, enc_config->targetBitRate, vo->rc_inout_paras.nIntra_Period,
-                     enc_config->QP_IVOP, enc_config->QP_PVOP, level_infos[level_idx].level_str, vo->rc_inout_paras.nRate_control_en);
+                     enc_config->QP_IVOP, enc_config->QP_PVOP, level_infos[level_idx].level_str, vo->rc_inout_paras.nRate_control_en, img_ptr->sps->i_level_idc);
 
     return MMENC_OK;
 }
