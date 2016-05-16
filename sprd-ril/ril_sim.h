@@ -30,11 +30,13 @@ typedef enum {
     RUIM_NETWORK_PERSONALIZATION = 11
 } SimStatus;
 
+extern int s_imsInitISIM[SIM_COUNT];
+
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
-
 SimStatus getSIMStatus(int channelID);
 RIL_AppType getSimType(int channelID);
+void dispatchCLCK(RIL_Token t, void *data, void *resp);
 
 #endif  // RIL_SIM_H_

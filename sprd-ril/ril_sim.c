@@ -6,12 +6,14 @@
 
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_sim.h"
 #include "ril_utils.h"
 #include "ril_network.h"
 #include "custom/ril_custom.h"
+#include "ril_async_cmd_handler.h"
 
+/* Property to save pin for modem assert */
 #define RIL_SIM_PIN_PROPERTY                    "ril.sim.pin"
 #define FACILITY_LOCK_REQUEST                   "2"
 
@@ -74,6 +76,31 @@ static bool s_needQueryPukTimes[SIM_COUNT] = {
 #endif
 #endif
         };
+static bool s_needQueryPinPuk2Times[SIM_COUNT] = {
+        true
+#if (SIM_COUNT >= 2)
+        ,true
+#if (SIM_COUNT >= 3)
+        ,true
+#if (SIM_COUNT >= 4)
+        ,true
+#endif
+#endif
+#endif
+        };
+int s_imsInitISIM[SIM_COUNT] = {
+        -1
+#if (SIM_COUNT >= 2)
+       ,-1
+#if (SIM_COUNT >= 3)
+       ,-1
+#if (SIM_COUNT >= 4)
+       ,-1
+#endif
+#endif
+#endif
+        };
+
 const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -83,8 +110,6 @@ static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     char cmd[AT_COMMAND_LEN] = {0};
     char *line;
     ATResponse *p_response = NULL;
-
-    RLOGD("getSimlockRemainTimes: type = %d", type);
 
     if (UNLOCK_PUK == type || UNLOCK_PUK2 == type) {
         remaintime = 10;
@@ -102,19 +127,16 @@ static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
             err = at_tok_nextint(&line, &result);
             if (err == 0) {
                 remaintime = result;
-                RLOGD("getSimlockRemainTimes:remaintime=%d", remaintime);
             }
         }
     }
     at_response_free(p_response);
 
     /* Bug 523208 set pin/puk remain times to prop. @{ */
-    if (UNLOCK_PUK == type || UNLOCK_PIN == type) {
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-        pthread_mutex_lock(&s_remainTimesMutex);
-        setPinPukRemainTimes(type, remaintime, socket_id);
-        pthread_mutex_unlock(&s_remainTimesMutex);
-    }
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    pthread_mutex_lock(&s_remainTimesMutex);
+    setPinPukRemainTimes(type, remaintime, socket_id);
+    pthread_mutex_unlock(&s_remainTimesMutex);
     /* }@ */
     return remaintime;
 }
@@ -128,7 +150,6 @@ SimStatus getSIMStatus(int channelID) {
     char *cpinResult;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    RLOGD("getSIMStatus(). s_radioState: %d", s_radioState[socket_id]);
     if (s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE) {
         ret = SIM_NOT_READY;
         goto done;
@@ -167,7 +188,7 @@ SimStatus getSIMStatus(int channelID) {
         ret = SIM_NOT_READY;
         goto done;
     }
-    RLOGD("cpin result = %s", cpinResult);
+
     if (0 == strcmp(cpinResult, "SIM PIN")) {
         ret = SIM_PIN;
         goto done;
@@ -193,8 +214,8 @@ done:
     }
 
     /** SPRD: Bug 523208 set pin/puk remain times to prop. @{*/
-    if ((s_needQueryPinTimes[socket_id] && ret == SIM_PIN)
-            || ( s_needQueryPukTimes[socket_id] && ret == SIM_PUK)) {
+    if ((s_needQueryPinTimes[socket_id] && ret == SIM_PIN) ||
+            (s_needQueryPukTimes[socket_id] && ret == SIM_PUK)) {
         if (ret == SIM_PIN) {
             s_needQueryPinTimes[socket_id] = false;
         } else {
@@ -202,9 +223,15 @@ done:
         }
         int remaintime = getSimlockRemainTimes(channelID,
                 ret == SIM_PIN ? UNLOCK_PIN : UNLOCK_PUK);
+    } else if (s_needQueryPinPuk2Times[socket_id] && ret == SIM_READY) {
+        s_needQueryPinPuk2Times[socket_id] = false;
+        getSimlockRemainTimes(channelID, UNLOCK_PIN2);
+        getSimlockRemainTimes(channelID, UNLOCK_PUK2);
     } else if (ret == SIM_ABSENT) {
         s_needQueryPinTimes[socket_id] = true;
         s_needQueryPukTimes[socket_id] = true;
+        s_needQueryPinPuk2Times[socket_id] = true;
+        s_imsInitISIM[socket_id] = -1;
     }
     /** }@ */
 
@@ -264,40 +291,40 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     static RIL_AppStatus app_status_array[] = {
         // SIM_ABSENT = 0
         {RIL_APPTYPE_UNKNOWN, RIL_APPSTATE_UNKNOWN, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // SIM_NOT_READY = 1
         {RIL_APPTYPE_SIM, RIL_APPSTATE_DETECTED, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // SIM_READY = 2
         {RIL_APPTYPE_SIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // SIM_PIN = 3
         {RIL_APPTYPE_SIM, RIL_APPSTATE_PIN, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
         // SIM_PUK = 4
         {RIL_APPTYPE_SIM, RIL_APPSTATE_PUK, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_BLOCKED, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_BLOCKED, RIL_PINSTATE_UNKNOWN},
         // SIM_NETWORK_PERSONALIZATION = 5
         {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO, RIL_PERSOSUBSTATE_SIM_NETWORK,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
         // RUIM_ABSENT = 6
         {RIL_APPTYPE_UNKNOWN, RIL_APPSTATE_UNKNOWN, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // RUIM_NOT_READY = 7
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_DETECTED, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // RUIM_READY = 8
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
-          NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN},
         // RUIM_PIN = 9
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_PIN, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
         // RUIM_PUK = 10
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_PUK, RIL_PERSOSUBSTATE_UNKNOWN,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_BLOCKED, RIL_PINSTATE_UNKNOWN},
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_BLOCKED, RIL_PINSTATE_UNKNOWN},
         // RUIM_NETWORK_PERSONALIZATION = 11
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_SUBSCRIPTION_PERSO, RIL_PERSOSUBSTATE_SIM_NETWORK,
-          NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
     };
     RIL_CardState card_state;
     int num_apps;
@@ -469,7 +496,6 @@ unsigned char *convertUsimToSim(unsigned char const *byteUSIM, int len,
                 (byteUSIM[RESPONSE_DATA_FILE_RECORD_LEN_2] & 0xff);
     }
     convertBinToHex((char *)byteSIM, RESPONSE_EF_SIZE, hexUSIM);
-    RLOGD("convert to sim done, return: %s", hexUSIM);
     return hexUSIM;
 error:
     RLOGD("convert to sim error, return NULL");
@@ -552,9 +578,6 @@ out:
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &remaintime,
                 sizeof(remaintime));
         simstatus = getSIMStatus(channelID);
-        RLOGD("simstatus = %d, radioStatus = %d", simstatus,
-              s_radioState[socket_id]);
-
         if (simstatus == SIM_READY &&
             s_radioState[socket_id] == RADIO_STATE_ON) {
             setRadioState(channelID, RADIO_STATE_SIM_READY);
@@ -598,6 +621,7 @@ static void requestEnterSimPuk2(int channelID, void *data, size_t datalen,
 
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
+    getSimlockRemainTimes(channelID, UNLOCK_PUK2);
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
@@ -644,6 +668,7 @@ static void requestChangeSimPin(int channelID, void *data, size_t datalen,
 
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
+    remaintime = getSimlockRemainTimes(channelID, UNLOCK_PIN);
     if (err < 0 || p_response->success == 0) {
         goto error;
     } else {
@@ -661,7 +686,6 @@ static void requestChangeSimPin(int channelID, void *data, size_t datalen,
     return;
 
 error:
-    remaintime = getSimlockRemainTimes(channelID, UNLOCK_PIN);
     RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, &remaintime,
                           sizeof(remaintime));
     at_response_free(p_response);
@@ -690,6 +714,7 @@ static void requestChangeSimPin2(int channelID, void *data, size_t datalen,
 
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
+    remaintime = getSimlockRemainTimes(channelID, UNLOCK_PIN2);
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
@@ -699,7 +724,6 @@ static void requestChangeSimPin2(int channelID, void *data, size_t datalen,
     return;
 
 error:
-    remaintime = getSimlockRemainTimes(channelID, UNLOCK_PIN2);
     RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, &remaintime,
                           sizeof(remaintime));
     at_response_free(p_response);
@@ -716,9 +740,10 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
     char *cmd, *line;
     ATLine *p_cur;
     ATResponse *p_response = NULL;
+    RIL_Errno errnoType = RIL_E_GENERIC_FAILURE;
 
     char *type = data[0];
-    RLOGD("requestFacilityLock, type = %s ", type);
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     if (datalen != 5 * sizeof(char *)) {
         goto error1;
@@ -739,13 +764,34 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
         goto error1;
     }
 
-    if (*data[1] == '2') {
+    if (*data[1] == '2') {  // query status
         err = at_send_command_multiline(s_ATChannels[channelID], cmd, "+CLCK: ",
                                         &p_response);
         free(cmd);
-    } else {
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        for (p_cur = p_response->p_intermediates; p_cur != NULL;
+             p_cur = p_cur->p_next) {
+            line = p_cur->line;
+
+            err = at_tok_start(&line);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &status);
+            if (err < 0) goto error;
+            if (at_tok_hasmore(&line)) {
+                err = at_tok_nextint(&line, &serviceClass);
+                if (err < 0) goto error;
+            }
+            response[0] = status;
+            response[1] |= serviceClass;
+        }
+
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+    } else {  // unlock/lock this facility
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         free(cmd);
         if (err < 0 || p_response->success == 0) {
@@ -756,41 +802,27 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
             pin = data[2];
 
             setProperty(socket_id, RIL_SIM_PIN_PROPERTY, pin);
-        }
+            getSimlockRemainTimes(channelID, UNLOCK_PIN);
+        } else if (!strcmp(data[0], "FD")) {
+            getSimlockRemainTimes(channelID, UNLOCK_PIN2);
 
+            int *mode = (int *)malloc(sizeof(int));
+            *mode = atoi(data[1]);
+            const char *cmd = "+CLCK:";
+            // timeout is in seconds
+            addAsyncCmdList(socket_id, t, cmd, (void *)mode, 10);
+            goto done;
+        }
         result = 1;
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(result));
-        at_response_free(p_response);
-        return;
     }
-
-    if (err < 0 || p_response->success == 0) {
-        goto error;
-    }
-
-    for (p_cur = p_response->p_intermediates; p_cur != NULL;
-         p_cur = p_cur->p_next) {
-        line = p_cur->line;
-
-        err = at_tok_start(&line);
-        if (err < 0) goto error;
-
-        err = at_tok_nextint(&line, &status);
-        if (err < 0) goto error;
-        if (at_tok_hasmore(&line)) {
-            err = at_tok_nextint(&line, &serviceClass);
-            if (err < 0) goto error;
-        }
-        response[0] = status;
-        response[1] |= serviceClass;
-    }
-
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+done:
     at_response_free(p_response);
     return;
 
 error:
-    if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+    if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
         line = p_response->finalResponse;
         err = at_tok_start(&line);
         if (err >= 0) {
@@ -800,24 +832,14 @@ error:
                     setRadioState(channelID, RADIO_STATE_SIM_LOCKED_OR_ABSENT);
                 } else if (errNum == 70 || errNum == 3 || errNum == 128 ||
                             errNum == 254) {
-                    remainTimes = getRemainTimes(channelID, type);
                     if (errNum == 3 && !strcmp(data[0], "SC") &&
-                            *data[1] == '1') {
-                        RIL_onRequestComplete(t, RIL_E_SUCCESS, &remainTimes,
-                                              sizeof(remainTimes));
+                        *data[1] == '1') {
+                        errnoType = RIL_E_SUCCESS;
                     } else {
-                        RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE,
-                                              &remainTimes,
-                                              sizeof(remainTimes));
+                        errnoType = RIL_E_FDN_CHECK_FAILURE;
                     }
-                    at_response_free(p_response);
-                    return;
                 } else if (errNum == 16) {
-                    remainTimes = getRemainTimes(channelID, type);
-                    RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT,
-                                          &remainTimes, sizeof(remainTimes));
-                    at_response_free(p_response);
-                    return;
+                    errnoType = RIL_E_PASSWORD_INCORRECT;
                 }
             }
         }
@@ -825,8 +847,7 @@ error:
 
 error1:
     remainTimes = getRemainTimes(channelID, type);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, &remainTimes,
-                          sizeof(remainTimes));
+    RIL_onRequestComplete(t, errnoType, &remainTimes, sizeof(remainTimes));
     at_response_free(p_response);
 }
 
@@ -1617,28 +1638,35 @@ error:
     at_response_free(p_response);
 }
 
-static void requestInitISIM(int channelID, void *data, size_t datalen,
-                               RIL_Token t) {
-    int err;
-    int response = 0;
-    char cmd[AT_COMMAND_LEN] = {0};
-    char *line;
-    const char **strings = (const char **)data;
+static int initISIM(int channelID) {
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_imsInitISIM[socket_id] != -1) {
+        return s_imsInitISIM[socket_id];
+    }
     ATResponse *p_response = NULL;
-
+    char *line;
+    int err;
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+ISIM=1",
                                      "+ISIM:", &p_response);
     if (err >= 0 && p_response->success) {
         line = p_response->p_intermediates->line;
         err = at_tok_start(&line);
         if (err >= 0) {
-            err = at_tok_nextint(&line, &response);
-            if (err >= 0) {
-                RLOGD("Response of ISIM is %d", response);
-            }
+            err = at_tok_nextint(&line, &s_imsInitISIM[socket_id]);
+            RLOGD("Response of ISIM is %d", s_imsInitISIM[socket_id]);
         }
     }
-    AT_RESPONSE_FREE(p_response);
+    at_response_free(p_response);
+    return s_imsInitISIM[socket_id];
+}
+
+static void requestInitISIM(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    int err;
+    int response = initISIM(channelID);;
+    char cmd[AT_COMMAND_LEN] = {0};
+    const char **strings = (const char **)data;
+    ATResponse *p_response = NULL;
 
     /* 7 means the number of data from fwk, represents 7 AT commands value */
     if (datalen == 7 * sizeof(char *) && strings[0] != NULL &&
@@ -1679,9 +1707,7 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
         snprintf(cmd, sizeof(cmd), "AT+CONFURI=0,\"%s\"", strings[0]);
         err = at_send_command(s_ATChannels[channelID], cmd , NULL);
 
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, &s_imsConn[socket_id],
-                sizeof(int));
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
@@ -1899,11 +1925,52 @@ out:
 }
 
 int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
+    int err;
+    char *line = NULL;
+
     if (strStartsWith(s, "+ECIND:")) {
         onSimStatusChanged(socket_id, s);
+    } else if (strStartsWith(s, "+CLCK:")) {
+        int response;
+        char *tmp = NULL;
+        char *type = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &type);
+        if (err < 0) goto out;
+
+        if (0 == strcmp(type, "FD")) {
+            err = at_tok_nextint(&tmp, &response);
+            if (err < 0) goto out;
+
+            const char *cmd = "+CLCK:";
+            checkAndCompleteRequest(socket_id, cmd, (void *)(&response));
+        }
     } else {
         return 0;
     }
 
+out:
+    free(line);
     return 1;
+}
+
+/* AT Command [AT+CLCK="FD",....] used to enable/disable FDN facility.
+ * But the AT response is async
+ * the status of "+CLCK:"FD",status" URC is the real result
+ * dispatchCLCK according the URC to complete the request
+ */
+void dispatchCLCK(RIL_Token t, void *data, void *resp) {
+    int mode = ((int *)data)[0];
+    int status = ((int *)resp)[0];
+
+    if (mode == status) {
+        int result = 1;
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(result));
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
 }

@@ -5,13 +5,12 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_call.h"
 #include "ril_misc.h"
 #include "ril_network.h"
 
 const struct timeval TIMEVAL_CSCALLSTATEPOLL = {0, 50000};
-static EccList *s_eccList[SIM_COUNT];
 ListNode s_DTMFList[SIM_COUNT];
 static SrvccPendingRequest *s_srvccPendingRequest[SIM_COUNT];
 
@@ -402,7 +401,7 @@ static inline int all_calls(int channelID, int do_mute) {
 }
 
 static void requestGetCurrentCalls(int channelID, void *data,
-        size_t datalen, RIL_Token t, int bVideoCall) {
+        size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
@@ -461,10 +460,8 @@ static void requestGetCurrentCalls(int channelID, void *data,
     if (needRepoll)
 #endif
     {
-        if (bVideoCall == 0) {
-            RIL_requestTimedCallback(reportCallStateChanged,
-                    (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
-        }
+        RIL_requestTimedCallback(reportCallStateChanged,
+                (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
     }
     return;
 }
@@ -772,31 +769,6 @@ static void requestSeparateConnection(int channelID, void *data,
     }
 }
 
-static void requestSTKCallRequestFromSIM(int channelID, void *data,
-                                              size_t datalen, RIL_Token t) {
-    RIL_UNUSED_PARM(datalen);
-
-    int err;
-    int value = ((int *)data)[0];
-    ATResponse *p_response = NULL;
-
-    if (value == 0) {
-        RLOGD("cancel STK call");
-        err = at_send_command(s_ATChannels[channelID], "AT+SPUSATCALLSETUP=0",
-                              &p_response);
-    } else {
-        RLOGD("confirm STK call");
-        err = at_send_command(s_ATChannels[channelID], "AT+SPUSATCALLSETUP=1",
-                              &p_response);
-    }
-    if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    } else {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-    }
-    at_response_free(p_response);
-}
-
 static void requestExplicitCallTransfer(int channelID, void *data,
                                              size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -814,75 +786,74 @@ static void requestExplicitCallTransfer(int channelID, void *data,
     at_response_free(p_response);
 }
 
-static int getEccRecordCategory(RIL_SOCKET_ID socket_id, char *number) {
-    if (number == NULL || s_eccList[socket_id] == NULL) {
-        return -1;
-    }
-
-    int category = -1;
-    EccList *p_eccList = s_eccList[socket_id];
-    while (p_eccList != NULL && p_eccList->number != NULL) {
-        if (strcmp(number, p_eccList->number) == 0) {
-            category = p_eccList->category;
-            break;
-        }
-        p_eccList = p_eccList->prev;
-    }
-    RLOGD("getEccRecordCategory->number: %s category: %d", number, category);
-    return category;
-}
-
-int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber) {
+int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
+    char propName[PROPERTY_VALUE_MAX] = {0};
     char eccNumberList[PROPERTY_VALUE_MAX] = {0};
-    char *tmpPtr;
+    char *tmpList = NULL;
     char *tmpNumber = NULL;
+    char *outer_ptr = NULL;
+    char *inner_ptr = NULL;
     char ecc3GPP_NoSIM[] = "112,911,000,08,110,118,119,999";
     char ecc3GPP_SIM[] = "112,911";
+    int numberExist = 0;
     int ret = 0;
 
-    if (socket_id == RIL_SOCKET_1) {
-        property_get("ril.ecclist", eccNumberList, "0");
-    } else {
-        char eccListProperty[ARRAY_SIZE] = {0};
-        snprintf(eccListProperty, sizeof(eccListProperty), "ril.ecclist%d",
-                  socket_id);
-        property_get(eccListProperty, eccNumberList, "0");
+    strncpy(propName, ECC_LIST_REAL_PROP, sizeof(ECC_LIST_REAL_PROP));
+#if defined (ANDROID_MULTI_SIM)
+    if (socket_id != RIL_SOCKET_1) {
+        snprintf(propName, sizeof(propName), "ril.ecclist.real%d", socket_id);
     }
-    RLOGD("dial_number = %s, eccNumberList = %s", dialNumber, eccNumberList);
-    if (strcmp(eccNumberList, "0") == 0) {
-        property_get("ro.ril.ecclist", eccNumberList, "0");
+#endif
+    property_get(propName, eccNumberList, "");
+    RLOGD("dialNumber = %s, ril.ecclist.real%d = %s", dialNumber, socket_id,
+           eccNumberList);
+
+    if (strcmp(eccNumberList, "") != 0) {
+        tmpList = eccNumberList;
+        while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
+            tmpList = tmpNumber;
+            while ((tmpNumber = strtok_r(tmpList, "@", &inner_ptr)) != NULL) {
+                if (strcmp(tmpNumber, dialNumber) == 0) {
+                    numberExist = 1;
+                    if (inner_ptr != NULL) {
+                        *catgry = atoi(inner_ptr);
+                    }
+                    break;
+                }
+                tmpList = NULL;
+            }
+            if (numberExist) {
+                break;
+            }
+            tmpList = NULL;
+        }
+        return numberExist;
     }
-    RLOGD("dial_number = %s, eccNumberList = %s", dialNumber, eccNumberList);
-    tmpNumber = eccNumberList;
-    if (strcmp(eccNumberList, "0") == 0) {
+
+    property_get("ro.ril.ecclist", eccNumberList, "");
+    RLOGD("dial_number = %s, ro.ril.ecclist = %s", dialNumber, eccNumberList);
+    tmpList = eccNumberList;
+    if (strcmp(eccNumberList, "") == 0) {
         if (isSimPresent(socket_id) == 1) {
-            tmpNumber = ecc3GPP_SIM;
+            tmpList = ecc3GPP_SIM;
         } else {
-            tmpNumber = ecc3GPP_NoSIM;
+            tmpList = ecc3GPP_NoSIM;
         }
     }
-    while (tmpNumber != NULL) {
-        tmpPtr = strchr(tmpNumber, ',');
-        if (tmpPtr != NULL) {
-            *tmpPtr = '\0';
-        }
+    while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
         if (strcmp(tmpNumber, dialNumber) == 0) {
-            ret = 1;
+            numberExist = 1;
             break;
-        } else if (tmpPtr == NULL) {
-            break;
-        } else {
-            tmpNumber = tmpPtr + 1;
         }
+        tmpList = NULL;
     }
-    return ret;
+    return numberExist;
 }
 
 static void requestEccDial(int channelID, void *data, size_t datalen,
-                              RIL_Token t) {
+                              RIL_Token t, int catgry) {
     RIL_UNUSED_PARM(datalen);
 
-    int category = -1;
     int ret, err;
     char *cmd = NULL;
     const char *clir = NULL;
@@ -906,9 +877,8 @@ static void requestEccDial(int channelID, void *data, size_t datalen,
             break;
     }
 
-    category = getEccRecordCategory(socket_id, p_dial->address);
-    if (category != -1) {
-        ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address, category, clir);
+    if (catgry != -1) {
+        ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address, catgry, clir);
     } else {
         ret = asprintf(&cmd, "ATD%s@,#%s;", p_dial->address, clir);
     }
@@ -986,7 +956,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
 }
 
 static void requestGetCurrentCallsVoLTE(int channelID, void *data,
-        size_t datalen, RIL_Token t, int bVideoCall) {
+        size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
@@ -1053,19 +1023,16 @@ static void requestGetCurrentCallsVoLTE(int channelID, void *data,
 
     at_response_free(p_response);
 #ifdef POLL_CALL_STATE
-    if (countValidCalls)
+    if (countValidCalls) {
     /* We don't seem to get a "NO CARRIER" message from
      * smd, so we're forced to poll until the call ends.
      */
 #else
-    if (needRepoll)
+    if (needRepoll) {
 #endif
-    {
-        if (bVideoCall == 0) {
-            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-            RIL_requestTimedCallback(reportCallStateChanged,
-                    (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
-        }
+        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+        RIL_requestTimedCallback(reportCallStateChanged,
+                (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
     }
     return;
 }
@@ -1075,7 +1042,7 @@ static void requestVideoPhoneDial(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
 
     RIL_VideoPhone_Dial *p_dial;
-    ATResponse   *p_response = NULL;
+    ATResponse *p_response = NULL;
     int err;
     char *cmd;
     int ret;
@@ -1104,6 +1071,98 @@ static void requestVideoPhoneDial(int channelID, void *data,
     at_response_free(p_response);
 }
 
+static void requestSwitchMultiCall(int channelID, void *data,
+        size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    int countCalls;
+    int countValidCalls;
+    char cmd[AT_COMMAND_LEN] = {0};
+    ATResponse *p_response = NULL;
+    ATResponse *p_resp = NULL;
+    ATLine *p_cur;
+    RIL_Call *p_calls;
+
+    int mode = ((int *)data)[0];
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    if (mode == 0) {
+        goto process;
+    }
+
+    err = at_send_command_multiline(s_ATChannels[channelID], "AT+CLCC",
+                                    "+CLCC:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    /* count the calls */
+    for (countCalls = 0, p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        countCalls++;
+    }
+
+    p_calls = (RIL_Call *)alloca(countCalls * sizeof(RIL_Call));
+    memset(p_calls, 0, countCalls * sizeof(RIL_Call));
+
+    /*
+     * if mode is 1, hung up all active call;
+     * if mode is 2, hang up all hold call
+     * if mode is 3, hang up all active and hold call
+     */
+    for (countValidCalls = 0, p_cur = p_response->p_intermediates;
+            p_cur != NULL; p_cur = p_cur->p_next) {
+        err = callFromCLCCLine(p_cur->line, p_calls + countValidCalls);
+        if (err != 0) {
+            continue;
+        }
+        if ((p_calls + countValidCalls)->state == RIL_CALL_ACTIVE) {
+            if (mode == 1 || mode == 3) {
+                snprintf(cmd, sizeof(cmd), "AT+CHLD=7%d",
+                        (p_calls + countValidCalls)->index);
+                err = at_send_command(s_ATChannels[channelID], cmd, &p_resp);
+                if (err < 0 || p_response->success == 0) {
+                    goto error;
+                }
+                AT_RESPONSE_FREE(p_resp);
+            }
+        } else if ((p_calls + countValidCalls)->state == RIL_CALL_HOLDING) {
+            if (mode == 2 || mode == 3) {
+                snprintf(cmd, sizeof(cmd), "AT+CHLD=7%d",
+                        (p_calls + countValidCalls)->index);
+                err = at_send_command(s_ATChannels[channelID], cmd, &p_resp);
+                if (err < 0 || p_response->success == 0) {
+                    goto error;
+                }
+                AT_RESPONSE_FREE(p_resp);
+            }
+        }
+        countValidCalls++;
+    }
+
+process:
+    AT_RESPONSE_FREE(p_response);
+    err = at_send_command(s_ATChannels[channelID], "AT+CMUT=0", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    AT_RESPONSE_FREE(p_response);
+    err = at_send_command(s_ATChannels[channelID], "AT+CHLD=2", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    AT_RESPONSE_FREE(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    AT_RESPONSE_FREE(p_response);
+    AT_RESPONSE_FREE(p_resp);
+    return;
+}
+
 int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -1112,17 +1171,19 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
 
     switch (request) {
         case RIL_REQUEST_GET_CURRENT_CALLS:
-            requestGetCurrentCalls(channelID, data, datalen, t, 0);
+            requestGetCurrentCalls(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_DIAL: {
             RIL_Dial *p_dial = (RIL_Dial *)data;
-            int ret = 0;
+            int ret = 0, category = -1;
 
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-            ret = isEccNumber(socket_id, p_dial->address);
+            ret = isEccNumber(socket_id, p_dial->address, &category);
+            RLOGD("p_dial->address = %s, isEccNumber = %d", p_dial->address,
+                   ret);
             if (ret == 1) {
-                requestEccDial(channelID, data, datalen, t);
+                requestEccDial(channelID, data, datalen, t, category);
             } else {
                 requestDial(channelID, data, datalen, t);
             }
@@ -1164,9 +1225,6 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SEPARATE_CONNECTION:
             requestSeparateConnection(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM:
-            requestSTKCallRequestFromSIM(channelID, data, datalen, t);
-            break;
         case RIL_REQUEST_EXPLICIT_CALL_TRANSFER:
             requestExplicitCallTransfer(channelID, data, datalen, t);
             break;
@@ -1178,7 +1236,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         /* IMS request @{ */
         case RIL_REQUEST_GET_IMS_CURRENT_CALLS:
-            requestGetCurrentCallsVoLTE(channelID, data, datalen, t, 0);
+            requestGetCurrentCallsVoLTE(channelID, data, datalen, t);
             break;
         /*
          * add for VoLTE to handle Voice call Availability
@@ -1297,9 +1355,126 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_VIDEOPHONE_DIAL:
+        case RIL_EXT_REQUEST_VIDEOPHONE_DIAL:
             requestVideoPhoneDial(channelID, data, datalen, t);
             break;
+        case RIL_REQUEST_VIDEOPHONE_CODEC:
+        case RIL_EXT_REQUEST_VIDEOPHONE_CODEC:{
+            p_response = NULL;
+            char cmd[AT_COMMAND_LEN] = {0};
+
+            RIL_VideoPhone_Codec* p_codec = (RIL_VideoPhone_Codec *)data;
+            snprintf(cmd, sizeof(cmd), "AT"AT_PREFIX"DVTCODEC=%d", p_codec->type);
+
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         /* }@ */
+        /* videophone @{ */
+        case RIL_EXT_REQUEST_VIDEOPHONE_FALLBACK: {
+            p_response = NULL;
+            err = at_send_command(s_ATChannels[channelID],
+                                  "AT"AT_PREFIX"DVTHUP", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_VIDEOPHONE_STRING: {
+            char *cmd;
+            int ret;
+            p_response = NULL;
+            ret = asprintf(&cmd, "AT"AT_PREFIX"DVTSTRS=\"%s\"", (char *)(data));
+            if (ret < 0) {
+                RLOGE("Failed to allocate memory");
+                cmd = NULL;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            free(cmd);
+            break;
+        }
+        case RIL_EXT_REQUEST_VIDEOPHONE_LOCAL_MEDIA: {
+            p_response = NULL;
+            char cmd[AT_COMMAND_LEN] = {0};
+            int datatype = ((int *)data)[0];
+            int sw = ((int *)data)[1];
+
+            if ((datalen / sizeof(int)) > 2) {
+                int indication = ((int *)data)[2];
+                snprintf(cmd, sizeof(cmd), "AT"AT_PREFIX"DVTSEND=%d,%d,%d",
+                          datatype, sw, indication);
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT"AT_PREFIX"DVTSEND=%d,%d",
+                          datatype, sw);
+            }
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_VIDEOPHONE_CONTROL_IFRAME: {
+            p_response = NULL;
+            char cmd[AT_COMMAND_LEN];
+            snprintf(cmd, sizeof(cmd), "AT"AT_PREFIX"DVTLFRAME=%d,%d",
+                      ((int *)data)[0], ((int *)data)[1]);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        /* }@ */
+        case RIL_EXT_REQUEST_SWITCH_MULTI_CALL:
+            /* Multi call supplementary function decoupling */
+            requestSwitchMultiCall(channelID, data, datalen, t);
+            break;
+        case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: {
+            p_response = NULL;
+            int response = 0;
+
+            err = at_send_command_singleline(s_ATChannels[channelID],
+               "AT+SPCAPABILITY=10,0", "+SPCAPABILITY", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                 char *line = p_response->p_intermediates->line;
+                 skipNextComma(&line);
+                 skipNextComma(&line);
+                 err = at_tok_nextint(&line, &response);
+                 if (err >= 0) {
+                     RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
+                                           sizeof(response));
+                 } else {
+                     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                 }
+            }
+            at_response_free(p_response);
+            break;
+         }
         default:
             ret = 0;
             break;
@@ -1308,19 +1483,24 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
 }
 
 static void dialEmergencyWhileCallFailed(void *param) {
-    RLOGD("dialEmergencyWhileCallFailed->address =%s", (char *)param);
-
     if (param != NULL) {
+        char eccNumber[ARRAY_SIZE] = {0};
+        int channelID;
         CallbackPara *cbPara = (CallbackPara *)param;
-        char *number = cbPara->para;
         RIL_Dial *p_dial = (RIL_Dial *)calloc(1, sizeof(RIL_Dial));
-        // addEmergencyNumbertoEccList(cbPara->socket_id, record);
 
-        p_dial->address = number;
+        p_dial->address = cbPara->para;
         p_dial->clir = 0;
         p_dial->uusInfo = NULL;
-        int channelID = getChannel(cbPara->socket_id);
-        requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL);
+        channelID = getChannel(cbPara->socket_id);
+
+        RLOGD("dialEmergencyWhileCallFailed->address = %s",
+              (char *)cbPara->para);
+        snprintf(eccNumber, sizeof(eccNumber), "%s@%d", p_dial->address, -1);
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED,
+                eccNumber, strlen(eccNumber) + 1, cbPara->socket_id);
+
+        requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL, -1);
         putChannel(channelID);
 
         free(p_dial->address);
@@ -1347,25 +1527,6 @@ static void redialWhileCallFailed(void *param) {
         free(p_dial->address);
         free(p_dial);
         free(cbPara);
-    }
-}
-
-static void addSrvccPendingOperate(RIL_SOCKET_ID socket_id, char *cmd) {
-    char *command = strdup(cmd);
-    RLOGD("addSrvccPendingOperate cmd = %s", command);
-
-    SrvccPendingRequest *newRequest =
-            (SrvccPendingRequest *)calloc(1, sizeof(SrvccPendingRequest));
-    newRequest->cmd = command;
-    newRequest->p_next = NULL;
-    if (s_srvccPendingRequest[socket_id] == NULL) {
-        s_srvccPendingRequest[socket_id] = newRequest;
-    } else {
-        SrvccPendingRequest *lastestRequest = s_srvccPendingRequest[socket_id];
-        while (lastestRequest->p_next != NULL) {
-            lastestRequest = lastestRequest->p_next;
-        }
-        lastestRequest->p_next = newRequest;
     }
 }
 
@@ -1410,9 +1571,71 @@ void sendCallStateChanged(void *param) {
 
 void sendCSCallStateChanged(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    RLOGI("sendCSCallStateChanged");
     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0,
                               socket_id);
+}
+
+void queryEccNetworkList(void *param) {
+    char *number = NULL;
+    char eccNetList[2 * ARRAY_SIZE] = {0};
+    int category;
+    int channelID;
+    int err, cen2Num = 1;
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    ATResponse *p_response = NULL;
+    ATLine *p_cur = NULL;
+
+    channelID = getChannel(socket_id);
+    err = at_send_command_multiline(s_ATChannels[channelID], "AT+CEN?", "+CEN",
+                                    &p_response);
+    /* AT+CEN? Return:
+     * +CEN1:<reporting >,<mcc>,<mnc>
+     * +CEN2:<cat>,<number>
+     * +CEN2:<cat>,<number>
+     * ...
+     */
+    if (err < 0 || p_response->success == 0) {
+        RLOGE("queryEccNetworkList fail!");
+        goto done;
+    }
+
+    for (p_cur = p_response->p_intermediates->p_next; p_cur != NULL;
+         p_cur = p_cur->p_next, cen2Num++) {
+        char *line = p_cur->line;
+
+        err = at_tok_start(&line);
+        if (err < 0) goto done;
+
+        err = at_tok_nextint(&line, &category);
+        if (err < 0) {
+            RLOGE("%s get cat fail", p_cur->line);
+            goto done;
+        }
+
+        err = at_tok_nextstr(&line, &number);
+        if (err < 0) {
+            RLOGE("%s get number fail", p_cur->line);
+            goto done;
+        }
+
+        if (cen2Num == 1) {
+            snprintf(eccNetList, sizeof(eccNetList), "%s@%d", number,
+                      category);
+        } else {
+            snprintf(eccNetList, sizeof(eccNetList), "%s,%s@%d", eccNetList,
+                      number, category);
+        }
+        RLOGD("queryEccNetworkList category:%d, number:%s, eccNetList:%s",
+               category, number, eccNetList);
+    }
+    if (strlen(eccNetList) > 0) {
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED,
+                eccNetList, strlen(eccNetList) + 1, socket_id);
+    }
+
+done:
+    at_response_free(p_response);
+    putChannel(channelID);
 }
 
 int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
@@ -1503,6 +1726,19 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 } else {
                     reportCallStateChanged((void *)&s_socketId[socket_id]);
                 }
+                if (response->type == 1 || response->type == 3) {
+                    if (at_tok_hasmore(&tmp)) {
+                        err = at_tok_nextint(&tmp, &response->location);
+                        if (err < 0) {
+                            RLOGD("get location fail");
+                            response->location = 0;
+                        }
+                    } else {
+                        response->location = 0;
+                    }
+                    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_DSCI,
+                            response, sizeof(RIL_VideoPhone_DSCI), socket_id);
+                }
             } else {
                 reportCallStateChanged((void *)&s_socketId[socket_id]);
             }
@@ -1510,9 +1746,40 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (response->type == 0) {
                 reportCallStateChanged((void *)&s_socketId[socket_id]);
                 goto out;
+            } else if (response->type == 1) {
+                reportCallStateChanged((void *)&s_socketId[socket_id]);
+
+                err = at_tok_nextint(&tmp, &response->num_type);
+                if (err < 0) {
+                    RLOGD("get num_type fail");
+                    goto out;
+                }
+                err = at_tok_nextint(&tmp, &response->bs_type);
+                if (err < 0) {
+                    RLOGD("get bs_type fail");
+                    goto out;
+                }
+
+                if (at_tok_hasmore(&tmp)) {
+                    err = at_tok_nextint(&tmp, &response->cause);
+                    if (err < 0) {
+                        RLOGD("get cause fail");
+                        goto out;
+                    }
+                    if (at_tok_hasmore(&tmp)) {
+                        err = at_tok_nextint(&tmp, &response->location);
+                        if (err < 0) {
+                            RLOGD("get location fail");
+                            goto out;
+                        }
+                    } else {
+                        response->location = 0;
+                    }
+                    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_DSCI,
+                            response, sizeof(RIL_VideoPhone_DSCI), socket_id);
+                }
             }
         }
-
     } else if (strStartsWith(s, "+CMCCSI:")) {
         RIL_IMSPHONE_CMCCSI *response = NULL;
         response = (RIL_IMSPHONE_CMCCSI *)alloca(sizeof(RIL_IMSPHONE_CMCCSI));
@@ -1598,6 +1865,18 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
                                       NULL, 0, socket_id);
         }
+    } else if (strStartsWith(s, "+CEN1")) {
+        int ret;
+        pthread_t tid;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        ret = pthread_create(&tid, &attr, (void *)queryEccNetworkList,
+                               (void *)&s_socketId[socket_id]);
+        if (ret < 0) {
+            RLOGE("Failed to create slow dispatch thread errno: %s",
+                   strerror(errno));
+        }
     } else if (strStartsWith(s, "+CEN2")) {
         char *tmp;
         char *number;
@@ -1616,7 +1895,6 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
             goto out;
         }
-        // addEmergencyNumbertoEccList(socket_id, record);
     } else if (strStartsWith(s, "+CIREPH")) {
         int status;
         int index = 0;
@@ -1648,6 +1926,141 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_requestTimedCallback(sendCSCallStateChanged,
                     (void *)&s_socketId[socket_id], &TIMEVAL_CSCALLSTATEPOLL);
         }
+    } else if (strStartsWith(s, AT_PREFIX"DVTCODECRI:")) {
+        int response[4];
+        int index = 0;
+        int iLen = 1;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &response[0]);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+
+        if (3 == response[0]) {
+            for (index = 1; index <= 3; index++) {
+                err = at_tok_nextint(&tmp, &response[index]);
+                if (err < 0) {
+                    RLOGD("%s fail", s);
+                    goto out;
+                }
+            }
+            iLen = 4;
+        }
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_CODEC, &response,
+                                  iLen * sizeof(response[0]), socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"DVTSTRRI:")) {
+        char *response = NULL;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &response);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_STRING, response,
+                                  strlen(response) + 1, socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"DVTSENDRI")) {
+        int response[3];
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &(response[0]));
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &(response[1]));
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &(response[2]));
+        if (err < 0) {
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_REMOTE_MEDIA,
+                    &response, sizeof(response[0]) * 2, socket_id);
+        } else {
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_REMOTE_MEDIA,
+                    &response, sizeof(response), socket_id);
+        }
+    } else if (strStartsWith(s, AT_PREFIX"DVTMMTI")) {
+        int response;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_MM_RING, &response,
+                sizeof(response), socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"DVTRELEASING")) {
+        char *response = NULL;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &response);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_RELEASING, response,
+                strlen(response) + 1, socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"DVTRECARI")) {
+        int response;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_RECORD_VIDEO,
+                &response, sizeof(response), socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"VTMDSTRT")) {
+        int response;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_MEDIA_START,
+                &response, sizeof(response), socket_id);
+    } else if (strStartsWith(s, AT_PREFIX"DVTRING:")
+                || strStartsWith(s, AT_PREFIX"DVTCLOSED")) {
+            RIL_onUnsolicitedResponse(
+                    RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+                    NULL, 0, socket_id);
     } else {
         ret = 0;
     }

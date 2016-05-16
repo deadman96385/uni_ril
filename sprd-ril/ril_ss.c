@@ -5,7 +5,7 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_utils.h"
 #include "ril_ss.h"
 
@@ -1017,9 +1017,8 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 goto out;
             }
             /* convert hex string to string @{ */
-            RLOGD("+CUSD: convert hex string to decimal string");
             char *deciStr = (char *)calloc((strlen(hexStr) / 2 + 1),
-                    sizeof(char));
+                                             sizeof(char));
             convertHexToBin(hexStr, strlen(hexStr), deciStr);
             response[1] = deciStr;
             RLOGD("the string is %s", response[1]);

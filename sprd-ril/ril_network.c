@@ -5,16 +5,18 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_network.h"
 #include "ril_sim.h"
 #include "ril_data.h"
 #include "ril_misc.h"
+#include "TelephonyEx.h"
 
 #define SIM_PRESENT_PROP        "ril.sim.present"
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
+#define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
@@ -80,7 +82,7 @@ pthread_mutex_t s_LTEAttachMutex[SIM_COUNT] = {
 #endif
 #endif
         };
-static pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
+pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
 #if (SIM_COUNT >= 2)
         ,PTHREAD_MUTEX_INITIALIZER
@@ -94,7 +96,7 @@ static pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
         };
 
 int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
-int s_imsConn[SIM_COUNT];
+int s_imsBearerEstablished[SIM_COUNT];
 int s_in4G[SIM_COUNT];
 int s_workMode[SIM_COUNT] = {0};
 int s_desiredRadioState[SIM_COUNT] = {0};
@@ -178,6 +180,7 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
     memset(numToStr, 0, sizeof(numToStr));
     snprintf(numToStr, sizeof(numToStr), "%d", workMode);
     setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
+    s_workMode[socket_id] = workMode;
 #endif
     pthread_mutex_unlock(&s_workModeMutex);
     RLOGD("getWorkMode socket_id = %d, workMode = %d", socket_id, workMode);
@@ -191,7 +194,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         if (simId == 0) {
-            snprintf(cmd, size, "AT+SPTESTMODEM=%d", getWorkMode(simId));
+            snprintf(cmd, size, "AT+SPTESTMODEM=%d", s_workMode[simId]);
             if (SIM_COUNT == 1) {
                 strncpy(strFormatter, cmd, size);
                 strncat(strFormatter, ",%d", strlen(",%d"));
@@ -201,7 +204,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
         } else {
             strncpy(strFormatter, cmd, size);
             strncat(strFormatter, ",%d", strlen(",%d"));
-            snprintf(cmd, size, strFormatter, getWorkMode(simId));
+            snprintf(cmd, size, strFormatter, s_workMode[simId]);
             RLOGD("buildWorkModeCmd cmd: %s", cmd);
         }
     }
@@ -757,6 +760,18 @@ static void requestOperator(int channelID, void *data, size_t datalen,
         goto error;
     }
 
+#if defined (RIL_EXTENSION)
+    if (response[2] != NULL) {
+        char updatedPlmn[64] = {0};
+        err = updatePlmn(socket_id, (const char *)(response[2]), updatedPlmn);
+        if (err == 0 && strcmp(updatedPlmn, response[2])) {
+            RLOGD("updated plmn = %s", updatedPlmn);
+            response[0] = updatedPlmn;
+            response[1] = updatedPlmn;
+        }
+    }
+#endif
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
     at_response_free(p_response);
     return;
@@ -830,7 +845,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
 
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
-    RLOGD("enter radio power on: %d, ", s_desiredRadioState[socket_id]);
     if (s_desiredRadioState[socket_id] == 0) {
         int sim_status = getSIMStatus(channelID);
         initSIMPresentState();
@@ -902,9 +916,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
 #endif
         }
 
-        err = at_send_command(s_ATChannels[channelID],
-                "AT+SFUN=4", &p_response);
-
+        err = at_send_command(s_ATChannels[channelID], "AT+SFUN=4",
+                              &p_response);
         if (err < 0|| p_response->success == 0) {
             /* Some stacks return an error when there is no SIM,
              * but they really turn the RF portion on
@@ -912,6 +925,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
              * turned on anyway
              */
             if (s_simBusy[socket_id].s_sim_busy) {
+                RLOGD("Now SIM is busy, wait for CPIN READY and then"
+                      "set radio on again.");
                 pthread_t tid;
                 pthread_attr_t attr;
                 pthread_attr_init(&attr);
@@ -935,7 +950,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     /*after applying radio capability success and setting radio power on ,
      *send unsol radio capability.
      */
-    RLOGD("sessionId = %d", s_sessionId[socket_id]);
     if (s_sessionId[socket_id] != 0) {
         sendUnsolRadioCapability(socket_id);
     }
@@ -1110,6 +1124,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     tmp = (char *)malloc(count * sizeof(char) * 30);
     startTmp = tmp;
 
+    char *updatedNetList = (char *)alloca(count * sizeof(char) * 64);
     int unwantedPlmnCount = 0;
     while ((line = strchr(line, '(')) && (i++ < count)) {
         line++;
@@ -1137,9 +1152,19 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
         RLOGD("requestNetworkList cur[2] act = %s", tmp);
         cur[2] = tmp;
 
+#if defined (RIL_EXTENSION)
+        err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
+                                updatedNetList);
+        if (err == 0) {
+            RLOGD("updatedNetworkList: %s", updatedNetList);
+            cur[0] = updatedNetList;
+        }
+        updatedNetList += 64;
+#endif
         cur += 4;
         tmp += 30;
     }
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, responses,
             (count - unwantedPlmnCount) * 4 * sizeof(char *));
     at_response_free(p_response);
@@ -1195,6 +1220,7 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
     int err, type = 0;
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
+    RIL_Errno errType = RIL_E_GENERIC_FAILURE;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     switch (((int *)data)[0]) {
@@ -1221,60 +1247,60 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
     if (0 == type) {
         RLOGE("set preferred network failed, type incorrect: %d",
               ((int *)data)[0]);
-        goto error;
+        errType = RIL_E_GENERIC_FAILURE;
+        goto done;
     }
 
     int workMode;
-    char prop[PROPERTY_VALUE_MAX];
     char numToStr[ARRAY_SIZE];
-    pthread_mutex_lock(&s_workModeMutex);
-    getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "254");
-    workMode = atoi(prop);
-    RLOGD("socket_id%d workMode = %d, type = %d", socket_id, workMode, type);
 
+    pthread_mutex_lock(&s_workModeMutex);
+    workMode = s_workMode[socket_id];
     if (workMode == NONE || workMode == GSM_ONLY) {
         RLOGD("SetLTEPreferredNetType: not data card");
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-        pthread_mutex_unlock(&s_workModeMutex);
-        return;
+        errType = RIL_E_SUCCESS;
+        goto done;
     }
     if (type == workMode) {
         RLOGD("SetLTEPreferredNetType: has send the request before");
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-        pthread_mutex_unlock(&s_workModeMutex);
-        return;
+        errType = RIL_E_SUCCESS;
+        goto done;
     }
     err = at_send_command(s_ATChannels[channelID], "AT+SFUN=5", &p_response);
     if (err < 0 || p_response->success == 0) {
-        pthread_mutex_unlock(&s_workModeMutex);
-        goto error;
+        errType = RIL_E_GENERIC_FAILURE;
+        goto done;
     }
 
 #if defined (ANDROID_MULTI_SIM)
     if (socket_id == RIL_SOCKET_1) {
-        snprintf(cmd, sizeof(cmd), "AT+SPTESTMODEM=%d,10", type);
+        snprintf(cmd, sizeof(cmd), "AT+SPTESTMODEM=%d,%d", type,
+                 s_workMode[RIL_SOCKET_2]);
     } else if (socket_id == RIL_SOCKET_2) {
-        snprintf(cmd, sizeof(cmd), "AT+SPTESTMODEM=10,%d", type);
+        snprintf(cmd, sizeof(cmd), "AT+SPTESTMODEM=%d,%d",
+                 s_workMode[RIL_SOCKET_1], type);
     }
+#else
+    snprintf(cmd, sizeof(cmd), "AT+SPTESTMODEM=%d,254", type);
 #endif
+
     snprintf(numToStr, sizeof(numToStr), "%d", type);
     setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
-
+    s_workMode[socket_id] = type;
     at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    AT_RESPONSE_FREE(p_response);
     err = at_send_command(s_ATChannels[channelID], "AT+SFUN=4", &p_response);
-
-    pthread_mutex_unlock(&s_workModeMutex);
-
     if (err < 0 || p_response->success == 0) {
-        goto error;
+        errType = RIL_E_GENERIC_FAILURE;
+        goto done;
     }
-    at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-    return;
+    errType = RIL_E_SUCCESS;
 
-error:
+done:
+    pthread_mutex_unlock(&s_workModeMutex);
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    RIL_onRequestComplete(t, errType, NULL, 0);
 }
 
 static void requestSetPreferredNetType(int channelID, void *data,
@@ -1377,16 +1403,9 @@ static void requestGetLTEPreferredNetType(int channelID,
     RIL_UNUSED_PARM(datalen);
 
     int type = -1;
-    int workmode;
-    char prop[PROPERTY_VALUE_MAX];
-
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    pthread_mutex_lock(&s_workModeMutex);
-    getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "254");
-    pthread_mutex_unlock(&s_workModeMutex);
-    workmode = atoi(prop);
 
-    switch (workmode) {
+    switch (s_workMode[socket_id]) {
         case TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB:
         case TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB:
         case TD_LTE_AND_TD_AND_GSM_CSFB:
@@ -1405,7 +1424,8 @@ static void requestGetLTEPreferredNetType(int channelID,
             break;
     }
     if (type < 0) {
-        RLOGD("GetLTEPreferredNetType: incorrect workmode %d", workmode);
+        RLOGD("GetLTEPreferredNetType: incorrect workmode %d",
+              s_workMode[socket_id]);
         goto error;
     }
 
@@ -2120,9 +2140,12 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL:
             requestNetworkRegistration(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS:
+        case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
+            cleanUpAllConnections();
             requestNetworkList(channelID, data, datalen, t);
+            activeAllConnections();
             break;
+        }
         case RIL_REQUEST_RESET_RADIO:
             requestResetRadio(channelID, data, datalen, t);
             break;
@@ -2170,6 +2193,23 @@ int processNetworkRequests(int request, void *data, size_t datalen,
          case RIL_REQUEST_SET_RADIO_CAPABILITY:
             requestSetRadioCapability(channelID, data, datalen, t);
             break;
+         case RIL_REQUEST_GET_IMS_BEARER_STATE:
+            RIL_onRequestComplete(t, RIL_E_SUCCESS,
+                    (void *)&s_imsBearerEstablished[socket_id], sizeof(int));
+            break;
+         case RIL_EXT_REQUEST_STOP_QUERY_NETWORK: {
+             int err;
+             p_response = NULL;
+             err = at_send_command(s_ATChannels[channelID], "AT+SAC",
+                                   &p_response);
+             if (err < 0 || p_response->success == 0) {
+                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+             } else {
+                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+             }
+             at_response_free(p_response);
+             break;
+         }
         default:
             return 0;
     }
@@ -2192,7 +2232,6 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         RIL_SignalStrength_v6 responseV6;
         char *tmp;
 
-        RLOGD("[unsl] +CSQ enter");
         if (s_isLTE) {
             RLOGD("for +CSQ, current is lte ril,do nothing");
             goto out;
@@ -2220,7 +2259,6 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int skip;
         int response[6] = {-1, -1, -1, -1, -1, -1};
 
-        RLOGD("[unsl] +CESQ enter");
         if (!strcmp(s_modem, "t")) {
             RLOGD("for +CESQ, current is td ril, do nothing");
             goto out;
@@ -2364,16 +2402,16 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
 
         if (cid == 11) {
-            s_imsConn[socket_id] = active;
-            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONS_IMS_CONN_ENABLE,
-                    (void *)&s_imsConn[socket_id], sizeof(int), socket_id);
+            s_imsBearerEstablished[socket_id] = active;
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED,
+                    (void *)&s_imsBearerEstablished[socket_id], sizeof(int),
+                    socket_id);
         }
     } else if (strStartsWith(s, "+SPPCI:")) {
         char *tmp;
         int cid;
         char phy_cellid[ARRAY_SIZE];
 
-        RLOGD("RIL_UNSOL_PHY_CELL_ID for SIM%d", socket_id);
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -2386,6 +2424,50 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         pthread_mutex_lock(&s_physicalCellidMutex);
         setProperty(socket_id, PHYSICAL_CELLID_PROP, phy_cellid);
         pthread_mutex_unlock(&s_physicalCellidMutex);
+    } else if (strStartsWith(s, "+SPNWNAME:")) {
+        /* NITZ operator name */
+        char *tmp = NULL;
+        char *mcc = NULL;
+        char *mnc = NULL;
+        char *fullName = NULL;
+        char *shortName = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &mcc);
+        if (err < 0) goto out;
+
+        err = at_tok_nextstr(&tmp, &mnc);
+        if (err < 0) goto out;
+
+        err = at_tok_nextstr(&tmp, &fullName);
+        if (err < 0) goto out;
+
+        err = at_tok_nextstr(&tmp, &shortName);
+        if (err < 0) goto out;
+
+        char nitzOperatorInfo[PROPERTY_VALUE_MAX] = {0};
+        char propName[ARRAY_SIZE] = { 0 };
+
+        if (socket_id == RIL_SOCKET_1) {
+            snprintf(propName, sizeof(propName), "%s", NITZ_OPERATOR_PROP);
+        } else if (socket_id > RIL_SOCKET_1) {
+            snprintf(propName, sizeof(propName), "%s%d", NITZ_OPERATOR_PROP,
+                      socket_id);
+        }
+
+        snprintf(nitzOperatorInfo, sizeof(nitzOperatorInfo), "%s,%s,%s%s",
+                  fullName, shortName, mcc, mnc);
+
+        property_set(propName, nitzOperatorInfo);
+
+        if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
+            RIL_onUnsolicitedResponse(
+                    RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+                    NULL, 0, socket_id);
+        }
     } else {
         return 0;
     }

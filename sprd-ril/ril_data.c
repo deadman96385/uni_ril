@@ -6,15 +6,17 @@
 
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_data.h"
 #include "ril_network.h"
 #include "ril_call.h"
 
+#define APN_DELAY_PROP   "persist.radio.apn_delay"
+
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
-
+static int s_defaultDataId = -1;
 static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
@@ -33,7 +35,18 @@ static int s_lastPDPFailCause[SIM_COUNT] = {
 #endif
 #endif
 };
-
+static int s_trafficClass[SIM_COUNT] = {
+        TRAFFIC_CLASS_DEFAULT
+#if(SIM_COUNT >= 2)
+        ,TRAFFIC_CLASS_DEFAULT
+#if(SIM_COUNT >= 3)
+        ,TRAFFIC_CLASS_DEFAULT
+#if(SIM_COUNT >= 4)
+        ,TRAFFIC_CLASS_DEFAULT
+#endif
+#endif
+#endif
+};
 struct PDPInfo s_PDP[MAX_PDP] = {
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
@@ -42,7 +55,6 @@ struct PDPInfo s_PDP[MAX_PDP] = {
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER}
 };
-
 static PDNInfo s_PDN[MAX_PDP_CP] = {
     { -1, "", ""},
     { -1, "", ""},
@@ -104,10 +116,6 @@ done:
     s_PDP[cid].cid = -1;
     s_PDP[cid].isPrimary = false;
     RLOGD("put s_PDP[%d]", cid);
-    RLOGD("s_PDP[0].state = %d,s_PDP[1].state = %d,s_PDP[2].state = %d",
-           s_PDP[0].state, s_PDP[1].state, s_PDP[2].state);
-    RLOGD("s_PDP[3].state = %d,s_PDP[4].state = %d,s_PDP[5].state = %d",
-           s_PDP[3].state, s_PDP[4].state, s_PDP[5].state);
     pthread_mutex_unlock(&s_PDP[cid].mutex);
 }
 
@@ -348,7 +356,6 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
             if (err >= 0) {
                 err = at_tok_nextint(&line, &failCause);
                 if (err >= 0) {
-                    RLOGD("Data Active failed with error cause: %d", failCause);
                     if (failCause == 288 || failCause == 128) {
                          ret = DATA_ACTIVE_NEED_RETRY;  // 128: network reject
                     } else {
@@ -389,7 +396,6 @@ static int getSPACTFBcause(int channelID) {
         if (err < 0) return cause;
     }
     at_response_free(p_response);
-    RLOGD("getSPACTFBcause cause = %d", cause);
     return cause;
 }
 
@@ -415,12 +421,10 @@ static int queryAllActivePDN(int channelID) {
         if (err < 0) {
             pdns->nCid = -1;
         }
-        RLOGD("queryAllActivePDN CGACT? cid= %d", pdns->nCid);
         err = at_tok_nextint(&line, &active);
         if (err < 0 || active == 0) {
             pdns->nCid = -1;
         }
-        RLOGD("queryAllActivePDN CGACT? active= %d", active);
         if (active == 1) {
             s_activePDN++;
         }
@@ -443,12 +447,12 @@ static int queryAllActivePDN(int channelID) {
         char *apn;
         err = at_tok_start(&line);
         if (err < 0) {
-            RLOGI("queryAllActivePDN CGDCONT? read line failed!");
+            RLOGE("queryAllActivePDN CGDCONT? read line failed!");
             continue;
         }
         err = at_tok_nextint(&line, &cid);
         if ((err < 0) || (cid != s_PDN[cid-1].nCid)) {
-            RLOGI("queryAllActivePDN CGDCONT? read cid failed!");
+            RLOGE("queryAllActivePDN CGDCONT? read cid failed!");
             continue;
         }
 
@@ -540,18 +544,6 @@ static int checkCmpAnchor(char *apn) {
     return (len - MINIMUM_APN_LEN);
 }
 
-static void dumpDataResponse(RIL_Data_Call_Response_v11 *pDest) {
-    RLOGD("status=%d", pDest->status);
-    RLOGD("suggestedRetryTime=%d", pDest->suggestedRetryTime);
-    RLOGD("cid=%d", pDest->cid);
-    RLOGD("active = %d", pDest->active);
-    RLOGD("type=%s", pDest->type);
-    RLOGD("ifname = %s", pDest->ifname);
-    RLOGD("address=%s", pDest->addresses);
-    RLOGD("dns=%s", pDest->dnses);
-    RLOGD("gateways = %s", pDest->gateways);
-}
-
 static bool isAttachEnable() {
     char prop[PROPERTY_VALUE_MAX] = {0};
     property_get(ATTACH_ENABLE_PROP, prop, "true");
@@ -575,7 +567,6 @@ static int deactivateLteDataConnection(int channelID, char *cmd) {
         return ret;
     }
 
-    RLOGD("deactivateLteDataConnection cmd = %s", cmd);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
         if (p_response->finalResponse != NULL &&
@@ -586,8 +577,6 @@ static int deactivateLteDataConnection(int channelID, char *cmd) {
                 err = at_tok_nextint(&line, &failCause);
                 if (err >= 0 && failCause == 151) {
                     ret = 1;
-                    RLOGD("get 151 error, do detach! s_workMode = %d",
-                          s_workMode[socket_id]);
                     if (s_workMode[socket_id] != GSM_ONLY) {
                         at_send_command(s_ATChannels[channelID],
                                         "AT+CLSSPDT = 1", NULL);
@@ -606,7 +595,6 @@ static int deactivateLteDataConnection(int channelID, char *cmd) {
         ret = 1;
     }
     at_response_free(p_response);
-    RLOGD("deactivateLteDataConnection ret = %d", ret);
     return ret;
 }
 
@@ -672,7 +660,8 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     property_get("persist.sys.qosstate", qosState, "0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,2,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0", cid);
+                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                  cid, s_trafficClass[socket_id]);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
 
@@ -722,6 +711,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
         updatePDPCid(cid, 1);
         ret = DATA_ACTIVE_SUCCESS;
     }
+    s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
     return ret;
 }
 
@@ -1004,16 +994,17 @@ static void requestOrSendDataCallList(int channelID, int cid,
                  RLOGE("responses[i].addresses = %s", responses[i].addresses);
              }
           }
-
-        RLOGD("status=%d", responses[i].status);
-        RLOGD("suggestedRetryTime=%d", responses[i].suggestedRetryTime);
-        RLOGD("cid=%d", responses[i].cid);
-        RLOGD("active = %d", responses[i].active);
-        RLOGD("type=%s", responses[i].type);
-        RLOGD("ifname = %s", responses[i].ifname);
-        RLOGD("address=%s", responses[i].addresses);
-        RLOGD("dns=%s", responses[i].dnses);
-        RLOGD("gateways = %s", responses[i].gateways);
+        if (responses[i].active == 1) {
+            RLOGD("status=%d", responses[i].status);
+            RLOGD("suggestedRetryTime=%d", responses[i].suggestedRetryTime);
+            RLOGD("cid=%d", responses[i].cid);
+            RLOGD("active = %d", responses[i].active);
+            RLOGD("type=%s", responses[i].type);
+            RLOGD("ifname = %s", responses[i].ifname);
+            RLOGD("address=%s", responses[i].addresses);
+            RLOGD("dns=%s", responses[i].dnses);
+            RLOGD("gateways = %s", responses[i].gateways);
+        }
     }
 
     AT_RESPONSE_FREE(p_response);
@@ -1333,12 +1324,13 @@ static void deactivateDataConnection(int channelID, void *data,
         } else if (s_activePDN == 1 && getPDPCid(cid - 1) != -1) {
             needfake = true;
         } else if (s_activePDN > 1 && s_PDN[cid - 1].nCid != -1) {
+            char *outer_ptr = NULL;
             if (s_initialAttachAPNs[socket_id] != NULL &&
                     s_initialAttachAPNs[socket_id]->apn != NULL &&
                     (!strcasecmp(s_PDN[cid - 1].strApn,
-                                  s_initialAttachAPNs[socket_id]->apn) ||
-                    !strcasecmp(strtok(s_PDN[cid - 1].strApn, "."),
-                                 s_initialAttachAPNs[socket_id]->apn))) {
+                        s_initialAttachAPNs[socket_id]->apn) ||
+                    !strcasecmp(strtok_r(s_PDN[cid - 1].strApn, ".",
+                        &outer_ptr), s_initialAttachAPNs[socket_id]->apn))) {
                 needfake = true;
             }
         }
@@ -1440,17 +1432,6 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         }
     }
 
-    RLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN apn = %s",
-            initialAttachApn->apn);
-    RLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN protocol = %s",
-            initialAttachApn->protocol);
-    RLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN authtype = %d",
-            initialAttachApn->authtype);
-    RLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN username = %s",
-            initialAttachApn->username);
-    RLOGD("RIL_REQUEST_SET_INITIAL_ATTACH_APN password = %s",
-            initialAttachApn->password);
-
     snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
               initialAttachId, initialAttachApn->protocol,
               initialAttachApn->apn);
@@ -1465,8 +1446,8 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     property_get("persist.sys.qosstate", qosState, "0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,2,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  initialAttachId);
+                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                  initialAttachId, s_trafficClass[socket_id]);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
     if (needIPChange == 2) {
@@ -1474,6 +1455,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     }
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     at_response_free(p_response);
+    s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
 }
 
 /**
@@ -1626,6 +1608,59 @@ void requestAllowData(int channelID, void *data, size_t datalen,
     }
 }
 
+/**
+ * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
+ * we can get data connection card id by s_dataAllowed
+ */
+int getDefaultDataCardId() {
+    int i = 0;
+    int ret = -1;
+    for (i = 0; i < SIM_COUNT; i++) {
+        if (s_dataAllowed[i] == 1) {
+            ret = i;
+        }
+    }
+    return ret;
+}
+
+void cleanUpAllConnections() {
+    int i;
+    char cmd[AT_COMMAND_LEN];
+
+    s_defaultDataId = getDefaultDataCardId();
+    if (s_defaultDataId < 0) {
+        RLOGD("there is no active data connections!");
+        return;
+    }
+    int dataChannelID = getChannel(s_defaultDataId);
+    for (i = 0; i < MAX_PDP; i++) {
+        if (getPDPCid(i) > 0) {
+            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
+            at_send_command(s_ATChannels[dataChannelID], cmd, NULL);
+        }
+    }
+    putChannel(dataChannelID);
+}
+
+void activeAllConnections() {
+    int i;
+    int dataChannelID = getChannel(s_defaultDataId);
+
+    s_defaultDataId = -1;
+    property_set(APN_DELAY_PROP, "1");
+    for (i = 0; i < MAX_PDP; i++) {
+        if (getPDPCid(i) > 0) {
+            RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
+            if (s_PDP[i].state == PDP_BUSY) {
+                int cid = getPDPCid(i);
+                putPDP(i);
+                requestOrSendDataCallList(dataChannelID, cid, NULL);
+            }
+        }
+    }
+    putChannel(dataChannelID);
+}
+
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -1634,6 +1669,11 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
+            if (s_defaultDataId >= 0) {
+                s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
             if (isAttachEnable()) {
                 if (s_isLTE) {
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
@@ -1666,9 +1706,14 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_DATA_CALL_LIST:
             requestDataCallList(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_ALLOW_DATA:
+        case RIL_REQUEST_ALLOW_DATA: {
+            if (s_defaultDataId >= 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
             requestAllowData(channelID, data, datalen, t);
             break;
+        }
         case RIL_REQUEST_SET_INITIAL_ATTACH_APN:
             requestSetInitialAttachAPN(channelID, data, datalen, t);
             break;
@@ -1699,8 +1744,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 property_get("persist.sys.qosstate", qosState, "0");
                 if (!strcmp(qosState, "0")) {
                     snprintf(cmd, sizeof(cmd),
-                            "AT+CGEQREQ=%d,2,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                            initialAttachId);
+                        "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                        initialAttachId, s_trafficClass[socket_id]);
                     err = at_send_command(s_ATChannels[channelID], cmd, NULL);
                 }
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -1709,6 +1754,63 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 RLOGD("INITIAL_ATTACH_IMS_APN data is null");
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
+            break;
+        }
+        /* }@ */
+        case RIL_EXT_REQUEST_TRAFFIC_CLASS: {
+            s_trafficClass[socket_id] = ((int *)data)[0];
+            if (s_trafficClass[socket_id] < 0) {
+                s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            break;
+        }
+        /* For data clear code @{ */
+        case RIL_EXT_REQUEST_ENABLE_LTE: {
+            int err;
+            int value = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN];
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+SPEUTRAN=%d", value);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_ATTACH_DATA: {
+            int err;
+            int value = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN];
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+CGATT=%d", value);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_FORCE_DETACH: {
+            int err;
+            p_response = NULL;
+            err = at_send_command(s_ATChannels[channelID], "AT+CLSSPDT=1",
+                                  &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
             break;
         }
         /* }@ */

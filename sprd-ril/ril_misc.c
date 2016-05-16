@@ -6,11 +6,12 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_misc.h"
 #include "ril_data.h"
 #include "ril_network.h"
 
+/* Fast Dormancy disable property */
 #define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
 
 /* for sleep log */
@@ -67,7 +68,6 @@ static void requestBasebandVersion(int channelID, void *data, size_t datalen,
     return;
 
 error:
-    RLOGE("ERROR: requestBasebandVersion failed\n");
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }

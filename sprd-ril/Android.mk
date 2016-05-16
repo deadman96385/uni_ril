@@ -6,7 +6,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    sprd-ril.c \
+    sprd_ril.c \
     atchannel.c \
     misc.c \
     at_tok.c \
@@ -20,19 +20,21 @@ LOCAL_SRC_FILES := \
     ril_stk.c \
     ril_utils.c \
     custom/ril_custom.c \
+    ril_async_cmd_handler.c \
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog libcutils libutils librilsprd librilutils
+    liblog libcutils libutils librilsprd librilutils libril_tele
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libril_tele
 
-LOCAL_CFLAGS += -DSIM_AUTO_POWERON
+LOCAL_CFLAGS += -DSIM_AUTO_POWERON -DRIL_EXTENSION
 
 ifneq ($(SIM_COUNT), 1)
-LOCAL_CFLAGS += -DANDROID_MULTI_SIM
+    LOCAL_CFLAGS += -DANDROID_MULTI_SIM
 endif
 
 ifeq ($(SIM_COUNT), 2)

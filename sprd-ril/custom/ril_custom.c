@@ -6,19 +6,21 @@
 
 #define LOG_TAG "CUSTOM"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_custom.h"
 
+static char s_simUnlockType[4][5] = {"pin", "pin2", "puk", "puk2"};
+
 /* Bug 523208 set PIN/PUK remain times to prop. @{ */
-void setPinPukRemainTimes(int type, int remainTimes, RIL_SOCKET_ID socketId) {
+void setPinPukRemainTimes(int type, int remainTimes,
+                             RIL_SOCKET_ID socketId) {
     char num[ARRAY_SIZE];  // max remain times is 10
     char prop[PROPERTY_VALUE_MAX];
 
-    snprintf(prop, sizeof(prop), "%s",
-        (type == UNLOCK_PIN_TYPE ? PIN_REMAIN_TIMES_PROP : PUK_REMAIN_TIMES_PROP));
+    snprintf(prop, sizeof(prop), PIN_PUK_REMAIN_TIMES_PROP,
+              s_simUnlockType[type]);
 
-    RLOGD("setPinPukRemainTimes -> prop = %s, remainTimes = %s for SIM%d", prop,
-          num, socketId);
+    RLOGD("set %s, remainTimes = %d for SIM%d", prop, remainTimes, socketId);
 
     snprintf(num, sizeof(num), "%d", remainTimes);
     setProperty(socketId, prop, num);

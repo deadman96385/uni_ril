@@ -16,9 +16,6 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <alloca.h>
-#include "atchannel.h"
-#include "at_tok.h"
-#include "misc.h"
 #include <getopt.h>
 #include <sys/system_properties.h>
 #include <sys/socket.h>
@@ -33,6 +30,10 @@
 #include <ctype.h>
 #include <semaphore.h>
 #include <cutils/properties.h>
+
+#include "atchannel.h"
+#include "at_tok.h"
+#include "misc.h"
 
 #define NEW_AT
 #ifdef NEW_AT
@@ -95,7 +96,6 @@ void putChannel(int channel);
 int isRadioOn(int channelID);
 bool isVoLteEnable();
 bool isLte(void);
-bool isCMCC(void);
 int getChannel(RIL_SOCKET_ID socket_id);
 RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
 RIL_RadioState getRadioState(RIL_SOCKET_ID socket_id);

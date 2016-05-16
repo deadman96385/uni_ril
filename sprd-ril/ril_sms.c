@@ -5,7 +5,7 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_sms.h"
 #include "ril_utils.h"
 
@@ -313,9 +313,9 @@ static void setSmsBroadcastConfigData(int data, int idx, int isFirst,
 
     int len = 0;
     char str[10] = {0};
-    char comma = 0x2c;  //,
-    char quotes = 0x22;  //"
-    char line = 0x2d;  //-
+    char comma = 0x2c;  // ,
+    char quotes = 0x22;  // "
+    char line = 0x2d;  // -
 
     memset(str, 0, 10);
     if (setSmsBroadcastConfigValue(data, str, 10) > 0) {
@@ -373,6 +373,7 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
     int size = datalen * 16 * sizeof(char);
     channel = (char *)alloca(size);
     lang = (char *)alloca(size);
+
     memset(channel, 0, datalen * 16);
     memset(lang, 0, datalen * 16);
 
@@ -427,7 +428,6 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
 
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
-    RLOGI("SetSmsBroadcastConfig err %d ,success %d", err, p_response->success);
     if (err < 0 || p_response->success == 0) {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     } else {
@@ -446,17 +446,20 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
         char *delim = ",";
         char *temp;
         char *pChannel;
+        char *outer_ptr = NULL;
+        char *inner_ptr = NULL;
 
         pChannel = channel;
         skipFirstQuotes(&pChannel);
-        temp = strtok(pChannel, delim);
+
+        temp = strtok_r(pChannel, delim, &outer_ptr);
         while (temp != NULL) {
             tempo = atoi(temp);
             if (tempo != 4370 && tempo != 4383) {
                 channel1[j] = tempo;
             }
             RLOGD("requestSetSmsBroadcastConfig channel1[j] = %d", channel1[j]);
-            temp = strtok(NULL, delim);
+            temp = strtok_r(NULL, delim, &inner_ptr);
             j++;
         }
         for (current = 0; current < j; current = current + 2) {
@@ -714,8 +717,6 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
             RLOGD("error parse location");
             goto out;
         }
-        RLOGD("[unsl]cmti: location = %d", location);
-
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM, &location,
                                   sizeof(location), socket_id);
     } else if (strStartsWith(s, "+CBM:")) {
@@ -742,7 +743,6 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
         if (err < 0) goto out;
 
         if (value == 2) {
-            RLOGD("[sms]RIL_UNSOL_SIM_SMS_STORAGE_FULL");
             RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_SMS_STORAGE_FULL, NULL, 0,
                                       socket_id);
         }

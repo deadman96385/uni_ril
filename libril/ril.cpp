@@ -379,6 +379,7 @@ static void dispatchNetworkList(Parcel &p, RequestInfo *pRI);
 /* IMS request response function @{ */
 static void dispatchCallForwardUri(Parcel &p, RequestInfo *pRI);
 static void dispatchVideoPhoneDial(Parcel& p, RequestInfo *pRI);
+static void dispatchVideoPhoneCodec(Parcel& p, RequestInfo *pRI);
 /* }@ */
 
 static int responseInts(Parcel &p, void *response, size_t responselen);
@@ -418,6 +419,8 @@ static int responseCallListIMS(Parcel &p, void *response, size_t responselen);
 static int responseCallForwardsUri(Parcel &p, void *response, size_t responselen);
 static int responseCMCCSI(Parcel &p, void *response, size_t responselen);
 /* }@ */
+
+static int responseDSCI(Parcel &p, void *response, size_t responselen);
 
 extern "C" void stripNumberFromSipAddress(const char *sipAddress, char *number, int len);
 static int decodeVoiceRadioTechnology(RIL_RadioState radioState);
@@ -2316,6 +2319,33 @@ invalid:
     invalidCommandBlock(pRI);
     return;
 }
+
+static void dispatchVideoPhoneCodec(Parcel& p, RequestInfo *pRI) {
+    RIL_VideoPhone_Codec codec;
+    int32_t t;
+    status_t status;
+
+    memset(&codec, 0, sizeof(codec));
+
+    status = p.readInt32(&t);
+    codec.type = (int)t;
+
+    if (status != NO_ERROR) {
+        goto invalid;
+    }
+
+    startRequest;
+    appendPrintBuf("%stype=%d", printBuf, codec.type);
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+
+    CALL_ONREQUEST(pRI->pCI->requestNumber, &codec, sizeof(codec), pRI, pRI->socket_id);
+
+    return;
+invalid:
+    invalidCommandBlock(pRI);
+    return;
+}
 /* }@ */
 
 static int blockingWrite(int fd, const void *buffer, size_t len) {
@@ -4150,6 +4180,39 @@ static int responseCMCCSI(Parcel &p, void *response, size_t responselen) {
     return 0;
 }
 
+static int responseDSCI(Parcel &p, void *response, size_t responselen) {
+    if (response == NULL) {
+        RLOGE("invalid response: NULL");
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    if (responselen != sizeof(RIL_VideoPhone_DSCI)) {
+        RLOGE("invalid response length was %d expected %d",
+                (int)responselen, (int)sizeof(RIL_VideoPhone_DSCI));
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    RIL_VideoPhone_DSCI *p_cur = (RIL_VideoPhone_DSCI *)response;
+    p.writeInt32(p_cur->id);
+    p.writeInt32(p_cur->idr);
+    p.writeInt32(p_cur->stat);
+    p.writeInt32(p_cur->type);
+    p.writeInt32(p_cur->mpty);
+    writeStringToParcel(p, p_cur->number);
+    p.writeInt32(p_cur->num_type);
+    p.writeInt32(p_cur->bs_type);
+    p.writeInt32(p_cur->cause);
+    p.writeInt32(p_cur->location);
+
+    startResponse;
+    appendPrintBuf("%sstatus = %d, type = %s, number = %s, cause = %d, location = %d",
+                   printBuf, p_cur->stat, (p_cur->type == 0)? "voice" : "video",
+                   p_cur->number, p_cur->cause, p_cur->location);
+    closeResponse;
+
+    return 0;
+}
+
 extern "C" void
 stripNumberFromSipAddress(const char *sipAddress, char *number, int len) {
     if (sipAddress == NULL || strlen(sipAddress) == 0
@@ -4335,7 +4398,6 @@ static void *otherDispatch(void *param) {
         for (cmd_item = other_list->next; cmd_item != other_list;
                 cmd_item = other_list->next) {
             do {
-                RLOGI("SIM %d: PCC alloc one command p_record", socket_id);
                 ret = thread_pool_dispatch(thrpool, CommandThread,
                         cmd_item->p_reqData, (void *)&s_socketId[socket_id]);
                 if (!ret) {
@@ -4482,6 +4544,12 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE
                     || pCI->requestNumber == RIL_REQUEST_IMS_INITIAL_GROUP_CALL
                     || pCI->requestNumber == RIL_REQUEST_IMS_ADD_TO_GROUP_CALL
+                    || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_DIAL
+                    /* }@ */
+                    /* OEM SOCKET REQUEST @{ */
+                    || pCI->requestNumber == RIL_EXT_REQUEST_VIDEOPHONE_DIAL
+                    || pCI->requestNumber == RIL_EXT_REQUEST_SWITCH_MULTI_CALL
+                    || pCI->requestNumber == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
                     /* }@ */
                     ) {
                 list_add_tail(cmdList->callReqList, cmd_item, socket_id);
@@ -5953,7 +6021,8 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_DC_RT_INFO: return "GET_DC_RT_INFO";
         case RIL_REQUEST_SET_DC_RT_INFO_RATE: return "SET_DC_RT_INFO_RATE";
         case RIL_REQUEST_SET_DATA_PROFILE: return "SET_DATA_PROFILE";
-        /* @{ */
+        case RIL_REQUEST_SHUTDOWN: return "SHUTDOWN";
+        /* IMS @{ */
         case RIL_REQUEST_GET_IMS_CURRENT_CALLS: return "GET_IMS_CURRENT_CALLS";
         case RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY: return "SET_IMS_VOICE_CALL_AVAILABILITY";
         case RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY: return "GET_IMS_VOICE_CALL_AVAILABILITY";
@@ -5970,7 +6039,27 @@ const char *requestToString(int request) {
         case RIL_REQUEST_VIDEOPHONE_DIAL: return "VIDEOPHONE_DIAL";
         case RIL_REQUEST_ENABLE_IMS: return "ENABLE_IMS";
         case RIL_REQUEST_DISABLE_IMS: return "DISABLE_IMS";
+        case RIL_REQUEST_GET_IMS_BEARER_STATE: return "GET_IMS_BEARER_STATE";
+        case RIL_REQUEST_VIDEOPHONE_CODEC: return "VIDEOPHONE_CODEC";
         /* }@ */
+        /* OEM SOCKET REQUEST @{*/
+        /* videophone @{ */
+        case RIL_EXT_REQUEST_VIDEOPHONE_DIAL: return "VIDEOPHONE_DIAL";
+        case RIL_EXT_REQUEST_VIDEOPHONE_CODEC: return "VIDEOPHONE_CODEC";
+        case RIL_EXT_REQUEST_VIDEOPHONE_FALLBACK: return "VIDEOPHONE_FALLBACK";
+        case RIL_EXT_REQUEST_VIDEOPHONE_STRING: return "VIDEOPHONE_STRING";
+        case RIL_EXT_REQUEST_VIDEOPHONE_LOCAL_MEDIA: return "VIDEOPHONE_LOCAL_MEDIA";
+        case RIL_EXT_REQUEST_VIDEOPHONE_CONTROL_IFRAME: return "VIDEOPHONE_CONTROL_IFRAME";
+        /* }@ */
+        case RIL_EXT_REQUEST_SWITCH_MULTI_CALL: return "SWITCH_MULTI_CALL";
+        case RIL_EXT_REQUEST_TRAFFIC_CLASS: return "TRAFFIC_CLASS";
+        case RIL_EXT_REQUEST_ENABLE_LTE: return "ENABLE_LTE";
+        case RIL_EXT_REQUEST_ATTACH_DATA: return "ATTACH_DATA";
+        case RIL_EXT_REQUEST_STOP_QUERY_NETWORK: return "STOP_QUERY_NETWORK";
+        case RIL_EXT_REQUEST_FORCE_DETACH: return "FORCE_DETACH";
+        case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: return "GET_HD_VOICE_STATE";
+        /* }@ */
+
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED: return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED: return "UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED";
@@ -6012,13 +6101,23 @@ const char *requestToString(int request) {
         case RIL_UNSOL_SRVCC_STATE_NOTIFY: return "UNSOL_SRVCC_STATE_NOTIFY";
         case RIL_UNSOL_HARDWARE_CONFIG_CHANGED: return "HARDWARE_CONFIG_CHANGED";
         case RIL_UNSOL_DC_RT_INFO_CHANGED: return "UNSOL_DC_RT_INFO_CHANGED";
-        case RIL_REQUEST_SHUTDOWN: return "SHUTDOWN";
-        case RIL_UNSOL_RADIO_CAPABILITY: return "RIL_UNSOL_RADIO_CAPABILITY";
+        case RIL_UNSOL_RADIO_CAPABILITY: return "UNSOL_RADIO_CAPABILITY";
         /* IMS unsolicited response @{ */
         case RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED: return "UNSOL_IMS_CALL_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_VIDEO_QUALITY: return "UNSOL_VIDEO_QUALITY";
-        case RIL_UNSOL_RESPONS_IMS_CONN_ENABLE: return "UNSOL_IMS_CONN_ENABLE";
+        case RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED: return "RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED";
         /* }@ */
+        /* videophone @{ */
+        case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";
+        case RIL_EXT_UNSOL_VIDEOPHONE_DSCI: return "UNSOL_VIDEOPHONE_DSCI";
+        case RIL_EXT_UNSOL_VIDEOPHONE_STRING: return "UNSOL_VIDEOPHONE_STRING";
+        case RIL_EXT_UNSOL_VIDEOPHONE_REMOTE_MEDIA: return "UNSOL_VIDEOPHONE_REMOTE_MEDIA";
+        case RIL_EXT_UNSOL_VIDEOPHONE_MM_RING: return "UNSOL_VIDEOPHONE_MM_RING";
+        case RIL_EXT_UNSOL_VIDEOPHONE_RELEASING: return "UNSOL_VIDEOPHONE_RELEASING";
+        case RIL_EXT_UNSOL_VIDEOPHONE_RECORD_VIDEO: return "UNSOL_VIDEOPHONE_RECORD_VIDEO";
+        case RIL_EXT_UNSOL_VIDEOPHONE_MEDIA_START: return "UNSOL_VIDEOPHONE_MEDIA_START";
+        /* }@ */
+        case RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED: return "UNSOL_ECC_NETWORKLIST_CHANGED";
         default: return "<unknown request>";
     }
 }

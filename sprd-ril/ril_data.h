@@ -17,6 +17,8 @@
 #define DATA_ACTIVE_FAILED              1
 #define DATA_ACTIVE_NEED_RETRY          2
 
+#define TRAFFIC_CLASS_DEFAULT           2
+
 #define GSPS_ETH_UP_PROP                "ril.gsps.eth.up"
 #define GSPS_ETH_DOWN_PROP              "ril.gsps.eth.down"
 #define ATTACH_ENABLE_PROP              "persist.sys.attach.enable"
@@ -120,6 +122,8 @@ extern struct PDPInfo s_PDP[MAX_PDP];
 
 void putPDP(int cid);
 int isExistActivePdp();
+void activeAllConnections();
+void cleanUpAllConnections();
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processDataUnsolicited(RIL_SOCKET_ID socket_ID, const char *s);

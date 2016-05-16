@@ -23,7 +23,7 @@
 #include <termios.h>
 #include "hardware/qemu_pipe.h"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_sim.h"
 #include "ril_network.h"
 #include "ril_ss.h"
@@ -32,9 +32,11 @@
 #include "ril_misc.h"
 #include "ril_call.h"
 #include "ril_data.h"
+#include "ril_async_cmd_handler.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
 #define VOLTE_ENABLE_PROP "persist.sys.volte.enable"
+/* For special instrument's test */
 #define VOLTE_PCSCF_PROP  "persist.sys.volte.pcscf"
 
 enum ChannelState {
@@ -180,7 +182,7 @@ void putChannel(int channelID) {
     p_channelInfo[channelID].state = CHANNEL_IDLE;
 
 done:
-    RLOGD("put Channel ID '%d'", p_channelInfo[channelID].channelID);
+    RLOGD("put Channel%d", p_channelInfo[channelID].channelID);
     pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
 }
 
@@ -208,7 +210,7 @@ int getChannel(RIL_SOCKET_ID socket_id) {
             pthread_mutex_lock(&p_channelInfo[channelID].mutex);
             if (p_channelInfo[channelID].state == CHANNEL_IDLE) {
                 p_channelInfo[channelID].state = CHANNEL_BUSY;
-                RLOGD("get Channel ID'%d'", p_channelInfo[channelID].channelID);
+                RLOGD("get Channel%d", p_channelInfo[channelID].channelID);
                 pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
                 return channelID;
             }
@@ -228,11 +230,11 @@ RIL_SOCKET_ID getSocketIdByChannelID(int channelID) {
     }
 #if (SIM_COUNT >= 3)
     else if (channelID >= AT_URC3 && channelID <= AT_CHANNEL3_2) {
-        socket_id = RIL_SOCKET_2;
+        socket_id = RIL_SOCKET_3;
     }
 #if (SIM_COUNT >= 4)
     else if (channelID >= AT_URC4 && channelID <= AT_CHANNEL4_2) {
-        socket_id = RIL_SOCKET_2;
+        socket_id = RIL_SOCKET_4;
     }
 #endif
 #endif
@@ -285,7 +287,9 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
           request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
           request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
-          request == RIL_REQUEST_SHUTDOWN)) {
+          request == RIL_REQUEST_SHUTDOWN ||
+          request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
+          request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -334,8 +338,10 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY ||
                  request == RIL_REQUEST_INIT_ISIM ||
                  request == RIL_REQUEST_SET_IMS_SMSC ||
-                 request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN
-              /* }@ */)) {
+                 request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
+                 request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
+              /* }@ */
+                 request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -522,7 +528,7 @@ void setRadioState(int channelID, RIL_RadioState newState) {
 
     /* Bug 503887 add ISIM for volte. @{ */
     if (newState == RADIO_STATE_OFF || newState == RADIO_STATE_UNAVAILABLE) {
-        s_imsConn[socket_id] = -1;
+        s_imsBearerEstablished[socket_id] = -1;
     }
     /* }@ */
 
@@ -676,10 +682,8 @@ static void initializeCallback(void *param) {
     /* @} */
 
     /* for non-CMCC version @{ */
-    if (s_isLTE && !isCMCC()) {
-        at_send_command_singleline(s_ATChannels[channelID],
+    at_send_command_singleline(s_ATChannels[channelID],
             "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
-    }
     /* @} */
 
     if (!s_isLTE) {
@@ -825,14 +829,14 @@ static void *mainLoop(void *param) {
             p_channelInfo[channelID].state = CHANNEL_IDLE;
 
             snprintf(p_channelInfo[channelID].ttyName,
-                    sizeof(p_channelInfo[channelID].ttyName),
-                    "/dev/CHNPTY%d", channelID);
+                    sizeof(p_channelInfo[channelID].ttyName), "/dev/CHNPTY%d",
+                    channelID);
 
             /* open TTY device, and attach it to channel */
             p_channelInfo[channelID].channelID = channelID;
             snprintf(p_channelInfo[channelID].name,
-                    sizeof(p_channelInfo[channelID].name),
-                    "Channel%d", channelID);
+                    sizeof(p_channelInfo[channelID].name), "Channel%d",
+                    channelID);
 
             fd = open(p_channelInfo[channelID].ttyName, O_RDWR | O_NONBLOCK);
 
@@ -928,6 +932,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
                 (void *)&s_socketId[simId]);
     }
 
+    pthread_t tid;
+    ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
+
     sem_wait(&s_sem);
 
     return &s_callbacks;
@@ -1022,16 +1029,6 @@ bool isLte(void) {
             !strcmp(s_modem, "lf")) {
             return true;
         }
-    }
-    return false;
-}
-
-bool isCMCC(void) {
-    char prop[PROPERTY_VALUE_MAX]="";
-    property_get("ro.operator", prop, NULL);
-    RLOGD("ro.operator is: %s", prop);
-    if (!strcmp(prop, "cmcc")) {
-        return true;
     }
     return false;
 }

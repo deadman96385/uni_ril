@@ -1520,7 +1520,28 @@ typedef struct {
              * clir == 2 on "CLIR suppression" (allow CLI presentation)
              */
 } RIL_VideoPhone_Dial;
+
+/* Used by RIL_REQUEST_VIDEOPHONE_CODEC */
+typedef struct {
+    int type;
+} RIL_VideoPhone_Codec;
 /* }@ */
+
+/** Used by RIL_EXT_UNSOL_VIDEOPHONE_DSCI */
+typedef struct {
+   int id;
+   int idr;
+   int stat;
+   int type;
+   int mpty;
+   char *number;
+   int num_type;
+   int bs_type;
+   int cause;
+   int location;  /* if cause = 57 and location <= 2,
+                   * it mean current sim hasn't start vt service
+                   */
+} RIL_VideoPhone_DSCI;
 
 /**
  * RIL_REQUEST_GET_SIM_STATUS
@@ -5152,7 +5173,7 @@ typedef struct {
 
 
 /********************************IMS REQUEST**********************************/
-#define RIL_IMS_REQUEST_BASE                            5000
+#define RIL_IMS_REQUEST_BASE                            2000
 #define RIL_REQUEST_GET_IMS_CURRENT_CALLS               (RIL_IMS_REQUEST_BASE + 1)
 #define RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY     (RIL_IMS_REQUEST_BASE + 2)
 #define RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY     (RIL_IMS_REQUEST_BASE + 3)
@@ -5169,24 +5190,46 @@ typedef struct {
 #define RIL_REQUEST_VIDEOPHONE_DIAL                     (RIL_IMS_REQUEST_BASE + 14)
 #define RIL_REQUEST_ENABLE_IMS                          (RIL_IMS_REQUEST_BASE + 15)
 #define RIL_REQUEST_DISABLE_IMS                         (RIL_IMS_REQUEST_BASE + 16)
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_DISABLE_IMS
+#define RIL_REQUEST_GET_IMS_BEARER_STATE                (RIL_IMS_REQUEST_BASE + 17)
+#define RIL_REQUEST_VIDEOPHONE_CODEC                    (RIL_IMS_REQUEST_BASE + 18)
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_VIDEOPHONE_CODEC
 
-#define RIL_IMS_UNSOL_RESPONSE_BASE                     6000
+#define RIL_IMS_UNSOL_RESPONSE_BASE                     3000
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
 #define RIL_UNSOL_RESPONSE_VIDEO_QUALITY                (RIL_IMS_UNSOL_RESPONSE_BASE + 1)
-#define RIL_UNSOL_RESPONS_IMS_CONN_ENABLE               (RIL_IMS_UNSOL_RESPONSE_BASE + 2)
-#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_RESPONS_IMS_CONN_ENABLE
+#define RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED       (RIL_IMS_UNSOL_RESPONSE_BASE + 2)
+#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED
 /*****************************************************************************/
 
 
 /*****************************OEM SOCKET REQUEST******************************/
-#define RIL_EXT_REQUEST_BASE                        7000
-#define RIL_EXT_REQUEST                             (RIL_EXT_REQUEST_BASE + 1)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST
+#define RIL_EXT_REQUEST_BASE                        4000
+#define RIL_EXT_REQUEST_VIDEOPHONE_DIAL             (RIL_EXT_REQUEST_BASE + 1)
+#define RIL_EXT_REQUEST_VIDEOPHONE_CODEC            (RIL_EXT_REQUEST_BASE + 2)
+#define RIL_EXT_REQUEST_VIDEOPHONE_FALLBACK         (RIL_EXT_REQUEST_BASE + 3)
+#define RIL_EXT_REQUEST_VIDEOPHONE_STRING           (RIL_EXT_REQUEST_BASE + 4)
+#define RIL_EXT_REQUEST_VIDEOPHONE_LOCAL_MEDIA      (RIL_EXT_REQUEST_BASE + 5)
+#define RIL_EXT_REQUEST_VIDEOPHONE_CONTROL_IFRAME   (RIL_EXT_REQUEST_BASE + 6)
+#define RIL_EXT_REQUEST_SWITCH_MULTI_CALL           (RIL_EXT_REQUEST_BASE + 7)
+#define RIL_EXT_REQUEST_TRAFFIC_CLASS               (RIL_EXT_REQUEST_BASE + 8)
+#define RIL_EXT_REQUEST_ENABLE_LTE                  (RIL_EXT_REQUEST_BASE + 9)
+#define RIL_EXT_REQUEST_ATTACH_DATA                 (RIL_EXT_REQUEST_BASE + 10)
+#define RIL_EXT_REQUEST_STOP_QUERY_NETWORK          (RIL_EXT_REQUEST_BASE + 11)
+#define RIL_EXT_REQUEST_FORCE_DETACH                (RIL_EXT_REQUEST_BASE + 12)
+#define RIL_EXT_REQUEST_GET_HD_VOICE_STATE          (RIL_EXT_REQUEST_BASE + 13)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_GET_HD_VOICE_STATE
 
-#define RIL_EXT_UNSOL_RESPONSE_BASE                 7000
-#define RIL_EXT_UNSOL                               (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL
+#define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
+#define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
+#define RIL_EXT_UNSOL_VIDEOPHONE_DSCI               (RIL_EXT_UNSOL_RESPONSE_BASE + 1)
+#define RIL_EXT_UNSOL_VIDEOPHONE_STRING             (RIL_EXT_UNSOL_RESPONSE_BASE + 2)
+#define RIL_EXT_UNSOL_VIDEOPHONE_REMOTE_MEDIA       (RIL_EXT_UNSOL_RESPONSE_BASE + 3)
+#define RIL_EXT_UNSOL_VIDEOPHONE_MM_RING            (RIL_EXT_UNSOL_RESPONSE_BASE + 4)
+#define RIL_EXT_UNSOL_VIDEOPHONE_RELEASING          (RIL_EXT_UNSOL_RESPONSE_BASE + 5)
+#define RIL_EXT_UNSOL_VIDEOPHONE_RECORD_VIDEO       (RIL_EXT_UNSOL_RESPONSE_BASE + 6)
+#define RIL_EXT_UNSOL_VIDEOPHONE_MEDIA_START        (RIL_EXT_UNSOL_RESPONSE_BASE + 7)
+#define RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED       (RIL_EXT_UNSOL_RESPONSE_BASE + 8)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED
 /*****************************************************************************/
 
 /*****************************************************************************/

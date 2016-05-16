@@ -90,18 +90,18 @@ extern int s_workMode[SIM_COUNT];
 extern int s_sessionId[SIM_COUNT];
 extern int s_desiredRadioState[SIM_COUNT];
 extern int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
-extern int s_imsConn[SIM_COUNT];
+extern int s_imsBearerEstablished[SIM_COUNT];
 extern LTE_PS_REG_STATE s_PSRegState[SIM_COUNT];
 extern pthread_mutex_t s_LTEAttachMutex[SIM_COUNT];
 extern RIL_RegState s_CSRegStateDetail[SIM_COUNT];
 extern RIL_RegState s_PSRegStateDetail[SIM_COUNT];
-
-extern uint64_t ril_nano_time();
+extern pthread_mutex_t s_radioPowerMutex[SIM_COUNT];
 
 int processNetworkRequests(int request, void *data, size_t datalen,
-        RIL_Token t, int channelID);
+                              RIL_Token t, int channelID);
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim);
 int isSimPresent(RIL_SOCKET_ID socket_id);
+uint64_t ril_nano_time();
 
 #endif  // RIL_NETWORK_H_

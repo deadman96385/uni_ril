@@ -9,6 +9,7 @@
 #define RIL_CALL_H_
 
 #define ECC_LIST_PROP "ril.ecclist"
+#define ECC_LIST_REAL_PROP "ril.ecclist.real"
 
 typedef struct EccList {
     char * number;
@@ -16,21 +17,6 @@ typedef struct EccList {
     struct EccList *next;
     struct EccList *prev;
 } EccList;
-
-/* Used by RIL_UNSOL_VIDEOPHONE_DSCI */
-typedef struct {
-    int id;
-    int idr;
-    int stat;
-    int type;
-    int mpty;
-    char *number;
-    int num_type;
-    int bs_type;
-    int cause;
-    int location;
-    // if cause=57 and location<=2,it means current sim hasn't start vt service
-} RIL_VideoPhone_DSCI;
 
 typedef struct ListNode {
     char data;

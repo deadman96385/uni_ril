@@ -5,8 +5,10 @@
  */
 #define LOG_TAG "RIL"
 
-#include "sprd-ril.h"
+#include "sprd_ril.h"
 #include "ril_stk.h"
+#include "ril_network.h"
+#include "ril_sim.h"
 
 int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
@@ -78,11 +80,9 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM: {
             int value = ((int *)data)[0];
             if (value == 0) {
-                RLOGD("cancel STK call");
                 err = at_send_command(s_ATChannels[channelID],
                                       "AT+SPUSATCALLSETUP=0", &p_response);
             } else {
-                RLOGD("confirm STK call");
                 err = at_send_command(s_ATChannels[channelID],
                                       "AT+SPUSATCALLSETUP=1", &p_response);
             }
@@ -116,12 +116,16 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
 static void resetSimAndRadio(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
     int channelID = getChannel(socket_id);
+    pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
+    s_desiredRadioState[socket_id] = 0;
+    s_imsInitISIM[socket_id] = -1;
 
     at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
     at_send_command(s_ATChannels[channelID], "AT+SFUN=3", NULL);
     at_send_command(s_ATChannels[channelID], "AT+SFUN=2", NULL);
-    at_send_command(s_ATChannels[channelID], "AT+SFUN=4", NULL);
 
+    setRadioState(channelID, RADIO_STATE_OFF);
+    pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
     putChannel(channelID);
 }
 
