@@ -2659,11 +2659,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
 #endif
 
     if (onOff == 0) {
-        if (s_multiSimMode && !bOnlyOneSIMPresent && s_testmode == 10) {
-            RILLOGD("s_sim_num = %d", s_sim_num);
-            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", s_sim_num);
-            err = at_send_command(ATch_type[channelID], cmd, NULL );
-        }
         /* The system ask to shutdown the radio */
         int sim_status = getSIMStatus(channelID);
         setHasSim(sim_status == SIM_ABSENT ? false: true );
