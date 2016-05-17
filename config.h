@@ -1,92 +1,106 @@
-
-/*
+/**
+ * config.h --- configuration  implementation for the phoneserver
  *
- * config.h: configuration  implementation for the phoneserver
-
- *Copyright (C) 2009,  spreadtrum
- *
- * Author: jim.cui <jim.cui@spreadtrum.com.cn>
+ * Copyright (C) 2015 Spreadtrum Communications Inc.
  *
  */
 
-#ifndef config_H
+#ifndef CONFIG_H_
+#define CONFIG_H_
+
 #include <errno.h>
 
-#define config_H
+#ifdef SIM_COUNT_PHONESERVER_1
+#define SIM_COUNT 1
+#elif  SIM_COUNT_PHONESERVER_3
+#define SIM_COUNT 3
+#elif  SIM_COUNT_PHONESERVER_4
+#define SIM_COUNT 4
+#else
+#define SIM_COUNT 2
+#endif
 
-#define SINGLE_CHN_NUM                  18  //  number of channel buffer
-#define MULTI_CHN_NUM                   27  //  number of channel buffer
-#define SERIAL_BUFFSIZE             (8*1024)	// channel buffer size
-#define MAX_AT_RESPONSE             (8 * 1024)
+#define SERIAL_BUFFSIZE                 (8 * 1024)  // channel buffer size
+#define MAX_AT_RESPONSE                 (8 * 1024)
 
-#define MUX_NUM                         16  //CSMUX_NUM+GSMUX_NUM+PSMUX_NUM+STK+PBK+SS+SIM+STM+NW+4PPP+1VT+IND
-#define CSMUX_NUM                       1
-#define PSMUX_NUM                       1
-#define GSMUX_NUM                       1
-#define MISCMUX_NUM                     1
-#define RESMUX_NUM                      0   //other mux out of channel manager
-#define GSM_WAIT_NUM                     4
-#define CSM_WAIT_NUM                     4
-#define PSM_WAIT_NUM                    4
-#define STMM_WAIT_NUM                   4
+#define MAX_MUX_NUM                     16
+#define MAX_PTY_NUM                     15
 
-#define SLOW1_WAIT_NUM                  4
-#define NORMAL1_WAIT_NUM                4
-#define SLOW2_WAIT_NUM                  4
-#define NORMAL2_WAIT_NUM                4
-#define SLOW3_WAIT_NUM                  4
-#define NORMAL3_WAIT_NUM                4
-#define SLOW4_WAIT_NUM                  4
-#define NORMAL4_WAIT_NUM                4
+#if(SIM_COUNT == 1)
+#define PTY_NUM                         4
+#define INDPTY_NUM                      1
+#define MUX_NUM                         4
+#elif(SIM_COUNT == 2)
+#define PTY_NUM                         6
+#define INDPTY_NUM                      2
+#define MUX_NUM                         6
+#endif
 
-#define SINGLE_PTY_CHN_NUM              6	//send thread number
-#define SINGLE_INDPTY_NUM               1
-#define SINGLE_PHS_MUX_NUM              11	//Receive thread number
-#define LTE_PTY_CHN_NUM                 4       //send thread number for LTE
-#define LTE_INDPTY_NUM                 1
-#define LTE_MUX_CHN_NUM	                11      //Receive thread number for LTE
-#define MULTI_PTY_CHN_NUM               15  //send thread number
-#define MULTI_INDPTY_NUM                4
-#define MULTI_PHS_MUX_NUM               12  //Receive thread number
+// number of channel buffer
+#define CHN_BUF_NUM                     (PTY_NUM + MUX_NUM)
 
-typedef enum mux_type_t { CSM, PSM, GSM,NWM,SIMM,SSM,PBKM,STKM, SMSM,SMSTM,INDM, STMM, AT,
-        ATM1_SIM1,ATM2_SIM1,ATM1_SIM2,ATM2_SIM2,
-	ATM1_SIM3,ATM2_SIM3,ATM1_SIM4,ATM2_SIM4,
-	INDM_SIM1, INDM_SIM2, INDM_SIM3, INDM_SIM4,
-	VTM_SIM1, VTM_SIM2, VTM_SIM3, VTM_SIM4,
-	AT_SIM1,AT_SIM2,AT_SIM3,AT_SIM4,
-	IND_SIM1, IND_SIM2, IND_SIM3, IND_SIM4,
-	STMAT, AUDAT, IND, RESERVE,
+typedef enum mux_type_t {
+    /* single sim mode pty type @{ */
+    AT,
+    IND,
+    /* }@ */
+
+    /* multi sim mode pty type @{ */
+    IND_SIM1,
+    AT_SIM1,
+
+    IND_SIM2,
+    AT_SIM2,
+
+    IND_SIM3,
+    AT_SIM3,
+
+    IND_SIM4,
+    AT_SIM4,
+    /* }@ */
+
+    /* single sim mode mux type @{ */
+    SINGLE_MUX_BASE = 20,
+    INDM = SINGLE_MUX_BASE + 0,
+    AT_MUX1 = SINGLE_MUX_BASE + 1,
+    AT_MUX2 = SINGLE_MUX_BASE + 2,
+    AT_MUX3 = SINGLE_MUX_BASE + 3,
+    /* }@ */
+
+    /* multi sim mode mux type @{ */
+    MULTI_MUX_BASE = 40,
+    INDM_SIM1 = MULTI_MUX_BASE + 0,
+    ATM1_SIM1 = MULTI_MUX_BASE + 1,
+    ATM2_SIM1 = MULTI_MUX_BASE + 2,
+
+    INDM_SIM2 = MULTI_MUX_BASE + 3,
+    ATM1_SIM2 = MULTI_MUX_BASE + 4,
+    ATM2_SIM2 = MULTI_MUX_BASE + 5,
+
+    INDM_SIM3 = MULTI_MUX_BASE + 6,
+    ATM1_SIM3 = MULTI_MUX_BASE + 7,
+    ATM2_SIM3 = MULTI_MUX_BASE + 8,
+
+    INDM_SIM4 = MULTI_MUX_BASE + 9,
+    ATM1_SIM4 = MULTI_MUX_BASE + 10,
+    ATM2_SIM4 = MULTI_MUX_BASE + 11,
+    /* }@ */
+
+    SMSTM,
+    VTM_SIM1, VTM_SIM2, VTM_SIM3, VTM_SIM4,
+    STMAT, AUDAT, RESERVE,
 } mux_type;
 
-typedef struct channel_config channel_config;
-struct channel_config {
+typedef struct {
+    char *dev_str;  /* attribute dev_str , device node name */
+    int index;
+    mux_type type;  /* attribute type */
+    int prority;    /* channel thread's prority */
+} channel_config;
 
-	/***    User explicit entries    ***/
-	char *dev_str;		/*## attribute dev_str , device node name */
-	int index;
-	mux_type type;		/*## attribute type */
-	int prority;		/*## channel thread's prority */
-};
-struct chns_config_t {
-
-    /***    User explicit entries    ***/
+typedef struct {
     channel_config mux[MUX_NUM];
-    channel_config pty[MULTI_PTY_CHN_NUM];
-    channel_config itsMngPty;
-};
+    channel_config pty[PTY_NUM];
+} chns_config_t;
 
-/*cmux0-9:
-  cmux0  indicator,misc at; (P)
-  cmux1  vt data
-  cmux2-5 ppp
-
-  cmux6  cs's AT (P)
-  cmux7  ps's AT (P)
-  cmux8  general (P)
-  cmux9  cmmb
-  cmux10  cp log
-
-*/
-
-#endif /*  */
+#endif  // CONFIG_H_
