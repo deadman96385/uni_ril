@@ -3294,18 +3294,28 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                 }
                 responses[i].dnses = dnslist;
             } else if (ip_type == IPV4V6) {
+                char propValue[PROPERTY_VALUE_MAX] = {0};
+                property_get("ro.operator.volte", propValue, "");
                 responses[i].type = alloca(strlen("IPV4V6") + 1);
                 strcpy(responses[i].type, "IPV4V6");//for fallback, change two net interface to one
                 iplist = alloca(iplist_sz);
                 separator = " ";
                 iplist[0] = 0;
-                snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid-1);
+                if (strcmp (propValue, "reliance") == 0) {
+                    snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid-1);
+                } else {
+                    snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid-1);
+                }
                 property_get(cmd, prop, NULL);
                 strlcat(iplist, prop, iplist_sz);
                 strlcat(iplist, separator, iplist_sz);
                 RILLOGE("IPV4V6 cmd=%s, prop = %s, iplist = %s", cmd,prop,iplist);
 
-                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid-1);
+                if (strcmp (propValue, "reliance") == 0) {
+                    snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid-1);
+                } else {
+                    snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid-1);
+                }
                 property_get(cmd, prop, NULL);
                 strlcat(iplist, prop, iplist_sz);
                 responses[i].addresses = iplist;
@@ -3315,7 +3325,11 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                 separator = "";
                 dnslist[0] = 0;
                 for (nn = 0; nn < 2; nn++) {
-                    snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid-1, nn+1);
+                    if (strcmp (propValue, "reliance") == 0) {
+                        snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth, ncid-1, nn+1);
+                    } else {
+                        snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid-1, nn+1);
+                    }
                     property_get(cmd, prop, NULL);
 
                     /* Append the DNS IP address */
@@ -3326,7 +3340,11 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                 }
 
                 for (nn = 0; nn < 2; nn++) {
-                    snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth, ncid-1, nn+1);
+                    if (strcmp (propValue, "reliance") == 0) {
+                        snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid-1, nn+1);
+                    } else {
+                        snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth, ncid-1, nn+1);
+                    }
                     property_get(cmd, prop, NULL);
 
                     /* Append the DNS IP address */
