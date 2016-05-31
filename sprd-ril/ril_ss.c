@@ -1033,10 +1033,8 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         } else {
             if (s_ussdError[socket_id] == 1) {  /* for ussd */
                 RLOGD("+CUSD ussdError");
-                /* 4: network does not support the current operation
-                 * 2: USSD_MODE_NW_RELEASE
-                 */
-                response[0] = "2";
+                // 4: network does not support the current operation
+                response[0] = "4";
                 s_ussdError[socket_id] = 0;
             }
 

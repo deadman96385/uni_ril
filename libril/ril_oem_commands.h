@@ -15,4 +15,5 @@
     {RIL_EXT_REQUEST_ATTACH_DATA, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_STOP_QUERY_NETWORK, dispatchVoid, responseVoid},
     {RIL_EXT_REQUEST_FORCE_DETACH, dispatchVoid, responseVoid},
-    {RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts}
+    {RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts},
+    {RIL_EXT_REQUEST_SIM_POWER, dispatchInts, responseVoid}

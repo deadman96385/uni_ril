@@ -19,6 +19,7 @@
 /* Save NITZ operator name string for UI to display right PLMN name */
 #define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
 #define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
+#define PHONE_EXTENSION_PROP    "ril.sim.phone_ex.start"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
@@ -653,7 +654,7 @@ static void requestRegistrationState(int channelID, int request,
                 s_PSRegState[socket_id] = STATE_IN_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
-            if (response[3] == 14) {
+            if (response[3] == 14 || response[3] == 19) {
                 s_in4G[socket_id] = 1;
             } else {
                 s_in4G[socket_id] = 0;
@@ -704,11 +705,14 @@ static void requestOperator(int channelID, void *data, size_t datalen,
     int err;
     int i;
     int skip;
+    char prop[PROPERTY_VALUE_MAX];
     char *response[3];
     ATLine *p_cur;
     ATResponse *p_response = NULL;
 
     memset(response, 0, sizeof(response));
+
+    property_get(PHONE_EXTENSION_PROP, prop, "false");
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -760,7 +764,7 @@ static void requestOperator(int channelID, void *data, size_t datalen,
     }
 
 #if defined (RIL_EXTENSION)
-    if (response[2] != NULL) {
+    if (strcmp(prop, "true") == 0 && response[2] != NULL) {
         char updatedPlmn[64] = {0};
         err = updatePlmn(socket_id, (const char *)(response[2]), updatedPlmn);
         if (err == 0 && strcmp(updatedPlmn, response[2])) {
@@ -1060,7 +1064,10 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     char *line;
     char **responses, **cur;
     char *tmp, *startTmp = NULL;
+    char prop[PROPERTY_VALUE_MAX];
     ATResponse *p_response = NULL;
+
+    property_get(PHONE_EXTENSION_PROP, prop, "false");
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1142,13 +1149,15 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
         cur[2] = tmp;
 
 #if defined (RIL_EXTENSION)
-        err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
-                                updatedNetList);
-        if (err == 0) {
-            RLOGD("updatedNetworkList: %s", updatedNetList);
-            cur[0] = updatedNetList;
+        if (strcmp(prop, "true") == 0) {
+            err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
+                                    updatedNetList);
+            if (err == 0) {
+                RLOGD("updatedNetworkList: %s", updatedNetList);
+                cur[0] = updatedNetList;
+            }
+            updatedNetList += 64;
         }
-        updatedNetList += 64;
 #endif
         cur += 4;
         tmp += 30;
@@ -2335,7 +2344,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 err = at_tok_nextint(&tmp, &netType);
                 if (err < 0) goto out;
             }
-            if (netType == 7) {
+            if (netType == 7 || netType == 16) {
                 s_in4G[socket_id] = 1;
             }
             RLOGD("netType is %d", netType);

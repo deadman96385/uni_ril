@@ -6533,6 +6533,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_STOP_QUERY_NETWORK: return "STOP_QUERY_NETWORK";
         case RIL_EXT_REQUEST_FORCE_DETACH: return "FORCE_DETACH";
         case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: return "GET_HD_VOICE_STATE";
+        case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";

@@ -8,6 +8,8 @@
 #ifndef RIL_SIM_H_
 #define RIL_SIM_H_
 
+#define SIM_ENABLED_PROP "persist.radio.sim_enabled"
+
 typedef enum {
     UNLOCK_PIN   = 0,
     UNLOCK_PIN2  = 1,
@@ -38,5 +40,6 @@ int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 SimStatus getSIMStatus(int channelID);
 RIL_AppType getSimType(int channelID);
 void dispatchCLCK(RIL_Token t, void *data, void *resp);
+void initSIMVariables();
 
 #endif  // RIL_SIM_H_

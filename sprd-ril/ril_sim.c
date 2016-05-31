@@ -50,6 +50,7 @@
 #define SIM_AUTH_RESPONSE_SUCCESS               0
 #define SIM_AUTH_RESPONSE_SYNC_FAILURE          3
 
+static int s_simEnabled[SIM_COUNT];
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
 static bool s_needQueryPinTimes[SIM_COUNT] = {
@@ -103,6 +104,18 @@ int s_imsInitISIM[SIM_COUNT] = {
 
 const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void setSIMPowerOff(void *param);
+
+void initSIMVariables() {
+    int simId;
+    char prop[PROPERTY_VALUE_MAX];
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        memset(prop, 0, sizeof(prop));
+        getProperty(simId, SIM_ENABLED_PROP, prop, "1");
+        s_simEnabled[simId] = atoi(prop);
+    }
+}
 
 static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     int err, result;
@@ -207,6 +220,18 @@ SimStatus getSIMStatus(int channelID) {
 
 done:
     at_response_free(p_response);
+    if (ret != SIM_ABSENT && s_simEnabled[socket_id] == 0) {
+        pthread_t tid;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
+                           (void *)&s_socketId[socket_id]) < 0) {
+            RLOGE("Failed to create setSIMPowerOff");
+        }
+        ret = SIM_ABSENT;
+    }
+
     if (ret == SIM_ABSENT) {
         setSimPresent(socket_id, false);
     } else {
@@ -1216,7 +1241,8 @@ static void requestTransmitApdu(int channelID, void *data, size_t datalen,
     free(cmd);
     // end sim toolkit session if 90 00 on TERMINAL RESPONSE
     if ((p_args->instruction == 20) && (sr.sw1 == 0x90)) {
-        RIL_onUnsolicitedResponse(RIL_UNSOL_STK_SESSION_END, NULL, 0, socket_id);
+        RIL_onUnsolicitedResponse(RIL_UNSOL_STK_SESSION_END, NULL, 0,
+                                  socket_id);
     }
 
     // return if no sim toolkit proactive command is ready
@@ -1714,6 +1740,44 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
     }
 }
 
+void requestSIMPower(int channelID, int onOff, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    int err = 0;
+    s_simEnabled[socket_id] = onOff;
+
+    if (onOff == 0) {
+        err = at_send_command(s_ATChannels[channelID], "AT+SFUN=3",
+                              &p_response);
+    } else if (onOff > 0) {
+        err = at_send_command(s_ATChannels[channelID], "AT+SFUN=2",
+                              &p_response);
+    }
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    at_response_free(p_response);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+    return;
+
+error:
+    at_response_free(p_response);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
+}
+
+static void setSIMPowerOff(void *param) {
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    int channelID = getChannel(socket_id);
+    pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
+    requestSIMPower(channelID, 0, NULL);
+    pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
+    putChannel(channelID);
+}
+
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int err;
@@ -1831,6 +1895,14 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
+            break;
+        }
+        case RIL_EXT_REQUEST_SIM_POWER: {
+            int onOff = ((int *)data)[0];
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
+            requestSIMPower(channelID, onOff, t);
+            pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             break;
         }
         /* }@ */

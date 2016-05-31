@@ -289,7 +289,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
           request == RIL_REQUEST_SHUTDOWN ||
           request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
-          request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE)) {
+          request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
+          request == RIL_EXT_REQUEST_SIM_POWER)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -340,7 +341,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
               /* }@ */
-                 request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE)) {
+                 request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
+                 request == RIL_EXT_REQUEST_SIM_POWER)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -937,6 +939,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
+    initSIMVariables();
 
     sem_wait(&s_sem);
 

@@ -382,6 +382,11 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
         if (i == 0) {
             enable = gsmBci.selected ? 0 : 1;
         }
+        /**
+         * AT+CSCB = <mode>, <mids>, <dcss>
+         * When mids are all different possible combinations of CBM message
+         * identifiers, we send the range to modem. e.g. AT+CSCB=0,"4373-4383"
+         */
         memset(tmp, 0, 20);
         setSmsBroadcastConfigData(gsmBci.fromServiceId, i, 1, channel, &len,
                 tmp);
@@ -389,11 +394,14 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
         channelLen += len;
         RLOGI("SetSmsBroadcastConfig channel %s ,%d ", channel, channelLen);
 
-        memset(tmp, 0, 20);
-        setSmsBroadcastConfigData(gsmBci.toServiceId, i, 0, channel, &len, tmp);
-        memcpy(channel + channelLen, tmp, strlen(tmp));
-        channelLen += len;
-        RLOGI("SetSmsBroadcastConfig channel %s ,%d", channel, channelLen);
+        if (gsmBci.fromServiceId != gsmBci.toServiceId) {
+            memset(tmp, 0, 20);
+            setSmsBroadcastConfigData(gsmBci.toServiceId, i, 2, channel, &len,
+                                      tmp);
+            memcpy(channel + channelLen, tmp, strlen(tmp));
+            channelLen += len;
+            RLOGI("SetSmsBroadcastConfig channel %s ,%d", channel, channelLen);
+        }
 
         memset(tmp, 0, 20);
         setSmsBroadcastConfigData(gsmBci.fromCodeScheme, i, 1, lang, &len, tmp);
@@ -719,7 +727,7 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
         }
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM, &location,
                                   sizeof(location), socket_id);
-    } else if (strStartsWith(s, "+CBM:")) {
+    } else if (strStartsWith(s, "+CBM:") || strStartsWith(s, "+SPWRN:")) {
         char *pdu_bin = NULL;
         RLOGD("CBM sss %s ,len  %d", s, (int)strlen(s));
         RLOGD("CBM  %s ,len  %d", sms_pdu, (int)strlen(sms_pdu));
