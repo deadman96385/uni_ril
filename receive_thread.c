@@ -15,7 +15,7 @@
 #include "config.h"
 
 #undef  PHS_LOGD
-#define PHS_LOGD(x...)  ALOGD(x)
+#define PHS_LOGD(x...)  RLOGD(x)
 
 #if AT_DEBUG
 void AT_DUMP(const char *prefix, const char *buff, int len) {

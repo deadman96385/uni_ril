@@ -29,7 +29,7 @@
 #include "at_tok.h"
 
 #undef  PHS_LOGD
-#define PHS_LOGD(x...)  ALOGD(x)
+#define PHS_LOGD(x...)  RLOGD(x)
 
 #define SYS_NET_ADDR                "sys.data.net.addr"
 #define SYS_NET_ACTIVATING_TYPE     "sys.data.activating.type"
@@ -1066,9 +1066,9 @@ int cvt_cgdcont_set_req(AT_CMD_REQ_T * req) {
 
     if (tmp_cid <= maxPDPNum) {
         strncpy(pdp_info[tmp_cid - 1].userdns1addr, "0.0.0.0",
-                 strlen("0.0.0.0"));
+                 sizeof("0.0.0.0"));
         strncpy(pdp_info[tmp_cid - 1].userdns2addr, "0.0.0.0",
-                 strlen("0.0.0.0"));
+                 sizeof("0.0.0.0"));
         pdp_info[tmp_cid - 1].manual_dns = 0;
     }
 
@@ -1259,14 +1259,14 @@ int cvt_cgcontrdp_rsp(AT_CMD_RSP_T * rsp,
                         if (err < 0) {
                             goto error;
                         }
-                        strncpy(dns1, dns_prim_addr, strlen(dns_prim_addr));
+                        snprintf(dns1, sizeof(dns1), "%s", dns_prim_addr);
                         if (at_tok_hasmore(&input)) {
                             // dns_sec_addr
                             err = at_tok_nextstr(&input, &dns_sec_addr);
                             if (err < 0) {
                                 goto error;
                             }
-                            strncpy(dns2, dns_sec_addr, strlen(dns_sec_addr));
+                            snprintf(dns2, sizeof(dns2), "%s", dns_sec_addr);
                         }
                     }
                 }

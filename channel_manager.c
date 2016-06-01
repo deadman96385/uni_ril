@@ -465,7 +465,7 @@ static void chnmng_pty_Init(channel_manager_t *const me) {
     int size;
 
     memset(&me->itsPty, 0, sizeof(struct pty_t) * PTY_NUM);
-    strncpy(pre_ptyname, "/dev/CHNPTY", strlen("/dev/CHNPTY"));
+    strncpy(pre_ptyname, "/dev/CHNPTY", sizeof("/dev/CHNPTY"));
 
     /* set attris to default value */
     for (i = 0; i < pty_chn_num; i++) {

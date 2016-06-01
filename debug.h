@@ -11,7 +11,7 @@
 #define LOG_TAG "RIL-PHS"
 #include <utils/Log.h>
 
-#define PHS_DEBUG
+// #define PHS_DEBUG
 
 #ifdef PHS_DEBUG
 #define PHS_LOGD(x...) RLOGD(x)

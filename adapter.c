@@ -1359,7 +1359,7 @@ int adapter_cmux_write_for_ps(cmux_t *mux, char *buf,
         PHS_LOGE("mux %s command %s time out", mux->name, str);
         if (mux->cp_blked > BLOCKED_MAX_COUNT) {
             mux->cp_blked = 0;
-            strncpy(block_str, "Modem Blocked", strlen("Modem Blocked"));
+            strncpy(block_str, "Modem Blocked", sizeof("Modem Blocked"));
             if (soc_client < 0) {
                 detect_at_no_response();
             }
