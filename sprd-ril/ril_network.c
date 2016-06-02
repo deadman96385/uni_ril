@@ -679,13 +679,8 @@ static void requestRegistrationState(int channelID, int request,
     } else if (request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
         snprintf(res[4], sizeof(res[4]), "3");
         responseStr[5] = res[4];
-        if (s_PSAttachAllowed[socket_id] == 1 ||
-            s_PSRegState[socket_id] != STATE_IN_SERVICE) {
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, responseStr,
-                                  6 * sizeof(char *));
-        } else {
-            goto error;
-        }
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, responseStr,
+                              6 * sizeof(char *));
     } else if (request == RIL_REQUEST_IMS_REGISTRATION_STATE) {
         s_imsRegistered[socket_id] = response[1];
         RLOGD("imsRegistered[%d] = %d", socket_id, s_imsRegistered[socket_id]);
@@ -803,7 +798,7 @@ static void sendUnsolRadioCapability(RIL_SOCKET_ID socket_id) {
     responseRc->rat = getRadioFeatures(s_multiModeSim);
     responseRc->status = RC_STATUS_SUCCESS;
     strncpy(responseRc->logicalModemUuid, "com.sprd.modem_multiMode",
-            strlen("com.sprd.modem_multiMode"));
+            sizeof("com.sprd.modem_multiMode"));
     RIL_onUnsolicitedResponse(RIL_UNSOL_RADIO_CAPABILITY, responseRc,
             sizeof(RIL_RadioCapability), s_multiModeSim);
 #if (SIM_COUNT == 2)
@@ -815,7 +810,7 @@ static void sendUnsolRadioCapability(RIL_SOCKET_ID socket_id) {
     }
     responseRc->rat = getRadioFeatures(singleModeSim);
     strncpy(responseRc->logicalModemUuid, "com.sprd.modem_singleMode",
-            strlen("com.sprd.modem_singleMode"));
+            sizeof("com.sprd.modem_singleMode"));
     RIL_onUnsolicitedResponse(RIL_UNSOL_RADIO_CAPABILITY, responseRc,
             sizeof(RIL_RadioCapability), singleModeSim);
 #endif
@@ -1894,10 +1889,10 @@ static void requestGetRadioCapability(int channelID, void *data,
                 || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
                 || (rc->rat & RAF_LTE) == RAF_LTE) {
         strncpy(rc->logicalModemUuid, "com.sprd.modem_multiMode",
-                strlen("com.sprd.modem_multiMode"));
+                sizeof("com.sprd.modem_multiMode"));
     } else {
         strncpy(rc->logicalModemUuid, "com.sprd.modem_singleMode",
-                strlen("com.sprd.modem_singleMode"));
+                sizeof("com.sprd.modem_singleMode"));
     }
     RLOGD("getRadioCapability rat = %d, logicalModemUuid = %s", rc->rat,
             rc->logicalModemUuid);

@@ -89,7 +89,6 @@ extern int s_in4G[SIM_COUNT];
 extern int s_workMode[SIM_COUNT];
 extern int s_sessionId[SIM_COUNT];
 extern int s_desiredRadioState[SIM_COUNT];
-extern int s_PSAttachAllowed[SIM_COUNT];
 extern int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 extern int s_imsConn[SIM_COUNT];
 extern LTE_PS_REG_STATE s_PSRegState[SIM_COUNT];

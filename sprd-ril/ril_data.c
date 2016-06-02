@@ -457,13 +457,14 @@ static int queryAllActivePDN(int channelID) {
         if (err < 0) {
             s_PDN[cid-1].nCid = -1;
         }
-        strncpy(s_PDN[cid-1].strIPType, type, strlen(type));
+        snprintf(s_PDN[cid-1].strIPType, sizeof(s_PDN[cid-1].strIPType),
+                  "%s", type);
         /* apn */
         err = at_tok_nextstr(&line, &apn);
         if (err < 0) {
             s_PDN[cid-1].nCid = -1;
         }
-        strncpy(s_PDN[cid-1].strApn, apn, strlen(apn));
+        snprintf(s_PDN[cid-1].strApn, sizeof(s_PDN[cid-1].strApn), "%s", apn);
         RLOGI("queryAllActivePDN active s_PDN: cid = %d, iptype = %s, apn = %s",
               s_PDN[cid-1].nCid, s_PDN[cid-1].strIPType, s_PDN[cid-1].strApn);
     }
@@ -513,9 +514,10 @@ static int checkCmpAnchor(char *apn) {
         return len;
     }
 
-    strncpy(strApn, apn, len);
+    snprintf(strApn, sizeof(strApn), "%s", apn);
     RLOGD("getOrgApnlen: apn = %s, strApn = %s, len = %d", apn, strApn, len);
 
+    memset(tmp, 0, sizeof(tmp));
     strncpy(tmp, apn + (len - 5), 5);
     RLOGD("getOrgApnlen: tmp = %s", tmp);
     if (strcasecmp(str[0], tmp)) {
@@ -891,7 +893,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
 
         snprintf(cmd, sizeof(cmd), "%s%d", eth, ncid - 1);
         responses[i].ifname = alloca(strlen(cmd) + 1);
-        strncpy(responses[i].ifname, cmd, strlen(cmd));
+        snprintf(responses[i].ifname, strlen(cmd) + 1, "%s", cmd);
 
         snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, ncid - 1);
         property_get(cmd, prop, "0");
@@ -901,14 +903,14 @@ static void requestOrSendDataCallList(int channelID, int cid,
 
         if (ipType == IPV4) {
             responses[i].type = alloca(strlen("IP") + 1);
-            strncpy(responses[i].type, "IP", strlen("IP"));
+            strncpy(responses[i].type, "IP", sizeof("IP"));
             snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             RLOGD("IPV4 cmd=%s, prop = %s", cmd, prop);
             responses[i].addresses = alloca(strlen(prop) + 1);
             responses[i].gateways = alloca(strlen(prop) + 1);
-            strncpy(responses[i].addresses, prop, strlen(prop));
-            strncpy(responses[i].gateways, prop, strlen(prop));
+            snprintf(responses[i].addresses, strlen(prop) + 1, "%s", prop);
+            snprintf(responses[i].gateways, strlen(prop) + 1, "%s", prop);
 
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
@@ -923,14 +925,15 @@ static void requestOrSendDataCallList(int channelID, int cid,
             responses[i].dnses = dnslist;
         } else if (ipType == IPV6) {
             responses[i].type = alloca(strlen("IPV6") + 1);
-            strncpy(responses[i].type, "IPV6", strlen("IPV6"));
+            strncpy(responses[i].type, "IPV6", sizeof("IPV6"));
             snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             RLOGD("IPV6 cmd=%s, prop = %s", cmd, prop);
             responses[i].addresses = alloca(strlen(prop) + 1);
             responses[i].gateways = alloca(strlen(prop) + 1);
-            strncpy(responses[i].addresses, prop, strlen(prop));
-            strncpy(responses[i].gateways, prop, strlen(prop));
+            snprintf(responses[i].addresses, strlen(prop) + 1, "%s", prop);
+            snprintf(responses[i].gateways, strlen(prop) + 1, "%s", prop);
+
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
                 snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth, ncid-1,
@@ -946,7 +949,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         } else if (ipType == IPV4V6) {
             responses[i].type = alloca(strlen("IPV4V6") + 1);
             // for Fallback, change two net interface to one
-            strncpy(responses[i].type, "IPV4V6", strlen("IPV4V6") );
+            strncpy(responses[i].type, "IPV4V6", sizeof("IPV4V6") );
             iplist = alloca(IPListSize);
             separator = " ";
             iplist[0] = 0;
@@ -1123,6 +1126,7 @@ static int reuseDefaultBearer(int channelID, const char *apn,
             for (i = 0; i < MAX_PDP_CP; i++) {
                 cid = getPDNCid(i);
                 if (cid == (i + 1)) {
+                    memset(strApnName, 0, sizeof(strApnName));
                     strncpy(strApnName, getPDNAPN(i),
                              checkCmpAnchor(s_PDN[i].strApn));
                     strApnName[strlen(strApnName)] = '\0';
@@ -1278,7 +1282,7 @@ static void updateAdditionBusinessCid(int channelID) {
         snprintf(prop, sizeof(prop), "net.%s%d.ip", eth, cidIndex);
         property_get(prop, ipv4, "");
     } else {
-        strncpy(ipv4, "0.0.0.0", strlen("0.0.0.0"));
+        strncpy(ipv4, "0.0.0.0", sizeof("0.0.0.0"));
     }
 
     if (ipType & IPV6) {
@@ -1286,7 +1290,7 @@ static void updateAdditionBusinessCid(int channelID) {
         property_get(prop, ipv6, "");
     } else {
         strncpy(ipv6, "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
-                strlen("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"));
+                sizeof("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"));
     }
 
     snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"", cidIndex + 1, ipv4,
@@ -1401,9 +1405,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 needIPChange = 1;
                 free(initialAttachApn->apn);
             }
-            initialAttachApn->apn = (char *)malloc(
-                    strlen(pIAApn->apn) + 1);
-            strncpy(initialAttachApn->apn, pIAApn->apn, strlen(pIAApn->apn));
+            initialAttachApn->apn = (char *)malloc(strlen(pIAApn->apn) + 1);
+            snprintf(initialAttachApn->apn, strlen(pIAApn->apn) + 1,
+                      "%s", pIAApn->apn);
         }
 
         if (pIAApn->protocol != NULL) {
@@ -1415,9 +1419,8 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             }
             initialAttachApn->protocol = (char *)malloc(
                     strlen(pIAApn->protocol) + 1);
-
-            strncpy(initialAttachApn->protocol, pIAApn->protocol,
-                    strlen(pIAApn->protocol));
+            snprintf(initialAttachApn->protocol, strlen(pIAApn->protocol) + 1,
+                     "%s", pIAApn->protocol);
         }
 
         initialAttachApn->authtype = pIAApn->authtype;
@@ -1425,15 +1428,15 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         if (pIAApn->username != NULL) {
             initialAttachApn->username = (char *)malloc(
                     strlen(pIAApn->username) + 1);
-            strncpy(initialAttachApn->username, pIAApn->username,
-                    strlen(pIAApn->username));
+            snprintf(initialAttachApn->username, strlen(pIAApn->username) + 1,
+                     "%s", pIAApn->username);
         }
 
         if (pIAApn->password != NULL) {
             initialAttachApn->password = (char *)malloc(
                     strlen(pIAApn->password) + 1);
-            strncpy(initialAttachApn->password, pIAApn->password,
-                    strlen(pIAApn->password));
+            snprintf(initialAttachApn->password, strlen(pIAApn->password) + 1,
+                     "%s", pIAApn->password);
         }
     }
 
@@ -1607,13 +1610,6 @@ void requestAllowData(int channelID, void *data, size_t datalen,
     s_dataAllowed[socket_id] = ((int *)data)[0];
     RLOGD("s_desiredRadioState[%d] = %d", socket_id,
           s_desiredRadioState[socket_id]);
-    if (s_PSAttachAllowed[socket_id] == 0) {
-        RLOGD("set s_PSAttachAllowed to be 1");
-        s_PSAttachAllowed[socket_id] = 1;
-        RIL_onUnsolicitedResponse(
-                RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
-                NULL, 0, socket_id);
-    }
     if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()) {
         if (s_dataAllowed[socket_id]) {
             attachGPRS(channelID, data, datalen, t);

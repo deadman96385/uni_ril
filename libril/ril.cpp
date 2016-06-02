@@ -51,7 +51,6 @@
 
 extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                                        void *response, size_t responselen);
-int s_PSAttachAllowed[SIM_COUNT];
 
 namespace android {
 
@@ -4511,10 +4510,6 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
         if (ret != 0) {
             RLOGE("error on reading command socket errno:%d\n", errno);
         } else {
-            /* add for phone crash */
-            for (simId = 0; simId < SIM_COUNT; simId++) {
-                s_PSAttachAllowed[simId] = 0;
-            }
             RLOGW("EOS.  Closing command socket.");
         }
 
