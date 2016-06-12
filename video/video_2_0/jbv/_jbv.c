@@ -286,6 +286,7 @@ vint _JBV_findTsMax(
     uint64    foundTs;
     uint16    seqn;
     uint16    xseqn;
+    vint      mSeqn;
     vint      m1Seqn;
     vint      nextSeqn;
     JBV_Unit *unit_ptr;
@@ -296,6 +297,7 @@ vint _JBV_findTsMax(
      */
     tsMax = 0;
     foundTs = tsMax;
+    mSeqn = -1;
     m1Seqn = -1;
     for (seqn = 0; seqn < _JBV_SEQN_MAXDIFF; seqn++) {
         unit_ptr = &obj_ptr->unit[seqn];
@@ -349,6 +351,7 @@ vint _JBV_findTsMax(
                 break;
             }
             if (obj_ptr->unit[xseqn].firstInSeq) {
+                mSeqn = seqn;
                 m1Seqn = xseqn;
                 foundTs = tsMax;
                 break;
@@ -361,14 +364,14 @@ vint _JBV_findTsMax(
         }
     }
 
-    if (m1Seqn < 0) {
+    if (mSeqn < 0) {
         /* No sequence complete in JB. */
         JBV_dbgLog("No sequence complete in JB\n");
         return (JB_NO_PACKETS_READY);
     }
 
-    *ts_ptr = obj_ptr->unit[m1Seqn].ts;
-    return (m1Seqn);
+    *ts_ptr = obj_ptr->unit[mSeqn].ts;
+    return (mSeqn);
 }
 
 
