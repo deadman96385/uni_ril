@@ -34,9 +34,6 @@
 #include <utils/Log.h>
 #include "misc.h"
 
-#ifdef HAVE_ANDROID_OS
-#define USE_NP 1
-#endif  /* HAVE_ANDROID_OS */
 
 #define LOG_NDEBUG              1
 #define HANDSHAKE_RETRY_COUNT   8
@@ -72,16 +69,20 @@ static void onReaderClosed(RIL_SOCKET_ID socket_id);
 static int writeCtrlZ(struct ATChannels *ATch, const char *s);
 static int writeline(struct ATChannels *ATch, const char *s);
 
+#define NS_PER_S 1000000000
+
 static void setTimespecRelative(struct timespec *p_ts, long long msec) {
     struct timeval tv;
 
     gettimeofday(&tv, (struct timezone *)NULL);
 
-    /* what's really funny about this is that I know
-       pthread_cond_timedwait just turns around and makes this
-       a relative time again */
     p_ts->tv_sec = tv.tv_sec + (msec / 1000);
     p_ts->tv_nsec = (tv.tv_usec + (msec % 1000) * 1000L) * 1000L;
+    /* assuming tv.tv_usec < 10^6 */
+    if (p_ts->tv_nsec >= NS_PER_S) {
+        p_ts->tv_sec++;
+        p_ts->tv_nsec -= NS_PER_S;
+    }
 }
 
 static void sleepMsec(long long msec) {
@@ -473,9 +474,10 @@ static void *readerLoop(void *arg) {
                             line2 = readline(ATch);
                             fcntl(ATch->s_fd, F_SETFL, O_RDWR | O_NONBLOCK);
 
-                            if (line2 == NULL)
+                            if (line2 == NULL) {
+                                free(line1);
                                 break;
-
+                            }
                             if (ATch->s_unsolHandler != NULL)
                                 ATch->s_unsolHandler(channelID, line1, line2);
                             free(line1);

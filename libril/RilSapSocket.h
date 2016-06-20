@@ -62,8 +62,8 @@ class RilSapSocket : public RilSocket {
      */
     typedef struct SapSocketRequest {
         int token;
-        MsgHeader *curr;
-        struct SapSocketRequest *p_next;
+        MsgHeader* curr;
+        struct SapSocketRequest* p_next;
         RIL_SOCKET_ID socketId;
     } SapSocketRequest;
 
@@ -88,12 +88,6 @@ class RilSapSocket : public RilSocket {
         RIL_RadioFunctions *uimFuncs);
 
         /**
-         * Process requests from the dispatch request queue.
-         * @param Request to be dispatched.
-         */
-        int processRequest(MsgHeader *request);
-
-        /**
          * Ril envoronment variable that holds the request and
          * unsol response handlers.
          */
@@ -113,7 +107,7 @@ class RilSapSocket : public RilSocket {
          * Datatype to handle the socket list.
          */
         typedef struct RilSapSocketList {
-            RilSapSocket *socket;
+            RilSapSocket* socket;
             RilSapSocketList *next;
         } RilSapSocketList;
 
@@ -157,7 +151,7 @@ class RilSapSocket : public RilSocket {
          * @param Socket id.
          * @return the sap socket.
          */
-        static RilSapSocket *getSocketById(RIL_SOCKET_ID socketId);
+        static RilSapSocket* getSocketById(RIL_SOCKET_ID socketId);
 
         /**
          * Method to send response to SAP. It does an atomic write operation on the
@@ -214,8 +208,8 @@ class RilSapSocket : public RilSocket {
         RIL_RadioFunctions *inputUimFuncs);
 
         /**
-         * Called by the processRequest method to dispatch the request to
-         * the lower layers. It calls the on request function.
+         * Dispatches the request to the lower layers.
+         * It calls the on request function.
          *
          * @param The request message.
          */

@@ -16,7 +16,7 @@
 
 #ifndef RIL_SOCKET_H_INCLUDED
 #define RIL_SOCKET_H_INCLUDED
-#include "ril_ex.h"
+#include <libril/ril_ex.h>
 #include "rilSocketQueue.h"
 #include <ril_event.h>
 
@@ -39,7 +39,7 @@ class RilSocket {
         /**
          * Socket name.
          */
-        const char *name;
+        const char* name;
 
         /**
          * Socket id.
@@ -129,7 +129,7 @@ class RilSocket {
          * @param Socket name.
          * @param Socket id.
          */
-        RilSocket(const char *socketName, RIL_SOCKET_ID socketId) {
+        RilSocket(const char* socketName, RIL_SOCKET_ID socketId) {
             name = socketName;
             id = socketId;
         }
@@ -219,14 +219,14 @@ class RilSocket {
          *
          * @return Listen event.
          */
-        ril_event *getListenEvent(void);
+        ril_event* getListenEvent(void);
 
         /**
          * Get commands callback event.
          *
          * @return Commands callback event.
          */
-        ril_event *getCallbackEvent(void);
+        ril_event* getCallbackEvent(void);
 
         virtual ~RilSocket(){}
 
@@ -265,8 +265,8 @@ typedef struct MySocketListenParam {
     RilSocket *socket;
 } MySocketListenParam;
 
-typedef void *(RilSocket::*RilSocketFuncPtr)(void);
+typedef void* (RilSocket::*RilSocketFuncPtr)(void);
 typedef void (RilSocket::*RilSocketEventPtr)(int fd,short flags, void *param);
-typedef void *(*PthreadPtr)(void*);
+typedef void* (*PthreadPtr)(void*);
 
 #endif

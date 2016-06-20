@@ -33,14 +33,13 @@ ifeq ($(SIM_COUNT), 2)
     LOCAL_CFLAGS += -DANDROID_SIM_COUNT_2
 endif
 
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADER)/librilutils
 LOCAL_C_INCLUDES += external/nanopb-c
-
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/../include
 LOCAL_MODULE:= librilsprd
 LOCAL_MODULE_TAGS := optional
-
-LOCAL_COPY_HEADERS_TO := librilsprd
-LOCAL_COPY_HEADERS := ril_ex.h
+LOCAL_CLANG := true
+LOCAL_SANITIZE := integer
 
 include $(BUILD_SHARED_LIBRARY)
 
