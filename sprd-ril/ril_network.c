@@ -17,6 +17,7 @@
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
 #define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
+#define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
@@ -180,8 +181,8 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
     memset(numToStr, 0, sizeof(numToStr));
     snprintf(numToStr, sizeof(numToStr), "%d", workMode);
     setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
-    s_workMode[socket_id] = workMode;
 #endif
+    s_workMode[socket_id] = workMode;
     pthread_mutex_unlock(&s_workModeMutex);
     RLOGD("getWorkMode socket_id = %d, workMode = %d", socket_id, workMode);
     return workMode;
@@ -194,7 +195,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         if (simId == 0) {
-            snprintf(cmd, size, "AT+SPTESTMODEM=%d", s_workMode[simId]);
+            snprintf(cmd, size, "AT+SPTESTMODEM=%d", getWorkMode(simId));
             if (SIM_COUNT == 1) {
                 strncpy(strFormatter, cmd, size);
                 strncat(strFormatter, ",%d", strlen(",%d"));
@@ -204,7 +205,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
         } else {
             strncpy(strFormatter, cmd, size);
             strncat(strFormatter, ",%d", strlen(",%d"));
-            snprintf(cmd, size, strFormatter, s_workMode[simId]);
+            snprintf(cmd, size, strFormatter, getWorkMode(simId));
             RLOGD("buildWorkModeCmd cmd: %s", cmd);
         }
     }
@@ -848,6 +849,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     if (s_desiredRadioState[socket_id] == 0) {
         int sim_status = getSIMStatus(channelID);
         initSIMPresentState();
+        s_workMode[socket_id] = getWorkMode(socket_id);
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],
                 "AT+SFUN=5", &p_response);
@@ -872,11 +874,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         setRadioState(channelID, RADIO_STATE_OFF);
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
-        s_workMode[socket_id] = getWorkMode(socket_id);
-        if (s_isLTE || !strcmp(s_modem, "w")) {
-            buildWorkModeCmd(cmd, sizeof(cmd));
-            at_send_command(s_ATChannels[channelID], cmd, NULL);
-        }
+        buildWorkModeCmd(cmd, sizeof(cmd));
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
 
         if (s_isLTE) {
             at_send_command(s_ATChannels[channelID], "AT+CEMODE=1", NULL);
@@ -1223,6 +1222,7 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
     RIL_Errno errType = RIL_E_GENERIC_FAILURE;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    pthread_mutex_lock(&s_workModeMutex);
     switch (((int *)data)[0]) {
         case 9:  // LTE
             type = getMultiMode();
@@ -1254,7 +1254,6 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
     int workMode;
     char numToStr[ARRAY_SIZE];
 
-    pthread_mutex_lock(&s_workModeMutex);
     workMode = s_workMode[socket_id];
     if (workMode == NONE || workMode == GSM_ONLY) {
         RLOGD("SetLTEPreferredNetType: not data card");
@@ -2190,9 +2189,16 @@ int processNetworkRequests(int request, void *data, size_t datalen,
          case RIL_REQUEST_GET_RADIO_CAPABILITY:
             requestGetRadioCapability(channelID, data, datalen, t);
             break;
-         case RIL_REQUEST_SET_RADIO_CAPABILITY:
-            requestSetRadioCapability(channelID, data, datalen, t);
+         case RIL_REQUEST_SET_RADIO_CAPABILITY: {
+            char prop[PROPERTY_VALUE_MAX];
+            property_get(FIXED_SLOT_PROP, prop, "false");
+            if (strcmp(prop, "true") == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                requestSetRadioCapability(channelID, data, datalen, t);
+            }
             break;
+         }
          case RIL_REQUEST_GET_IMS_BEARER_STATE:
             RIL_onRequestComplete(t, RIL_E_SUCCESS,
                     (void *)&s_imsBearerEstablished[socket_id], sizeof(int));

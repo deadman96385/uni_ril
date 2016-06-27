@@ -4538,6 +4538,8 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_REQUEST_UDUB
                     || pCI->requestNumber == RIL_REQUEST_SEPARATE_CONNECTION
                     || pCI->requestNumber == RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE
+                    || pCI->requestNumber == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE
+                    || pCI->requestNumber == RIL_REQUEST_SET_RADIO_CAPABILITY
                     /* IMS @{ */
                     || pCI->requestNumber == RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE
                     || pCI->requestNumber == RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE

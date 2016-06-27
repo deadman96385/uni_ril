@@ -5,5 +5,6 @@ service spril-daemon /system/bin/sprdrild -l /system/lib/libsprd-ril.so
     socket sap_uim_socket1 stream 660 bluetooth bluetooth
     socket rild-debug stream 660 radio system
     socket rild-debug2 stream 660 radio system
+    disabled
     user root
     group radio cache inet misc audio log sdcard_rw shell readproc wakelock
