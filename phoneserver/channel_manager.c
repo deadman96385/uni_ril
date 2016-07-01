@@ -999,7 +999,7 @@ static void channel_manager_init(void)
 }
 
 extern void ps_service_init(void);
-extern sem sms_lock;
+extern sem sms_lock[4];
 
 static void usage(const char *argv)
 {
@@ -1094,7 +1094,10 @@ int main(int argc, char *argv[])
         s_isuserdebug = 1;
     }
 
-    sem_init(&sms_lock, 0, 1);
+    int i = 0;
+    for (i = 0; i < 4; i++) {
+        sem_init(&(sms_lock[i]), 0, 1);
+    }
 
     ret = pthread_create(&tid, NULL, (void*)detect_at_no_response, NULL);
     if(ret < 0) 
