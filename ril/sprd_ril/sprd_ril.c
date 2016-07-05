@@ -137,7 +137,7 @@ char RIL_SP_SIM_PIN_PROPERTYS[128]; // ril.*.sim.pin* --ril.*.sim.pin1 or ril.*.
 #define MODEM_TYPE "ril.radio.modemtype"
 
 #define OEM_FUNCTION_ID_TRAFFICCLASS 1
-
+#define OEM_FUNCTION_ID_PLMNMATCH 2
 int s_isuserdebug = 0;
 
 int modem;
@@ -469,6 +469,7 @@ static RIL_RegState csRegState = RIL_REG_STATE_UNKNOWN;
 static RIL_RegState psRegState = RIL_REG_STATE_UNKNOWN;
 
 int trafficclass = 2; /* SPRD add */
+int plmnMatch = 0;
 
 void *setRadioOnWhileSimBusy(void *param);
 static pthread_mutex_t s_hasSimBusyMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -3388,7 +3389,17 @@ static char* checkNeedFallBack(int channelID,char * pdp_type,int cidIndex) {
     }
     return ret;
 }
-
+static bool strictMatchApn(char* pdnApn, const char* apn){
+    char strApnName[128] = {0};
+    RILLOGD("requestSetupDataCall strictMatchApn");
+    if(strcmp(pdnApn, "") && strcmp(apn, "")){
+        strncpy(strApnName, pdnApn, checkCmpAnchor(pdnApn));
+        strApnName[strlen(strApnName)] = '\0';
+        return !strcasecmp(pdnApn, apn) || !strcasecmp(strApnName, apn);
+    }else {
+        return false;
+    }
+}
 static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     const char *apn = NULL;
@@ -3408,7 +3419,6 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
     bool IsLte = isLte();
     extern int s_sim_num;
     int nRetryTimes = 0;
-    char strApnName[128] = {0};
     int fbCause = -1;
     bool ret = false, cgatt_fallback = false;
     int lteAttached = 0;
@@ -3443,18 +3453,11 @@ RETRY:
         queryAllActivePDN(channelID);
         if (activePDN > 0) {
             int i, cid ;
-            for (i = 0; i < MAX_PDP_CP; i++) {
+            for (i = 0; i < MAX_PDP; i++) {
                 cid = getPDNCid(i);
+                RILLOGD("pdp[%d].state = %d, plmnMatch = %d", i, getPDPState(i), plmnMatch);
                 if (cid == (i + 1)) {
-                    strncpy(strApnName, getPDNAPN(i), checkCmpAnchor(pdn[i].strApn));
-                    strApnName[strlen(strApnName)] = '\0';
-                    if (i < MAX_PDP) {
-                        RILLOGD("pdp[%d].state = %d", i, getPDPState(i));
-                    }
-                    if (i < MAX_PDP
-                            && (!strcasecmp(getPDNAPN(i), apn)
-                                    || !strcasecmp(strApnName, apn)) && (getPDPState(i) == PDP_IDLE)) {
-                        RILLOGD("Using default PDN");
+                    if ((strictMatchApn(getPDNAPN(i), apn) || plmnMatch > 0) && (getPDPState(i) == PDP_IDLE)) {
                         primaryindex = i;
                         getPDPByIndex(i);
                         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
@@ -9819,6 +9822,19 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                             response[0] = buf;
                             RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char*));
                         }
+                        break;
+                    }
+                    case OEM_FUNCTION_ID_PLMNMATCH :{
+                        char buf[128] = {0};
+                        char *response[1] = {NULL};
+                        ptr = strtok(NULL, ",");
+                        if(ptr != NULL){
+                            plmnMatch = atoi(ptr);
+                            RILLOGD("plmnMatch = %d", plmnMatch);
+                        }
+                        strlcat(buf, "OK", sizeof(buf));
+                        response[0] = buf;
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char*));
                         break;
                     }
                     default :
