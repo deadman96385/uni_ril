@@ -849,22 +849,14 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     if (s_desiredRadioState[socket_id] == 0) {
         int sim_status = getSIMStatus(channelID);
         initSIMPresentState();
-        s_workMode[socket_id] = getWorkMode(socket_id);
+
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],
                 "AT+SFUN=5", &p_response);
         if (err < 0 || p_response->success == 0) {
             goto error;
         }
-#if defined (ANDROID_MULTI_SIM)
-#if (SIM_COUNT == 2)
-        if ((s_presentSIMCount == SIM_COUNT)
-                && s_workMode[socket_id] == GSM_ONLY) {
-            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-        }
-#endif
-#endif
+
         for (i = 0; i < MAX_PDP; i++) {
             if (s_PDP[i].cid > 0) {
                 RLOGD("s_PDP[%d].state = %d", i, s_PDP[i].state);
@@ -1973,14 +1965,7 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
         } else {
             channel = channelID;
         }
-        // send switchDataCard on the single mode sim
-#if (SIM_COUNT == 2)
-        s_workMode[simId] = getWorkMode(simId);
-        if ((s_presentSIMCount == SIM_COUNT) && s_workMode[simId] == GSM_ONLY) {
-            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", simId);
-            err = at_send_command(s_ATChannels[channel], cmd, NULL);
-        }
-#endif
+
         err = at_send_command(s_ATChannels[channel], "AT+SFUN=5", &p_response);
         if (err < 0 || p_response->success == 0) {
             RLOGE("shut down radio failed, sim%d", simId);
