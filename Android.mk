@@ -29,6 +29,7 @@ ifeq ($(SIM_COUNT), 2)
 endif
 
 LOCAL_MODULE := phoneserver
+LOCAL_INIT_RC := phoneserver.rc
 LOCAL_MODULE_STEM_32 := phoneserver
 LOCAL_MODULE_STEM_64 := phoneserver64
 LOCAL_MULTILIB := both
