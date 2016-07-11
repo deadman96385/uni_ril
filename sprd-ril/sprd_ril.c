@@ -328,7 +328,6 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_ALLOW_DATA ||
                  request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
                  request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
-                 request == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE ||
                  request == RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE ||
                  request == RIL_REQUEST_SHUTDOWN ||
                  request == RIL_REQUEST_SIM_AUTHENTICATION ||
@@ -682,8 +681,12 @@ static void initializeCallback(void *param) {
     /* @} */
 
     /* for non-CMCC version @{ */
-    at_send_command_singleline(s_ATChannels[channelID],
-            "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
+    if (s_isLTE) {
+        if (!isCMCC()) {
+        at_send_command_singleline(s_ATChannels[channelID],
+                "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
+        }
+    }
     /* @} */
 
     if (!s_isLTE) {
@@ -1042,6 +1045,15 @@ bool isVoLteEnable() {
     } else {
         return false;
     }
+}
+
+bool isCMCC(void) {
+    char prop[PROPERTY_VALUE_MAX] = "";
+    property_get("ro.operator", prop, NULL);
+    if (!strcmp(prop, "cmcc")) {
+        return true;
+    }
+    return false;
 }
 
 void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,

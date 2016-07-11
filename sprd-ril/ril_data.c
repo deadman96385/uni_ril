@@ -11,7 +11,8 @@
 #include "ril_network.h"
 #include "ril_call.h"
 
-#define APN_DELAY_PROP   "persist.radio.apn_delay"
+#define APN_DELAY_PROP          "persist.radio.apn_delay"
+#define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
 
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
@@ -735,10 +736,15 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
     property_get(cmd, prop, "0");
     ipType = atoi(prop);
 
+    char isDualpdpAllowed[PROPERTY_VALUE_MAX];
+    memset(isDualpdpAllowed, 0, sizeof(isDualpdpAllowed));
+    property_get(DUALPDP_ALLOWED_PROP, isDualpdpAllowed, "false");
+
     if (!strcmp(pdp_type, "IPV4V6") && ipType != IPV4V6) {
         fbCause = getSPACTFBcause(channelID);
         RLOGD("requestSetupDataCall fall Back Cause = %d", fbCause);
-        if (fbCause == 52) {
+        if (fbCause == 52 &&
+                ((strcmp(isDualpdpAllowed, "true")) || cidIndex == 0)) {
             if (ipType == IPV4) {
                 ret = "IPV6";
             } else if (ipType == IPV6) {

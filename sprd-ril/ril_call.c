@@ -66,6 +66,19 @@ int s_callFailCause[SIM_COUNT] = {
 #endif
 };
 
+static int s_videoCallId[SIM_COUNT] = {
+        -1
+#if (SIM_COUNT >= 2)
+        ,-1
+#if (SIM_COUNT >= 3)
+        ,-1
+#if (SIM_COUNT >= 4)
+        ,-1
+#endif
+#endif
+#endif
+};
+
 void list_add_tail(RIL_SOCKET_ID socket_id, ListNode *head, ListNode *item) {
     pthread_mutex_lock(&s_listMutex[socket_id]);
     item->next = head;
@@ -203,6 +216,7 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
     int err;
     int state;
     int mode;
+    int isMpty;
 
     err = at_tok_start(&line);
     if (err < 0) goto error;
@@ -224,11 +238,11 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
 
     err = at_tok_nextint(&line, &mode);
     if (err < 0) goto error;
-
     p_call->isVoice = (mode == 0);
 
-    err = at_tok_nextbool(&line, &(p_call->isMpty));
+    err = at_tok_nextint(&line, &isMpty);
     if (err < 0) goto error;
+    p_call->isMpty = isMpty;
 
     if (at_tok_hasmore(&line)) {
         err = at_tok_nextstr(&line, &(p_call->number));
@@ -1249,6 +1263,24 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             char cmd[AT_COMMAND_LEN] = {0};
             int state = ((int *)data)[0];
 
+            /* add for Bug 558197 @{ */
+            int lastState = -1;
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                    "AT+CAVIMS?", "+CAVIMS:", &p_response);
+            if (err >= 0 && p_response->success) {
+                char *line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err >= 0) {
+                    err = at_tok_nextint(&line, &lastState);
+                }
+            }
+            AT_RESPONSE_FREE(p_response);
+            if (lastState == state) {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                break;
+            }
+            /* }@ */
+
             snprintf(cmd, sizeof(cmd), "AT+CAVIMS=%d", state);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -1359,12 +1391,12 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestVideoPhoneDial(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_VIDEOPHONE_CODEC:
-        case RIL_EXT_REQUEST_VIDEOPHONE_CODEC:{
+        case RIL_EXT_REQUEST_VIDEOPHONE_CODEC: {
             p_response = NULL;
             char cmd[AT_COMMAND_LEN] = {0};
 
             RIL_VideoPhone_Codec* p_codec = (RIL_VideoPhone_Codec *)data;
-            snprintf(cmd, sizeof(cmd), "AT"AT_PREFIX"DVTCODEC=%d", p_codec->type);
+            snprintf(cmd, sizeof(cmd), "AT+SPDVTCODEC=%d", p_codec->type);
 
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -1638,6 +1670,31 @@ done:
     putChannel(channelID);
 }
 
+static void onDowngradeToVoice(void *param) {
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if (s_videoCallId[socket_id] == -1) {
+        RLOGD("onDowngradeToVoice cancel id: %d", s_videoCallId[socket_id]);
+        return;
+    }
+
+    int err = 0;
+    char cmd[AT_COMMAND_LEN] = {0};
+    int channelID = getChannel(socket_id);
+    ATResponse *p_response = NULL;
+
+    snprintf(cmd, sizeof(cmd), "AT+CCMMD=%d,1,\"m=audio\"",
+              s_videoCallId[socket_id]);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RLOGE("onDowngradeToVoice failure!");
+    } else {
+        RLOGE("onDowngradeToVoice->id: %d", s_videoCallId[socket_id]);
+    }
+
+    at_response_free(p_response);
+    putChannel(channelID);
+}
+
 int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     int ret = 1;
@@ -1658,12 +1715,12 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         at_tok_start(&tmp);
         err = at_tok_nextint(&tmp, &response->id);
         if (err < 0) {
-            RLOGD("get id fail");
+            RLOGE("get id fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->idr);
         if (err < 0) {
-            RLOGD("get idr fail");
+            RLOGE("get idr fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->stat);
@@ -1671,38 +1728,46 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             s_maybeAddCall = 1;
         }
         if (err < 0) {
-            RLOGD("get stat fail");
+            RLOGE("get stat fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->type);
         if (err < 0) {
-            RLOGD("get type fail");
+            RLOGE("get type fail");
             goto out;
         }
+
+        // state = 6: disconnected, type = 0: video
+        if (response->stat == 6 && s_videoCallId[socket_id] == response->id) {
+            s_videoCallId[socket_id] = -1;
+        } else if (response->type > 0 && response->stat == RIL_CALL_ACTIVE) {
+            s_videoCallId[socket_id] = response->id;
+        }
+
         err = at_tok_nextint(&tmp, &response->mpty);
         if (err < 0) {
-            RLOGD("get mpty fail");
+            RLOGE("get mpty fail");
             goto out;
         }
         err = at_tok_nextstr(&tmp, &response->number);
         if (err < 0) {
-            RLOGD("get number fail");
+            RLOGE("get number fail");
             goto out;
         }
         if (isVoLteEnable()) {
             err = at_tok_nextint(&tmp, &response->num_type);
             if (err < 0) {
-                RLOGD("get num_type fail");
+                RLOGE("get num_type fail");
                 goto out;
             }
             if (at_tok_hasmore(&tmp)) {
                 err = at_tok_nextint(&tmp, &response->bs_type);
                 if (err < 0) {
-                    RLOGD("get bs_type fail");
+                    RLOGE("get bs_type fail");
                 }
                 err = at_tok_nextint(&tmp, &response->cause);
                 if (err < 0) {
-                    RLOGD("get cause fail");
+                    RLOGE("get cause fail");
                 }
                 /* add for VoLTE to handle call retry */
                 if (response->cause == 380 && response->number != NULL) {
@@ -1730,7 +1795,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     if (at_tok_hasmore(&tmp)) {
                         err = at_tok_nextint(&tmp, &response->location);
                         if (err < 0) {
-                            RLOGD("get location fail");
+                            RLOGE("get location fail");
                             response->location = 0;
                         }
                     } else {
@@ -1751,25 +1816,25 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
                 err = at_tok_nextint(&tmp, &response->num_type);
                 if (err < 0) {
-                    RLOGD("get num_type fail");
+                    RLOGE("get num_type fail");
                     goto out;
                 }
                 err = at_tok_nextint(&tmp, &response->bs_type);
                 if (err < 0) {
-                    RLOGD("get bs_type fail");
+                    RLOGE("get bs_type fail");
                     goto out;
                 }
 
                 if (at_tok_hasmore(&tmp)) {
                     err = at_tok_nextint(&tmp, &response->cause);
                     if (err < 0) {
-                        RLOGD("get cause fail");
+                        RLOGE("get cause fail");
                         goto out;
                     }
                     if (at_tok_hasmore(&tmp)) {
                         err = at_tok_nextint(&tmp, &response->location);
                         if (err < 0) {
-                            RLOGD("get location fail");
+                            RLOGE("get location fail");
                             goto out;
                         }
                     } else {
@@ -1791,7 +1856,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response->id);
         if (err < 0) {
-            RLOGD("get id fail");
+            RLOGE("get id fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->idr);
@@ -1801,32 +1866,32 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
         err = at_tok_nextint(&tmp, &response->neg_stat_present);
         if (err < 0) {
-            RLOGD("get neg_stat_present fail");
+            RLOGE("get neg_stat_present fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->neg_stat);
         if (err < 0) {
-            RLOGD("get neg_stat fail");
+            RLOGE("get neg_stat fail");
             goto out;
         }
         err = at_tok_nextstr(&tmp, &response->SDP_md);
         if (err < 0) {
-            RLOGD("get SDP_md fail");
+            RLOGE("get SDP_md fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->cs_mod);
         if (err < 0) {
-            RLOGD("get cs_mod fail");
+            RLOGE("get cs_mod fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->ccs_stat);
         if (err < 0) {
-            RLOGD("get ccs_stat fail");
+            RLOGE("get ccs_stat fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->mpty);
         if (err < 0) {
-            RLOGD("get mpty fail");
+            RLOGE("get mpty fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->num_type);
@@ -1836,22 +1901,22 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
         err = at_tok_nextint(&tmp, &response->ton);
         if (err < 0) {
-            RLOGD("get ton fail");
+            RLOGE("get ton fail");
             goto out;
         }
         err = at_tok_nextstr(&tmp, &response->number);
         if (err < 0) {
-            RLOGD("get number fail");
+            RLOGE("get number fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->exit_type);
         if (err < 0) {
-            RLOGD("get exit_type fail");
+            RLOGE("get exit_type fail");
             goto out;
         }
         err = at_tok_nextint(&tmp, &response->exit_cause);
         if (err < 0) {
-            RLOGD("get exit_cause fail");
+            RLOGE("get exit_cause fail");
             goto out;
         }
         if (s_imsRegistered[socket_id]) {
@@ -1888,11 +1953,11 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &category);
         if (err < 0) {
-            RLOGD("%s get cat fail", s);
+            RLOGE("%s get cat fail", s);
         }
         err = at_tok_nextstr(&tmp, &number);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
     } else if (strStartsWith(s, "+CIREPH")) {
@@ -1906,7 +1971,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &status);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
 
@@ -1918,12 +1983,12 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_SRVCC_STATE_NOTIFY, &status,
                                   sizeof(status), socket_id);
 
-        if (status == SRVCC_PS_TO_CS_CANCELED ||
-                status == SRVCC_PS_TO_CS_FAILED) {
-            RIL_requestTimedCallback(sendCallStateChanged,
+        if (status == SRVCC_PS_TO_CS_SUCCESS ||
+                status == VSRVCC_PS_TO_CS_SUCCESS) {
+            RIL_requestTimedCallback(sendCSCallStateChanged,
                     (void *)&s_socketId[socket_id], &TIMEVAL_CSCALLSTATEPOLL);
         } else {
-            RIL_requestTimedCallback(sendCSCallStateChanged,
+            RIL_requestTimedCallback(sendCallStateChanged,
                     (void *)&s_socketId[socket_id], &TIMEVAL_CSCALLSTATEPOLL);
         }
     } else if (strStartsWith(s, AT_PREFIX"DVTCODECRI:")) {
@@ -1938,7 +2003,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response[0]);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
 
@@ -1964,7 +2029,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextstr(&tmp, &response);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_STRING, response,
@@ -1979,12 +2044,12 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &(response[0]));
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         err = at_tok_nextint(&tmp, &(response[1]));
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         err = at_tok_nextint(&tmp, &(response[2]));
@@ -2005,7 +2070,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_MM_RING, &response,
@@ -2020,7 +2085,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextstr(&tmp, &response);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_RELEASING, response,
@@ -2035,7 +2100,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_RECORD_VIDEO,
@@ -2050,7 +2115,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
 
@@ -2061,6 +2126,37 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(
                     RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
                     NULL, 0, socket_id);
+    } else if (strStartsWith(s, "+SPIMSPDPINFO")) {
+        /* add for VoLTE to handle video call bearing lost */
+        char *tmp;
+        int cid;
+        int state;
+        int qci;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &cid);
+        if (err < 0) {
+            RLOGE("get cid fail");
+        }
+        err = at_tok_nextint(&tmp, &state);
+        if (err < 0) {
+            RLOGE("get state fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &qci);
+        if (err < 0) {
+            RLOGE("get qci fail");
+            goto out;
+        }
+
+        // state = 0: deactive, qci = 2: video
+        if (state == 0 && qci == 2) {
+            RIL_requestTimedCallback(onDowngradeToVoice,
+                    (void *)&s_socketId[socket_id], NULL);
+        }
     } else {
         ret = 0;
     }
