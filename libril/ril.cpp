@@ -906,6 +906,7 @@ static void dispatchSmsWrite(Parcel &p, RequestInfo *pRI) {
 #endif
 
     free(args.pdu);
+    free(args.smsc);
 
 #ifdef MEMSET_FREED
     memset(&args, 0, sizeof(args));
@@ -2171,6 +2172,12 @@ static void dispatchDataProfile(Parcel &p, RequestInfo *pRI) {
         printRequest(pRI->token, pRI->pCI->requestNumber);
 
         if (status != NO_ERROR) {
+            for (int i = 0; i < num; i++) {
+                free(dataProfiles[i].apn);
+                free(dataProfiles[i].protocol);
+                free(dataProfiles[i].user);
+                free(dataProfiles[i].password);
+            }
             free(dataProfiles);
             free(dataProfilePtrs);
             goto invalid;
@@ -2184,6 +2191,12 @@ static void dispatchDataProfile(Parcel &p, RequestInfo *pRI) {
         memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
         memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo *));
 #endif
+        for (int i = 0; i < num; i++) {
+            free(dataProfiles[i].apn);
+            free(dataProfiles[i].protocol);
+            free(dataProfiles[i].user);
+            free(dataProfiles[i].password);
+        }
         free(dataProfiles);
         free(dataProfilePtrs);
     }
@@ -3404,26 +3417,6 @@ static int responseRilSignalStrength(Parcel &p,
         responseRilSignalStrengthV10(p, p_cur);
     }
     startResponse;
-    appendPrintBuf("%s[signalStrength=%d,bitErrorRate=%d,\
-            CDMA_SS.dbm=%d,CDMA_SSecio=%d,\
-            EVDO_SS.dbm=%d,EVDO_SS.ecio=%d,\
-            EVDO_SS.signalNoiseRatio=%d,\
-            LTE_SS.signalStrength=%d,LTE_SS.rsrp=%d,LTE_SS.rsrq=%d,\
-            LTE_SS.rssnr=%d,LTE_SS.cqi=%d,TDSCDMA_SS.rscp=%d]",
-            printBuf,
-            p_cur->GW_SignalStrength.signalStrength,
-            p_cur->GW_SignalStrength.bitErrorRate,
-            p_cur->CDMA_SignalStrength.dbm,
-            p_cur->CDMA_SignalStrength.ecio,
-            p_cur->EVDO_SignalStrength.dbm,
-            p_cur->EVDO_SignalStrength.ecio,
-            p_cur->EVDO_SignalStrength.signalNoiseRatio,
-            p_cur->LTE_SignalStrength.signalStrength,
-            p_cur->LTE_SignalStrength.rsrp,
-            p_cur->LTE_SignalStrength.rsrq,
-            p_cur->LTE_SignalStrength.rssnr,
-            p_cur->LTE_SignalStrength.cqi,
-            p_cur->TD_SCDMA_SignalStrength.rscp);
     closeResponse;
     return 0;
 }

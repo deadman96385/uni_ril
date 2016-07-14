@@ -12,10 +12,11 @@
 #include "ril_misc.h"
 #include "TelephonyEx.h"
 
-#define SIM_PRESENT_PROP        "ril.sim.present"
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
+/* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
+/* Save NITZ operator name string for UI to display right PLMN name */
 #define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
 #define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
 
@@ -105,16 +106,13 @@ int s_requestSetRC[SIM_COUNT] = {0};
 int s_sessionId[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
 int s_multiModeSim = 0;
+bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
     pthread_mutex_lock(&s_simPresentMutex);
-    if (hasSim) {
-        setProperty(socket_id, SIM_PRESENT_PROP, "1");
-    } else {
-        setProperty(socket_id, SIM_PRESENT_PROP, "0");
-    }
+    s_isSimPresent[socket_id] = hasSim;
     pthread_mutex_unlock(&s_simPresentMutex);
 }
 
@@ -122,10 +120,9 @@ int isSimPresent(RIL_SOCKET_ID socket_id) {
     int hasSim = 0;
     char prop[PROPERTY_VALUE_MAX];
     pthread_mutex_lock(&s_simPresentMutex);
-    getProperty(socket_id, SIM_PRESENT_PROP, prop, "0");
+    hasSim = s_isSimPresent[socket_id];
     pthread_mutex_unlock(&s_simPresentMutex);
 
-    hasSim = atoi(prop);
     return hasSim;
 }
 
@@ -200,13 +197,11 @@ void buildWorkModeCmd(char *cmd, size_t size) {
                 strncpy(strFormatter, cmd, size);
                 strncat(strFormatter, ",%d", strlen(",%d"));
                 snprintf(cmd, size, strFormatter, 254);
-                RLOGD("buildWorkModeCmd cmd(SingleSim): %s", cmd);
             }
         } else {
             strncpy(strFormatter, cmd, size);
             strncat(strFormatter, ",%d", strlen(",%d"));
             snprintf(cmd, size, strFormatter, getWorkMode(simId));
-            RLOGD("buildWorkModeCmd cmd: %s", cmd);
         }
     }
 }
@@ -1952,7 +1947,7 @@ void setWorkMode() {
 }
 
 static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
-    int err, channel;
+    int err, channel[SIM_COUNT];
     int simId = 0;
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
@@ -1964,19 +1959,24 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
             continue;
         }
         if (simId != (int)socket_id) {
-            channel = getChannel(simId);
+            channel[simId] = getChannel(simId);
         } else {
-            channel = channelID;
+            channel[simId] = channelID;
         }
 
-        err = at_send_command(s_ATChannels[channel], "AT+SFUN=5", &p_response);
+        err = at_send_command(s_ATChannels[channel[simId]], "AT+SFUN=5",
+                              &p_response);
         if (err < 0 || p_response->success == 0) {
             RLOGE("shut down radio failed, sim%d", simId);
-            putChannel(channel);
+            int i;
+            for (i = 0; i < simId; i++) {
+                if (i != (int)socket_id) {
+                    putChannel(channel[i]);
+                }
+            }
             goto error;
         }
         AT_RESPONSE_FREE(p_response);
-        putChannel(channel);
     }
     // set modem work mode
     if ((rc->rat & RAF_UMTS) == RAF_UMTS
@@ -1995,13 +1995,14 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
     RLOGD("applySetRadioCapability: multiModeSim %d", s_multiModeSim);
     setWorkMode();
     for (simId = 0; simId < SIM_COUNT; simId++) {
-        channel = getChannel(simId);
-        setRadioState(channel, RADIO_STATE_OFF);
-        putChannel(channel);
+        setRadioState(channel[simId], RADIO_STATE_OFF);
+        if (simId != (int)socket_id) {
+            putChannel(channel[simId]);
+        }
     }
     /* After set radio state off, the set radio on request is sent by
-    *  the FW. So do not set radio on here.
-    */
+     * the FW. So do not set radio on here.
+     */
     return 1;
 error:
     AT_RESPONSE_FREE(p_response);
