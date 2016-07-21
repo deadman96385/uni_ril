@@ -984,8 +984,9 @@ static void requestTransmitApduBasic(int channelID, void *data,
         }
     } else {
         asprintf(&cmd, "AT+CSIM=%d,\"%02x%02x%02x%02x%02x%s\"",
-                10 + strlen(p_args->data), p_args->cla, p_args->instruction,
-                p_args->p1, p_args->p2, p_args->p3, p_args->data);
+                10 + (int)strlen(p_args->data), p_args->cla,
+                p_args->instruction, p_args->p1, p_args->p2, p_args->p3,
+                p_args->data);
     }
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CSIM:",
                                      &p_response);
@@ -1183,7 +1184,7 @@ static void requestTransmitApdu(int channelID, void *data, size_t datalen,
         }
     } else {
         asprintf(&cmd, "AT+CGLA=%d,%d,\"%02x%02x%02x%02x%02x%s\"",
-                p_args->sessionid, 10 + strlen(p_args->data), p_args->cla,
+                p_args->sessionid, 10 + (int)strlen(p_args->data), p_args->cla,
                 p_args->instruction, p_args->p1, p_args->p2, p_args->p3,
                 p_args->data);
     }

@@ -157,7 +157,7 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
               workMode = TD_AND_WCDMA;
         }
     }
-
+    RLOGD("getWorkmode: s_presentSIMCount = %d", s_presentSIMCount);
 #if (SIM_COUNT == 2)
     if (s_presentSIMCount == 0) {  // no SIM card
         workMode = getMultiMode();

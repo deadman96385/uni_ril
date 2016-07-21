@@ -375,7 +375,7 @@ static const char *readline(struct ATChannels *ATch) {
                     RLOGD("atchannel: EOF reached. Sleep 10s");
                     sleep(10);
                 } else {
-                    RLOGD("atchannel: EOF reached. err_count = %d", err_count);
+                    RLOGD("atchannel: EOF reached. err_count = %zd", err_count);
                 }
                 /* @} */
             } else {

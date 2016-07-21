@@ -4159,9 +4159,9 @@ static int responseDcRtInfo(Parcel &p, void *response, size_t responselen) {
     RIL_DcRtInfo *pDcRtInfo = (RIL_DcRtInfo *)response;
     p.writeInt64(pDcRtInfo->time);
     p.writeInt32(pDcRtInfo->powerState);
-    appendPrintBuf("%s[time=%d,powerState=%d]", printBuf,
-        pDcRtInfo->time,
-        pDcRtInfo->powerState);
+//    appendPrintBuf("%s[time=%d,powerState=%d]", printBuf,
+//        pDcRtInfo->time,
+//        pDcRtInfo->powerState);
     closeResponse;
 
     return 0;
@@ -4173,7 +4173,7 @@ static int responseLceStatus(Parcel &p, void *response, size_t responselen) {
       RLOGE("invalid response: NULL");
     } else {
       RLOGE("responseLceStatus: invalid response length %d expecting len: %d",
-            sizeof(RIL_LceStatusInfo), responselen);
+            (int)sizeof(RIL_LceStatusInfo), (int)responselen);
     }
     return RIL_ERRNO_INVALID_RESPONSE;
   }
@@ -4196,7 +4196,7 @@ static int responseLceData(Parcel &p, void *response, size_t responselen) {
       RLOGE("invalid response: NULL");
     } else {
       RLOGE("responseLceData: invalid response length %d expecting len: %d",
-            sizeof(RIL_LceDataInfo), responselen);
+            (int)sizeof(RIL_LceDataInfo), (int)responselen);
     }
     return RIL_ERRNO_INVALID_RESPONSE;
   }
@@ -4224,7 +4224,7 @@ static int responseActivityData(Parcel &p, void *response, size_t responselen) {
           RLOGE("invalid response: NULL");
         } else {
           RLOGE("responseActivityData: invalid response length %d expecting len: %d",
-                sizeof(RIL_ActivityStatsInfo), responselen);
+                (int)sizeof(RIL_ActivityStatsInfo), (int)responselen);
         }
         return RIL_ERRNO_INVALID_RESPONSE;
     }

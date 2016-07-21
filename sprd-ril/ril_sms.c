@@ -369,7 +369,7 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
             (RIL_GSM_BroadcastSmsConfigInfo **)data;
     RIL_GSM_BroadcastSmsConfigInfo gsmBci;
 
-    RLOGD("requestSetSmsBroadcastConfig %d ,count %d", datalen, count);
+    RLOGD("requestSetSmsBroadcastConfig %zu ,count %d", datalen, count);
     int size = datalen * 16 * sizeof(char);
     channel = (char *)alloca(size);
     lang = (char *)alloca(size);
@@ -721,8 +721,8 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
                                   sizeof(location), socket_id);
     } else if (strStartsWith(s, "+CBM:")) {
         char *pdu_bin = NULL;
-        RLOGD("CBM sss %s ,len  %d", s, strlen(s));
-        RLOGD("CBM  %s ,len  %d", sms_pdu, strlen(sms_pdu));
+        RLOGD("CBM sss %s ,len  %d", s, (int)strlen(s));
+        RLOGD("CBM  %s ,len  %d", sms_pdu, (int)strlen(sms_pdu));
         pdu_bin = (char *)alloca(strlen(sms_pdu) / 2);
         memset(pdu_bin, 0, strlen(sms_pdu) / 2);
         if (!convertHexToBin(sms_pdu, strlen(sms_pdu), pdu_bin)) {

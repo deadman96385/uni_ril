@@ -1108,6 +1108,7 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
         return;
     }
 
+    RLOGD("set [%s] property: %s", property, value);
     memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
     if (len > 0) {
         for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
