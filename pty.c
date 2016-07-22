@@ -99,15 +99,10 @@ int pty_write(void * const pty, char *buf, int len) {
 }
 
 struct pty_ops ptyops = {
-/* operation clear_wait_resp_flag() */
 .pty_clear_wait_resp_flag = pty_clear_wait_resp_flag,
-/* operation enter_edit_mode() */
 .pty_enter_edit_mode = pty_enter_edit_mode,
-/* operation get_at_cmd() */
 .pty_read = pty_read,
-/* operation set_wait_resp_flag() */
 .pty_set_wait_resp_flag = pty_set_wait_resp_flag,
-/* operation write() */
 .pty_write = pty_write,
 };
 

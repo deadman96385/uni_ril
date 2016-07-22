@@ -15,18 +15,17 @@
 #define MUX_NAME_MAX_LEN 32
 
 struct cmux_ops {
-    /* operation close() */
     int (*cmux_close)(struct cmux_t * const cmux);
-    /* operation deregist_cmd_callback() */
+
     int (*cmux_deregist_cmd_callback)(struct cmux_t * const me);
-    /* operation free() */
+
     int (*cmux_free)(struct cmux_t * const cmux);
-    /* operation read() */
+
     int (*cmux_read)(struct cmux_t * const me, char *buf, int len);
-    /* operation regist_cmd_callback() */
+
     int (*cmux_regist_cmd_callback)(struct cmux_t * const me,
          void *callback_fn, uintptr_t userdata);
-    /* operation write() */
+
     int (*cmux_write)(struct cmux_t * const me, char *buf, int len);
 };
 
@@ -42,7 +41,6 @@ struct  cmux_t {
     int (*callback)(AT_CMD_RSP_T * resp_req, uintptr_t usdata);
     char name[MUX_NAME_MAX_LEN];
     struct cmux_ops *ops;
-    sem cmux_lock;
     mutex mutex_timeout;
     cond cond_timeout;
     int cp_blked;

@@ -15,7 +15,6 @@ struct send_thread_t {
     int prority;
     struct pty_t *pty;
     thread_t thread;
-    sem_t req_cmd_lock;
     char *s_ATBufferCur;
     struct send_thread_ops *ops;
     char end_char;

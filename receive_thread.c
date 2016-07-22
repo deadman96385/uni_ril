@@ -153,7 +153,7 @@ void *receive_data(struct receive_thread_t *me) {
             snprintf(tmp_buff, sizeof(tmp_buff), "%s%c", atstr, me->end_char);
             memset(atstr, 0, strlen(atstr));
             received = strlen(tmp_buff);
-            PHS_LOGD("Rev TID[%d]:%s:%s\n", tid, me->mux->name, tmp_buff);
+            PHS_LOGD("%s Rev:%s\n",  me->mux->name, tmp_buff);
             phoneserver_deliver_at_rsp(me->mux, tmp_buff, received);
         }
     }

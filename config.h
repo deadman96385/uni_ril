@@ -86,9 +86,7 @@ typedef enum mux_type_t {
     ATM2_SIM4 = MULTI_MUX_BASE + 11,
     /* }@ */
 
-    SMSTM,
-    VTM_SIM1, VTM_SIM2, VTM_SIM3, VTM_SIM4,
-    STMAT, AUDAT, RESERVE,
+    STMAT, RESERVE,
 } mux_type;
 
 typedef struct {

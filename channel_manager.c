@@ -44,7 +44,7 @@ const char *s_modem = NULL;
 int soc_client = -1;
 channel_manager_t chnmng;
 extern int s_isuserdebug;
-extern sem sms_lock;
+extern sem sms_lock[SIM_COUNT];
 
 pthread_t s_tid_signal_process;
 pthread_attr_t attr;
@@ -279,9 +279,7 @@ static cmux_t *chnmng_get_cmux(void *const chnmng,
     pty = find_pty(me, tid);
 
     while (mux == NULL) {
-        sem_lock(&pty->get_mux_lock);
         mux = find_cmux(me, type);
-        sem_unlock(&pty->get_mux_lock);
 
         if (mux) {
             break;
@@ -440,8 +438,6 @@ static void chnmng_cmux_Init(channel_manager_t *const me) {
         }
         PHS_LOGD("CHNMNG: open mux: %s fd=%d", me->itsCmux[i].name,
                  me->itsCmux[i].muxfd);
-        sem_init(&me->itsReceive_thread[i].resp_cmd_lock, 0, 1);
-        sem_init(&me->itsCmux[i].cmux_lock, 0, 0);
         cond_init(&me->itsCmux[i].cond_timeout, NULL);
         mutex_init(&me->itsCmux[i].mutex_timeout, NULL);
         me->itsReceive_thread[i].mux = &me->itsCmux[i];
@@ -471,8 +467,6 @@ static void chnmng_pty_Init(channel_manager_t *const me) {
     for (i = 0; i < pty_chn_num; i++) {
         me->itsPty[i].ops = pty_get_operations();
         sem_init(&me->itsPty[i].write_lock, 0, 1);
-        sem_init(&me->itsPty[i].receive_lock, 0, 1);
-        sem_init(&me->itsPty[i].get_mux_lock, 0, 1);
         me->itsPty[i].ops->pty_clear_wait_resp_flag(&me->itsPty[i]);
         me->itsPty[i].type = RESERVE;
     }
@@ -489,7 +483,6 @@ static void chnmng_pty_Init(channel_manager_t *const me) {
             PHS_LOGE("ERROR chnmng_pty_Init no buffer");
         }
         me->itsPty[i].buffer = buff;
-        sem_init(&me->itsSend_thread[i].req_cmd_lock, 0, 1);
         me->itsSend_thread[i].pty = &me->itsPty[i];
         me->itsSend_thread[i].ops = send_thread_get_operations();
     }
@@ -781,7 +774,7 @@ void switchUser(void) {
 static void channel_manager_init(void) {
     chnmng.me = &chnmng;
     chnmng.ops = &chnmng_operaton;
-    int simId;
+    int simId = 0;
     for (simId = 0; simId < SIM_COUNT; simId++) {
         sem_init(&chnmng.get_mux_lock[simId], 0, 1);
     }
@@ -830,7 +823,7 @@ int main(int argc, char *argv[]) {
     }
     if (s_modem == NULL) {
         s_modem = (char *)malloc(PROPERTY_VALUE_MAX);
-        property_get(MODEM_TYPE, (char*)s_modem, "");
+        property_get(MODEM_TYPE, (char *)s_modem, "");
         if (strcmp(s_modem, "") == 0) {
             PHS_LOGD("get modem type failed, exit!");
             free((char*)s_modem);
@@ -840,7 +833,10 @@ int main(int argc, char *argv[]) {
 
     PHS_LOGD("Current modem is %s, sim num is %d", s_modem, SIM_COUNT);
 
-    sem_init(&sms_lock, 0, 1);
+    int simId = 0;
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        sem_init(&(sms_lock[simId]), 0, 1);
+    }
 
     ps_service_init();
     channel_manager_init();

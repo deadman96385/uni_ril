@@ -16,7 +16,6 @@ struct receive_thread_t {
     int prority;
     char *s_ATBufferCur;
     char *buffer;
-    sem_t resp_cmd_lock;  /* write_lock to avoid multi access */
     cmux_t *mux;  /* attribute cmux */
     char end_char;
     thread_t thread;

@@ -103,17 +103,11 @@ int cmux_write(cmux_t *const me, char *buf, int len) {
 }
 
 struct cmux_ops mux_ops = {
-/* operation close() */
 .cmux_close = cmux_close,
-/* operation deregist_cmd_callback() */
 .cmux_deregist_cmd_callback = cmux_deregist_cmd_callback,
-/* operation free() */
 .cmux_free = cmux_free,
-/* operation read() */
 .cmux_read = cmux_read,
-/* operation regist_cmd_callback() */
 .cmux_regist_cmd_callback = cmux_regist_cmd_callback,
-/* operation write() */
 .cmux_write = cmux_write,
 };
 

@@ -55,7 +55,7 @@ struct ind_table {
     int (*cvt_func)(AT_CMD_IND_T *req);
 };
 
-sem sms_lock;
+sem sms_lock[SIM_COUNT];
 extern struct PDP_INFO pdp_info[];
 
 #if (SIM_COUNT == 1)
@@ -83,7 +83,7 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CGDATA_SET, AT_CMD_TYPE_PS, AT_CMD_STR("AT+CGDATA="),
                 cvt_cgdata_set_req, 120},
         {AT_CMD_CGACT_READ, AT_CMD_TYPE_PS, AT_CMD_STR("AT+CGACT?"),
-                cvt_cgact_query_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_CGACT_SET, AT_CMD_TYPE_PS, AT_CMD_STR("AT+CGACT=1"),
                 cvt_cgact_act_req, 600},
         {AT_CMD_CGACT_SET_0, AT_CMD_TYPE_PS, AT_CMD_STR("AT+CGACT=0"),
@@ -165,13 +165,13 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CPOL, AT_CMD_TYPE_NW, AT_CMD_STR("AT+CPOL"),
                 cvt_generic_cmd_req, 5},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=0"),
-                cvt_cops_set_cmd_req0, 180},
+                cvt_generic_cmd_req, 180},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=1"),
-                cvt_cops_set_cmd_req1, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=2"),
-                cvt_cops_set_cmd_req2, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=4"),
-                cvt_cops_set_cmd_req4, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS?"),
                 cvt_generic_cmd_req, 10},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=3"),
@@ -179,9 +179,9 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS"),
                 cvt_generic_cmd_req, 50},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NW, AT_CMD_STR("AT+ESQOPT=2"),
-                cvt_esqopt2_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NW, AT_CMD_STR("AT+ESQOPT="),
-                cvt_esqopt01_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NW, AT_CMD_STR("AT+ESQOPT"),
                 cvt_generic_cmd_req, 5},
         {AT_CMD_CPIN_READ, AT_CMD_TYPE_SIM, AT_CMD_STR("AT+CPIN?"),
@@ -298,7 +298,7 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CGDATA_SET, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGDATA="),
                 cvt_cgdata_set_req, 120},
         {AT_CMD_CGACT_READ, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGACT?"),
-                cvt_cgact_query_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_CGACT_SET, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGACT=1"),
                 cvt_cgact_act_req, 600},
         {AT_CMD_CGACT_SET_0, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGACT=0"),
@@ -396,23 +396,23 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CPOL, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+CPOL"),
                 cvt_generic_cmd_req, 5},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS=0"),
-                cvt_cops_set_cmd_req0, 180},
+                cvt_generic_cmd_req, 180},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS=1"),
-                cvt_cops_set_cmd_req1, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS=2"),
-                cvt_cops_set_cmd_req2, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS=3"),
                 cvt_generic_cmd_req, 10},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS=4"),
-                cvt_cops_set_cmd_req4, 50},
+                cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS?"),
                 cvt_generic_cmd_req, 10},
         {AT_CMD_COPS, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+COPS"),
                 cvt_generic_cmd_req, 50},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+ESQOPT=2"),
-                cvt_esqopt2_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+ESQOPT="),
-                cvt_esqopt01_cmd_req, 5},
+                cvt_generic_cmd_req, 5},
         {AT_CMD_ESQOPT, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+ESQOPT"),
                 cvt_generic_cmd_req, 5},
         {AT_CMD_CPIN_READ, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+CPIN?"),
@@ -507,6 +507,29 @@ const struct ind_table at_ind_cvt_table[] = {
         {AT_CMD_CESQ_IND, AT_CMD_STR("+CESQ:"), cvt_cesq_cmd_ind}
 };
 
+int getSimIdByPty(pty_t *pty) {
+    int simId = 0;
+
+    if (pty != NULL) {
+        switch (pty->type) {
+            case AT:
+            case AT_SIM1 :
+                simId = 0;
+                break;
+            case AT_SIM2:
+                simId = 1;
+                break;
+            case AT_SIM3:
+                simId = 2;
+                break;
+            case AT_SIM4:
+                simId = 3;
+                break;
+        }
+    }
+    return simId;
+}
+
 /**
  * Returns 1 if found, 0 otherwise. needle must be null-terminated.
  * strstr might not work because WebBox sends garbage before the first OKread
@@ -581,23 +604,6 @@ int phoneserver_deliver_indicate_default(const cmux_t *cmux, char *cmd,
             ind_pty->ops->pty_write(ind_pty, ind_str, strlen(ind_str));
     }
     return AT_RESULT_OK;
-}
-
-void read_message(AT_CMD_RSP_T *rsp_req, int cmd_len, int spare_len,
-        char *content) {
-    cmux_t *mux = rsp_req->recv_cmux;
-    int count;
-    memcpy(content, rsp_req->rsp_str + cmd_len, rsp_req->len - cmd_len);
-    content += rsp_req->len;
-
-    do {
-        count = read(mux->muxfd, content, spare_len);
-        if (count < 0) {
-            continue;
-        }
-        spare_len -= count;
-        content += count;
-    } while (spare_len > 0 && errno == EINTR);
 }
 
 int phoneserver_deliver_at_cmd(const pty_t *pty, char *cmd, int len) {
@@ -801,58 +807,6 @@ static int isFinalResponse(const char *line) {
     return isFinalResponseSuccess(line) || isFinalResponseError(line);
 }
 
-int cvt_cops_set_cmd_req0(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_cops_set_cmd_req1(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_cops_set_cmd_req2(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_cops_set_cmd_req4(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
 int cvt_not_support_cmd_req(AT_CMD_REQ_T *req) {
     cmux_t *mux;
     if (req == NULL) {
@@ -882,47 +836,6 @@ int cvt_generic_cmd_req(AT_CMD_REQ_T *req) {
             pdp_info[i].state = PDP_STATE_IDLE;
     }
 
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_cgact_query_cmd_req(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_esqopt2_cmd_req(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
-    return AT_RESULT_PROGRESS;
-}
-
-int cvt_esqopt01_cmd_req(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-
-    if (req == NULL) {
-        return AT_RESULT_NG;
-    }
-
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_generic_cmd_rsp,
-            (uintptr_t)req->recv_pty);
     adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
     return AT_RESULT_PROGRESS;
 }
@@ -1959,6 +1872,9 @@ int cvt_cmgs_cmgw_recovery(cmux_t *mux, pty_t *pty) {
 int cvt_cmgs_cmgw_edit_callback(pty_t *pty, char *cmd, int len,
         uintptr_t user_data) {
     int ret = AT_RESULT_OK;
+    int simId = 0;
+
+    simId = getSimIdByPty(pty);
 
     cmux_t *mux = (cmux_t *)(user_data);
     PHS_LOGD("enter cvt_cmgs_cmgw_edit_callback!");
@@ -1972,20 +1888,20 @@ int cvt_cmgs_cmgw_edit_callback(pty_t *pty, char *cmd, int len,
         adapter_pty_write_error(pty, CME_ERROR_NOT_SUPPORT);
         adapter_pty_end_cmd(pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
 
     if (pty->cmgs_cmgw_set_result == 4) {
         adapter_pty_end_cmd(pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
     PHS_LOGD("Send sms failure");
     adapter_pty_end_cmd(pty);
     adapter_free_cmux_for_ps(mux);
-    sem_unlock(&sms_lock);
+    sem_unlock(&(sms_lock[simId]));
     return AT_RESULT_OK;
 }
 
@@ -1998,7 +1914,10 @@ int cvt_cmgs_cmgw_set_req(AT_CMD_REQ_T *req) {
 
     mux = adapter_get_cmux(req->cmd_type, TRUE);
 
-    sem_lock(&sms_lock);
+    int simId = 0;
+
+    simId = getSimIdByPty(req->recv_pty);
+    sem_lock(&(sms_lock[simId]));
     req->recv_pty->cmgs_cmgw_set_result = 0;
     adapter_cmux_register_callback(mux, cvt_cmgs_cmgw_set_rsp2,
             (uintptr_t)req->recv_pty);
@@ -2012,13 +1931,13 @@ int cvt_cmgs_cmgw_set_req(AT_CMD_REQ_T *req) {
     } else if (req->recv_pty->cmgs_cmgw_set_result == 2) {
         adapter_pty_end_cmd(req->recv_pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     } else {
         adapter_pty_write_error(req->recv_pty, CME_ERROR_NOT_SUPPORT);
         adapter_pty_end_cmd(req->recv_pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
 }
@@ -2286,20 +2205,6 @@ int cvt_echupvt_set_rsp(AT_CMD_RSP_T *rsp, uintptr_t user_data) {
         return AT_RESULT_NG;
     }
     return AT_RESULT_OK;
-}
-
-int cvt_atd_active_req(AT_CMD_REQ_T *req) {
-    cmux_t *mux;
-
-    if (req == NULL || req->recv_pty->type != STMAT) {
-        return AT_RESULT_NG;
-    }
-    mux = adapter_get_cmux(req->cmd_type, TRUE);
-    adapter_cmux_register_callback(mux, cvt_atd_active_rsp,
-            (uintptr_t)req->recv_pty);
-    adapter_cmux_write(mux, "ATD*99***04#\r", strlen("ATD*99***04#\r"),
-            req->timeout);
-    return AT_RESULT_PROGRESS;
 }
 
 int cvt_atd_active_rsp(AT_CMD_RSP_T *rsp, uintptr_t user_data) {
@@ -2579,7 +2484,10 @@ int cvt_snvm_set_req(AT_CMD_REQ_T *req) {
 
     mux = adapter_get_cmux(req->cmd_type, TRUE);
 
-    sem_lock(&sms_lock);
+    int simId = 0;
+
+    simId = getSimIdByPty(req->recv_pty);
+    sem_lock(&(sms_lock[simId]));
     req->recv_pty->cmgs_cmgw_set_result = 0;
     adapter_cmux_register_callback(mux, cvt_snvm_set_rsp,
             (uintptr_t)req->recv_pty);
@@ -2593,13 +2501,13 @@ int cvt_snvm_set_req(AT_CMD_REQ_T *req) {
     } else if (req->recv_pty->cmgs_cmgw_set_result == 2) {
         adapter_pty_end_cmd(req->recv_pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     } else {
         adapter_pty_write_error(req->recv_pty, CME_ERROR_NOT_SUPPORT);
         adapter_pty_end_cmd(req->recv_pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
 }
@@ -2737,7 +2645,9 @@ int cvt_cesq_cmd_rsp(AT_CMD_RSP_T *rsp, uintptr_t user_data) {
 int cvt_snvm_edit_callback(pty_t *pty, char *cmd, int len,
         uintptr_t user_data) {
     int ret = AT_RESULT_OK;
+    int simId = 0;
 
+    simId = getSimIdByPty(pty);
     cmux_t *mux = (cmux_t *)(user_data);
     PHS_LOGD("enter cvt_snvm_edit_callback!");
     pty->cmgs_cmgw_set_result = 0;
@@ -2749,19 +2659,19 @@ int cvt_snvm_edit_callback(pty_t *pty, char *cmd, int len,
         adapter_pty_write_error(pty, CME_ERROR_NOT_SUPPORT);
         adapter_pty_end_cmd(pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
 
     if (pty->cmgs_cmgw_set_result == 2) {
         adapter_pty_end_cmd(pty);
         adapter_free_cmux_for_ps(mux);
-        sem_unlock(&sms_lock);
+        sem_unlock(&(sms_lock[simId]));
         return AT_RESULT_OK;
     }
     PHS_LOGD("Send snvm failure");
     adapter_pty_end_cmd(pty);
     adapter_free_cmux_for_ps(mux);
-    sem_unlock(&sms_lock);
+    sem_unlock(&(sms_lock[simId]));
     return AT_RESULT_OK;
 }

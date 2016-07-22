@@ -141,8 +141,7 @@ void *send_data(struct send_thread_t *me) {
             snprintf(tmp_buff, sizeof(tmp_buff), "%s%c", atstr, me->end_char);
             memset(atstr, 0, strlen(atstr));
             received = strlen(tmp_buff);
-            PHS_LOGD("Send TID [%d] PS_PTY: %s Received %d bytes[%s]\n",
-                     tid, me->pty->name, received, tmp_buff);
+            PHS_LOGD("%s Send: %s", me->pty->name, tmp_buff);
             me->ops->send_thread_deliver_cmd_req(me, tmp_buff, received);
         }
     }
