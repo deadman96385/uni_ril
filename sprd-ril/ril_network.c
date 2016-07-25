@@ -868,6 +868,24 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         setRadioState(channelID, RADIO_STATE_OFF);
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
+#if (SIM_COUNT == 2)
+        if (socket_id == RIL_SOCKET_1) {
+            if (isSimPresent(socket_id) == 0 &&
+                isSimPresent(RIL_SOCKET_2) == 1) {
+                RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                                          NULL, 0, socket_id);
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                return;
+           }
+       } else if (socket_id == RIL_SOCKET_2) {
+           if (isSimPresent(socket_id) == 0) {
+               RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                                         NULL, 0, socket_id);
+               RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+               return;
+           }
+        }
+#endif
         buildWorkModeCmd(cmd, sizeof(cmd));
         at_send_command(s_ATChannels[channelID], cmd, NULL);
 
