@@ -20,6 +20,7 @@
 #define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
 #define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
 #define PHONE_EXTENSION_PROP    "ril.sim.phone_ex.start"
+#define COPS_MODE_PROP          "persist.sys.cops.mode"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
@@ -1017,6 +1018,14 @@ static void requestNetworkRegistration(int channelID, void *data,
     ATResponse *p_response = NULL;
     RIL_NetworkList *network = (RIL_NetworkList *)data;
 
+    char prop[PROPERTY_VALUE_MAX];
+    int copsMode = 1;
+    property_get(COPS_MODE_PROP, prop, "manual");
+    if (!strcmp(prop, "automatic")) {
+        copsMode = 4;
+    }
+    RLOGD("cops mode = %d", copsMode);
+
     if (network) {
         char *p = strstr(network->operatorNumeric, " ");
         if (p != NULL) {
@@ -1024,11 +1033,11 @@ static void requestNetworkRegistration(int channelID, void *data,
             *p = 0;
         }
         if (network->act >= 0) {
-            snprintf(cmd, sizeof(cmd), "AT+COPS=1,2,\"%s\",%d",
-                      network->operatorNumeric, network->act);
+            snprintf(cmd, sizeof(cmd), "AT+COPS=%d,2,\"%s\",%d", copsMode,
+                     network->operatorNumeric, network->act);
         } else {
-            snprintf(cmd, sizeof(cmd), "AT+COPS=1,2,\"%s\"",
-                      network->operatorNumeric);
+            snprintf(cmd, sizeof(cmd), "AT+COPS=%d,2,\"%s\"", copsMode,
+                     network->operatorNumeric);
         }
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         if (err != 0 || p_response->success == 0) {

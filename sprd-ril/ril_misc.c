@@ -305,134 +305,6 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &hwCfg, sizeof(hwCfg));
 }
 
-void open_dev(char *dev, int *fd) {
-    int retryTimes = 0;
-
-    while ((*fd) < 0 && (retryTimes < 10)) {
-        (*fd) = open(dev, O_RDONLY);
-        if ((*fd) < 0) {
-            sleep(1);
-            RLOGD("Unable to open log device '%s' , %d, %s", dev, (*fd),
-                  strerror(errno));
-        } else if ((*fd) >= 0) {
-            break;
-        }
-        retryTimes++;
-    }
-}
-
-static void *dump_sleep_log() {
-    int result;
-    int CPFd = -1;
-    int bufLen = 0;
-    int ret = 0, totalLen = 0, max = 0;
-    char logStr[ARRAY_SIZE] = {0};
-    char devName[ARRAY_SIZE] = {0};
-    char CPBuffer[BUFFER_SIZE], buffer[ARRAY_SIZE];
-    char *p_CPBuffer = CPBuffer;
-    unsigned int *p_log = (unsigned int *)CPBuffer;
-    fd_set readset;
-    FILE *APFd;
-    struct timeval timeout;
-
-    memset(logStr, 0, sizeof(logStr));
-    memset(devName, 0, sizeof(devName));
-
-    RLOGD("enter dump_sleep_log.");
-    if (!strcmp(s_modem, "t")) {
-        snprintf(devName, sizeof(devName), "/dev/spipe_td5");
-    } else if (!strcmp(s_modem, "w")) {
-        snprintf(devName, sizeof(devName), "/dev/spipe_w5");
-    } else if (!strcmp(s_modem, "l")) {
-        snprintf(devName, sizeof(devName), "/dev/spipe_lte5");
-    } else if (!strcmp(s_modem, "tl")) {
-        snprintf(devName, sizeof(devName), "/dev/spipe_lte5");
-    } else if (!strcmp(s_modem, "lf")) {
-        snprintf(devName, sizeof(devName), "/dev/spipe_lte5");
-    } else {
-        RLOGE("Unknown modem type, exit");
-        exit(-1);
-    }
-    open_dev(devName, &CPFd);
-    if (CPFd < 0) {
-        RLOGD("open '%s' failed. exit.", devName);
-        return NULL;
-    }
-    FD_SET(CPFd, &readset);
-
-    snprintf(buffer, sizeof(buffer), "/data/slog/sleep_log.txt");
-    APFd = fopen(buffer, "a+");
-    if (APFd == NULL) {
-        RLOGD("open cp log file '%s' failed! ERROR: %s .", buffer,
-              strerror(errno));
-        // return NULL;
-    }
-    timeout.tv_sec = 20;
-    timeout.tv_usec = 0;
-    memset(CPBuffer, 0, BUFFER_SIZE);
-
-    while ((p_CPBuffer - CPBuffer) < BUFFER_SIZE) {
-        RLOGD("wait for data");
-        bufLen = read(CPFd, p_CPBuffer, BUFFER_SIZE);
-        if (bufLen <= 0) {
-            if ((bufLen == -1 && (errno == EINTR || errno == EAGAIN)) ||
-                bufLen == 0) {
-                continue;
-            }
-            RLOGD("read log failed! exit.");
-            break;
-        }
-        p_CPBuffer += bufLen;
-        RLOGD("read length %d.", bufLen);
-    }
-    unsigned int state_cp = 0;
-    float sec_time = 0.0;
-    float duration = 0.0;
-    unsigned int temp_before = 0, temp = 0;
-    bufLen = (int)(p_CPBuffer - CPBuffer);
-    RLOGD("read cp sleeplog total %d.", bufLen / 4);
-    int index = 0;
-    for (; index < bufLen / 4; index++) {
-        state_cp = 0;
-        sec_time = 0.0;
-        duration = 0.0;
-        int before = (index == 0 ? (bufLen / 4 - 1) : (index - 1));
-        RLOGD("sleep log before: %u", p_log[index]);
-        temp_before = p_log[before];
-        temp = p_log[index];
-        state_cp = temp & 0x0001;
-        temp = temp >> 1;
-        temp_before = temp_before >> 1;
-        sec_time = (float)temp / 1000.0;
-        duration = (float)((temp - temp_before) / 1000.0);
-        if ((temp == 0) || (temp_before == 0) || (temp_before > temp)) {
-            duration = 0;
-        }
-        // str format : "%010u\t%010f\t%u\t%f"
-        snprintf(logStr, sizeof(logStr), "%010u\t%010f\t%u\t%f\n",
-                (unsigned int)(sec_time * CONSTANT_DIVIDE), sec_time, state_cp,
-                duration);
-
-        // write to file
-        RLOGD("sleep log after: %s", logStr);
-        if (APFd != NULL) {
-            totalLen = fwrite(logStr, strlen(logStr), 1, APFd);
-            if (totalLen != 1) {
-                RLOGD("write cp log file '%s' failed! exit.", buffer);
-                break;
-            }
-        }
-    }
-    RLOGD("Finish dump the sleep log! exit.");
-    if (APFd != NULL) {
-        fclose(APFd);
-    }
-    if (CPFd > 0) {
-        close(CPFd);
-    }
-    return NULL;
-}
-
 void requestSendAT(int channelID, const char *data, size_t datalen,
                    RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -448,7 +320,7 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 
     if (ATcmd == NULL) {
         RLOGE("Invalid AT command");
-        return;
+        goto error;
     }
 
     // AT+SNVM=1,2118,01
@@ -470,29 +342,21 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         RLOGD("SNVM: cmd %s, pdu %s", cmd, pdu);
         err = at_send_command_snvm(s_ATChannels[channelID], cmd, pdu, "",
                                    &p_response);
-    } else if (!strncasecmp(ATcmd, "AT+SPSLEEPLOG", strlen("AT+SPSLEEPLOG"))) {
-        pthread_t tid;
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-        do {
-            RLOGD("Create dump sleep log thread");
-        } while (pthread_create(&tid, &attr, (void *)dump_sleep_log, NULL) < 0);
-        RLOGD("Create dump sleep log thread success");
-        err = at_send_command(s_ATChannels[channelID], "AT+SPSLEEPLOG",
-                              &p_response);
     } else {
         err = at_send_command_multiline(s_ATChannels[channelID], ATcmd, "",
                                         &p_response);
     }
 
     if (err < 0 || p_response->success == 0) {
-        strlcat(buf, p_response->finalResponse, sizeof(buf));
-        strlcat(buf, "\r\n", sizeof(buf));
-        response[0] = buf;
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
-                              sizeof(char *));
+        if (p_response != NULL) {
+            strlcat(buf, p_response->finalResponse, sizeof(buf));
+            strlcat(buf, "\r\n", sizeof(buf));
+            response[0] = buf;
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                                  sizeof(char *));
+        } else {
+            goto error;
+        }
     } else {
         p_cur = p_response->p_intermediates;
         for (i = 0; p_cur != NULL; p_cur = p_cur->p_next, i++) {
@@ -508,6 +372,11 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         }
     }
     at_response_free(p_response);
+    return;
+
+error:
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,

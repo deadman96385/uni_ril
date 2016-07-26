@@ -13,6 +13,7 @@
 
 #define APN_DELAY_PROP          "persist.radio.apn_delay"
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
+#define DDR_STATUS_PROP         "persist.sys.ddr.status"
 
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
@@ -1183,7 +1184,12 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
     apn = ((const char **)data)[2];
 
     if (isVoLteEnable() && !isExistActivePdp()) {  // for ddr, power consumption
-        at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=0", NULL);
+        char prop[PROPERTY_VALUE_MAX];
+        property_get(DDR_STATUS_PROP, prop, "0");
+        RLOGD("volte ddr power prop = %s", prop);
+        if (!strcmp(prop, "1")) {
+            at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=0", NULL);
+        }
     }
 RETRY:
     s_LTEDetached[socket_id] = false;
@@ -1368,7 +1374,11 @@ done:
     }
     // for ddr, power consumption
     if (isVoLteEnable() && !isExistActivePdp()) {
-        at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=1", NULL);
+        property_get(DDR_STATUS_PROP, prop, "0");
+        RLOGD("volte ddr power prop = %s", prop);
+        if (!strcmp(prop, "1")) {
+            at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=1", NULL);
+        }
     }
 error:
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -1819,6 +1829,19 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: {
+            // set RAU SUCCESS report to AP
+            at_send_command(s_ATChannels[channelID], "AT+SPREPORTRAU=1", NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_COLP: {
+            char cmd[AT_COMMAND_LEN];
+            snprintf(cmd, sizeof(cmd), "AT+COLP=%d", ((int *)data)[0]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
         /* }@ */
         default :
             ret = 0;
@@ -2077,6 +2100,44 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         RIL_requestTimedCallback(startGSPS,
                 (void *)&s_socketId[socket_id], NULL);
+    } else if (strStartsWith(s,"+SPREPORTRAU:")) {
+        char *response = NULL;
+        char *tmp;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &response);
+        if (err < 0)  goto out;
+
+        if (!strcmp(response, "RAU SUCCESS")) {
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RAU_SUCCESS, NULL, 0,
+                                      socket_id);
+        }
+    } else if (strStartsWith(s, "+SPERROR:")) {
+        int type;
+        int errCode;
+        char *tmp;
+        extern int s_ussdError[SIM_COUNT];
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &type);
+        if (err < 0) goto out;
+
+        err = at_tok_nexthexint(&tmp, &errCode);
+        if (err < 0) goto out;
+
+        if (errCode == 336) {
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
+                                      0, socket_id);
+        }
+        if (type == 5) {  // 5: for SS
+            s_ussdError[socket_id] = 1;
+        }
     } else {
         ret = 0;
     }

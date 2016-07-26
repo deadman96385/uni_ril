@@ -5855,7 +5855,9 @@ typedef struct {
 #define RIL_EXT_REQUEST_FORCE_DETACH                (RIL_EXT_REQUEST_BASE + 12)
 #define RIL_EXT_REQUEST_GET_HD_VOICE_STATE          (RIL_EXT_REQUEST_BASE + 13)
 #define RIL_EXT_REQUEST_SIM_POWER                   (RIL_EXT_REQUEST_BASE + 14)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SIM_POWER
+#define RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY           (RIL_EXT_REQUEST_BASE + 15)
+#define RIL_EXT_REQUEST_SET_COLP                    (RIL_EXT_REQUEST_BASE + 16)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SET_COLP
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -5867,7 +5869,10 @@ typedef struct {
 #define RIL_EXT_UNSOL_VIDEOPHONE_RECORD_VIDEO       (RIL_EXT_UNSOL_RESPONSE_BASE + 6)
 #define RIL_EXT_UNSOL_VIDEOPHONE_MEDIA_START        (RIL_EXT_UNSOL_RESPONSE_BASE + 7)
 #define RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED       (RIL_EXT_UNSOL_RESPONSE_BASE + 8)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED
+#define RIL_EXT_UNSOL_RAU_SUCCESS                   (RIL_EXT_UNSOL_RESPONSE_BASE + 9)
+#define RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK           (RIL_EXT_UNSOL_RESPONSE_BASE + 10)
+#define RIL_EXT_UNSOL_RIL_CONNECTED                 (RIL_EXT_UNSOL_RESPONSE_BASE + 11)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_RIL_CONNECTED
 /*****************************************************************************/
 
 /*****************************************************************************/

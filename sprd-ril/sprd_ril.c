@@ -340,9 +340,11 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_IMS_SMSC ||
                  request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
-              /* }@ */
+                 /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
-                 request == RIL_EXT_REQUEST_SIM_POWER)) {
+                 request == RIL_EXT_REQUEST_SIM_POWER ||
+                 request == RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY ||
+                 request == RIL_EXT_REQUEST_SET_COLP)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }

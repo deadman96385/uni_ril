@@ -6534,6 +6534,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_FORCE_DETACH: return "FORCE_DETACH";
         case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: return "GET_HD_VOICE_STATE";
         case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
+        case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: return "ENABLE_RAU_NOTIFY";
+        case RIL_EXT_REQUEST_SET_COLP: return "SET_COLP";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6596,6 +6598,9 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_VIDEOPHONE_MEDIA_START: return "UNSOL_VIDEOPHONE_MEDIA_START";
         /* }@ */
         case RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED: return "UNSOL_ECC_NETWORKLIST_CHANGED";
+        case RIL_EXT_UNSOL_RAU_SUCCESS: return "UNSOL_RAU_SUCCESS";
+        case RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK: return "UNSOL_CLEAR_CODE_FALLBACK";
+        case RIL_EXT_UNSOL_RIL_CONNECTED: return "EXT_UNSOL_RIL_CONNECTED";
         default: return "<unknown request>";
     }
 }
@@ -6664,6 +6669,12 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
     ril_event_set(p_info->commands_event, p_info->fdCommand, persist,
             p_info->processCommandsCallback, p_info);
     rilEventAddWakeup(p_info->commands_event);
+
+    if (p_info->type == RIL_OEM_SOCKET) {
+        // Inform oem socket that modem maybe assert or reset
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
+                                  p_info->socket_id);
+    }
 }
 
 void list_init(ListNode **node) {
