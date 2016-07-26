@@ -12302,12 +12302,12 @@ static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t)
     }
     if (islte) {
         if (s_multiSimMode && !bOnlyOneSIMPresent) {
-            err = at_send_command(ATch_type[channelID], "AT+SGFD", &p_response);
-            if (err < 0 || p_response->success == 0) {
-            	goto error;
-            }
             RILLOGD("s_sim_num = %d", s_sim_num);
             if(s_testmode == 10){
+                err = at_send_command(ATch_type[channelID], "AT+SGFD", &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    goto error;
+                }
                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", s_sim_num);
                 err = at_send_command(ATch_type[channelID], cmd, NULL);
             }else{
