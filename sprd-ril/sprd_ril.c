@@ -113,6 +113,7 @@ bool s_isLTE = false;
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
+const struct timeval TIMEVAL_SIMPOLL = {1, 0};
 
 static int s_port = -1;
 static int s_deviceSocket = 0;
@@ -120,7 +121,6 @@ static const char *s_devicePath = NULL;
 /* trigger change to this with s_radioStateCond */
 static int s_closed[SIM_COUNT];
 static int s_channelOpen[SIM_COUNT];
-static const struct timeval TIMEVAL_SIMPOLL = {1, 0};
 static const struct timeval TIMEVAL_0 = {0, 0};
 
 #if defined (ANDROID_MULTI_SIM)
@@ -290,6 +290,9 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_SHUTDOWN ||
           request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
           request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
+          request == RIL_EXT_REQUEST_GET_SIMLOCK_STATUS ||
+          request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
+          request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
           request == RIL_EXT_REQUEST_SIM_POWER)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -344,6 +347,11 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIM_POWER ||
                  request == RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY ||
+                 request == RIL_EXT_REQUEST_GET_SIMLOCK_REMAIN_TIMES ||
+                 request == RIL_EXT_REQUEST_SET_FACILITY_LOCK_FOR_USER ||
+                 request == RIL_EXT_REQUEST_GET_SIMLOCK_STATUS ||
+                 request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
+                 request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
                  request == RIL_EXT_REQUEST_SET_COLP ||
                  request == RIL_EXT_REQUEST_SIM_GET_ATR ||
                  request == RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2 ||

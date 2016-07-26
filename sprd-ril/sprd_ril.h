@@ -88,6 +88,7 @@ extern RIL_RadioState s_radioState[SIM_COUNT];
 extern const RIL_SOCKET_ID s_socketId[SIM_COUNT];
 extern const char *s_modem;
 extern const struct timeval TIMEVAL_CALLSTATEPOLL;
+extern const struct timeval TIMEVAL_SIMPOLL;
 extern struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
 extern const char *requestToString(int request);

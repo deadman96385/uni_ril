@@ -50,6 +50,18 @@
 #define SIM_AUTH_RESPONSE_SUCCESS               0
 #define SIM_AUTH_RESPONSE_SYNC_FAILURE          3
 
+#define REQUEST_SIMLOCK_WHITE_LIST_PS           1
+#define REQUEST_SIMLOCK_WHITE_LIST_PN           2
+#define REQUEST_SIMLOCK_WHITE_LIST_PU           3
+#define REQUEST_SIMLOCK_WHITE_LIST_PP           4
+#define REQUEST_SIMLOCK_WHITE_LIST_PC           5
+#define WHITE_LIST_HEAD_LENGTH                  5
+#define WHITE_LIST_PS_PART_LENGTH               (19 + 1)
+#define WHITE_LIST_COLUMN                       17
+#define IMSI_VAL_NUM                            8
+#define IMSI_TOTAL_LEN                          (16 + 1)
+#define SMALL_IMSI_LEN                          (2 + 1)
+
 static int s_simEnabled[SIM_COUNT];
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -154,6 +166,45 @@ static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     return remaintime;
 }
 
+static void getSIMStatusAgainForSimBusy(void *param) {
+    ATResponse *p_response = NULL;
+    int err;
+    int channelID;
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    channelID = getChannel(socket_id);
+
+    if (s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE) {
+        goto done;
+    }
+    err = at_send_command_singleline(s_ATChannels[channelID],
+            "AT+CPIN?", "+CPIN:", &p_response);
+
+    if (err != 0) {
+        goto done;
+    }
+    switch (at_get_cme_error(p_response)) {
+        case CME_SIM_BUSY:
+            RIL_requestTimedCallback(getSIMStatusAgainForSimBusy,
+                    (void *)&s_socketId[socket_id], &TIMEVAL_SIMPOLL);
+            goto done;
+        default:
+            if (s_simBusy[socket_id].s_sim_busy) {
+                pthread_mutex_lock(&s_simBusy[socket_id].s_sim_busy_mutex);
+                s_simBusy[socket_id].s_sim_busy = false;
+                pthread_cond_signal(&s_simBusy[socket_id].s_sim_busy_cond);
+                pthread_mutex_unlock(&s_simBusy[socket_id].s_sim_busy_mutex);
+            }
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                    NULL, 0, socket_id);
+            goto done;
+    }
+done:
+    putChannel(channelID);
+    at_response_free(p_response);
+    return;
+}
+
 /* Returns SIM_NOT_READY on error */
 SimStatus getSIMStatus(int channelID) {
     ATResponse *p_response = NULL;
@@ -180,6 +231,14 @@ SimStatus getSIMStatus(int channelID) {
             break;
         case CME_SIM_NOT_INSERTED:
             ret = SIM_ABSENT;
+            goto done;
+        case CME_SIM_BUSY:
+            ret = SIM_NOT_READY;
+            if (!s_simBusy[socket_id].s_sim_busy) {
+                s_simBusy[socket_id].s_sim_busy = true;
+                RIL_requestTimedCallback(getSIMStatusAgainForSimBusy,
+                    (void *)&s_socketId[socket_id], &TIMEVAL_SIMPOLL);
+            }
             goto done;
         default:
             ret = SIM_NOT_READY;
@@ -210,6 +269,36 @@ SimStatus getSIMStatus(int channelID) {
         goto done;
     } else if (0 == strcmp(cpinResult, "PH-NET PIN")) {
         return SIM_NETWORK_PERSONALIZATION;
+    } else if (0 == strcmp(cpinResult, "PH-NETSUB PIN")) {
+        ret = SIM_NETWORK_SUBSET_PERSONALIZATION;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-SP PIN")) {
+        ret = SIM_SERVICE_PROVIDER_PERSONALIZATION;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-CORP PIN")) {
+        ret = SIM_CORPORATE_PERSONALIZATION;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-SIM PIN")) {
+        ret = SIM_SIM_PERSONALIZATION;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-NET PUK")) {
+        ret = SIM_NETWORK_PUK;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-NETSUB PUK")) {
+        ret = SIM_NETWORK_SUBSET_PUK;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-SP PUK")) {
+        ret = SIM_SERVICE_PROVIDER_PUK;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-CORP PUK")) {
+        ret = SIM_CORPORATE_PUK;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-SIM PUK")) {
+        ret = SIM_SIM_PUK;
+        goto done;
+    } else if (0 == strcmp(cpinResult, "PH-INTEGRITY FAIL")) {
+        ret = SIM_SIMLOCK_FOREVER;
+        goto done;
     } else if (0 != strcmp(cpinResult, "READY")) {
         /* we're treating unsupported lock types as "sim absent" */
         ret = SIM_ABSENT;
@@ -349,7 +438,47 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
          NULL, NULL, 0, RIL_PINSTATE_ENABLED_BLOCKED, RIL_PINSTATE_UNKNOWN},
         // RUIM_NETWORK_PERSONALIZATION = 11
         {RIL_APPTYPE_RUIM, RIL_APPSTATE_SUBSCRIPTION_PERSO, RIL_PERSOSUBSTATE_SIM_NETWORK,
-         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
+         NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // SIM_NETWORK_SUBSET_PERSONALIZATION = EXT_SIM_STATUS_BASE + 1
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_NETWORK_SUBSET, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // SIM_SERVICE_PROVIDER_PERSONALIZATION = EXT_SIM_STATUS_BASE + 2
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_SERVICE_PROVIDER, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // SIM_CORPORATE_PERSONALIZATION = EXT_SIM_STATUS_BASE + 3
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_CORPORATE, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // SIM_SIM_PERSONALIZATION = EXT_SIM_STATUS_BASE + 4
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_SIM, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIM_NETWORK_PUK = EXT_SIM_STATUS_BASE + 5
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_NETWORK_PUK, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIM_NETWORK_SUBSET_PUK = EXT_SIM_STATUS_BASE + 6
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_NETWORK_SUBSET_PUK, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK = EXT_SIM_STATUS_BASE + 7
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIM_CORPORATE_PUK = EXT_SIM_STATUS_BASE + 8
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_CORPORATE_PUK, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIM_SIM_PUK = EXT_SIM_STATUS_BASE + 9
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIM_SIM_PUK, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+        // PERSOSUBSTATE_SIMLOCK_FOREVER = EXT_SIM_STATUS_BASE + 10
+        {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
+         RIL_PERSOSUBSTATE_SIMLOCK_FOREVER, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
     };
     RIL_CardState card_state;
     int num_apps;
@@ -421,7 +550,7 @@ int getNetLockRemainTimes(int channelID, int type) {
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPSMPN:",
                                      &p_response);
     if (err < 0 || p_response->success == 0) {
-        ret = 10;
+        ret = -1;
     } else {
         line = p_response->p_intermediates->line;
 
@@ -438,7 +567,7 @@ int getNetLockRemainTimes(int channelID, int type) {
         if (err == 0) {
             ret = result[0] - result[1];
         } else {
-            ret = 10;
+            ret = -1;
         }
     }
     at_response_free(p_response);
@@ -1888,6 +2017,422 @@ error:
     at_response_free(p_response);
 }
 
+static void getIMEIPassword(int channelID, char imeiPwd[]) {
+    ATResponse *p_response = NULL;
+    char password[15];
+    int i = 0;
+    int j = 0;
+    int err;
+    char *line;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (socket_id != RIL_SOCKET_1) return;
+
+    err = at_send_command_numeric(s_ATChannels[channelID], "AT+CGSN",
+            &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    if (strlen(line) != 15) goto error;
+    while (*line != '\0') {
+        if (i > 15) break;
+        password[i] = *line;
+        line++;
+        i++;
+    }
+    for (i = 0; i < 15; j++) {
+        if (j > 6) break;
+        imeiPwd[j] = (password[i] - 48 + password[i + 1] - 48) % 10 + '0';
+        i = i + 2;
+    }
+    imeiPwd[7] = password[0];
+    imeiPwd[8] = '\0';
+    at_response_free(p_response);
+    return;
+error:
+    RLOGE(" get IMEI failed or IMEI is not rigth");
+    at_response_free(p_response);
+    return;
+}
+
+static void requestFacilityLockByUser(int channelID, char **data,
+                                          size_t datalen, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    char imeiPwd[9];
+    int err;
+    int result;
+    int status;
+    char *cmd, *line;
+    int errNum = -1;
+    int ret = -1;
+
+    if (datalen != 2 * sizeof(char *)) {
+        goto error1;
+    }
+
+    getIMEIPassword(channelID, imeiPwd);
+
+    ret = asprintf(&cmd, "AT+CLCK=\"%s\",%c,\"%s\"",
+            data[0], *data[1], imeiPwd);
+
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error1;
+    }
+
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+
+error:
+    if (p_response != NULL && strStartsWith(p_response->finalResponse,
+            "+CME ERROR:")) {
+        line = p_response->finalResponse;
+        err = at_tok_start(&line);
+        if (err >= 0) {
+            err = at_tok_nextint(&line, &errNum);
+            if (err >= 0) {
+                if (errNum == 11 || errNum == 12) {
+                    setRadioState(channelID, RADIO_STATE_SIM_LOCKED_OR_ABSENT);
+                } else if (errNum == 70 || errNum == 128) {
+                    RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+                    at_response_free(p_response);
+                    return;
+                } else if (errNum == 16) {
+                    RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, NULL, 0);
+                    at_response_free(p_response);
+                    return;
+                }
+            }
+        }
+    }
+error1:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestGetSimLockStatus(int channelID, void *data, size_t datalen,
+                                        RIL_Token t) {
+    ATResponse *p_response = NULL;
+    int err, skip, status;
+    char *cmd, *line;
+    int ret = -1;
+
+    if (datalen != 2 * sizeof(int)) {
+        goto error;
+    }
+
+    int fac = ((int *)data)[0];
+    int ck_type = ((int *)data)[1];
+
+    ret = asprintf(&cmd, "AT+SPSMPN=%d,%d", fac, ck_type);
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPSMPN:",
+                                         &p_response);
+    free(cmd);
+
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &skip);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &status);
+    if (err < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &status, sizeof(status));
+    at_response_free(p_response);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return;
+}
+
+static void requestGetSimLockDummys(int channelID, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    int err, i;
+    char *line;
+    int dummy[8];
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPSLDUM?",
+                                         "+SPSLDUM:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    for (i = 0; i < 8; i++) {
+        err = at_tok_nextint(&line, &dummy[i]);
+        if (err < 0) goto error;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &dummy, 8 * sizeof(int));
+    at_response_free(p_response);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return;
+}
+
+static void fillAndCatPlmn(char *plmn, char *mcc, char *mnc, int mncLen) {
+    // add for test sim card:mcc=001
+    int mccLen = strlen(mcc);
+    if (mccLen == 1) {
+        strncpy(plmn, "00", strlen("00") + 1);
+    } else if (mccLen == 2) {
+        strncpy(plmn, "0", strlen("0") + 1);
+    }
+    strncat(plmn, mcc, mccLen);
+
+    int toFillMncLen = mncLen - strlen(mnc);
+    if (toFillMncLen == 1) {
+        strncat(plmn, "0", strlen("0"));
+    } else if (toFillMncLen == 2) {
+        strncat(plmn, "00", strlen("00"));
+    }
+    strncat(plmn, mnc, strlen(mnc));
+}
+
+static void catSimLockWhiteListString(char *whitelist, int whitelistLen,
+                                          char **parts, int partRow) {
+    int totalLen = 0;
+    int i;
+
+    for (i = 0; i < partRow; i++) {
+        if (parts[i] == NULL) {
+            RLOGE("catSimLockWhiteListString: parts[%d] is NULL!", i);
+            break;
+        }
+        if (strlen(parts[i]) == 0) {
+            break;
+        }
+        totalLen += strlen(parts[i]);
+        if (whitelistLen < totalLen) {
+            RLOGE("catSimLockWhiteListString overlay!");
+            return;
+        }
+        if (i > 0) {
+            strncat(whitelist, ",", strlen(","));
+            totalLen++;
+        }
+        strncat(whitelist, parts[i], strlen(parts[i]));
+    }
+    RLOGD("catSimLockWhiteListString whitelist=[%s]", whitelist);
+}
+
+static void requestGetSimLockWhiteList(int channelID, void *data,
+                                           size_t datalen, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    int err, i;
+    int result;
+    int status;
+    char *cmd, *line, *mcc, *mnc, *whiteList, *type_ret, *numlocks_ret;
+    int errNum = -1;
+    int ret = -1;
+    int row = 0;
+    int type, type_back, numlocks, mnc_digit;
+
+    if (datalen != 1 * sizeof(int)) {
+        goto error;
+    }
+
+    type = ((int *)data)[0];
+
+    ret = asprintf(&cmd, "AT+SPSMNW=%d,\"%s\",%d", type, "12345678", 1);
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+spsmnw:",
+                                         &p_response);
+    free(cmd);
+
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&line, &type_ret);
+    if (err < 0) goto error;
+    type_back = atoi(type_ret);
+
+    err = at_tok_nextstr(&line, &numlocks_ret);
+    if (err < 0 ) goto error;
+
+    numlocks = atoi(numlocks_ret);
+    if (numlocks < 0) goto error;
+
+    int whiteListLen = sizeof(char) * (numlocks * WHITE_LIST_PS_PART_LENGTH
+                    + WHITE_LIST_HEAD_LENGTH);
+    // 3 is according to PC, 2 is head for fixing type_ret & numlocks_ret
+    int partsRow = 3 * numlocks + 2;
+
+    char **parts = NULL;
+    parts = (char **)alloca(sizeof(char *) * partsRow);
+    for (i = 0; i < partsRow; i++) {
+        parts[i] = (char *)alloca(sizeof(char) * WHITE_LIST_COLUMN);
+        memset(parts[i], 0, sizeof(char) * WHITE_LIST_COLUMN);
+    }
+
+    whiteList = (char *)alloca(whiteListLen);
+    memset(whiteList, 0, whiteListLen);
+
+    memcpy(parts[row], type_ret, strlen(type_ret));
+    memcpy(parts[++row], numlocks_ret, strlen(numlocks_ret));
+
+    switch (type_back) {
+        case REQUEST_SIMLOCK_WHITE_LIST_PS: {
+            char *imsi_len, *tmpImsi, *fixedImsi;
+            int imsi_index;
+
+            fixedImsi = (char *)alloca(sizeof(char) * SMALL_IMSI_LEN);
+
+            for (i = 0; i < numlocks; i++) {
+                err = at_tok_nextstr(&line, &imsi_len);
+                if (err < 0) goto error;
+                strncat(parts[++row], imsi_len, strlen(imsi_len));
+                row++;
+
+                for (imsi_index = 0; imsi_index < IMSI_VAL_NUM; imsi_index++) {
+                    err = at_tok_nextstr(&line, &tmpImsi);
+                    if (err < 0) goto error;
+
+                    memset(fixedImsi, 0, sizeof(char) * SMALL_IMSI_LEN);
+
+                    int len = strlen(tmpImsi);
+                    if (len == 0) {
+                        strncpy(fixedImsi, "00", strlen("00") + 1);
+                    } else if (len == 1) {
+                        strncpy(fixedImsi, "0", strlen("0") + 1);
+                    }
+                    strncat(fixedImsi, tmpImsi, len);
+                    strncat(parts[row], fixedImsi, strlen(fixedImsi));
+                }
+            }
+            break;
+        }
+
+        case REQUEST_SIMLOCK_WHITE_LIST_PN: {
+            for (i = 0; i < numlocks; i++) {
+                err = at_tok_nextstr(&line, &mcc);
+                if (err < 0) goto error;
+                err = at_tok_nextstr(&line, &mnc);
+                if (err < 0) goto error;
+                err = at_tok_nextint(&line, &mnc_digit);
+                if (err < 0) goto error;
+                fillAndCatPlmn(parts[++row], mcc, mnc, mnc_digit);
+            }
+            break;
+        }
+
+        case REQUEST_SIMLOCK_WHITE_LIST_PU: {
+            char *network_subset1, *network_subset2;
+
+            for (i = 0; i < numlocks; i++) {
+                err = at_tok_nextstr(&line, &mcc);
+                if (err < 0) goto error;
+                err = at_tok_nextstr(&line, &mnc);
+                if (err < 0) goto error;
+                err = at_tok_nextint(&line, &mnc_digit);
+                if (err < 0) goto error;
+                fillAndCatPlmn(parts[++row], mcc, mnc, mnc_digit);
+
+                err = at_tok_nextstr(&line, &network_subset1);
+                if (err < 0) goto error;
+                strncat(parts[row], network_subset1, strlen(network_subset1));
+
+                err = at_tok_nextstr(&line, &network_subset2);
+                if (err < 0) goto error;
+                strncat(parts[row], network_subset2, strlen(network_subset2));
+            }
+            break;
+        }
+
+        case REQUEST_SIMLOCK_WHITE_LIST_PP: {
+            char *gid1;
+
+            for (i = 0; i < numlocks; i++) {
+                err = at_tok_nextstr(&line, &mcc);
+                if (err < 0) goto error;
+                err = at_tok_nextstr(&line, &mnc);
+                if (err < 0) goto error;
+                err = at_tok_nextint(&line, &mnc_digit);
+                if (err < 0) goto error;
+                fillAndCatPlmn(parts[++row], mcc, mnc, mnc_digit);
+
+                err = at_tok_nextstr(&line, &gid1);
+                if (err < 0) goto error;
+                strncat(parts[++row], gid1, strlen(gid1));
+            }
+            break;
+        }
+
+        case REQUEST_SIMLOCK_WHITE_LIST_PC: {
+            char *gid1, *gid2;
+
+            for (i = 0; i < numlocks; i++) {
+                err = at_tok_nextstr(&line, &mcc);
+                if (err < 0) goto error;
+                err = at_tok_nextstr(&line, &mnc);
+                if (err < 0) goto error;
+                err = at_tok_nextint(&line, &mnc_digit);
+                if (err < 0) goto error;
+                fillAndCatPlmn(parts[++row], mcc, mnc, mnc_digit);
+
+                err = at_tok_nextstr(&line, &gid1);
+                if (err < 0) goto error;
+                strncat(parts[++row], gid1, strlen(gid1));
+
+                err = at_tok_nextstr(&line, &gid2);
+                if (err < 0) goto error;
+                strncat(parts[++row], gid2, strlen(gid2));
+            }
+            break;
+        }
+
+        default:
+            goto error;
+            break;
+    }
+    catSimLockWhiteListString(whiteList, whiteListLen, parts, partsRow);
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, whiteList, strlen(whiteList) + 1);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return;
+}
+
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int err;
@@ -1985,6 +2530,24 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
+        case RIL_EXT_REQUEST_GET_SIMLOCK_REMAIN_TIMES: {
+            int fac = ((int *)data)[0];
+            int result = getNetLockRemainTimes(channelID, fac);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(int));
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_FACILITY_LOCK_FOR_USER:
+            requestFacilityLockByUser(channelID, data, datalen, t);
+            break;
+        case RIL_EXT_REQUEST_GET_SIMLOCK_STATUS:
+            requestGetSimLockStatus(channelID, data, datalen, t);
+            break;
+        case RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS:
+            requestGetSimLockDummys(channelID, t);
+            break;
+        case RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST:
+            requestGetSimLockWhiteList(channelID, data, datalen, t);
+            break;
         /* IMS request @{ */
         case RIL_REQUEST_INIT_ISIM:
             requestInitISIM(channelID, data, datalen, t);
@@ -2061,6 +2624,13 @@ static void onSimPresent(void *param) {
     }
 }
 
+static void onSimlockLocked(void *param) {
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+
+    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED,
+                               NULL, 0, socket_id);
+}
+
 void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     int type;
@@ -2102,6 +2672,10 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
             } else if (value == 100 || value == 4) {
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                           NULL, 0, socket_id);
+                if (value == 4) {
+                    RIL_requestTimedCallback(onSimlockLocked,
+                            (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
+                }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,
                                          (void *)&s_socketId[socket_id], NULL);

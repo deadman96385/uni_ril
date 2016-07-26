@@ -58,7 +58,7 @@ LTE_PS_REG_STATE s_PSRegState[SIM_COUNT] = {
 #endif
 #endif
         };
-static SimBusy s_simBusy[SIM_COUNT] = {
+SimBusy s_simBusy[SIM_COUNT] = {
         {false, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER}
 #if (SIM_COUNT >= 2)
        ,{false, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER}

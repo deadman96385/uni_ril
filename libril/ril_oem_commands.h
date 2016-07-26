@@ -25,3 +25,8 @@
     {RIL_EXT_REQUEST_GET_SIM_CAPACITY, dispatchVoid, responseStrings},
     {RIL_EXT_REQUEST_STORE_SMS_TO_SIM, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE, dispatchVoid, responseString},
+    {RIL_EXT_REQUEST_GET_SIMLOCK_REMAIN_TIMES, dispatchInts, responseInts},
+    {RIL_EXT_REQUEST_SET_FACILITY_LOCK_FOR_USER, dispatchStrings, responseVoid},
+    {RIL_EXT_REQUEST_GET_SIMLOCK_STATUS, dispatchInts, responseInts},
+    {RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS, dispatchVoid, responseInts},
+    {RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST, dispatchInts, responseStrings},
