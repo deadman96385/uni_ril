@@ -42,6 +42,7 @@ typedef struct {
 void *startAsyncCmdHandlerLoop(void *param);
 void addAsyncCmdList(RIL_SOCKET_ID socket_id, RIL_Token t, const char *cmd,
                         void *data, int timeout);
+void removeAsyncCmdList(RIL_Token t, const char *cmd);
 void checkAndCompleteRequest(RIL_SOCKET_ID socket_id, const char *cmd,
                                  void *resp);
 

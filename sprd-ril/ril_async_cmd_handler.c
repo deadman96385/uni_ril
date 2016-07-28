@@ -9,6 +9,7 @@
 
 #include "sprd_ril.h"
 #include "ril_sim.h"
+#include "ril_network.h"
 #include "ril_async_cmd_handler.h"
 
 static int s_fdWakeupRead;
@@ -21,7 +22,8 @@ static ril_event s_pendingList;
 static pthread_mutex_t s_listMutex;
 
 const AsyncCmdInfo s_asyncCmdTable[] = {
-        {AT_CMD_STR("+CLCK:"), dispatchCLCK}
+        {AT_CMD_STR("+CLCK:"), dispatchCLCK},
+        {AT_CMD_STR("+SPTESTMODE:"), dispatchSPTESTMODE}
 };
 
 static void initList(ril_event *list) {
@@ -277,6 +279,27 @@ void addAsyncCmdList(RIL_SOCKET_ID socket_id, RIL_Token t, const char *cmd,
     addRilEvent(&(p_info->event), &relativeTime);
 
     triggerEvLoop();
+}
+
+void removeAsyncCmdList(RIL_Token t, const char *cmd) {
+    MUTEX_ACQUIRE(s_listMutex);
+
+    ril_event *tev = s_timerList.next;
+    ril_event *next;
+
+    while (tev != &s_timerList) {
+        next = tev->next;
+        UserCallbackInfo *p_info = (UserCallbackInfo *)tev->param;
+        if (p_info->token == t && p_info->cmd == cmd) {
+            removeFromList(tev);
+            free(p_info->data);
+            free(p_info);
+            break;
+        }
+        tev = next;
+    }
+
+    MUTEX_RELEASE(s_listMutex);
 }
 
 void onRequestComplete(ril_event *ev, void *resp) {

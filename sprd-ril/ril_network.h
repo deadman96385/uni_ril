@@ -149,4 +149,6 @@ void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim);
 int isSimPresent(RIL_SOCKET_ID socket_id);
 uint64_t ril_nano_time();
 
+void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp);
+
 #endif  // RIL_NETWORK_H_

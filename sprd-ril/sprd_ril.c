@@ -1116,7 +1116,7 @@ void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
     char *p[RIL_SOCKET_NUM];
     char *buf = prop;
     char *ptr = NULL;
-    RLOGD("get [%s] property: %s", property, prop);
+    RLOGD("get sim%d [%s] property: %s", socket_id, property, prop);
 
     if (value == NULL) {
         RLOGE("The memory to save prop is NULL!");
@@ -1160,7 +1160,7 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
         return;
     }
 
-    RLOGD("set [%s] property: %s", property, value);
+    RLOGD("set sim%d [%s] property: %s", socket_id, property, value);
     memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
     if (len > 0) {
         for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
