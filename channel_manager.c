@@ -753,18 +753,34 @@ static void release_wakeLock() {
 }
 
 void switchUser(void) {
-    struct __user_cap_header_struct header;
-    struct __user_cap_data_struct cap;
+    struct __user_cap_header_struct capheader;
+    struct __user_cap_data_struct capdata[2];
 
-    prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+    memset(&capheader, 0, sizeof(capheader));
+    memset(&capdata, 0, sizeof(capdata));
 
-    setuid(AID_SYSTEM);
-    header.version = _LINUX_CAPABILITY_VERSION;
-    header.pid = 0;
-    cap.effective = cap.permitted = (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW);
-    cap.inheritable = 0;
-    capset(&header, &cap);
-    return;
+    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0) {
+        return;
+    }
+    if (setuid(AID_SYSTEM) != 0) {
+        return;
+    }
+
+    capheader.version = _LINUX_CAPABILITY_VERSION_3;
+    capheader.pid = 0;
+
+    capdata[CAP_TO_INDEX(CAP_NET_ADMIN)].permitted = CAP_TO_MASK(CAP_NET_ADMIN);
+    capdata[CAP_TO_INDEX(CAP_NET_RAW)].permitted |= CAP_TO_MASK(CAP_NET_RAW);
+    capdata[CAP_TO_INDEX(CAP_BLOCK_SUSPEND)].permitted |=
+            CAP_TO_MASK(CAP_BLOCK_SUSPEND);
+    capdata[CAP_TO_INDEX(CAP_AUDIT_CONTROL)].permitted |=
+            CAP_TO_MASK(CAP_AUDIT_CONTROL);
+
+    capdata[0].effective = capdata[0].permitted;
+    capdata[1].effective = capdata[1].permitted;
+    capdata[0].inheritable = 0;
+    capdata[1].inheritable = 0;
+    capset(&capheader, &capdata[0]);
 }
 
 /**
