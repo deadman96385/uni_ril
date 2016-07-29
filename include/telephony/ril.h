@@ -5983,6 +5983,21 @@ typedef struct {
                                    NULL if no value. */
 } RIL_SimAuthentication;
 
+/* SPRD: add for alpha identifier display in stk @{ */
+typedef struct {
+   int   call_type;
+   int   result;
+   int   is_alpha;
+   int   alpha_len;
+   char *alpha_data;
+   int   pre_type;
+   int   ton;
+   int   npi;
+   int   num_len;
+   char *number;
+} RIL_StkCallControlResult;
+/* @} */
+
 #ifdef RIL_SHLIB
 struct RIL_Env {
     /**

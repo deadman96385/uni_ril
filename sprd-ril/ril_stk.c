@@ -217,6 +217,71 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                                       sizeof(RIL_SimRefreshResponse_v7),
                                       socket_id);
         }
+    /* SPRD: add for alpha identifier display in stk @{ */
+    } else if (strStartsWith(s, "+SPUSATCALLCTRL:")) {
+        char *tmp;
+        RIL_StkCallControlResult *response = NULL;;
+
+        response = (RIL_StkCallControlResult *)alloca(sizeof(RIL_StkCallControlResult));
+        if (response == NULL) goto out;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &response->call_type);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->result);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->is_alpha);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->alpha_len);
+        if (err < 0 || response->alpha_len == 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextstr(&tmp, &response->alpha_data);
+        if (err < 0 || strlen(response->alpha_data) == 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->pre_type);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->ton);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->npi);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->num_len);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        err = at_tok_nextstr(&tmp, &response->number);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+            goto out;
+        }
+        RIL_onUnsolicitedResponse(RIL_UNSOL_STK_CC_ALPHA_NOTIFY,
+                                  response->alpha_data,
+                                  strlen(response->alpha_data) + 1,
+                                  socket_id);
+    /* @} */
     } else {
         return 0;
     }
