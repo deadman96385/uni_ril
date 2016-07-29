@@ -10,6 +10,7 @@
 
 #define ECC_LIST_PROP "ril.ecclist"
 #define ECC_LIST_REAL_PROP "ril.ecclist.real"
+#define ECC_LIST_FAKE_PROP "ril.ecclist.fake"
 
 typedef struct EccList {
     char * number;

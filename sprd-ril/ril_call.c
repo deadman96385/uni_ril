@@ -812,6 +812,24 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
     int numberExist = 0;
     int ret = 0;
 
+    strncpy(propName, ECC_LIST_FAKE_PROP, sizeof(ECC_LIST_FAKE_PROP));
+#if defined (ANDROID_MULTI_SIM)
+    if (socket_id != RIL_SOCKET_1) {
+        snprintf(propName, sizeof(propName), "ril.ecclist.fake%d", socket_id);
+    }
+#endif
+    property_get(propName, eccNumberList, "");
+    if (strcmp(eccNumberList, "") != 0) {
+        tmpList = eccNumberList;
+        while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
+            if (strcmp(tmpNumber, dialNumber) == 0) {
+                numberExist = 1;
+                return 0;
+            }
+            tmpList = NULL;
+        }
+    }
+
     strncpy(propName, ECC_LIST_REAL_PROP, sizeof(ECC_LIST_REAL_PROP));
 #if defined (ANDROID_MULTI_SIM)
     if (socket_id != RIL_SOCKET_1) {
@@ -819,9 +837,6 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
     }
 #endif
     property_get(propName, eccNumberList, "");
-    RLOGD("dialNumber = %s, ril.ecclist.real%d = %s", dialNumber, socket_id,
-           eccNumberList);
-
     if (strcmp(eccNumberList, "") != 0) {
         tmpList = eccNumberList;
         while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
@@ -845,7 +860,6 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
     }
 
     property_get("ro.ril.ecclist", eccNumberList, "");
-    RLOGD("dial_number = %s, ro.ril.ecclist = %s", dialNumber, eccNumberList);
     tmpList = eccNumberList;
     if (strcmp(eccNumberList, "") == 0) {
         if (isSimPresent(socket_id) == 1) {
