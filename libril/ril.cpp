@@ -6536,6 +6536,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
         case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: return "ENABLE_RAU_NOTIFY";
         case RIL_EXT_REQUEST_SET_COLP: return "SET_COLP";
+        case RIL_EXT_REQUEST_GET_DEFAULT_NAN: return "GET_DEFAULT_NAN";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";

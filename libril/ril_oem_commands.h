@@ -19,3 +19,4 @@
     {RIL_EXT_REQUEST_SIM_POWER, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY, dispatchVoid, responseVoid},
     {RIL_EXT_REQUEST_SET_COLP, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_GET_DEFAULT_NAN, dispatchVoid, responseString},

@@ -10,6 +10,46 @@
 #include "ril_network.h"
 #include "ril_sim.h"
 
+static void requestDefaultNetworkName(int channelID, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    ATLine *p_cur;
+    int err;
+    char *apn = NULL;
+
+    err = at_send_command_multiline(s_ATChannels[channelID],
+                "AT+CGDCONT?", "+CGDCONT:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+            p_cur = p_cur->p_next) {
+        char *line = p_cur->line;
+        int ncid;
+
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &ncid);
+        if (err < 0) goto error;
+
+        if (ncid == 1) {
+            skipNextComma(&line);
+            err = at_tok_nextstr(&line, &apn);
+            if (err < 0 || strlen(apn) == 0) goto error;
+            break;
+        }
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, apn, strlen(apn) + 1);
+    AT_RESPONSE_FREE(p_response);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    AT_RESPONSE_FREE(p_response);
+    return;
+}
+
 int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     RIL_UNUSED_PARM(datalen);
@@ -106,6 +146,9 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_DEFAULT_NAN:
+            requestDefaultNetworkName(channelID, t);
+            break;
         default:
             return 0;
     }
