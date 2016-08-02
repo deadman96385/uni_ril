@@ -1889,6 +1889,8 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     if (t != NULL) {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     }
+    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
+                              socket_id);
     return;
 
 error:
