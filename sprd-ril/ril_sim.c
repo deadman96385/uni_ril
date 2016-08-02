@@ -1778,6 +1778,116 @@ static void setSIMPowerOff(void *param) {
     putChannel(channelID);
 }
 
+static void requestSIMGetAtr(int channelID, RIL_Token t) {
+    int err;
+    RIL_Errno errType = RIL_E_GENERIC_FAILURE;
+    char *line = NULL;
+    char *response = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPATR?",
+                                     "+SPATR:", &p_response);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
+            errType = RIL_E_MISSING_RESOURCE;
+        } else {
+            errType = RIL_E_GENERIC_FAILURE;
+        }
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    if (at_tok_start(&line) < 0) goto error;
+    if (at_tok_nextstr(&line, &response) < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, errType, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void  requestSIMOpenChannelWITHP2(int channelID, void *data,
+                                         size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err;
+    int rspLen = 1;
+    int response[260];
+
+    char *cmd = NULL;
+    char *line = NULL;
+    char *rspType = "0xFF";
+    char *statusWord = NULL;
+    char *responseData = NULL;
+    const char **strings = (const char **)data;
+
+    ATResponse *p_response = NULL;
+    RIL_Errno errType = RIL_E_GENERIC_FAILURE;
+
+    asprintf(&cmd, "AT+SPCCHO=\"%s,%s, %s\"", strings[0], rspType, strings[1]);
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
+                                     &p_response);
+    free(cmd);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
+            errType = RIL_E_MISSING_RESOURCE;
+        } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+            errType = RIL_E_NO_SUCH_ELEMENT;
+        }
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    // Read channel number
+    err = at_tok_nextint(&line, &response[0]);
+    if (err < 0) goto error;
+
+    // Read select response (if available)
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextstr(&line, &statusWord);
+        if (err < 0) goto error;
+
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextstr(&line, &responseData);
+            if (err < 0) goto error;
+
+            int length = strlen(responseData) / 2;
+            while (rspLen <= length) {
+                sscanf(responseData, "%02x", &(response[rspLen]));
+                rspLen++;
+                responseData += 2;
+            }
+            sscanf(statusWord, "%02x%02x", &(response[rspLen]),
+                   &(response[rspLen + 1]));
+            rspLen = rspLen + 2;
+        } else {
+            goto error;
+        }
+    } else {
+        // no select response, set status word
+        response[rspLen] = 0x90;
+        response[rspLen + 1] = 0x00;
+        rspLen = rspLen + 2;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, rspLen * sizeof(int));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, errType, NULL, 0);
+    at_response_free(p_response);
+}
+
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int err;
@@ -1906,6 +2016,12 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         /* }@ */
+        case RIL_EXT_REQUEST_SIM_GET_ATR:
+            requestSIMGetAtr(channelID, t);
+            break;
+        case RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2:
+            requestSIMOpenChannelWITHP2(channelID, data, datalen, t);
+            break;
         default:
             return 0;
     }

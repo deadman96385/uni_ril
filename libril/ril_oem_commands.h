@@ -20,3 +20,8 @@
     {RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY, dispatchVoid, responseVoid},
     {RIL_EXT_REQUEST_SET_COLP, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_GET_DEFAULT_NAN, dispatchVoid, responseString},
+    {RIL_EXT_REQUEST_SIM_GET_ATR, dispatchVoid, responseString},
+    {RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2, dispatchStrings, responseInts},
+    {RIL_EXT_REQUEST_GET_SIM_CAPACITY, dispatchVoid, responseStrings},
+    {RIL_EXT_REQUEST_STORE_SMS_TO_SIM, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE, dispatchVoid, responseString},

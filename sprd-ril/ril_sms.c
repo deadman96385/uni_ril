@@ -567,6 +567,152 @@ static void requestGetSmscAddress(int channelID, void *data,
     at_response_free(p_response);
 }
 
+static void requestGetSIMCapacity(int channelID, void *data,
+                                  size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int i;
+    int err;
+    int response[2] = {-1, -1};
+    char *line, *skip;
+    char *responseStr[2] = {NULL, NULL};
+    char res[2][20];
+    ATResponse *p_response = NULL;
+
+    for (i = 0; i < 2; i++) {
+        responseStr[i] = res[i];
+    }
+
+    err = at_send_command_singleline(s_ATChannels[channelID],
+                                     "AT+CPMS?", "+CPMS:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&line, &skip);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[0]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[1]);
+    if (err < 0) goto error;
+
+    if (response[0] == -1 || response[1] == -1) {
+        goto error;
+    }
+
+    snprintf(res[0], sizeof(res[0]), "%d", response[0]);
+    snprintf(res[1], sizeof(res[1]), "%d", response[1]);
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, responseStr, 2 * sizeof(char *));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestStoreSmsToSim(int channelID, void *data,
+        size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err, commas;
+    char *line = NULL;
+    char cmd[128];
+    char *memoryRD = NULL;  // memory for read and delete
+    char *memoryWS = NULL;  // memory for write and send
+    ATResponse *p_response = NULL;
+    int value = ((int *)data)[0];
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CPMS?",
+                "+CPMS:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&line, &memoryRD);
+    if (err < 0) goto error;
+
+    skipNextComma(&line);
+    skipNextComma(&line);
+
+    err = at_tok_nextstr(&line, &memoryWS);
+    if (err < 0) goto error;
+
+    if (value == 1) {
+        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,1,2,1,1", NULL);
+        snprintf(cmd, sizeof(cmd), "AT+CPMS=\"%s\",\"%s\",\"SM\"", memoryRD,
+                memoryWS);
+    } else {
+        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+        snprintf(cmd, sizeof(cmd), "AT+CPMS=\"%s\",\"%s\",\"ME\"", memoryRD,
+                memoryWS);
+    }
+
+    AT_RESPONSE_FREE(p_response);
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CPMS:",
+                                     &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestQuerySmsStorageMode(int channelID, void *data,
+        size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    int commas = 0;
+    char *response = NULL;
+    char *line = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CPMS?",
+            "+CPMS:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    // +CPMS:"ME",0,20,"ME",0,20, "SM",0,20
+    // +CPMS:"ME",0,20,"ME",0,20, "ME",0,20
+    for (commas = 0; commas < 6; commas++) {
+        skipNextComma(&line);
+    }
+    err = at_tok_nextstr(&line, &response);
+    if (err < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response) + 1);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
 int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int err;
@@ -673,6 +819,16 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         /* }@ */
+        case RIL_EXT_REQUEST_GET_SIM_CAPACITY: {
+            requestGetSIMCapacity(channelID, data, datalen, t);
+            break;
+        }
+        case RIL_EXT_REQUEST_STORE_SMS_TO_SIM:
+            requestStoreSmsToSim(channelID, data, datalen, t);
+            break;
+        case RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE:
+            requestQuerySmsStorageMode(channelID, data, datalen, t);
+            break;
         default:
             return 0;
     }
