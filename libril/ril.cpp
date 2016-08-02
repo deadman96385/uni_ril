@@ -6613,6 +6613,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK: return "UNSOL_CLEAR_CODE_FALLBACK";
         case RIL_EXT_UNSOL_RIL_CONNECTED: return "EXT_UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED: return "UNSOL_SIMLOCK_STATUS_CHANGED";
+        case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         default: return "<unknown request>";
     }
 }

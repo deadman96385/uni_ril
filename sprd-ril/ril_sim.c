@@ -2693,6 +2693,20 @@ int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
     if (strStartsWith(s, "+ECIND:")) {
         onSimStatusChanged(socket_id, s);
+    } else if (strStartsWith(s, "+SPEXPIRESIM:")) {
+        int simID;
+        char *tmp = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &simID);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED, &simID,
+                sizeof(simID), socket_id);
     } else if (strStartsWith(s, "+CLCK:")) {
         int response;
         char *tmp = NULL;
