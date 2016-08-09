@@ -35,10 +35,17 @@
 
 extern int soc_client;
 extern void detect_at_no_response();
+extern bool isLTE();
 
 int rxlev[SIM_COUNT], ber[SIM_COUNT], rscp[SIM_COUNT];
 int ecno[SIM_COUNT], rsrq[SIM_COUNT], rsrp[SIM_COUNT];
 int rssi[SIM_COUNT], berr[SIM_COUNT];
+/**
+ * psOpened add for Bug577920, initialize with value 0
+ * value 1: phoneserver writes AT+SFUN=4 to CP
+ * value 0: phoneserver receives first CSQ/CESQ after write SFUN=4 to CP
+ */
+int psOpened[SIM_COUNT] = {0};
 
 struct cmd_table {
     AT_CMD_ID_T cmd_id;
@@ -99,7 +106,7 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CGATT, AT_CMD_TYPE_PS, AT_CMD_STR("AT+CGATT"),
                 cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_NW, AT_CMD_STR("AT+COPS=?"),
-                cvt_generic_cmd_req, 180},
+                cvt_generic_cmd_req, 210},
         {AT_CMD_CCWA_READ, AT_CMD_TYPE_SS, AT_CMD_STR("AT+CCWA?"),
                 cvt_ccwa_cmd_req, 30},
         {AT_CMD_CCWA_TEST, AT_CMD_TYPE_SS, AT_CMD_STR("AT+CCWA=?"),
@@ -304,7 +311,7 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CGACT_SET_0, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGACT=0"),
                 cvt_cgact_deact_req, 50},
         {AT_CMD_CFUN, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+SFUN=4"),
-                cvt_generic_cmd_req, 50},
+                cvt_generic_cmd_req, 120},
         {AT_CMD_CFUN, AT_CMD_TYPE_NORMAL, AT_CMD_STR("AT+SFUN=5"),
                 cvt_generic_cmd_req, 50},
         {AT_CMD_SAUTOATT_SET, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+SAUTOATT="),
@@ -320,7 +327,7 @@ const struct cmd_table s_at_cmd_cvt_table[] = {
         {AT_CMD_CGATT, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CGATT"),
                 cvt_generic_cmd_req, 50},
         {AT_CMD_COPS, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+COPS=?"),
-                cvt_generic_cmd_req, 180},
+                cvt_generic_cmd_req, 210},
         {AT_CMD_CCWA_READ, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CCWA?"),
                 cvt_ccwa_cmd_req, 30},
         {AT_CMD_CCWA_TEST, AT_CMD_TYPE_SLOW, AT_CMD_STR("AT+CCWA=?"),
@@ -834,6 +841,11 @@ int cvt_generic_cmd_req(AT_CMD_REQ_T *req) {
             || strStartsWith(req->cmd_str, "AT+SFUN=5")) {
         for (i = 0; i < MAX_PDP_NUM; i++)
             pdp_info[i].state = PDP_STATE_IDLE;
+    } else if (strStartsWith(req->cmd_str, "AT+SFUN=4")) {
+        int simId = getSimIdByPty(req->recv_pty);
+        psOpened[simId] = 1;
+        PHS_LOGD("psOpened[%d] = %d, send SFUN=4 to CP\n", simId,
+                  psOpened[simId]);
     }
 
     adapter_cmux_write(mux, req->cmd_str, req->len, req->timeout);
@@ -937,6 +949,13 @@ int cvt_csq_cmd_ind(AT_CMD_IND_T *ind) {
                 ind_sim = 0;
                 break;
         }
+        if (psOpened[ind_sim] == 1) {
+            ind_pty = adapter_get_ind_pty((mux_type) (ind->recv_cmux->type));
+        }
+    } else {
+        if(psOpened[ind_sim] == 1) {
+            ind_pty = adapter_get_ind_pty((mux_type)(INDM));
+        }
     }
     at_in_str = ind->ind_str;
     err = at_tok_start(&at_in_str, ':');
@@ -968,6 +987,21 @@ int cvt_csq_cmd_ind(AT_CMD_IND_T *ind) {
     if (berr[ind_sim] > 99) {
         berr[ind_sim] = 99;
     }
+
+    if(psOpened[ind_sim] == 1) {
+        if (!isLTE()) {
+            psOpened[ind_sim] = 0;
+            snprintf(ind_str, sizeof(ind_str), "\r\n+CSQ: %d,%d\r\n",
+                     rssi[ind_sim], berr[ind_sim]);
+            if (ind_pty && ind_pty->ops && ind->len < MAX_AT_CMD_LEN) {
+                ind_pty->ops->pty_write(ind_pty, ind_str, strlen(ind_str));
+                PHS_LOGD("sim%d first CSQ pty write end\n", ind_sim);
+            } else {
+                PHS_LOGE("ind string size > %d\n", MAX_AT_CMD_LEN);
+            }
+        }
+    }
+
     return AT_RESULT_OK;
 }
 
@@ -996,6 +1030,13 @@ int cvt_cesq_cmd_ind(AT_CMD_IND_T *ind) {
             default:
                 ind_sim = 0;
                 break;
+        }
+        if (psOpened[ind_sim] == 1) {
+            ind_pty = adapter_get_ind_pty((mux_type) (ind->recv_cmux->type));
+        }
+    } else {
+        if (psOpened[ind_sim] == 1) {
+            ind_pty = adapter_get_ind_pty((mux_type)(INDM));
         }
     }
     at_in_str = ind->ind_str;
@@ -1059,6 +1100,23 @@ int cvt_cesq_cmd_ind(AT_CMD_IND_T *ind) {
     } else {
         rsrp[ind_sim] = 141 - rsrp[ind_sim];
     }
+
+    if (psOpened[ind_sim] == 1) {
+        if (isLTE()) {
+            psOpened[ind_sim] = 0;
+            snprintf(ind_str, sizeof(ind_str),
+                     "\r\n+CESQ: %d,%d,%d,%d,%d,%d\r\n", rxlev[ind_sim],
+                     ber[ind_sim], rscp[ind_sim], ecno[ind_sim], rsrq[ind_sim],
+                     rsrp[ind_sim]);
+            if (ind_pty && ind_pty->ops && ind->len < MAX_AT_CMD_LEN) {
+                ind_pty->ops->pty_write(ind_pty, ind_str, strlen(ind_str));
+                PHS_LOGD("sim%d first CESQ pty write end\n", ind_sim);
+            } else {
+                PHS_LOGE("ind string size > %d\n", MAX_AT_CMD_LEN);
+            }
+        }
+    }
+
     return AT_RESULT_OK;
 }
 
