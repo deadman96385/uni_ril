@@ -9,5 +9,6 @@
 
 void convertBinToHex(char *bin_ptr, int length, unsigned char *hex_ptr);
 int convertHexToBin(const char *hex_ptr, int length, char *bin_ptr);
+void convertUcs2ToUtf8(unsigned char *ucs2, int len, unsigned char *buf);
 
 #endif  // RIL_UTILS_H_

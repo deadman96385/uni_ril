@@ -1016,20 +1016,25 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 RLOGD("%s fail", s);
                 goto out;
             }
-            /* convert hex string to string @{ */
-            char *deciStr = (char *)calloc((strlen(hexStr) / 2 + 1),
-                                             sizeof(char));
-            convertHexToBin(hexStr, strlen(hexStr), deciStr);
-            response[1] = deciStr;
-            RLOGD("the string is %s", response[1]);
-            /* }@ */
+            /* convert hex string to string */
+            char str[ARRAY_SIZE * 4];
+            memset(str, 0, sizeof(str));
+            if (strcmp(response[2], "15") == 0) {  // GSM_TYPE
+                convertHexToBin((const char *)hexStr, strlen(hexStr), str);
+            } else if (strcmp(response[2], "72") == 0) {  // UCS2_TYPE
+                char tmp[ARRAY_SIZE * 4];
+                memset(tmp, 0, sizeof(tmp));
+                convertHexToBin((const char *)hexStr, strlen(hexStr), tmp);
+                convertUcs2ToUtf8((unsigned char *)tmp, strlen(hexStr) / 2,
+                                  (unsigned char *)str);
+            }
 
+            response[1] = str;
             if (strcmp(response[0], "2") == 0) {
                 response[0] = "0";
             }
             RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, &response,
                                       3 * sizeof(char *), socket_id);
-            free(deciStr);
         } else {
             if (s_ussdError[socket_id] == 1) {  /* for ussd */
                 RLOGD("+CUSD ussdError");
