@@ -35,9 +35,10 @@
 #include "ril_async_cmd_handler.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
-#define VOLTE_ENABLE_PROP "persist.sys.volte.enable"
+#define VOLTE_ENABLE_PROP       "persist.sys.volte.enable"
 /* For special instrument's test */
-#define VOLTE_PCSCF_PROP  "persist.sys.volte.pcscf"
+#define VOLTE_PCSCF_PROP        "persist.sys.volte.pcscf"
+#define HARDWARE_VERSION_PROP   "sys.hardware.version"
 
 enum ChannelState {
     CHANNEL_IDLE,
@@ -898,6 +899,34 @@ static void *mainLoop(void *param) {
     }
 }
 
+void setHwVerPorp() {
+    int ret = -1;
+    int fd = -1;
+    char cmdline[1024];
+    char *pKeyWord = "hardware.version=";
+    char *pHwVer = NULL;
+    char *token = NULL;
+
+    memset(cmdline, 0, 1024);
+    fd = open("/proc/cmdline", O_RDONLY);
+    if (fd > 0) {
+        ret = read(fd, cmdline, sizeof(cmdline));
+        if (ret > 0) {
+            pHwVer = strstr(cmdline, pKeyWord);
+            if (pHwVer != NULL) {
+                pHwVer += strlen(pKeyWord);
+                token = strchr(pHwVer, ' ');
+                if (token) {
+                    *token = '\0';
+                }
+                RLOGD("Hardware.version = %s", pHwVer);
+                property_set(HARDWARE_VERSION_PROP, pHwVer);
+            }
+        }
+        close(fd);
+    }
+}
+
 #ifdef RIL_SHLIB
 
 int s_sim_num;
@@ -956,6 +985,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     initSIMVariables();
 
     sem_wait(&s_sem);
+
+    setHwVerPorp();
 
     return &s_callbacks;
 }

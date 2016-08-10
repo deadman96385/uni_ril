@@ -259,6 +259,17 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
 
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
+
+        if (at_tok_hasmore(&line)) {
+            char *p = line;
+            for (p = line; *p != '\0'; p++) {
+                if (*p == ',') {
+                    skipNextComma(&line);
+                }
+            }
+            err = at_tok_nextint(&line, &p_call->numberPresentation);
+            if (err < 0) goto error;
+        }
     }
 
     p_call->uusInfo = NULL;
@@ -937,6 +948,9 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
 
     int response = CALL_FAIL_ERROR_UNSPECIFIED;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    char vendorCause[32];
+    RIL_LastCallFailCauseInfo *failCause = (RIL_LastCallFailCauseInfo *)
+            calloc(1, sizeof(RIL_LastCallFailCauseInfo));
 
     pthread_mutex_lock(&s_callMutex[socket_id]);
     switch (s_callFailCause[socket_id]) {
@@ -979,8 +993,15 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
             response = CALL_FAIL_ERROR_UNSPECIFIED;
             break;
     }
+    failCause->cause_code = response;
+    snprintf(vendorCause, sizeof(vendorCause), "%d",
+            s_callFailCause[socket_id]);
+    failCause->vendor_cause = vendorCause;
     pthread_mutex_unlock(&s_callMutex[socket_id]);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, failCause,
+            sizeof(RIL_LastCallFailCauseInfo));
+    free(failCause);
 }
 
 static void requestGetCurrentCallsVoLTE(int channelID, void *data,
@@ -1318,6 +1339,8 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
                     err = at_tok_nextint(&line, &state);
                     RIL_onRequestComplete(t, RIL_E_SUCCESS, &state,
                             sizeof(state));
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
             } else {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -1378,26 +1401,28 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_IMS_INITIAL_GROUP_CALL: {
             char cmd[AT_COMMAND_LEN] = {0};
-
+            p_response = NULL;
             snprintf(cmd, sizeof(cmd), "AT+CGU=1,\"%s\"", (char *)data);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-            if (err >= 0) {
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-            } else {
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
+            at_response_free(p_response);
             break;
         }
         case RIL_REQUEST_IMS_ADD_TO_GROUP_CALL: {
             char cmd[AT_COMMAND_LEN] = {0};
-
+            p_response = NULL;
             snprintf(cmd, sizeof(cmd), "AT+CGU=4,\"%s\"", (char *)data);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-            if (err >= 0) {
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-            } else {
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
+            at_response_free(p_response);
             break;
         }
         case RIL_REQUEST_VIDEOPHONE_DIAL:
