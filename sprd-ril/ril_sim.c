@@ -41,6 +41,10 @@
 #define USIM_FILE_DES_TAG                       0x82
 #define USIM_FILE_SIZE_TAG                      0x80
 #define TYPE_CHAR_SIZE                          sizeof(char)
+#define READ_BINERY                             0xb0
+#define DF_ADF                                  "3F007FFF"
+#define DF_GSM                                  "3F007F20"
+#define EFID_SST                                0x6f38
 
 #define SIM_DROP                                1
 #define SIM_REMOVE                              2
@@ -118,6 +122,7 @@ const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static void setSIMPowerOff(void *param);
+static int queryFDNServiceAvailable(int channelID);
 
 void initSIMVariables() {
     int simId;
@@ -943,6 +948,11 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
             response[0] = status;
             response[1] |= serviceClass;
         }
+        if (0 == strcmp(data[0], "FD")) {
+            if (queryFDNServiceAvailable(channelID) == 2) {
+                response[0] = 2;
+            }
+        }
 
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
     } else {  // unlock/lock this facility
@@ -1003,6 +1013,66 @@ error1:
     remainTimes = getRemainTimes(channelID, type);
     RIL_onRequestComplete(t, errnoType, &remainTimes, sizeof(remainTimes));
     at_response_free(p_response);
+}
+
+static int queryFDNServiceAvailable(int channelID) {
+    RIL_AppType app_type = getSimType(channelID);
+    int status = -1;
+    int err;
+    char *cmd = NULL;
+    char *line = NULL;
+    char pad_data = '0';
+    ATResponse *p_response = NULL;
+    RIL_SIM_IO_Response sr;
+
+    memset(&sr, 0, sizeof(sr));
+
+    if (app_type == RIL_APPTYPE_USIM) {
+        asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
+                 READ_BINERY, EFID_SST, 0, 0, 1, pad_data, DF_ADF);
+    } else if (app_type == RIL_APPTYPE_SIM) {
+        asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
+                 READ_BINERY, EFID_SST, 0, 0, 1, pad_data, DF_GSM);
+    } else {
+        goto out;
+    }
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CRSM:",
+                                     &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto out;
+    }
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto out;
+
+    err = at_tok_nextint(&line, &(sr.sw1));
+    if (err < 0) goto out;
+
+    err = at_tok_nextint(&line, &(sr.sw2));
+    if (err < 0) goto out;
+
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextstr(&line, &(sr.simResponse));
+        if (err < 0) goto out;
+    }
+
+    if (strlen(sr.simResponse) < 2) goto out;
+
+    unsigned char byteFdn[2];
+    memset(byteFdn, 0, sizeof(byteFdn));
+    convertHexToBin(sr.simResponse, strlen(sr.simResponse),
+                    (char *)byteFdn);
+    RLOGD("queryFDNServiceAvailable: byteFdn[0] = %d", byteFdn[0]);
+    if (app_type == RIL_APPTYPE_USIM) {
+        if ((byteFdn[0] & 0x02) != 0x02) status = 2;
+    } else if (app_type == RIL_APPTYPE_SIM) {
+        if (((byteFdn[0] >> 4) & 0x01) != 0x01) status = 2;
+    }
+out:
+    at_response_free(p_response);
+    return status;
 }
 
 static void requestSIM_IO(int channelID, void *data, size_t datalen,
