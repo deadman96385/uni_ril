@@ -79,14 +79,13 @@ error:
     err = at_tok_nextint(&line, &response.errorCode);
     if (err < 0) goto error1;
 
-    if ((response.errorCode != 313) && (response.errorCode != 512)) {
-        goto error1;
-    }
     if (response.errorCode == 313) {
         RIL_onRequestComplete(t, RIL_E_SMS_SEND_FAIL_RETRY, NULL, 0);
-    } else if (response.errorCode == 512 || response.errorCode == 128 ||
-                response.errorCode == 254) {
+    } else if (response.errorCode == 512  || response.errorCode == 128
+        || response.errorCode == 254 || response.errorCode == 514 || response.errorCode == 515) {
         RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
     return;
