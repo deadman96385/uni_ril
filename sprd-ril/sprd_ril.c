@@ -688,7 +688,7 @@ static void initializeCallback(void *param) {
     /* set some auto report AT command on or off */
     if (isVoLteEnable()) {
         at_send_command(s_ATChannels[channelID],
-            "AT+SPAURC=\"100110111110000000001000010000111111110001000111\"",
+            "AT+SPAURC=\"100110111110000000001000010000111111110001000110\"",
             NULL);
     } else {
         at_send_command(s_ATChannels[channelID],
