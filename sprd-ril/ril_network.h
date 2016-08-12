@@ -34,6 +34,42 @@ typedef enum {
     TD_AND_WCDMA = 255,
 } RadioFeatures;
 
+typedef enum {
+    NETWORK_MODE_WCDMA_PREF     = 0,  /* GSM/WCDMA (WCDMA preferred) */
+    NETWORK_MODE_GSM_ONLY       = 1,  /* GSM only */
+    NETWORK_MODE_WCDMA_ONLY     = 2,  /* WCDMA only */
+    NETWORK_MODE_GSM_UMTS       = 3,  /* GSM/WCDMA (auto mode, according to PRL)
+                                         AVAILABLE Application Settings menu */
+    NETWORK_MODE_CDMA           = 4,  /* CDMA and EvDo (auto mode, according to PRL)
+                                         AVAILABLE Application Settings menu */
+    NETWORK_MODE_CDMA_NO_EVDO   = 5,  /* CDMA only */
+    NETWORK_MODE_EVDO_NO_CDMA   = 6,  /* EvDo only */
+    NETWORK_MODE_GLOBAL         = 7,  /* GSM/WCDMA, CDMA, and EvDo (auto mode, according to PRL)
+                                         AVAILABLE Application Settings menu */
+    NETWORK_MODE_LTE_CDMA_EVDO  = 8,  /* LTE, CDMA and EvDo */
+    NETWORK_MODE_LTE_GSM_WCDMA  = 9,  /* LTE, GSM/WCDMA */
+    NETWORK_MODE_LTE_CDMA_EVDO_GSM_WCDMA = 10,  /* LTE, CDMA, EvDo, GSM/WCDMA */
+    NETWORK_MODE_LTE_ONLY       = 11,  /* LTE Only mode. */
+    NETWORK_MODE_LTE_WCDMA      = 12,  /* LTE/WCDMA */
+
+    NETWORK_MODE_BASE = 50,
+    NT_TD_LTE = NETWORK_MODE_BASE + 1,
+    NT_LTE_FDD = NETWORK_MODE_BASE + 2,
+    NT_LTE_FDD_TD_LTE = NETWORK_MODE_BASE + 3,
+    NT_LTE_FDD_WCDMA_GSM = NETWORK_MODE_BASE + 4,
+    NT_TD_LTE_WCDMA_GSM = NETWORK_MODE_BASE + 5,
+    NT_LTE_FDD_TD_LTE_WCDMA_GSM = NETWORK_MODE_BASE + 6,
+    NT_TD_LTE_TDSCDMA_GSM = NETWORK_MODE_BASE + 7,
+    NT_LTE_FDD_TD_LTE_TDSCDMA_GSM = NETWORK_MODE_BASE + 8,
+    NT_LTE_FDD_TD_LTE_WCDMA_TDSCDMA_GSM = NETWORK_MODE_BASE + 9,
+    NT_GSM = NETWORK_MODE_BASE + 10,
+    NT_WCDMA = NETWORK_MODE_BASE + 11,
+    NT_TDSCDMA = NETWORK_MODE_BASE + 12,
+    NT_TDSCDMA_GSM = NETWORK_MODE_BASE + 13,
+    NT_WCDMA_GSM = NETWORK_MODE_BASE + 14,
+    NT_WCDMA_TDSCDMA_GSM = NETWORK_MODE_BASE + 15,
+} NetworkMode;
+
 typedef struct {
     bool s_sim_busy;
     pthread_mutex_t s_sim_busy_mutex;

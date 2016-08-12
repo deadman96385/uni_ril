@@ -21,6 +21,8 @@
 #define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
 #define PHONE_EXTENSION_PROP    "ril.sim.phone_ex.start"
 #define COPS_MODE_PROP          "persist.sys.cops.mode"
+/* set network type for engineer mode */
+#define ENGTEST_ENABLE_PROP      "persist.radio.engtest.enable"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
@@ -1244,31 +1246,99 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
 
     int err, type = 0;
     char cmd[AT_COMMAND_LEN] = {0};
+    char prop[PROPERTY_VALUE_MAX];
     ATResponse *p_response = NULL;
     RIL_Errno errType = RIL_E_GENERIC_FAILURE;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    property_get(ENGTEST_ENABLE_PROP, prop, "false");
+
     pthread_mutex_lock(&s_workModeMutex);
-    switch (((int *)data)[0]) {
-        case 9:  // LTE
-            type = getMultiMode();
-            break;
-        case 0: {  // NETWORK_MODE_WCDMA_PREF
-            int mode = getMultiMode();
-            if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
-                type = TD_AND_WCDMA;
-            } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
-                type = WCDMA_AND_GSM;
-            } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
+    if (0 == strcmp(prop, "true")) {  // request by engineer mode
+        switch (((int *)data)[0]) {
+            case NT_TD_LTE:
+                type = TD_LTE;
+                break;
+            case NT_LTE_FDD:
+                type = LTE_FDD;
+                break;
+            case NT_LTE_FDD_TD_LTE:
+                type = TD_LTE_AND_LTE_FDD;
+                break;
+            case NT_LTE_FDD_WCDMA_GSM:
+                type = LTE_FDD_AND_W_AND_GSM_CSFB;
+                break;
+            case NT_TD_LTE_WCDMA_GSM:
+                type = TD_LTE_AND_W_AND_GSM_CSFB;
+                break;
+            case NT_LTE_FDD_TD_LTE_WCDMA_GSM:
+                type = TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB;
+                break;
+            case NT_TD_LTE_TDSCDMA_GSM:
+                type = TD_LTE_AND_TD_AND_GSM_CSFB;
+                break;
+            case NT_LTE_FDD_TD_LTE_TDSCDMA_GSM:
+                type = TD_LTE_AND_LTE_FDD_AND_TD_AND_GSM_CSFB;
+                break;
+            case NT_LTE_FDD_TD_LTE_WCDMA_TDSCDMA_GSM:
+                type = TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB;
+                break;
+            case NT_GSM:
+                type = PRIMARY_GSM_ONLY;
+                break;
+            case NT_WCDMA:
+                type = WCDMA_ONLY;
+                break;
+            case NT_TDSCDMA:
+                type = TD_ONLY;
+                break;
+            case NT_TDSCDMA_GSM:
                 type = TD_AND_GSM;
-            }
-            break;
+                break;
+            case NT_WCDMA_GSM:
+                type = WCDMA_AND_GSM;
+                break;
+            case NT_WCDMA_TDSCDMA_GSM:
+                type = TD_AND_WCDMA;
+                break;
+            default:
+                break;
         }
-        case 1:  // NETWORK_MODE_GSM_ONLY
-            type = PRIMARY_GSM_ONLY;
-            break;
-        default:
-            break;
+    } else {  // request by FWK
+        switch (((int *)data)[0]) {
+            case NETWORK_MODE_LTE_GSM_WCDMA:
+                type = getMultiMode();
+                break;
+            case NETWORK_MODE_WCDMA_PREF: {
+                int mode = getMultiMode();
+                if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
+                    type = TD_AND_WCDMA;
+                } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
+                    type = WCDMA_AND_GSM;
+                } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
+                    type = TD_AND_GSM;
+                }
+                break;
+            }
+            case NETWORK_MODE_GSM_ONLY:
+                type = PRIMARY_GSM_ONLY;
+                break;
+            case NETWORK_MODE_LTE_ONLY: {
+                int mode = getMultiMode();
+                if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB ||
+                    mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
+                    type = TD_LTE_AND_LTE_FDD;
+                } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
+                    type = TD_LTE;
+                }
+                break;
+            }
+            case NETWORK_MODE_WCDMA_ONLY:
+                type = WCDMA_ONLY;
+                break;
+            default:
+                break;
+        }
     }
     if (0 == type) {
         RLOGE("set preferred network failed, type incorrect: %d",
@@ -1434,16 +1504,24 @@ static void requestGetLTEPreferredNetType(int channelID,
         case TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB:
         case TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB:
         case TD_LTE_AND_TD_AND_GSM_CSFB:
-            type = 9;
+            type = NETWORK_MODE_LTE_GSM_WCDMA;
             break;
         case TD_AND_WCDMA:
         case WCDMA_AND_GSM:
         case TD_AND_GSM:
-            type = 0;
+            type = NETWORK_MODE_WCDMA_PREF;
             break;
         case PRIMARY_GSM_ONLY:
         case GSM_ONLY:
-            type = 1;
+            type = NETWORK_MODE_GSM_ONLY;
+            break;
+        case TD_LTE:
+        case LTE_FDD:
+        case TD_LTE_AND_LTE_FDD:
+            type = NETWORK_MODE_LTE_ONLY;
+            break;
+        case WCDMA_ONLY:
+            type = NETWORK_MODE_WCDMA_ONLY;
             break;
         default:
             break;
