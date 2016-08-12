@@ -423,6 +423,9 @@ static int queryAllActivePDN(int channelID) {
         if (err < 0) {
             pdns->nCid = -1;
         }
+        if (pdns->nCid > MAX_PDP) {
+            continue;
+        }
         err = at_tok_nextint(&line, &active);
         if (err < 0 || active == 0) {
             pdns->nCid = -1;
@@ -449,12 +452,10 @@ static int queryAllActivePDN(int channelID) {
         char *apn;
         err = at_tok_start(&line);
         if (err < 0) {
-            RLOGE("queryAllActivePDN CGDCONT? read line failed!");
             continue;
         }
         err = at_tok_nextint(&line, &cid);
-        if ((err < 0) || (cid != s_PDN[cid-1].nCid)) {
-            RLOGE("queryAllActivePDN CGDCONT? read cid failed!");
+        if ((err < 0) || (cid != s_PDN[cid-1].nCid) || cid > MAX_PDP) {
             continue;
         }
 
@@ -895,7 +896,9 @@ static void requestOrSendDataCallList(int channelID, int cid,
         snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, ncid - 1);
         property_get(cmd, prop, "0");
         ipType = atoi(prop);
-        RLOGD("prop = %s, ipType = %d", prop, ipType);
+        if (responses[i].active > 0) {
+            RLOGD("prop = %s, ipType = %d", prop, ipType);
+        }
         dnslist = alloca(DNSListSize);
 
         if (ipType == IPV4) {
@@ -990,18 +993,22 @@ static void requestOrSendDataCallList(int channelID, int cid,
             }
             responses[i].dnses = dnslist;
         } else {
-            RLOGE("Unknown IP type!");
+            if (responses[i].active > 0) {
+                RLOGE("Unknown IP type!");
+            }
         }
         responses[i].mtu = DEFAULT_MTU;
         if ((cid != -1) && (t == NULL)) {
-             RLOGE("i = %d", i);
+             if (responses[i].active > 0) {
+                 RLOGE("i = %d", i);
+             }
              if ((!responses[i].active) &&
                  strcmp(responses[i].addresses, "")) {
                  responses[i].status = PDP_FAIL_OPERATOR_BARRED;
                  RLOGE("responses[i].addresses = %s", responses[i].addresses);
              }
           }
-        if (responses[i].active == 1) {
+        if (responses[i].active > 0) {
             RLOGD("status=%d", responses[i].status);
             RLOGD("suggestedRetryTime=%d", responses[i].suggestedRetryTime);
             RLOGD("cid=%d", responses[i].cid);
@@ -1035,8 +1042,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                         RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
                                 sizeof(RIL_Data_Call_Response_v11));
                         /* send IP for volte addtional business */
-                        if (!(islte && s_LTEDetached[socket_id]) &&
-                            isVoLteEnable()) {
+                        if (s_workMode[socket_id] != GSM_ONLY || SIM_COUNT == 1) {
                             char cmd[AT_COMMAND_LEN] = {0};
                             char prop0[PROPERTY_VALUE_MAX] = {0};
                             char prop1[PROPERTY_VALUE_MAX] = {0};
@@ -1409,8 +1415,10 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
         if (pIAApn->apn != NULL) {
             if ((initialAttachApn->apn != NULL) &&
-                (strcmp(initialAttachApn->apn, pIAApn->apn) == 0)) {
-                needIPChange = 1;
+                (strcmp(initialAttachApn->apn, pIAApn->apn) != 0)) {
+                needIPChange++;
+            }
+            if (initialAttachApn->apn != NULL) {
                 free(initialAttachApn->apn);
             }
             initialAttachApn->apn = (char *)malloc(strlen(pIAApn->apn) + 1);
@@ -1419,10 +1427,11 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         }
 
         if (pIAApn->protocol != NULL) {
-            if (needIPChange && (initialAttachApn->protocol != NULL)
-                    && strcmp(initialAttachApn->protocol,
-                            pIAApn->protocol)) {
-                needIPChange = 2;
+            if ((initialAttachApn->protocol != NULL)
+                 && strcmp(initialAttachApn->protocol,pIAApn->protocol) != 0) {
+                needIPChange++;
+            }
+            if (initialAttachApn->protocol != NULL) {
                 free(initialAttachApn->protocol);
             }
             initialAttachApn->protocol = (char *)malloc(
@@ -1434,6 +1443,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         initialAttachApn->authtype = pIAApn->authtype;
 
         if (pIAApn->username != NULL) {
+            if (initialAttachApn->username != NULL) {
+                free(initialAttachApn->username);
+            }
             initialAttachApn->username = (char *)malloc(
                     strlen(pIAApn->username) + 1);
             snprintf(initialAttachApn->username, strlen(pIAApn->username) + 1,
@@ -1441,6 +1453,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         }
 
         if (pIAApn->password != NULL) {
+            if (initialAttachApn->password != NULL) {
+                free(initialAttachApn->password);
+            }
             initialAttachApn->password = (char *)malloc(
                     strlen(pIAApn->password) + 1);
             snprintf(initialAttachApn->password, strlen(pIAApn->password) + 1,
@@ -1466,7 +1481,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                   initialAttachId, s_trafficClass[socket_id]);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
-    if (needIPChange == 2) {
+    if (needIPChange > 0) {
         at_send_command(s_ATChannels[channelID], "AT+SPIPTYPECHANGE=1", NULL);
     }
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -1517,15 +1532,19 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
 
 #if defined (ANDROID_MULTI_SIM)
     if (islte && (s_presentSIMCount == SIM_COUNT) &&
-            s_workMode[socket_id] == GSM_ONLY &&
             s_sessionId[socket_id] == 0) {
-         snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
-         at_send_command(s_ATChannels[channelID], cmd, NULL);
-         err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
-                               &p_response);
-         if (err < 0 || p_response->success == 0) {
-             goto error;
-         }
+        if (s_workMode[socket_id] == GSM_ONLY ) {
+                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
+                 at_send_command(s_ATChannels[channelID], cmd, NULL);
+                 err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
+                                       &p_response);
+                 if (err < 0 || p_response->success == 0) {
+                     goto error;
+                 }
+        } else {
+             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", 1 - socket_id);
+             at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
     }
 #endif
     if (!islte) {
@@ -1572,16 +1591,19 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
                 AT_RESPONSE_FREE(p_response);
             }
         }
-        err = at_send_command(s_ATChannels[channelID], "AT+SGFD", &p_response);
-        if (err < 0 || p_response->success == 0) {
-            goto error;
-        }
-        AT_RESPONSE_FREE(p_response);
 #if defined (ANDROID_MULTI_SIM)
-        if ((s_presentSIMCount == SIM_COUNT) &&
-                s_workMode[socket_id] == GSM_ONLY) {
+        if (s_presentSIMCount == SIM_COUNT) {
             RLOGD("simID = %d", socket_id);
-            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+            if (s_workMode[socket_id] == GSM_ONLY) {
+                err = at_send_command(s_ATChannels[channelID], "AT+SGFD", &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    goto error;
+                }
+                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", 1 - socket_id);
+
+            }
             err = at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
 #endif

@@ -2438,7 +2438,9 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (s_isLTE) {
             if (commas == 0 && lteState == 0) {
                 s_in4G[socket_id] = 0;
-                s_LTEDetached[socket_id] = true;
+                if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+                    s_LTEDetached[socket_id] = true;
+                }
             }
         }
 
