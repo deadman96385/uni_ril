@@ -1987,6 +1987,11 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
+    // If power off sim success, send following AT to no response setupmenu of STK
+    if (onOff == 0) {
+        err = at_send_command(s_ATChannels[channelID], "AT+SPUSATAPREADY=0",
+                              NULL);
+    }
     at_response_free(p_response);
     if (t != NULL) {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
