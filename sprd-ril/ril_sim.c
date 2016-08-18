@@ -734,6 +734,9 @@ static void requestEnterSimPin(int channelID, void *data, size_t datalen,
 
 out:
         remaintime = getSimlockRemainTimes(channelID, rsqtype);
+        if (UNLOCK_PUK == rsqtype) {
+            getSimlockRemainTimes(channelID, UNLOCK_PIN);
+        }
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &remaintime,
                 sizeof(remaintime));
         simstatus = getSIMStatus(channelID);
@@ -752,6 +755,34 @@ error:
     remaintime = getSimlockRemainTimes(channelID, rsqtype);
     RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, &remaintime,
                           sizeof(remaintime));
+    at_response_free(p_response);
+}
+
+static void requestEnterSimPin2(int channelID, void *data, size_t datalen,
+                                RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    int remaintimes = 3;
+    char cmd[AT_COMMAND_LEN];
+    ATResponse *p_response = NULL;
+    SimUnlockType rsqtype = UNLOCK_PIN2;
+    RIL_Errno errnoType = RIL_E_PASSWORD_INCORRECT;
+
+    const char **pin2 = (const char **)data;
+    snprintf(cmd, sizeof(cmd), "AT+ECPIN2=\"%s\"", pin2[0]);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        errnoType = RIL_E_PASSWORD_INCORRECT;
+        goto out;
+    }
+
+    errnoType = RIL_E_SUCCESS;
+
+out:
+    remaintimes = getSimlockRemainTimes(channelID, rsqtype);
+    RIL_onRequestComplete(t, errnoType, &remaintimes,
+                          sizeof(remaintimes));
     at_response_free(p_response);
 }
 
@@ -781,6 +812,7 @@ static void requestEnterSimPuk2(int channelID, void *data, size_t datalen,
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
     getSimlockRemainTimes(channelID, UNLOCK_PUK2);
+    getSimlockRemainTimes(channelID, UNLOCK_PIN2);
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
@@ -2532,8 +2564,10 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_ENTER_SIM_PIN :
         case RIL_REQUEST_ENTER_SIM_PUK :
-        case RIL_REQUEST_ENTER_SIM_PIN2 :
             requestEnterSimPin(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_ENTER_SIM_PIN2 :
+            requestEnterSimPin2(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ENTER_SIM_PUK2 :
             requestEnterSimPuk2(channelID, data, datalen, t);
