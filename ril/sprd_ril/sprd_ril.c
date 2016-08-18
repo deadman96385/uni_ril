@@ -13789,7 +13789,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                             RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0);
                 }
 #if defined (RIL_SPRD_EXTENSION)
-                if(response->type == 1 || response->type == 3) {
+                if(response->type == 2 || response->type == 3) {
                     if (at_tok_hasmore(&tmp)) {
                         err = at_tok_nextint(&tmp, &response->location);
                         if (err < 0) {
@@ -13867,7 +13867,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
                         NULL, 0);
                 goto out;
-            } else if (response->type == 1) {
+            } else if (response->type == 2 || response->type == 3) {
 #if defined (RIL_SPRD_EXTENSION)
                 RIL_onUnsolicitedResponse (
                         RIL_UNSOL_RESPONSE_VIDEOCALL_STATE_CHANGED,
