@@ -1127,7 +1127,7 @@ void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
         }
 
         if (socket_id >= RIL_SOCKET_1 && socket_id < RIL_SOCKET_NUM &&
-                (p[socket_id] != NULL)) {
+                (p[socket_id] != NULL) && strcmp(p[socket_id], "")) {
             memcpy(value, p[socket_id], strlen(p[socket_id]) + 1);
             return;
         }
