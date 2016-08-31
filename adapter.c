@@ -981,7 +981,8 @@ int cvt_csq_cmd_ind(AT_CMD_IND_T *ind) {
         rssi[ind_sim] = ((rssi[ind_sim] - 103) + 1) / 2;
     } else if (rssi[ind_sim] >= 165 && rssi[ind_sim] <= 191) {
         rssi[ind_sim] = 31;
-    } else {
+    } else if ((rssi[ind_sim] > 31 && rssi[ind_sim] < 100 ) ||
+                rssi[ind_sim] > 191) {
         rssi[ind_sim] = 99;
     }
     if (berr[ind_sim] > 99) {

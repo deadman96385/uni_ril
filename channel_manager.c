@@ -635,7 +635,7 @@ static void *signal_process() {
                 }
             }
 
-            if (rscp_array != NULL) {  // w/td mode no rscp
+            if (rscp_array != NULL) {
                 rscp_array[SIG_POOL_SIZE - 1] = newSig;
                 if (rscp_array[SIG_POOL_SIZE - 1]
                         >= rscp_array[SIG_POOL_SIZE - 2]) {  // signal go up
