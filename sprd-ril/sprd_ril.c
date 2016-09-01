@@ -109,7 +109,7 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 #endif
 };
 
-sem_t s_sem;
+sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
@@ -725,7 +725,7 @@ static void initializeCallback(void *param) {
     putChannel(channelID);
 
     list_init(&s_DTMFList[socket_id]);
-    sem_post(&s_sem);
+    sem_post(&(s_sem[socket_id]));
 }
 
 static void waitForClose(RIL_SOCKET_ID socket_id) {
@@ -969,22 +969,20 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    sem_init(&s_sem, 0, 1);
-
     at_set_on_reader_closed(onATReaderClosed);
     at_set_on_timeout(onATTimeout);
 
     int simId;
     for (simId = 0; simId < SIM_COUNT; simId++) {
+        sem_init(&(s_sem[simId]), 0, 1);
         ret = pthread_create(&s_mainLoopTid[simId], &attr, mainLoop,
                 (void *)&s_socketId[simId]);
+        sem_wait(&(s_sem[simId]));
     }
 
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
     initSIMVariables();
-
-    sem_wait(&s_sem);
 
     setHwVerPorp();
 

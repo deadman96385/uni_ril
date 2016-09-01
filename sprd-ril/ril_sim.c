@@ -14,7 +14,9 @@
 #include "ril_async_cmd_handler.h"
 
 /* Property to save pin for modem assert */
-#define RIL_SIM_PIN_PROPERTY                    "ril.sim.pin"
+#define SIM_PIN_PROP                            "ril.sim.pin"
+#define MODEM_ASSERT_PROP                       "ril.modem.assert"
+#define SIM_OFF_PROP                            "ril.sim.off"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -210,6 +212,106 @@ done:
     return;
 }
 
+void encryptPin(int len, char *pin, unsigned char encryptPin[17]) {
+    int encryptArray[10][10] = {
+            {'r', 's', 'e', 'f', 'a', 'q', 't', 'd', 'w', 'c'},
+            {'1', '6', '2', '3', '0', '5', '4', '8', '9', '7'},
+            {'z', 's', 'e', 't', 'g', 'j', 'k', 'n', 'p', 'c'},
+            {'a', 'u', 'e', 'n', 'z', 'k', 'd', 'm', 'r', 'c'},
+            {'u', 't', 'e', 's', 'd', 'g', 'k', 'b', 'c', 'z'},
+            {'e', 'r', 'i', 'f', 'd', 'j', 'l', 'm', 'c', 'x'},
+            {'5', '2', '7', '8', '4', '1', '3', '6', '0', '9'},
+            {'z', 's', 'e', 't', 'g', 'j', 'k', 'n', 'p', 'c'},
+            {'1', '6', '2', '3', '0', '5', '4', '8', '9', '7'},
+            {'s', 'd', 'f', 'z', 'w', 'e', 't', 'j', 'l', 'c'}};
+
+    int randEncryptArray[10] =
+            {'p', 'a', 'r', 'k', 'y', 'o', 'u', 'n', 'g', 'j'};
+
+    int lenData = len;
+    int i = 0;
+    int offset = 0;
+
+    encryptPin[offset] = randEncryptArray[lenData];
+    offset++;
+
+    srand((unsigned int)time(0));
+
+    for (i = 0; i < 8; i++) {
+        int code = 0;
+        int randVal = rand() % 10;
+        encryptPin[offset] = randEncryptArray[randVal];
+        offset++;
+
+        if (i < lenData) {
+            code = pin[i] - 0x30;
+        } else {
+            code = rand() % 10;
+        }
+        encryptPin[offset] = encryptArray[randVal][code];
+        offset++;
+    }
+    return;
+}
+
+void decryptPin(char *pin, unsigned char encryptedPin[17]) {
+    int encryptArray[10][10] = {
+            {'r', 's', 'e', 'f', 'a', 'q', 't', 'd', 'w', 'c'},
+            {'1', '6', '2', '3', '0', '5', '4', '8', '9', '7'},
+            {'z', 's', 'e', 't', 'g', 'j', 'k', 'n', 'p', 'c'},
+            {'a', 'u', 'e', 'n', 'z', 'k', 'd', 'm', 'r', 'c'},
+            {'u', 't', 'e', 's', 'd', 'g', 'k', 'b', 'c', 'z'},
+            {'e', 'r', 'i', 'f', 'd', 'j', 'l', 'm', 'c', 'x'},
+            {'5', '2', '7', '8', '4', '1', '3', '6', '0', '9'},
+            {'z', 's', 'e', 't', 'g', 'j', 'k', 'n', 'p', 'c'},
+            {'1', '6', '2', '3', '0', '5', '4', '8', '9', '7'},
+            {'s', 'd', 'f', 'z', 'w', 'e', 't', 'j', 'l', 'c'}};
+
+    int randEncryptArray[10] =
+            {'p', 'a', 'r', 'k', 'y', 'o', 'u', 'n', 'g', 'j'};
+
+    int i = 0;
+    int j = 0;
+    int offset = 0;
+    int pinLen = -1;
+    for (i = 0; i < 10; i++) {
+        if (randEncryptArray[i] == encryptedPin[offset]) {
+            pinLen = i;
+        }
+    }
+    if (pinLen == -1) {
+        RLOGD("Cant find SR Len");
+        return;
+    }
+    offset++;
+    for (i = 0; i < pinLen; i++) {
+        int randVal = -1;
+        for (j = 0; j < 10; j++) {
+            if (randEncryptArray[j] == encryptedPin[offset]) {
+                randVal = j;
+            }
+        }
+        if (randVal == -1) {
+            RLOGD("Cant find Val");
+            return;
+        }
+        offset++;
+        for (j = 0; j < 10; j++) {
+            if (encryptArray[randVal][j] == encryptedPin[offset]) {
+                pin[i] = j + 0x30;
+                offset++;
+                break;
+            }
+        }
+        if (j == 10) {
+            RLOGD("Cant find the Code");
+            return;
+        }
+    }
+
+    return;
+}
+
 /* Returns SIM_NOT_READY on error */
 SimStatus getSIMStatus(int channelID) {
     ATResponse *p_response = NULL;
@@ -219,6 +321,8 @@ SimStatus getSIMStatus(int channelID) {
     char *cpinResult;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    sem_wait(&(s_sem[socket_id]));
+
     if (s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE) {
         ret = SIM_NOT_READY;
         goto done;
@@ -267,13 +371,49 @@ SimStatus getSIMStatus(int channelID) {
     }
 
     if (0 == strcmp(cpinResult, "SIM PIN")) {
+        char modemAssertProp[PROPERTY_VALUE_MAX];
+        char simOffProp[PROPERTY_VALUE_MAX];
+
+        getProperty(socket_id, MODEM_ASSERT_PROP, modemAssertProp, "0");
+        getProperty(socket_id, SIM_OFF_PROP, simOffProp, "0");
+        if (strcmp(modemAssertProp, "1") == 0 ||
+                strcmp(simOffProp, "1") == 0) {
+            setProperty(socket_id, MODEM_ASSERT_PROP, "0");
+            setProperty(socket_id, SIM_OFF_PROP, "0");
+
+            char cmd[AT_COMMAND_LEN];
+            char pin[PROPERTY_VALUE_MAX];
+            char encryptedPin[PROPERTY_VALUE_MAX];
+            ATResponse *p_resp = NULL;
+
+            memset(pin, 0, sizeof(pin));
+            getProperty(socket_id, SIM_PIN_PROP, encryptedPin, "");
+            decryptPin(pin, (unsigned char *)encryptedPin);
+
+            if (strlen(pin) != 4) {
+                goto out;
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+CPIN=%s", pin);
+                err = at_send_command(s_ATChannels[channelID], cmd, &p_resp);
+                if (err < 0 || p_resp->success == 0) {
+                    at_response_free(p_resp);
+                    goto out;
+                }
+                at_response_free(p_resp);
+                ret = SIM_NOT_READY;
+                goto done;
+            }
+        }
+
+out:
         ret = SIM_PIN;
         goto done;
     } else if (0 == strcmp(cpinResult, "SIM PUK")) {
         ret = SIM_PUK;
         goto done;
     } else if (0 == strcmp(cpinResult, "PH-NET PIN")) {
-        return SIM_NETWORK_PERSONALIZATION;
+        ret = SIM_NETWORK_PERSONALIZATION;
+        goto done;
     } else if (0 == strcmp(cpinResult, "PH-NETSUB PIN")) {
         ret = SIM_NETWORK_SUBSET_PERSONALIZATION;
         goto done;
@@ -353,6 +493,7 @@ done:
         s_imsInitISIM[socket_id] = -1;
     }
     /** }@ */
+    sem_post(&(s_sem[socket_id]));
 
     return ret;
 }
@@ -720,16 +861,19 @@ static void requestEnterSimPin(int channelID, void *data, size_t datalen,
         /* add for modem reboot */
         const char *pin = NULL;
 
-        if (datalen == sizeof(char *)) {
+        if (datalen == 2 * sizeof(char *)) {
             pin = strings[0];
-        } else if (datalen == 2 * sizeof(char *)) {
+        } else if (datalen == 3 * sizeof(char *)) {
             pin = strings[1];
         } else {
             goto out;
         }
 
         if (pin != NULL) {
-            setProperty(socket_id, RIL_SIM_PIN_PROPERTY, pin);
+            unsigned char encryptedPin[ARRAY_SIZE];
+            memset(encryptedPin, 0, sizeof(encryptedPin));
+            encryptPin(strlen(pin), (char *)pin, encryptedPin);
+            setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
         }
 
 out:
@@ -866,10 +1010,12 @@ static void requestChangeSimPin(int channelID, void *data, size_t datalen,
         /* add for modem reboot */
         const char *pin = NULL;
         pin = strings[1];
+        unsigned char encryptedPin[ARRAY_SIZE];
 
         RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-        setProperty(socket_id, RIL_SIM_PIN_PROPERTY, pin);
+        memset(encryptedPin, 0, sizeof(encryptedPin));
+        encryptPin(strlen(pin), (char *)pin, encryptedPin);
+        setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -996,8 +1142,12 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
             /* add for modem reboot */
             char *pin = NULL;
             pin = data[2];
+            unsigned char encryptedPin[ARRAY_SIZE];
 
-            setProperty(socket_id, RIL_SIM_PIN_PROPERTY, pin);
+            memset(encryptedPin, 0, sizeof(encryptedPin));
+            encryptPin(strlen(pin), pin, encryptedPin);
+            setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
+
             getSimlockRemainTimes(channelID, UNLOCK_PIN);
         } else if (!strcmp(data[0], "FD")) {
             getSimlockRemainTimes(channelID, UNLOCK_PIN2);
@@ -1989,6 +2139,7 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     }
     // If power off sim success, send following AT to no response setupmenu of STK
     if (onOff == 0) {
+        setProperty(socket_id, SIM_OFF_PROP, "1");
         err = at_send_command(s_ATChannels[channelID], "AT+SPUSATAPREADY=0",
                               NULL);
     }
@@ -2553,9 +2704,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             char *p_buffer;
             int buffer_size;
 
-            sem_wait(&s_sem);
             int result = getCardStatus(channelID, &p_card_status);
-            sem_post(&s_sem);
             if (result == RIL_E_SUCCESS) {
                 p_buffer = (char *)p_card_status;
                 buffer_size = sizeof(*p_card_status);
@@ -2770,6 +2919,7 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                                 (void *)&s_socketId[socket_id], NULL);
                     }
                     if (cause == 34) {  // sim removed
+                        setProperty(socket_id, SIM_OFF_PROP, "0");
                         s_simState[socket_id] = SIM_REMOVE;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
