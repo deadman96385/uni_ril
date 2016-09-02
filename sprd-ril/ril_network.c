@@ -130,6 +130,18 @@ int isSimPresent(RIL_SOCKET_ID socket_id) {
     return hasSim;
 }
 
+void initSIMPresentState() {
+    int simId = 0;
+    pthread_mutex_lock(&s_presentSIMCountMutex);
+    s_presentSIMCount = 0;
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        if (isSimPresent(simId) == 1) {
+            ++s_presentSIMCount;
+        }
+    }
+    pthread_mutex_unlock(&s_presentSIMCountMutex);
+}
+
 int getMultiMode() {
     char prop[PROPERTY_VALUE_MAX] = {0};
     int workMode = 0;
@@ -161,6 +173,8 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
               workMode = TD_AND_WCDMA;
         }
     }
+
+    initSIMPresentState();
     RLOGD("getWorkmode: s_presentSIMCount = %d", s_presentSIMCount);
 #if (SIM_COUNT == 2)
     if (s_presentSIMCount == 0) {  // no SIM card
@@ -208,18 +222,6 @@ void buildWorkModeCmd(char *cmd, size_t size) {
             snprintf(cmd, size, strFormatter, getWorkMode(simId));
         }
     }
-}
-
-void initSIMPresentState() {
-    int simId = 0;
-    pthread_mutex_lock(&s_presentSIMCountMutex);
-    s_presentSIMCount = 0;
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        if (isSimPresent(simId) == 1) {
-            ++s_presentSIMCount;
-        }
-    }
-    pthread_mutex_unlock(&s_presentSIMCountMutex);
 }
 
 void *setRadioOnWhileSimBusy(void *param) {
@@ -861,7 +863,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     s_desiredRadioState[socket_id] = ((int *)data)[0];
     if (s_desiredRadioState[socket_id] == 0) {
         int sim_status = getSIMStatus(channelID);
-        initSIMPresentState();
 
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],
@@ -897,6 +898,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
            }
         }
 #endif
+        initSIMPresentState();
         buildWorkModeCmd(cmd, sizeof(cmd));
         at_send_command(s_ATChannels[channelID], cmd, NULL);
 
