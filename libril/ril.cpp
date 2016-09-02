@@ -304,6 +304,7 @@ typedef struct {
     char *buffer;
     size_t buflen;
     RIL_SOCKET_TYPE socket_type;
+    RIL_SOCKET_ID socket_id;
 } RequestThreadData;
 
 typedef struct ListNode {
@@ -334,6 +335,12 @@ typedef struct {
 } RequestThreadInfo;
 
 RequestThreadInfo s_requestThread[SIM_COUNT];
+
+#if defined (ANDROID_MULTI_SIM)
+ListNode *s_dataReqList = NULL;
+pthread_mutex_t s_dataDispatchMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_dataDispatchCond  = PTHREAD_COND_INITIALIZER;
+#endif
 
 const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
         RIL_SOCKET_1
@@ -4607,6 +4614,39 @@ static void *normalDispatch(void *param) {
     return NULL;
 }
 
+#if defined (ANDROID_MULTI_SIM)
+static void *dataDispatch(void *param __unused) {
+    ListNode *cmd_item;
+    pid_t tid;
+    tid = gettid();
+
+    pthread_mutex_t *dataDispatchMutex = &s_dataDispatchMutex;
+    pthread_cond_t *dataDispatchCond = &s_dataDispatchCond;
+    ListNode *dataList = s_dataReqList;
+
+    while (1) {
+        pthread_mutex_lock(dataDispatchMutex);
+        if (dataList->next == dataList) {
+            pthread_cond_wait(dataDispatchCond, dataDispatchMutex);
+        }
+        pthread_mutex_unlock(dataDispatchMutex);
+
+        for (cmd_item = dataList->next; cmd_item != dataList;
+                cmd_item = dataList->next) {
+            processCommandBuffer(cmd_item->p_reqData->buffer,
+                    cmd_item->p_reqData->buflen, cmd_item->p_reqData->socket_id,
+                    cmd_item->p_reqData->socket_type);
+            RLOGI("-->dataDispatch [%d] free one command", tid);
+            list_remove(cmd_item, RIL_SOCKET_1);  /* remove list node first, then free it */
+            free(cmd_item->p_reqData->buffer);
+            free(cmd_item->p_reqData);
+            free(cmd_item);
+        }
+    }
+    return NULL;
+}
+#endif
+
 static void CommandThread(void *arg, void *socket_id) {
     pid_t tid;
     tid = gettid();
@@ -4711,6 +4751,7 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             }
             p_reqData->buflen = recordlen;
             p_reqData->socket_type = p_info->type;
+            p_reqData->socket_id = socket_id;
             memcpy(p_reqData->buffer, p_record, recordlen);
 
             cmd_item->p_reqData = p_reqData;
@@ -4764,8 +4805,10 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                 || pCI->requestNumber == RIL_REQUEST_QUERY_CALL_WAITING
                 || pCI->requestNumber == RIL_REQUEST_SET_CALL_WAITING
                 || pCI->requestNumber == RIL_REQUEST_QUERY_CLIP
+#if (SIM_COUNT == 1)
                 || pCI->requestNumber == RIL_REQUEST_ALLOW_DATA
                 || pCI->requestNumber == RIL_REQUEST_SETUP_DATA_CALL
+#endif
                 || pCI->requestNumber == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
                 list_add_tail(cmdList->slowReqList, cmd_item, socket_id);
                 pthread_mutex_lock(&(cmdList->slowDispatchMutex));
@@ -4813,6 +4856,15 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                 pthread_mutex_lock(&(cmdList->normalDispatchMutex));
                 pthread_cond_signal(&(cmdList->normalDispatchCond));
                 pthread_mutex_unlock(&(cmdList->normalDispatchMutex));
+#if defined (ANDROID_MULTI_SIM)
+            } else if (pCI->requestNumber == RIL_REQUEST_ALLOW_DATA
+                    || pCI->requestNumber == RIL_REQUEST_SETUP_DATA_CALL) {
+                RLOGD("add sim%d %s to datalist", socket_id, requestToString(request));
+                list_add_tail(s_dataReqList, cmd_item, RIL_SOCKET_1);
+                pthread_mutex_lock(&s_dataDispatchMutex);
+                pthread_cond_signal(&s_dataDispatchCond);
+                pthread_mutex_unlock(&s_dataDispatchMutex);
+#endif
             } else {
                 list_add_tail(cmdList->otherReqList, cmd_item, socket_id);
                 pthread_mutex_lock(&(cmdList->otherDispatchMutex));
@@ -5428,6 +5480,18 @@ static int creatProcessThread(RIL_SOCKET_ID socket_id) {
         RLOGE("Failed to create other dispatch thread errno: %s", strerror(errno));
         return 1;
     }
+
+#if defined (ANDROID_MULTI_SIM)
+    if (socket_id == RIL_SOCKET_1) {
+        list_init(&s_dataReqList);
+        pthread_t tid;
+        ret = pthread_create(&tid, &attr, dataDispatch, NULL);
+        if (ret < 0) {
+            RLOGE("Failed to create data dispatch thread errno: %s", strerror(errno));
+            return 1;
+        }
+    }
+#endif
 
     return 0;
 }
@@ -6695,7 +6759,7 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
     if (p_info->type == RIL_OEM_SOCKET) {
         // Inform oem socket that modem maybe assert or reset
         RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
-                                  p_info->socket_id);
+                           p_info->socket_id);
     }
 }
 
