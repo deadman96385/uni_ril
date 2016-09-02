@@ -330,6 +330,18 @@ static int mapRegState(int inResponse) {
     return outResponse;
 }
 
+/* 1 explain that CS/PS domain is 4G */
+int is4G(int urcNetType, int mapNetType, RIL_SOCKET_ID socketId) {
+    if (urcNetType == 7 || urcNetType == 16) {
+        s_in4G[socketId] = 1;
+    } else if (mapNetType == 14 || mapNetType == 19) {
+        s_in4G[socketId] = 1;
+    } else {
+        s_in4G[socketId] = 0;
+    }
+    return s_in4G[socketId];
+}
+
 static void requestSignalStrength(int channelID, void *data,
                                       size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -657,11 +669,7 @@ static void requestRegistrationState(int channelID, int request,
                 s_PSRegState[socket_id] = STATE_IN_SERVICE;
             }
             pthread_mutex_unlock(&s_LTEAttachMutex[socket_id]);
-            if (response[3] == 14 || response[3] == 19) {
-                s_in4G[socket_id] = 1;
-            } else {
-                s_in4G[socket_id] = 0;
-            }
+            is4G(-1, response[3], socket_id);
         } else {
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
             if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
@@ -675,7 +683,7 @@ static void requestRegistrationState(int channelID, int request,
     if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
         snprintf(res[4], sizeof(res[4]), "0");
         responseStr[7] = res[4];
-        if (islte && response[3] == 14) {
+        if (islte && s_in4G[socket_id]) {
             queryCeregTac(channelID, &(response[1]));
             snprintf(res[1], sizeof(res[1]), "%x", response[1]);
             responseStr[1] = res[1];
@@ -2506,9 +2514,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 err = at_tok_nextint(&tmp, &netType);
                 if (err < 0) goto out;
             }
-            if (netType == 7 || netType == 16) {
-                s_in4G[socket_id] = 1;
-            }
+            is4G(netType, -1, socket_id);
             RLOGD("netType is %d", netType);
             pthread_mutex_lock(&s_LTEAttachMutex[socket_id]);
             if (s_PSRegState[socket_id] == STATE_OUT_OF_SERVICE) {
