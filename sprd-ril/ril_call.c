@@ -1192,11 +1192,6 @@ static void requestSwitchMultiCall(int channelID, void *data,
 
 process:
     AT_RESPONSE_FREE(p_response);
-    err = at_send_command(s_ATChannels[channelID], "AT+CMUT=0", &p_response);
-    if (err < 0 || p_response->success == 0) {
-        goto error;
-    }
-    AT_RESPONSE_FREE(p_response);
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=2", &p_response);
     if (err < 0 || p_response->success == 0) {
         goto error;
