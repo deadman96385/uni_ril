@@ -1251,12 +1251,10 @@ int adapter_cmux_write(cmux_t *mux, char *buf, int __attribute__((unused)) len,
 
     mutex_lock(&mux->mutex_timeout);
     ret = mux->ops->cmux_write(mux, str, strlen(str));
-    if (to < 0) {
-        timeout.tv_sec = time(NULL) - to;
-    } else {
-        timeout.tv_sec = time(NULL) + to;
-    }
-    timeout.tv_nsec = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &timeout);
+    timeout.tv_sec += to;
+
     seconds = time((time_t *)NULL);
     PHS_LOGD("[%d] before timeout (%d)", tid, seconds);
     int err = thread_cond_timedwait(&mux->cond_timeout, &mux->mutex_timeout,
@@ -1320,8 +1318,10 @@ int adapter_cmux_write_for_ps(cmux_t *mux, char *buf,
 
     mutex_lock(&mux->mutex_timeout);
     ret = mux->ops->cmux_write(mux, str, strlen(str));
-    timeout.tv_sec = time(NULL) + to;
-    timeout.tv_nsec = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &timeout);
+    timeout.tv_sec += to;
+
     seconds = time((time_t *)NULL);
     PHS_LOGD("[%d] before timeout (%d)", tid, seconds);
     int err = thread_cond_timedwait(&mux->cond_timeout, &mux->mutex_timeout,

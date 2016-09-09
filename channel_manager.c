@@ -399,6 +399,10 @@ static void chnmng_cmux_Init(channel_manager_t *const me) {
     int chn_num = MUX_NUM;
     chns_config_t chns_data = s_chns_data;
     struct termios ser_settings;
+    pthread_condattr_t attr;
+
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 
     snprintf(MUX_SP_DEV, sizeof(MUX_SP_DEV), "ro.modem.%s.tty", s_modem);
     if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
@@ -438,7 +442,7 @@ static void chnmng_cmux_Init(channel_manager_t *const me) {
         }
         PHS_LOGD("CHNMNG: open mux: %s fd=%d", me->itsCmux[i].name,
                  me->itsCmux[i].muxfd);
-        cond_init(&me->itsCmux[i].cond_timeout, NULL);
+        cond_init(&me->itsCmux[i].cond_timeout, &attr);
         mutex_init(&me->itsCmux[i].mutex_timeout, NULL);
         me->itsReceive_thread[i].mux = &me->itsCmux[i];
         me->itsReceive_thread[i].ops = receive_thread_get_operations();
