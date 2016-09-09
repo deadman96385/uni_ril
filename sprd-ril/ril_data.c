@@ -1531,8 +1531,7 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     }
 
 #if defined (ANDROID_MULTI_SIM)
-    if (islte && (s_presentSIMCount == SIM_COUNT) &&
-            s_sessionId[socket_id] == 0) {
+    if (islte) {
         if (s_workMode[socket_id] == GSM_ONLY ) {
                  snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
                  at_send_command(s_ATChannels[channelID], cmd, NULL);
