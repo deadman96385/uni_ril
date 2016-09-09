@@ -926,7 +926,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
 #endif
         } else {
 #if defined (ANDROID_MULTI_SIM)
-            if (s_presentSIMCount == 1) {
+            if (s_presentSIMCount == 2) {
                 if (s_dataAllowed[socket_id] == 1) {
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=1", NULL);
@@ -934,6 +934,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=0", NULL);
                 }
+            } else {
+                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
             }
 #else
             at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);

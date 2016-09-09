@@ -24,6 +24,7 @@ static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
 static RIL_InitialAttachApn *s_initialAttachAPNs[SIM_COUNT] = {0};
+static int s_autoDetach = 1;  /* whether support auto detach */
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
         PDP_FAIL_ERROR_UNSPECIFIED
@@ -70,7 +71,7 @@ static PDNInfo s_PDN[MAX_PDP_CP] = {
     { -1, "", ""},
     { -1, "", ""}
 };
-
+static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
 static int getPDP(RIL_SOCKET_ID socket_id) {
     int ret = -1;
     int i;
@@ -1324,7 +1325,11 @@ static void deactivateDataConnection(int channelID, void *data,
     ATResponse *p_response = NULL;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
+    if (s_dataAllowed[socket_id] == 0 && s_autoDetach == 1) {
+        RLOGD("deactivateDC s_dataAllowed[%d]=%d", socket_id,
+              s_dataAllowed[socket_id]);
+        goto error;
+    }
     p_cid = ((const char **)data)[0];
     cid = atoi(p_cid);
     if (cid < 1) {
@@ -1513,6 +1518,14 @@ static void requestDataCallList(int channelID, void *data, size_t datalen,
     requestOrSendDataCallList(channelID, -1, &t);
 }
 
+static void doDetachGPRS(RIL_SOCKET_ID socket_id, void *data, size_t datalen,
+                         RIL_Token t) {
+    int detachChannelID = getChannel(socket_id);
+    RLOGD("doDetachGPRS socket_id = %d", socket_id);
+    detachGPRS(detachChannelID, data, datalen, t);
+    putChannel(detachChannelID);
+}
+
 static void attachGPRS(int channelID, void *data, size_t datalen,
                           RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -1530,19 +1543,30 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
         goto error;
     }
 
+    if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+        RLOGD("s_PSRegState[%d] = %d", socket_id, s_PSRegState[socket_id]);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+
 #if defined (ANDROID_MULTI_SIM)
+
+    if (s_autoDetach == 1) {
+        doDetachGPRS(1 - socket_id, data, datalen, NULL);
+    }
     if (islte) {
         if (s_workMode[socket_id] == GSM_ONLY ) {
-                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
-                 at_send_command(s_ATChannels[channelID], cmd, NULL);
-                 err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
-                                       &p_response);
-                 if (err < 0 || p_response->success == 0) {
-                     goto error;
-                 }
+            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
+                                   &p_response);
+            if (err < 0 || p_response->success == 0) {
+                 goto error;
+            }
         } else {
-             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", 1 - socket_id);
-             at_send_command(s_ATChannels[channelID], cmd, NULL);
+            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", 1 - socket_id);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
     }
 #endif
@@ -1553,6 +1577,7 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
             goto error;
         }
     }
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     at_response_free(p_response);
     return;
@@ -1613,8 +1638,10 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
         }
     }
 
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 
 error:
@@ -1627,13 +1654,17 @@ void requestAllowData(int channelID, void *data, size_t datalen,
                          RIL_Token t) {
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_dataAllowed[socket_id] = ((int *)data)[0];
-    RLOGD("s_desiredRadioState[%d] = %d", socket_id,
-          s_desiredRadioState[socket_id]);
+    RLOGD("s_desiredRadioState[%d] = %d, s_autoDetach = %d", socket_id,
+          s_desiredRadioState[socket_id], s_autoDetach);
     if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()) {
         if (s_dataAllowed[socket_id]) {
             attachGPRS(channelID, data, datalen, t);
         } else {
-            detachGPRS(channelID, data, datalen, t);
+            if (s_autoDetach == 1) {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            } else {
+                detachGPRS(channelID, data, datalen, t);
+            }
         }
     } else {
         if (s_dataAllowed[socket_id] == 0) {

@@ -6685,7 +6685,7 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
 
     if (p_info->type == RIL_OEM_SOCKET) {
         // Inform oem socket that modem maybe assert or reset
-        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
+        RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
                                   p_info->socket_id);
     }
 }
