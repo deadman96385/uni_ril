@@ -455,13 +455,15 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT && s_simEnabled[socket_id] == 0) {
-        pthread_t tid;
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
-                           (void *)&s_socketId[socket_id]) < 0) {
-            RLOGE("Failed to create setSIMPowerOff");
+        if (s_radioState[socket_id] != RADIO_STATE_UNAVAILABLE) {
+            pthread_t tid;
+            pthread_attr_t attr;
+            pthread_attr_init(&attr);
+            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+            if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
+                               (void *)&s_socketId[socket_id]) < 0) {
+                RLOGE("Failed to create setSIMPowerOff");
+            }
         }
         ret = SIM_ABSENT;
     }
