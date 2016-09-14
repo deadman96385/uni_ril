@@ -4831,7 +4831,14 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
         close(fd);
         p_info->fdCommand = -1;
 
-        record_stream_free(p_rs);
+        if (p_info->type == RIL_ATCI_SOCKET) {
+            if (s_atciSocketParam.p_rs != NULL) {
+                record_stream_free(s_atciSocketParam.p_rs);
+                s_atciSocketParam.p_rs = NULL;
+            }
+        } else {
+            record_stream_free(p_rs);
+        }
 
         if (p_info->type != RIL_ATCI_SOCKET) {
             ril_event_del(p_info->commands_event);
@@ -5838,7 +5845,10 @@ done:
     if (socket_type == RIL_ATCI_SOCKET) {
         close(fd);
         s_atciSocketParam.fdCommand = -1;
-        record_stream_free(s_atciSocketParam.p_rs);
+        if (s_atciSocketParam.p_rs != NULL) {
+            record_stream_free(s_atciSocketParam.p_rs);
+            s_atciSocketParam.p_rs = NULL;
+        }
         rilEventAddWakeup(s_atciSocketParam.listen_event);
     }
     free(pRI);
