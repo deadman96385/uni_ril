@@ -231,6 +231,7 @@ static void requestWriteSmsToSim(int channelID, void *data, size_t datalen,
     int length;
     int err, ret;
     int errorNum;
+    int index = 0;
     char *cmd, *cmd1;
     const char *smsc;
     char *line = NULL;
@@ -266,16 +267,25 @@ static void requestWriteSmsToSim(int channelID, void *data, size_t datalen,
     free(cmd);
     free(cmd1);
 
-    if (err != 0 || p_response->success == 0) {
+    if (err < 0 || p_response->success == 0) {
         goto error;
     }
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &index);
+    if (err < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &index, sizeof(index));
     at_response_free(p_response);
     return;
 
 error:
-    if (strStartsWith(p_response->finalResponse, "+CMS ERROR:")) {
+    if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CMS ERROR:")) {
         line = p_response->finalResponse;
         err = at_tok_start(&line);
         if (err < 0) goto error1;
