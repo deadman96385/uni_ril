@@ -1729,6 +1729,15 @@ static void onDowngradeToVoice(void *param) {
     putChannel(channelID);
 }
 
+void onCallCSFallBackAccept(void *param) {
+    int channelID;
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+
+    channelID = getChannel(socket_id);
+    at_send_command(s_ATChannels[channelID], "AT+SCSFB=1,1", NULL);
+    putChannel(channelID);
+}
+
 int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     int ret = 1;
@@ -2191,6 +2200,9 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_requestTimedCallback(onDowngradeToVoice,
                     (void *)&s_socketId[socket_id], NULL);
         }
+    } else if (strStartsWith(s, "+SCSFB")) {
+        RIL_requestTimedCallback(onCallCSFallBackAccept,
+                    (void *)&s_socketId[socket_id], NULL);
     } else {
         ret = 0;
     }
