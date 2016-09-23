@@ -153,8 +153,10 @@ int getMultiMode() {
         workMode = TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB;
     } else if (strcmp(prop, "TL_LF_W_G,G") == 0) {
         workMode = TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB;
-    } else if (strcmp(prop, "TL_TD_G,G ") == 0) {
+    } else if (strcmp(prop, "TL_TD_G,G") == 0) {
         workMode = TD_LTE_AND_TD_AND_GSM_CSFB;
+    } else if (strcmp(prop, "W_G,G") == 0) {
+        workMode = WCDMA_AND_GSM;
     }
     return workMode;
 }
@@ -927,7 +929,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         } else {
 #if defined (ANDROID_MULTI_SIM)
             if (s_presentSIMCount == 2) {
-                if (s_dataAllowed[socket_id] == 1) {
+                if (s_workMode[socket_id] != GSM_ONLY) {
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=1", NULL);
                 } else {
@@ -1415,6 +1417,7 @@ static void requestSetPreferredNetType(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
 
     int err, type = 0;
+    int workmode = 0;
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
 
@@ -1430,18 +1433,23 @@ static void requestSetPreferredNetType(int channelID, void *data,
                               NULL, 0, socket_id);
     // transfer rilconstant to at
 
+    pthread_mutex_lock(&s_workModeMutex);
     switch (((int *)data)[0]) {
-        case 0:  // NETWORK_MODE_WCDMA_PREF
+        case NETWORK_MODE_WCDMA_PREF:
             type = 2;
+            workmode = WCDMA_AND_GSM;
             break;
-        case 1:  // NETWORK_MODE_GSM_ONLY
+        case NETWORK_MODE_GSM_ONLY:
             type = 13;
+            workmode = PRIMARY_GSM_ONLY;
             break;
-        case 2:  // NETWORK_MODE_WCDMA_ONLY or TDSCDMA ONLY
+        case NETWORK_MODE_WCDMA_ONLY:  // or TDSCDMA ONLY
             if (!strcmp(s_modem, "t")) {
                 type = 15;
+                workmode = TD_ONLY;
             } else if (!strcmp(s_modem, "w")) {
                 type = 14;
+                workmode = WCDMA_ONLY;
             }
             break;
         default:
@@ -1453,6 +1461,14 @@ static void requestSetPreferredNetType(int channelID, void *data,
         goto error;
     }
 
+    if (s_workMode[socket_id] == NONE || s_workMode[socket_id] == GSM_ONLY) {
+        RLOGD("SetLTEPreferredNetType: not data card");
+        goto done;
+    }
+    if (s_workMode[socket_id] == workmode) {
+        RLOGD("SetPreferredNetType: has send the request before");
+        goto done;
+    }
 #if defined (ANDROID_MULTI_SIM)
     if (socket_id == RIL_SOCKET_1) {
         if (!s_isLTE) {
@@ -1495,11 +1511,19 @@ static void requestSetPreferredNetType(int channelID, void *data,
     }
 #endif
 
+    char numToStr[ARRAY_SIZE];
+    snprintf(numToStr, sizeof(numToStr), "%d", workmode);
+    setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
+    s_workMode[socket_id] = workmode;
+
+done:
+    pthread_mutex_unlock(&s_workModeMutex);
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     return;
 
 error:
+    pthread_mutex_unlock(&s_workModeMutex);
     at_response_free(p_response);
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
