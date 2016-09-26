@@ -231,7 +231,7 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
     if (err < 0) goto error;
 
     err = clccStateToRILState(state, &(p_call->state));
-    if (p_call->state == RIL_CALL_HOLDING) {
+    if (p_call->state == RIL_CALL_HOLDING || p_call->state == RIL_CALL_WAITING) {
         s_maybeAddCall = 1;
     }
     if (err < 0) goto error;
@@ -332,6 +332,10 @@ int callFromCLCCLineVoLTE(char *line, RIL_Call_VoLTE *p_call) {
         (RIL_VoLTE_CallState)p_call->state == VOLTE_CALL_HOLD_MT) {
         s_maybeAddCall = 1;
     }
+    if(p_call->state == RIL_CALL_WAITING){
+        s_maybeAddCall = 1;
+    }
+
     if (err < 0) goto error;
 
     err = at_tok_nextint(&line, &(p_call->mpty));
