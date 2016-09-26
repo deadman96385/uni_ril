@@ -1751,7 +1751,10 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         strStartsWith(s, "RING") ||
         strStartsWith(s, "NO CARRIER") ||
         strStartsWith(s, "+CCWA")) {
-        reportCallStateChanged((void *)&s_socketId[socket_id]);
+        if (!isVoLteEnable()) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+                                      NULL, 0, socket_id);
+        }
     } else if (strStartsWith(s, "^DSCI:")) {
         RIL_VideoPhone_DSCI *response = NULL;
         response = (RIL_VideoPhone_DSCI *)alloca(sizeof(RIL_VideoPhone_DSCI));
@@ -1836,7 +1839,15 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     RIL_requestTimedCallback(redialWhileCallFailed,
                                              (CallbackPara *)cbPara, NULL);
                 } else {
-                    reportCallStateChanged((void *)&s_socketId[socket_id]);
+                    if (response->type == 1 || response->type == 3) {
+                        RIL_onUnsolicitedResponse(
+                                RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
+                                NULL, 0, socket_id);
+                    } else {
+                        RIL_onUnsolicitedResponse(
+                                RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+                                NULL, 0, socket_id);
+                    }
                 }
                 if (response->type == 1 || response->type == 3) {
                     if (at_tok_hasmore(&tmp)) {
@@ -1852,44 +1863,48 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                             response, sizeof(RIL_VideoPhone_DSCI), socket_id);
                 }
             } else {
-                reportCallStateChanged((void *)&s_socketId[socket_id]);
+                if (response->type == 1 || response->type == 3) {
+                    RIL_onUnsolicitedResponse(
+                            RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
+                            NULL, 0, socket_id);
+                } else {
+                    RIL_onUnsolicitedResponse(
+                            RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+                            NULL, 0, socket_id);
+                }
             }
         } else {
-            if (response->type == 0) {
-                reportCallStateChanged((void *)&s_socketId[socket_id]);
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+                    NULL, 0, socket_id);
+
+            err = at_tok_nextint(&tmp, &response->num_type);
+            if (err < 0) {
+                RLOGE("get num_type fail");
                 goto out;
-            } else if (response->type == 1) {
-                reportCallStateChanged((void *)&s_socketId[socket_id]);
+            }
+            err = at_tok_nextint(&tmp, &response->bs_type);
+            if (err < 0) {
+                RLOGE("get bs_type fail");
+                goto out;
+            }
 
-                err = at_tok_nextint(&tmp, &response->num_type);
+            if (at_tok_hasmore(&tmp)) {
+                err = at_tok_nextint(&tmp, &response->cause);
                 if (err < 0) {
-                    RLOGE("get num_type fail");
+                    RLOGE("get cause fail");
                     goto out;
                 }
-                err = at_tok_nextint(&tmp, &response->bs_type);
-                if (err < 0) {
-                    RLOGE("get bs_type fail");
-                    goto out;
-                }
-
                 if (at_tok_hasmore(&tmp)) {
-                    err = at_tok_nextint(&tmp, &response->cause);
+                    err = at_tok_nextint(&tmp, &response->location);
                     if (err < 0) {
-                        RLOGE("get cause fail");
+                        RLOGE("get location fail");
                         goto out;
                     }
-                    if (at_tok_hasmore(&tmp)) {
-                        err = at_tok_nextint(&tmp, &response->location);
-                        if (err < 0) {
-                            RLOGE("get location fail");
-                            goto out;
-                        }
-                    } else {
-                        response->location = 0;
-                    }
-                    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_DSCI,
-                            response, sizeof(RIL_VideoPhone_DSCI), socket_id);
+                } else {
+                    response->location = 0;
                 }
+                RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_VIDEOPHONE_DSCI,
+                        response, sizeof(RIL_VideoPhone_DSCI), socket_id);
             }
         }
     } else if (strStartsWith(s, "+CMCCSI:")) {
@@ -1966,10 +1981,12 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGE("get exit_cause fail");
             goto out;
         }
-        if (s_imsRegistered[socket_id]) {
-            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED,
-                                      response, sizeof(RIL_IMSPHONE_CMCCSI),
-                                      socket_id);
+        if (isVoLteEnable()) {
+            if (response->cs_mod == 0) {
+                RIL_onUnsolicitedResponse(
+                        RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, response,
+                        sizeof(RIL_IMSPHONE_CMCCSI), socket_id);
+            }
         }
     } else if (strStartsWith(s, "+CMCCSS")) {
         /* CMCCSS1, CMCCSS2, ... CMCCSS7, just report IMS state change */
@@ -2170,9 +2187,10 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 &response, sizeof(response), socket_id);
     } else if (strStartsWith(s, AT_PREFIX"DVTRING:")
                 || strStartsWith(s, AT_PREFIX"DVTCLOSED")) {
-            RIL_onUnsolicitedResponse(
-                    RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
+        if (!isVoLteEnable()) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED,
                     NULL, 0, socket_id);
+        }
     } else if (strStartsWith(s, "+SPIMSPDPINFO")) {
         /* add for VoLTE to handle video call bearing lost */
         char *tmp;
