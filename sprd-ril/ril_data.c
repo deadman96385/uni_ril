@@ -1043,7 +1043,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                         RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
                                 sizeof(RIL_Data_Call_Response_v11));
                         /* send IP for volte addtional business */
-                        if (s_workMode[socket_id] != GSM_ONLY || SIM_COUNT == 1) {
+                        if (islte && (s_workMode[socket_id] != GSM_ONLY || SIM_COUNT == 1)) {
                             char cmd[AT_COMMAND_LEN] = {0};
                             char prop0[PROPERTY_VALUE_MAX] = {0};
                             char prop1[PROPERTY_VALUE_MAX] = {0};
@@ -1325,11 +1325,7 @@ static void deactivateDataConnection(int channelID, void *data,
     ATResponse *p_response = NULL;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    if (s_dataAllowed[socket_id] == 0 && s_autoDetach == 1) {
-        RLOGD("deactivateDC s_dataAllowed[%d]=%d", socket_id,
-              s_dataAllowed[socket_id]);
-        goto error;
-    }
+
     p_cid = ((const char **)data)[0];
     cid = atoi(p_cid);
     if (cid < 1) {
@@ -1380,7 +1376,7 @@ done:
     putPDP(secondaryCid - 1);
     putPDP(cid - 1);
     at_response_free(p_response);
-    if (cid == s_addedIPCid) {
+    if (islte && cid == s_addedIPCid) {
         updateAdditionBusinessCid(channelID);
     }
     // for ddr, power consumption
