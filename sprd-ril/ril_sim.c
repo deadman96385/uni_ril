@@ -2130,6 +2130,8 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     s_simEnabled[socket_id] = onOff;
 
     if (onOff == 0) {
+        err = at_send_command(s_ATChannels[channelID], "AT+SPDISABLESIM=1",
+                              NULL);
         err = at_send_command(s_ATChannels[channelID], "AT+SFUN=3",
                               &p_response);
     } else if (onOff > 0) {
