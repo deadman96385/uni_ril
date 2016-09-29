@@ -6620,6 +6620,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS: return "GET_SIMLOCK_DUMMYS";
         case RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST: return "GET_SIMLOCK_WHITE_LIST";
         case RIL_EXT_REQUEST_UPDATE_ECCLIST: return "UPDATE_ECCLIST";
+        case RIL_EXT_REQUEST_GET_BAND_INFO: return "REQUEST_GET_BAND_INFO";
+        case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: return "REQUEST_SET_BAND_INFO_MODE";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6687,6 +6689,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_RIL_CONNECTED: return "EXT_UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED: return "UNSOL_SIMLOCK_STATUS_CHANGED";
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
+        case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         default: return "<unknown request>";
     }
 }

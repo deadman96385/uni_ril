@@ -5904,7 +5904,9 @@ typedef struct {
 #define RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS          (RIL_EXT_REQUEST_BASE + 26)
 #define RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST      (RIL_EXT_REQUEST_BASE + 27)
 #define RIL_EXT_REQUEST_UPDATE_ECCLIST              (RIL_EXT_REQUEST_BASE + 28)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_UPDATE_ECCLIST
+#define RIL_EXT_REQUEST_GET_BAND_INFO               (RIL_EXT_REQUEST_BASE + 29)
+#define RIL_EXT_REQUEST_SET_BAND_INFO_MODE          (RIL_EXT_REQUEST_BASE + 30)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SET_BAND_INFO_MODE
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -5921,7 +5923,8 @@ typedef struct {
 #define RIL_EXT_UNSOL_RIL_CONNECTED                 (RIL_EXT_UNSOL_RESPONSE_BASE + 11)
 #define RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED        (RIL_EXT_UNSOL_RESPONSE_BASE + 12)
 #define RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED           (RIL_EXT_UNSOL_RESPONSE_BASE + 13)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED
+#define RIL_EXT_UNSOL_BAND_INFO                     (RIL_EXT_UNSOL_RESPONSE_BASE + 14)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_BAND_INFO
 /*****************************************************************************/
 
 /*****************************************************************************/

@@ -457,6 +457,36 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestSendAT(channelID, *cur, datalen, t);
             break;
         }
+        case RIL_EXT_REQUEST_GET_BAND_INFO: {
+            p_response = NULL;
+            char *line = NULL;
+            err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPCLB?",
+                                             "+SPCLB:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                line = p_response->p_intermediates->line;
+                at_tok_start(&line);
+                skipWhiteSpace(&line);
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line) + 1);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: {
+            p_response = NULL;
+            int mode = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+            snprintf(cmd, sizeof(cmd), "AT+SPCLB=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
@@ -485,6 +515,17 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(RIL_UNSOL_NITZ_TIME_RECEIVED, response,
                                       strlen(response) + 1, socket_id);
         }
+    } else if (strStartsWith(s, "+SPCLB:")) {
+        char *tmp;
+        char *response = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        skipWhiteSpace(&tmp);
+        response = tmp;
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_BAND_INFO, response,
+                                  strlen(response) + 1, socket_id);
     } else {
         return 0;
     }
