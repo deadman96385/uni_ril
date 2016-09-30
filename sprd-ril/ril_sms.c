@@ -81,8 +81,9 @@ error:
 
     if (response.errorCode == 313) {
         RIL_onRequestComplete(t, RIL_E_SMS_SEND_FAIL_RETRY, NULL, 0);
-    } else if (response.errorCode == 512  || response.errorCode == 128
-        || response.errorCode == 254 || response.errorCode == 514 || response.errorCode == 515) {
+    } else if (response.errorCode == 512  || response.errorCode == 128 ||
+               response.errorCode == 254 || response.errorCode == 514 ||
+               response.errorCode == 515) {
         RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);

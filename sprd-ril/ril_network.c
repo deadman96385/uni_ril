@@ -11,6 +11,7 @@
 #include "ril_data.h"
 #include "ril_misc.h"
 #include "TelephonyEx.h"
+#include "ril_async_cmd_handler.h"
 
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
@@ -100,6 +101,7 @@ pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
 #endif
 #endif
         };
+pthread_mutex_t s_operatorInfoListMutex = PTHREAD_MUTEX_INITIALIZER;
 
 int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 int s_imsBearerEstablished[SIM_COUNT];
@@ -112,6 +114,7 @@ int s_presentSIMCount = 0;
 int s_multiModeSim = 0;
 bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
+OperatorInfoList s_operatorInfoList;
 
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
@@ -712,6 +715,68 @@ error:
     at_response_free(p_response);
 }
 
+static int getOperatorName(char *plmn, char *operatorName) {
+    if (plmn == NULL || operatorName == NULL) {
+        return -1;
+    }
+
+    int ret = -1;
+    MUTEX_ACQUIRE(s_operatorInfoListMutex);
+    OperatorInfoList *pList = s_operatorInfoList.next;
+    OperatorInfoList *next;
+    while (pList != &s_operatorInfoList) {
+        next = pList->next;
+        if (strcmp(plmn, pList->plmn) == 0) {
+            memcpy(operatorName, pList->operatorName,
+                   strlen(pList->operatorName) + 1);
+            ret = 0;
+            break;
+        }
+        pList = next;
+    }
+    MUTEX_RELEASE(s_operatorInfoListMutex);
+    return ret;
+}
+
+static void addToOperatorInfoList(char *plmn, char *operatorName) {
+    if (plmn == NULL || operatorName == NULL) {
+        return;
+    }
+
+    MUTEX_ACQUIRE(s_operatorInfoListMutex);
+
+    OperatorInfoList *pList = s_operatorInfoList.next;
+    OperatorInfoList *next;
+    while (pList != &s_operatorInfoList) {
+        next = pList->next;
+        if (strcmp(plmn, pList->plmn) == 0) {
+            RLOGD("addToOperatorInfoList: had add this operator before");
+            goto exit;
+        }
+        pList = next;
+    }
+
+    int plmnLen = strlen(plmn) + 1;
+    int nameLen = strlen(operatorName) + 1;
+
+    OperatorInfoList *pNode =
+            (OperatorInfoList *)calloc(1, sizeof(OperatorInfoList));
+    pNode->plmn = (char *)calloc(plmnLen, sizeof(char));
+    pNode->operatorName = (char *)calloc(nameLen, sizeof(char));
+
+    memcpy(pNode->plmn, plmn, plmnLen);
+    memcpy(pNode->operatorName, operatorName, nameLen);
+
+    OperatorInfoList *pHead = &s_operatorInfoList;
+    pNode->next = pHead;
+    pNode->prev = pHead->prev;
+    pHead->prev->next = pNode;
+    pHead->prev = pNode;
+
+exit:
+    MUTEX_RELEASE(s_operatorInfoListMutex);
+}
+
 static void requestOperator(int channelID, void *data, size_t datalen,
                                 RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -780,10 +845,21 @@ static void requestOperator(int channelID, void *data, size_t datalen,
 
 #if defined (RIL_EXTENSION)
     if (strcmp(prop, "true") == 0 && response[2] != NULL) {
+        int ret = -1;
         char updatedPlmn[64] = {0};
-        err = updatePlmn(socket_id, (const char *)(response[2]), updatedPlmn);
-        if (err == 0 && strcmp(updatedPlmn, response[2])) {
-            RLOGD("updated plmn = %s", updatedPlmn);
+
+        memset(updatedPlmn, 0, sizeof(updatedPlmn));
+        ret = getOperatorName(response[2], updatedPlmn);
+        if (ret != 0) {
+            err = updatePlmn(socket_id, (const char *)(response[2]), updatedPlmn);
+            if (err == 0 && strcmp(updatedPlmn, response[2])) {
+                RLOGD("updated plmn = %s", updatedPlmn);
+                response[0] = updatedPlmn;
+                response[1] = updatedPlmn;
+                addToOperatorInfoList(response[2], updatedPlmn);
+            }
+        } else {
+            RLOGD("get Operator Name = %s", updatedPlmn);
             response[0] = updatedPlmn;
             response[1] = updatedPlmn;
         }

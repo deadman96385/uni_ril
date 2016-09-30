@@ -157,6 +157,11 @@ void list_init(ListNode *node) {
     node->prev = node;
 }
 
+void initOperatorInfoList(OperatorInfoList *node) {
+    node->next = node;
+    node->prev = node;
+}
+
 static void usage(char *s) {
 #ifdef RIL_SHLIB
     RIL_UNUSED_PARM(s);
@@ -982,10 +987,10 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
+
     initSIMVariables();
-
     setHwVerPorp();
-
+    initOperatorInfoList(&s_operatorInfoList);
     return &s_callbacks;
 }
 #else  /* RIL_SHLIB */

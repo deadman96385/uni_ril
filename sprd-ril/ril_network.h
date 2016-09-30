@@ -95,6 +95,13 @@ typedef enum {
                                                            /* are enabled. */
 } RIL_RegState;
 
+typedef struct OperatorInfoList {
+    char *plmn;
+    char *operatorName;
+    struct OperatorInfoList *next;
+    struct OperatorInfoList *prev;
+} OperatorInfoList;
+
 #define RIL_SIGNALSTRENGTH_INVALID 0x7FFFFFFF
 
 #define RIL_SIGNALSTRENGTH_INIT(ril_signalstrength) do {                                               \
@@ -133,6 +140,7 @@ extern RIL_RegState s_CSRegStateDetail[SIM_COUNT];
 extern RIL_RegState s_PSRegStateDetail[SIM_COUNT];
 extern pthread_mutex_t s_radioPowerMutex[SIM_COUNT];
 extern SimBusy s_simBusy[SIM_COUNT];
+extern OperatorInfoList s_operatorInfoList;
 
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID);

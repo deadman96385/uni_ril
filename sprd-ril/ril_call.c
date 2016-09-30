@@ -14,19 +14,6 @@ const struct timeval TIMEVAL_CSCALLSTATEPOLL = {0, 50000};
 ListNode s_DTMFList[SIM_COUNT];
 static SrvccPendingRequest *s_srvccPendingRequest[SIM_COUNT];
 
-static pthread_mutex_t s_eccListMutex[SIM_COUNT] = {
-        PTHREAD_MUTEX_INITIALIZER
-#if (SIM_COUNT >= 2)
-        ,PTHREAD_MUTEX_INITIALIZER
-#if (SIM_COUNT >= 3)
-        ,PTHREAD_MUTEX_INITIALIZER
-#if (SIM_COUNT >= 4)
-        ,PTHREAD_MUTEX_INITIALIZER
-#endif
-#endif
-#endif
-        };
-
 static pthread_mutex_t s_listMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
 #if (SIM_COUNT >= 2)
@@ -231,7 +218,8 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
     if (err < 0) goto error;
 
     err = clccStateToRILState(state, &(p_call->state));
-    if (p_call->state == RIL_CALL_HOLDING || p_call->state == RIL_CALL_WAITING) {
+    if (p_call->state == RIL_CALL_HOLDING ||
+        p_call->state == RIL_CALL_WAITING) {
         s_maybeAddCall = 1;
     }
     if (err < 0) goto error;
@@ -332,7 +320,7 @@ int callFromCLCCLineVoLTE(char *line, RIL_Call_VoLTE *p_call) {
         (RIL_VoLTE_CallState)p_call->state == VOLTE_CALL_HOLD_MT) {
         s_maybeAddCall = 1;
     }
-    if(p_call->state == RIL_CALL_WAITING){
+    if (p_call->state == RIL_CALL_WAITING) {
         s_maybeAddCall = 1;
     }
 
