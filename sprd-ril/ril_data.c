@@ -631,15 +631,8 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     authtype = ((const char **)data)[5];
 
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-    if (!islte) {
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
-    } else {
-        if (deactivateLteDataConnection(channelID, cmd) < 0) {
-            s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-            putPDP(cid - 1);
-            return ret;
-        }
-    }
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
 
     if (!strcmp(pdp_type, "IPV4+IPV6")) {
         snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0",
@@ -1040,8 +1033,6 @@ static void requestOrSendDataCallList(int channelID, int cid,
                         RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL,
                                               0);
                     } else {
-                        RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
-                                sizeof(RIL_Data_Call_Response_v11));
                         /* send IP for volte addtional business */
                         if (islte && (s_workMode[socket_id] != GSM_ONLY || SIM_COUNT == 1)) {
                             char cmd[AT_COMMAND_LEN] = {0};
@@ -1070,6 +1061,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
                             at_send_command(s_ATChannels[channelID], cmd, NULL);
                             s_addedIPCid = responses[i].cid;
                         }
+                        RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
+                                sizeof(RIL_Data_Call_Response_v11));
                     }
                 } else {
                     putPDP(getFallbackCid(cid - 1) - 1);
@@ -1314,7 +1307,6 @@ static void deactivateDataConnection(int channelID, void *data,
                                           size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
 
-    bool needfake = false;
     bool islte = s_isLTE;
     int err = 0, i = 0;
     int cid;
@@ -1334,42 +1326,14 @@ static void deactivateDataConnection(int channelID, void *data,
 
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
     secondaryCid = getFallbackCid(cid - 1);
-    if (s_in4G[socket_id]) {
-        queryAllActivePDN(channelID);
-        /* s_in4G, if current is actived, don't deactive the last pdp */
-        if (s_activePDN == 2 && secondaryCid != -1) {
-            needfake = (getPDPCid(cid - 1) != -1) &&
-                       (getPDPCid(secondaryCid - 1) != -1);
-        } else if (s_activePDN == 1 && getPDPCid(cid - 1) != -1) {
-            needfake = true;
-        } else if (s_activePDN > 1 && s_PDN[cid - 1].nCid != -1) {
-            char *outer_ptr = NULL;
-            if (s_initialAttachAPNs[socket_id] != NULL &&
-                    s_initialAttachAPNs[socket_id]->apn != NULL &&
-                    (!strcasecmp(s_PDN[cid - 1].strApn,
-                        s_initialAttachAPNs[socket_id]->apn) ||
-                    !strcasecmp(strtok_r(s_PDN[cid - 1].strApn, ".",
-                        &outer_ptr), s_initialAttachAPNs[socket_id]->apn))) {
-                needfake = true;
-            }
-        }
-    }
-    if (needfake) {
-        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-    } else {
-        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-    }
+    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
     AT_RESPONSE_FREE(p_response);
 
     if (secondaryCid != -1) {
         RLOGD("dual PDP, do CGACT again, fallback cid = %d", secondaryCid);
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondaryCid);
-        if (islte) {
-            deactivateLteDataConnection(channelID, cmd);
-        } else {
-            at_send_command(s_ATChannels[channelID], cmd, &p_response);
-        }
+        at_send_command(s_ATChannels[channelID], cmd, &p_response);
     }
 
 done:
