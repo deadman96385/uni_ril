@@ -996,8 +996,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                 if (s_workMode[socket_id] == GSM_ONLY) {
                     RLOGD("socket_id = %d, s_dataAllowed = %d", socket_id,
                           s_dataAllowed[socket_id]);
-                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,%d",
-                             socket_id, s_dataAllowed[socket_id]);
+                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
                     at_send_command(s_ATChannels[channelID], cmd, NULL);
                 }
             }
