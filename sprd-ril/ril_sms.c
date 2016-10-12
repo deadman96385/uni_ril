@@ -893,7 +893,7 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
         }
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM, &location,
                                   sizeof(location), socket_id);
-    } else if (strStartsWith(s, "+CBM:") || strStartsWith(s, "+SPWRN:")) {
+    } else if (strStartsWith(s, "+CBM:")) {
         char *pdu_bin = NULL;
         RLOGD("CBM sss %s ,len  %d", s, (int)strlen(s));
         RLOGD("CBM  %s ,len  %d", sms_pdu, (int)strlen(sms_pdu));
@@ -904,6 +904,97 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
                                       pdu_bin, strlen(sms_pdu) / 2, socket_id);
         } else {
             RLOGE("Convert hex to bin failed for SMSCB");
+        }
+    } else if (strStartsWith(s, "+SPWRN:")) {
+        int skip;
+        int segmentId;
+        int totalSegments;
+        static int count = 0;
+        static int dataLen = 0;
+
+        static char **pdus;
+        char *msg = NULL;
+        char *tmp = NULL;
+        char *data = NULL;
+        char *binData = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &segmentId);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &totalSegments);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &skip);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &skip);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &skip);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &skip);
+        if (err < 0) goto out;
+
+        err = at_tok_nextstr(&tmp, &data);
+        if (err < 0) goto out;
+
+        /* Max length of SPWRN message is
+         * 9600 byte and each time ATC can only send 1k. When 9600 is divided
+         * by 1024, the quotient is 9 with a remainder of 1.
+         */
+
+        if (totalSegments < 10 && count == 0) {
+            pdus = (char **)calloc(totalSegments, sizeof(char *));
+            if (pdus == NULL) goto out;
+        }
+
+        if (segmentId <= totalSegments) {
+            pdus[segmentId -1] =
+                    (char *)calloc((strlen(data + 1)), sizeof(char));
+            snprintf(pdus[segmentId -1], strlen(data) + 1, "%s", data);
+
+            count++;
+            dataLen += strlen(data);
+        }
+
+        // To make sure no missing pages, then concat all pages.
+        if (count == totalSegments) {
+            msg = (char *)calloc((dataLen + sizeof("01")), sizeof(char));
+            int index = 0;
+            strncat(msg, "01", sizeof("01"));  // concat message_type and msg
+            for (; index < count; index++) {
+                if (pdus[index] != NULL) {
+                    strncat(msg, pdus[index], strlen(pdus[index]));
+                }
+            }
+            RLOGD("concat pdu: %s", msg);
+            /* +SPWRN:1,N,<xx>,<xx>,<xx>,<xx>,<data1>
+             * +SPWRN:2,N,<xx>,<xx>,<xx>,<xx>,<data2>
+             * ...
+             * +SPWRN:N,N,<xx>,<xx>,<xx>,<xx>,<dataN>
+             * Response message_type + data1 + data2 + ... + dataN to framework
+             */
+            binData = (char *)calloc(strlen(msg) / 2, sizeof(char));
+            if (!convertHexToBin(msg, strlen(msg), binData)) {
+                RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_BROADCAST_SMS,
+                        binData, strlen(msg) / 2, socket_id);
+            } else {
+                RLOGD("Convert hex to bin failed for SPWRN");
+            }
+            free(msg);
+            free(binData);
+            for (index = 0; index < count; index++) {
+                 free(pdus[index]);
+            }
+            free(pdus);
+            pdus = NULL;
+            dataLen = 0;
+            count = 0;
         }
     } else if (strStartsWith(s, "^SMOF:")) {
         int value;
