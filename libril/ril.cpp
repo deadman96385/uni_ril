@@ -4829,27 +4829,21 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
         } else {
             RLOGW("EOS.  Closing command socket.");
         }
-
-        close(fd);
-        p_info->fdCommand = -1;
-
-        if (p_info->type == RIL_ATCI_SOCKET) {
-            if (s_atciSocketParam.p_rs != NULL) {
-                record_stream_free(s_atciSocketParam.p_rs);
-                s_atciSocketParam.p_rs = NULL;
-            }
-        } else {
-            record_stream_free(p_rs);
+        RLOGD("Closing socket type = %d", p_info->type);
+        if (fd != -1) {
+            close(fd);
         }
-
+        p_info->fdCommand = -1;
         if (p_info->type != RIL_ATCI_SOCKET) {
             ril_event_del(p_info->commands_event);
 
+            record_stream_free(p_rs);
+
+            /* start listening for new connections again */
+            rilEventAddWakeup(p_info->listen_event);
+
             onCommandsSocketClosed(p_info->socket_id);
         }
-
-        /* start listening for new connections again */
-        rilEventAddWakeup(p_info->listen_event);
     }
 }
 
@@ -5845,7 +5839,9 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
 
 done:
     if (socket_type == RIL_ATCI_SOCKET) {
-        close(fd);
+        if (fd != -1) {
+            close(fd);
+        }
         s_atciSocketParam.fdCommand = -1;
         if (s_atciSocketParam.p_rs != NULL) {
             record_stream_free(s_atciSocketParam.p_rs);
