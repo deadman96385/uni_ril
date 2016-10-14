@@ -436,6 +436,7 @@ int cvt_cgdata_set_req(AT_CMD_REQ_T * req) {
         // if fallback, need map ipv4 and ipv6 to one net device
         if (dispose_data_fallback(master_cid, cid)) {
             cid = master_cid;
+            pdp_index = cid - 1;
         }
 
         PHS_LOGD("PS ip_state = %d", pdp_info[pdp_index].ip_state);
