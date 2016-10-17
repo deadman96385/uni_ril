@@ -193,8 +193,8 @@ static void firePending() {
     struct ril_event *ev = pending_list.next;
     while (ev != &pending_list) {
         struct ril_event *next = ev->next;
-        ev->func(ev->fd, 0, ev->param);
         removeFromList(ev);
+        ev->func(ev->fd, 0, ev->param);
         ev = next;
     }
     dlog("~~~~ -firePending ~~~~");
