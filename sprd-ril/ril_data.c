@@ -2132,6 +2132,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int errCode;
         char *tmp;
         extern int s_ussdError[SIM_COUNT];
+        extern int s_ussdRun[SIM_COUNT];
 
         line = strdup(s);
         tmp = line;
@@ -2147,7 +2148,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
                                       0, socket_id);
         }
-        if (type == 5) {  // 5: for SS
+        if ((type == 5) && (s_ussdRun[socket_id] == 1)) {  // 5: for SS
             s_ussdError[socket_id] = 1;
         }
     } else {
