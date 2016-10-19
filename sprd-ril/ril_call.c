@@ -13,6 +13,7 @@
 const struct timeval TIMEVAL_CSCALLSTATEPOLL = {0, 50000};
 ListNode s_DTMFList[SIM_COUNT];
 static SrvccPendingRequest *s_srvccPendingRequest[SIM_COUNT];
+char *s_realEccList[SIM_COUNT];
 
 static pthread_mutex_t s_listMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
@@ -804,8 +805,8 @@ static void requestExplicitCallTransfer(int channelID, void *data,
 }
 
 int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
-    char propName[PROPERTY_VALUE_MAX] = {0};
     char eccNumberList[PROPERTY_VALUE_MAX] = {0};
+    char *realEccList = NULL;
     char *tmpList = NULL;
     char *tmpNumber = NULL;
     char *outer_ptr = NULL;
@@ -813,38 +814,15 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
     char ecc3GPP_NoSIM[] = "112,911,000,08,110,118,119,999";
     char ecc3GPP_SIM[] = "112,911";
     int numberExist = 0;
-    int ret = 0;
+    int propValueSize = strlen(s_realEccList[socket_id]) + 1;
 
-    strncpy(propName, ECC_LIST_FAKE_PROP, sizeof(ECC_LIST_FAKE_PROP));
-#if defined (ANDROID_MULTI_SIM)
-    if (socket_id != RIL_SOCKET_1) {
-        snprintf(propName, sizeof(propName), "ril.ecclist.fake%d", socket_id);
-    }
-#endif
-    property_get(propName, eccNumberList, "");
-    if (strcmp(eccNumberList, "") != 0) {
-        tmpList = eccNumberList;
-        while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
-            if (strcmp(tmpNumber, dialNumber) == 0) {
-                numberExist = 1;
-                return 0;
-            }
-            tmpList = NULL;
-        }
-    }
-
-    strncpy(propName, ECC_LIST_REAL_PROP, sizeof(ECC_LIST_REAL_PROP));
-#if defined (ANDROID_MULTI_SIM)
-    if (socket_id != RIL_SOCKET_1) {
-        snprintf(propName, sizeof(propName), "ril.ecclist.real%d", socket_id);
-    }
-#endif
-    property_get(propName, eccNumberList, "");
-    if (strcmp(eccNumberList, "") != 0) {
-        tmpList = eccNumberList;
+    if (s_realEccList[socket_id] != NULL) {
+        realEccList = (char *)calloc(propValueSize, sizeof(char));
+        snprintf(realEccList, propValueSize, "%s", s_realEccList[socket_id]);
+        tmpList = realEccList;
         while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
             tmpList = tmpNumber;
-            while ((tmpNumber = strtok_r(tmpList, "@", &inner_ptr)) != NULL) {
+            if ((tmpNumber = strtok_r(tmpList, "@", &inner_ptr)) != NULL) {
                 if (strcmp(tmpNumber, dialNumber) == 0) {
                     numberExist = 1;
                     if (inner_ptr != NULL) {
@@ -852,12 +830,11 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
                     }
                     break;
                 }
-                tmpList = NULL;
-            }
-            if (numberExist) {
-                break;
             }
             tmpList = NULL;
+        }
+        if (realEccList != NULL) {
+            free(realEccList);
         }
         return numberExist;
     }
@@ -1533,6 +1510,19 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
          }
+        case RIL_EXT_REQUEST_UPDATE_ECCLIST: {
+            /* add for bug608793 */
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+            if (s_realEccList[socket_id] != NULL) {
+                free(s_realEccList[socket_id]);
+            }
+
+            s_realEccList[socket_id] = (char *)calloc(datalen, sizeof(char));
+            snprintf(s_realEccList[socket_id], datalen, "%s", (char *)(data));
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
         default:
             ret = 0;
             break;

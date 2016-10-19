@@ -30,3 +30,4 @@
     {RIL_EXT_REQUEST_GET_SIMLOCK_STATUS, dispatchInts, responseInts},
     {RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS, dispatchVoid, responseInts},
     {RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST, dispatchInts, responseStrings},
+    {RIL_EXT_REQUEST_UPDATE_ECCLIST, dispatchString, responseVoid},

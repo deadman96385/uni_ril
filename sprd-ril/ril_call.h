@@ -8,10 +8,6 @@
 #ifndef RIL_CALL_H_
 #define RIL_CALL_H_
 
-#define ECC_LIST_PROP       "ril.ecclist"
-#define ECC_LIST_REAL_PROP  "ril.ecclist.real"
-#define ECC_LIST_FAKE_PROP  "ril.ecclist.fake"
-
 typedef struct ListNode {
     char data;
     struct ListNode *next;
