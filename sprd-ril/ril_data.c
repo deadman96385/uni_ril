@@ -1497,12 +1497,6 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (s_PSRegStateDetail[socket_id] ==
-            RIL_REG_STATE_NOT_REG_EMERGENCY_CALL_ENABLED) {
-        RLOGE("attachGPRS when in Emergency");
-        goto error;
-    }
-
     if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
         RLOGD("s_PSRegState[%d] = %d", socket_id, s_PSRegState[socket_id]);
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
