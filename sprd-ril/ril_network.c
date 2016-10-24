@@ -2229,7 +2229,7 @@ void setWorkMode() {
     pthread_mutex_unlock(&s_workModeMutex);
 }
 
-static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID,
+static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
                                    RIL_Token t) {
     int err = -1, channel[SIM_COUNT];
     int simId = 0;
@@ -2251,7 +2251,7 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID,
         }
 #endif
     }
-    RLOGD("applySetRadioCapability: multiModeSim %d", s_multiModeSim);
+    RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
     setWorkMode();
 
 #if (SIM_COUNT == 2)
@@ -2271,6 +2271,102 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID,
         removeAsyncCmdList(t, respCmd);
         goto error;
     }
+    return 1;
+
+error:
+    AT_RESPONSE_FREE(p_response);
+    return 0;
+}
+
+static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
+    int err, channel[SIM_COUNT];
+    int simId = 0;
+    char cmd[AT_COMMAND_LEN] = {0};
+    ATResponse *p_response = NULL;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    memset(channel, -1, sizeof(channel));
+    // shut down all sim cards radio
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        if (s_radioState[simId] == RADIO_STATE_OFF) {
+            continue;
+        }
+        if (simId != (int)socket_id) {
+            channel[simId] = getChannel(simId);
+        } else {
+            channel[simId] = channelID;
+        }
+
+        err = at_send_command(s_ATChannels[channel[simId]], "AT+SFUN=5",
+                              &p_response);
+        if (err < 0 || p_response->success == 0) {
+            RLOGE("shut down radio failed, sim%d", simId);
+            int i;
+            for (i = 0; i < simId; i++) {
+                if (i != (int)socket_id) {
+                    putChannel(channel[i]);
+                }
+            }
+            goto error;
+        }
+        AT_RESPONSE_FREE(p_response);
+    }
+    // set modem work mode
+    if ((rc->rat & RAF_UMTS) == RAF_UMTS
+            || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
+            || (rc->rat & RAF_LTE) == RAF_LTE) {
+        s_multiModeSim = socket_id;
+    } else {
+#if (SIM_COUNT == 2)
+        if (socket_id == RIL_SOCKET_1) {
+            s_multiModeSim = RIL_SOCKET_2;
+        } else if (socket_id == RIL_SOCKET_2) {
+            s_multiModeSim = RIL_SOCKET_1;
+        }
+#endif
+    }
+    RLOGD("applySetRadioCapability: multiModeSim %d", s_multiModeSim);
+    setWorkMode();
+    buildWorkModeCmd(cmd, sizeof(cmd));
+
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        if (s_radioState[simId] == RADIO_STATE_OFF) {
+            if (simId != (int)socket_id) {
+                putChannel(channel[simId]);
+            }
+            continue;
+        }
+
+        at_send_command(s_ATChannels[channel[simId]], cmd, NULL);
+
+#if defined (ANDROID_MULTI_SIM)
+        if (s_presentSIMCount == 2) {
+            if (simId == s_multiModeSim) {
+                at_send_command(s_ATChannels[channel[simId]],
+                        "AT+SAUTOATT=1", NULL);
+            } else {
+                at_send_command(s_ATChannels[channel[simId]],
+                        "AT+SAUTOATT=0", NULL);
+            }
+        } else {
+            at_send_command(s_ATChannels[channel[simId]], "AT+SAUTOATT=1",
+                            NULL);
+        }
+#else
+        at_send_command(s_ATChannels[channel[simId]], "AT+SAUTOATT=1", NULL);
+#endif
+
+        err = at_send_command(s_ATChannels[channel[simId]], "AT+SFUN=4",
+                              &p_response);
+        if (simId != (int)socket_id) {
+            putChannel(channel[simId]);
+        }
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+        AT_RESPONSE_FREE(p_response);
+    }
+
     return 1;
 
 error:
@@ -2313,6 +2409,7 @@ static void requestSetRadioCapability(int channelID, void *data,
             break;
         case RC_PHASE_APPLY: {
             int simId = 0;
+            int ret = -1;
             responseRc->status = RC_STATUS_SUCCESS;
             s_requestSetRC[socket_id] = 1;
             for (simId = 0; simId < SIM_COUNT; simId++) {
@@ -2325,10 +2422,22 @@ static void requestSetRadioCapability(int channelID, void *data,
             for (simId = 0; simId < SIM_COUNT; simId++) {
                 s_requestSetRC[simId] = 0;
             }
-            int ret = applySetRadioCapability(responseRc, channelID, t);
-            if (ret <= 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, responseRc,
-                        sizeof(RIL_RadioCapability));
+            if (s_isLTE) {
+                ret = applySetLTERadioCapability(responseRc, channelID, t);
+                if (ret <= 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, responseRc,
+                            sizeof(RIL_RadioCapability));
+                }
+            } else {
+                ret = applySetRadioCapability(responseRc, channelID);
+                if (ret > 0) {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, responseRc,
+                                          sizeof(RIL_RadioCapability));
+                    sendUnsolRadioCapability();
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, responseRc,
+                                    sizeof(RIL_RadioCapability));
+                }
             }
             break;
         }
