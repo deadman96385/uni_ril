@@ -4144,6 +4144,14 @@ static void onSimAbsent(void *param)
     isTest = 0;
 }
 
+static void sendStkNotReady(void *param)
+{
+    int channelID;
+    channelID = getChannel();
+    at_send_command(ATch_type[channelID], "AT+SPUSATAPREADY=0", NULL);
+    putChannel(channelID);
+}
+
 static void onSimPresent(void *param)
 {
     int channelID;
@@ -13156,6 +13164,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                         if(cause == 34) { //sim removed
                             sim_state = SIM_REMOVE;
                             RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
+                            RIL_requestTimedCallback (sendStkNotReady, NULL, NULL);
                         }
                         if(cause == 1)  //no sim card
                             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,NULL, 0);
