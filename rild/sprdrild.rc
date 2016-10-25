@@ -1,4 +1,4 @@
-service spril-daemon /system/bin/sprdrild -l /system/lib/libsprd-ril.so
+service spril-daemon /system/bin/sprdrild
     class core
     socket rild stream 660 root radio
     socket rild2 stream 660 root radio
