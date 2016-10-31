@@ -917,6 +917,7 @@ static void sendUnsolRadioCapability() {
             sizeof("com.sprd.modem_multiMode"));
     RIL_onUnsolicitedResponse(RIL_UNSOL_RADIO_CAPABILITY, responseRc,
             sizeof(RIL_RadioCapability), s_multiModeSim);
+    s_sessionId[s_multiModeSim] = 0;
 #if (SIM_COUNT == 2)
     RIL_SOCKET_ID singleModeSim = RIL_SOCKET_1;
     if (s_multiModeSim == RIL_SOCKET_1) {
@@ -930,6 +931,7 @@ static void sendUnsolRadioCapability() {
             sizeof("com.sprd.modem_singleMode"));
     RIL_onUnsolicitedResponse(RIL_UNSOL_RADIO_CAPABILITY, responseRc,
             sizeof(RIL_RadioCapability), singleModeSim);
+    s_sessionId[singleModeSim] = 0;
 #endif
     free(responseRc);
 }

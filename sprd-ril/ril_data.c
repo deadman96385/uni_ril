@@ -1497,11 +1497,9 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
-        RLOGD("s_PSRegState[%d] = %d", socket_id, s_PSRegState[socket_id]);
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-        at_response_free(p_response);
-        return;
+    if (s_sessionId[socket_id] != 0) {
+        RLOGD("setRadioCapability is on going, return!!");
+        goto error;
     }
 
 #if defined (ANDROID_MULTI_SIM)
