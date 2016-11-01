@@ -2388,14 +2388,13 @@ static void requestSetRadioCapability(int channelID, void *data,
             rc.version, rc.session, rc.phase, rc.rat, rc.logicalModemUuid,
             rc.status, socket_id);
 
-    s_sessionId[socket_id] = rc.session;
-
     RIL_RadioCapability *responseRc = (RIL_RadioCapability *)malloc(
             sizeof(RIL_RadioCapability));
     memcpy(responseRc, &rc, sizeof(RIL_RadioCapability));
 
     switch (rc.phase) {
         case RC_PHASE_START:
+            s_sessionId[socket_id] = rc.session;
             RLOGD("requestSetRadioCapability RC_PHASE_START");
             responseRc->status = RC_STATUS_SUCCESS;
             RIL_onRequestComplete(t, RIL_E_SUCCESS, responseRc,
@@ -2412,6 +2411,7 @@ static void requestSetRadioCapability(int channelID, void *data,
         case RC_PHASE_APPLY: {
             int simId = 0;
             int ret = -1;
+            s_sessionId[socket_id] = rc.session;
             responseRc->status = RC_STATUS_SUCCESS;
             s_requestSetRC[socket_id] = 1;
             for (simId = 0; simId < SIM_COUNT; simId++) {
@@ -2444,6 +2444,7 @@ static void requestSetRadioCapability(int channelID, void *data,
             break;
         }
         default:
+            s_sessionId[socket_id] = rc.session;
             responseRc->status = RC_STATUS_FAIL;
             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             break;
