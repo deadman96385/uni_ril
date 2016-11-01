@@ -23,7 +23,6 @@ static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
-static RIL_InitialAttachApn *s_initialAttachAPNs[SIM_COUNT] = {0};
 static int s_autoDetach = 1;  /* whether support auto detach */
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
@@ -72,6 +71,8 @@ static PDNInfo s_PDN[MAX_PDP_CP] = {
     { -1, "", ""}
 };
 static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
+static bool isApnEqual(char *new, char *old);
+static bool isProtocolEqual(char *new, char *old);
 static int getPDP(RIL_SOCKET_ID socket_id) {
     int ret = -1;
     int i;
@@ -402,6 +403,83 @@ static int getSPACTFBcause(int channelID) {
     return cause;
 }
 
+static void queryAllActivePDNInfos(int channelID) {
+    int err = 0;
+    int n, skip, active;
+    char *line;
+    ATLine *pCur;
+    PDNInfo *pdns = s_PDN;
+    ATResponse *pdnResponse = NULL;
+
+    s_activePDN = 0;
+    err = at_send_command_multiline(s_ATChannels[channelID], "AT+SPIPCONTEXT?",
+                                    "+SPIPCONTEXT:", &pdnResponse);
+    if (err < 0 || pdnResponse->success == 0) goto done;
+    for (pCur = pdnResponse->p_intermediates; pCur != NULL;
+         pCur = pCur->p_next) {
+        int cid;
+        int type;
+        char *apn;
+        line = pCur->line;
+        err = at_tok_start(&line);
+        if (err < 0) {
+            pdns->nCid = -1;
+        }
+        err = at_tok_nextint(&line, &pdns->nCid);
+        if (err < 0) {
+            pdns->nCid = -1;
+        }
+        cid = pdns->nCid;
+        if (pdns->nCid > MAX_PDP) {
+            continue;
+        }
+        err = at_tok_nextint(&line, &active);
+        if (err < 0 || active == 0) {
+            pdns->nCid = -1;
+        }
+        if (active == 1) {
+            s_activePDN++;
+        }
+        /* apn */
+        err = at_tok_nextstr(&line, &apn);
+        if (err < 0) {
+            s_PDN[cid - 1].nCid = -1;
+        }
+        snprintf(s_PDN[cid - 1].strApn, sizeof(s_PDN[cid - 1].strApn),
+                 "%s", apn);
+        /* type */
+        err = at_tok_nextint(&line, &type);
+        if (err < 0) {
+            s_PDN[cid - 1].nCid = -1;
+        }
+        char *strType = NULL;
+        switch (type) {
+            case IPV4:
+                strType = "IP";
+                break;
+            case IPV6:
+                strType = "IPV6";
+                break;
+            case IPV4V6:
+                strType = "IPV4V6";
+                break;
+            default:
+                strType = "IP";
+                break;
+        }
+        snprintf(s_PDN[cid - 1].strIPType, sizeof(s_PDN[cid - 1].strIPType),
+                  "%s", strType);
+        if (active > 0) {
+            RLOGI("active PDN: cid = %d, iptype = %s, apn = %s",
+                  s_PDN[cid - 1].nCid, s_PDN[cid - 1].strIPType,
+                  s_PDN[cid - 1].strApn);
+        }
+        pdns++;
+    }
+done:
+    at_response_free(pdnResponse);
+}
+
 static int queryAllActivePDN(int channelID) {
     int err = 0;
     int n, skip, active;
@@ -411,6 +489,7 @@ static int queryAllActivePDN(int channelID) {
     ATResponse *pdnResponse = NULL;
 
     s_activePDN = 0;
+
     err = at_send_command_multiline(s_ATChannels[channelID], "AT+CGACT?",
                                     "+CGACT:", &pdnResponse);
     for (pCur = pdnResponse->p_intermediates; pCur != NULL;
@@ -1107,7 +1186,7 @@ error:
  *          >0: Reuse failed, the failed cid;
  */
 static int reuseDefaultBearer(int channelID, const char *apn,
-                                  RIL_Token t) {
+                               const char *type, RIL_Token t) {
     bool islte = s_isLTE;
     int err, ret = -1;
     char strApnName[ARRAY_SIZE] = {0};
@@ -1118,22 +1197,16 @@ static int reuseDefaultBearer(int channelID, const char *apn,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     if (islte && s_workMode[socket_id] != GSM_ONLY) {
-        queryAllActivePDN(channelID);
+        queryAllActivePDNInfos(channelID);
         int i, cid;
         if (s_activePDN > 0) {
-            for (i = 0; i < MAX_PDP_CP; i++) {
+            for (i = 0; i < MAX_PDP; i++) {
                 cid = getPDNCid(i);
                 if (cid == (i + 1)) {
-                    memset(strApnName, 0, sizeof(strApnName));
-                    strncpy(strApnName, getPDNAPN(i),
-                             checkCmpAnchor(s_PDN[i].strApn));
-                    strApnName[strlen(strApnName)] = '\0';
-                    if (i < MAX_PDP) {
-                        RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-                    }
-                    if (i < MAX_PDP && (!strcasecmp(getPDNAPN(i), apn) ||
-                        !strcasecmp(strApnName, apn)) &&
-                        (getPDPState(i) == PDP_IDLE)) {
+                    RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
+                    if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
+                        isApnEqual((char *)apn, getPDNAPN(i)) &&
+                        isProtocolEqual((char *)type, getPDNIPType(i))) {
                         RLOGD("Using default PDN");
                         getPDPByIndex(i);
                         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid,
@@ -1192,21 +1265,22 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
         }
     }
 RETRY:
+
+    if (datalen > 6 * sizeof(char *)) {
+        pdpType = ((const char **) data)[6];
+    } else {
+        pdpType = "IP";
+    }
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
-    ret = reuseDefaultBearer(channelID, apn, t);
+    ret = reuseDefaultBearer(channelID, apn, pdpType, t);
     if (ret == 0) {
         return;
     } else if (ret > 0) {
         primaryindex = ret - 1;
         goto error;
     }
-    /* Don't need reuse default bearer */
-    if (datalen > 6 * sizeof(char *)) {
-        pdpType = ((const char **) data)[6];
-    } else {
-        pdpType = "IP";
-    }
+
 
     index = getPDP(socket_id);
     if (index < 0 || getPDPCid(index) >= 0) {
@@ -1356,86 +1430,153 @@ error:
     return;
 }
 
-static void requestSetInitialAttachAPN(int channelID, void *data,
-                                            size_t datalen, RIL_Token t) {
-    RIL_UNUSED_PARM(datalen);
+static bool isStrEmpty(char *str) {
+    if (NULL == str || strcmp(str, "") == 0) {
+        return true;
+    }
+    return false;
+}
 
-    int initialAttachId = 1;
-    int needIPChange = 0;
-    char cmd[AT_COMMAND_LEN] = {0};
+static int getPco(int channelID, RIL_InitialAttachApn *response,
+                  int cid) {
+    ATResponse *pdnResponse = NULL;
+    char *line;
+    int skip;
+    int err = -1;
+    ATLine *pCur;
+    int curr_cid =0;
+    char *username = NULL;
+    char *password = NULL;
+    err = at_send_command_multiline(s_ATChannels[channelID], "AT+CGPCO?",
+                                    "+CGPCO:", &pdnResponse);
+    if (err < 0 || pdnResponse->success == 0) goto done;
+    for (pCur = pdnResponse->p_intermediates; pCur != NULL;
+         pCur = pCur->p_next) {
+        line = pCur->line;
+        err = at_tok_start(&line);
+        if (err < 0) {
+            goto done;
+        }
+        err = at_tok_nextint(&line, &skip);
+        if (err < 0) {
+            goto done;
+        }
+        err = at_tok_nextstr(&line, &username);
+        if (err < 0) {
+            goto done;
+        }
+        snprintf(response->username, ARRAY_SIZE,
+                 "%s", username);
+        err = at_tok_nextstr(&line, &password);
+        if (err < 0) {
+            goto done;
+        }
+        snprintf(response->password, ARRAY_SIZE,
+                 "%s", password);
+        err = at_tok_nextint(&line, &curr_cid);
+        if (err < 0) {
+            goto done;
+        }
+        if (curr_cid != cid) {
+            continue;
+        }
+        err = at_tok_nextint(&line, &response->authtype);
+    }
+done:
+    at_response_free(pdnResponse);
+    return err;
+}
+
+static int getDataProfile(RIL_InitialAttachApn *response,
+                          int channelID, int cid) {
+    int ret = -1;
+    if (cid < 1) {
+        return ret;
+    }
+    queryAllActivePDNInfos(channelID);
+    if (s_PDN[cid - 1].nCid == cid) {
+        snprintf(response->apn, ARRAY_SIZE,
+                 "%s", s_PDN[cid - 1].strApn);
+        snprintf(response->protocol, 16,
+                 "%s", s_PDN[cid - 1].strIPType);
+        ret = getPco(channelID, response, cid);
+    }
+    return ret;
+}
+
+static bool isStrEqual(char *new, char *old) {
+    bool ret = false;
+    if (isStrEmpty(old) && isStrEmpty(new)) {
+        ret = true;
+    } else if (!isStrEmpty(old) && !isStrEmpty(new)) {
+        if (strcasecmp(old, new) == 0) {
+            ret = true;
+        } else {
+            RLOGD("isStrEqual old=%s, new=%s", old, new);
+        }
+    } else {
+        RLOGD("isStrEqual old or new is empty!");
+    }
+    return ret;
+}
+
+static bool isApnEqual(char *new, char *old) {
+    char strApnName[ARRAY_SIZE] = {0};
+    strncpy(strApnName, old, checkCmpAnchor(old));
+    strApnName[strlen(strApnName)] = '\0';
+    if (isStrEmpty(new) || isStrEqual(new, old) ||
+        isStrEqual(strApnName, new)) {
+        return true;
+    }
+    return false;
+}
+
+static bool isProtocolEqual(char *new, char *old) {
+    bool ret = false;
+    if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(new, old) == 0) {
+        ret = true;
+    }
+    return ret;
+}
+
+static int compareApnProfile(RIL_InitialAttachApn *new,
+                             RIL_InitialAttachApn *old) {
+    int ret = -1;
+    int AUTH_NONE = 0;
+    if (isStrEmpty(new->username) || isStrEmpty(new->password) ||
+        new->authtype <= 0) {
+        new->authtype = AUTH_NONE;
+        memset(new->username, 0, strlen(new->username));
+        memset(new->password, 0, strlen(new->password));
+    }
+    if (isStrEmpty(old->username) || isStrEmpty(old->password) ||
+        old->authtype <= 0) {
+        RLOGD("old profile is empty");
+        old->authtype = AUTH_NONE;
+        memset(old->username, 0, strlen(old->username));
+        memset(old->password, 0, strlen(old->password));
+    }
+    if (isApnEqual(new->apn, old->apn) &&
+        isProtocolEqual(new->protocol, old->protocol) &&
+        isStrEqual(new->username, old->username) &&
+        isStrEqual(new->password, old->password) &&
+        new->authtype == old->authtype) {
+        ret = 1;
+    }
+    return ret;
+}
+
+static void setDataProfile(RIL_InitialAttachApn *new, int cid,
+                             int channelID, int socket_id) {
     char qosState[PROPERTY_VALUE_MAX] = {0};
-    ATResponse *p_response = NULL;
-
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-    RIL_InitialAttachApn *initialAttachApn = s_initialAttachAPNs[socket_id];
-    if (initialAttachApn == NULL) {
-        s_initialAttachAPNs[socket_id] =
-                (RIL_InitialAttachApn *)malloc(sizeof(RIL_InitialAttachApn));
-        initialAttachApn = s_initialAttachAPNs[socket_id];
-        memset(initialAttachApn, 0, sizeof(RIL_InitialAttachApn));
-    }
-
-    if (data != NULL) {
-        RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
-        if (pIAApn->apn != NULL) {
-            if ((initialAttachApn->apn != NULL) &&
-                (strcmp(initialAttachApn->apn, pIAApn->apn) != 0)) {
-                needIPChange++;
-            }
-            if (initialAttachApn->apn != NULL) {
-                free(initialAttachApn->apn);
-            }
-            initialAttachApn->apn = (char *)malloc(strlen(pIAApn->apn) + 1);
-            snprintf(initialAttachApn->apn, strlen(pIAApn->apn) + 1,
-                      "%s", pIAApn->apn);
-        }
-
-        if (pIAApn->protocol != NULL) {
-            if ((initialAttachApn->protocol != NULL)
-                 && strcmp(initialAttachApn->protocol,pIAApn->protocol) != 0) {
-                needIPChange++;
-            }
-            if (initialAttachApn->protocol != NULL) {
-                free(initialAttachApn->protocol);
-            }
-            initialAttachApn->protocol = (char *)malloc(
-                    strlen(pIAApn->protocol) + 1);
-            snprintf(initialAttachApn->protocol, strlen(pIAApn->protocol) + 1,
-                     "%s", pIAApn->protocol);
-        }
-
-        initialAttachApn->authtype = pIAApn->authtype;
-
-        if (pIAApn->username != NULL) {
-            if (initialAttachApn->username != NULL) {
-                free(initialAttachApn->username);
-            }
-            initialAttachApn->username = (char *)malloc(
-                    strlen(pIAApn->username) + 1);
-            snprintf(initialAttachApn->username, strlen(pIAApn->username) + 1,
-                     "%s", pIAApn->username);
-        }
-
-        if (pIAApn->password != NULL) {
-            if (initialAttachApn->password != NULL) {
-                free(initialAttachApn->password);
-            }
-            initialAttachApn->password = (char *)malloc(
-                    strlen(pIAApn->password) + 1);
-            snprintf(initialAttachApn->password, strlen(pIAApn->password) + 1,
-                     "%s", pIAApn->password);
-        }
-    }
-
+    char cmd[AT_COMMAND_LEN] = {0};
     snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
-              initialAttachId, initialAttachApn->protocol,
-              initialAttachApn->apn);
-    at_send_command(s_ATChannels[channelID], cmd, &p_response);
+             cid, new->protocol, new->apn);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
 
     snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d",
-              initialAttachApn->username, initialAttachApn->password,
-              initialAttachId, initialAttachApn->authtype);
+             new->username, new->password, cid, new->authtype);
     at_send_command(s_ATChannels[channelID], cmd, NULL);
 
     /* Set required QoS params to default */
@@ -1443,14 +1584,56 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
                   "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  initialAttachId, s_trafficClass[socket_id]);
+                  cid, s_trafficClass[socket_id]);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
-    if (needIPChange > 0) {
-        at_send_command(s_ATChannels[channelID], "AT+SPIPTYPECHANGE=1", NULL);
+}
+
+static void requestSetInitialAttachAPN(int channelID, void *data,
+                                            size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+    int initialAttachId = 1;
+    int ret = -1;
+
+    RIL_InitialAttachApn *response =
+            (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
+    response->apn = (char *)calloc(ARRAY_SIZE, sizeof(char));
+    response->protocol = (char *)calloc(16, sizeof(char));
+    response->username = (char *)calloc(ARRAY_SIZE, sizeof(char));
+    response->password = (char *)calloc(ARRAY_SIZE, sizeof(char));
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    if (data != NULL) {
+        RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
+        if (s_isLTE) {
+            ret = getDataProfile(response, channelID, initialAttachId);
+            ret = compareApnProfile(pIAApn, response);
+            if (ret > 0) {
+                goto done;
+            } else {
+                setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
+            }
+            RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
+                   s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
+            if (s_in4G[socket_id] == 1 ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED) {
+                at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+            }
+        } else {
+            setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
+        }
     }
+done:
+    free(response->apn);
+    free(response->protocol);
+    free(response->username);
+    free(response->password);
+    free(response);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-    at_response_free(p_response);
     s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
 }
 
