@@ -1147,14 +1147,14 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                                               &p_response);
                         if (errorHandlingForCGDATA(channelID, p_response, err,
                                                    cid) != 0) {
-                            ret = i;
+                            ret = cid;
                             at_response_free(p_response);
-                            return ret;
+                        } else {
+                            updatePDPCid(i + 1, 1);
+                            requestOrSendDataCallList(channelID, cid, &t);
+                            ret = 0;
+                            at_response_free(p_response);
                         }
-                        updatePDPCid(i + 1, 1);
-                        requestOrSendDataCallList(channelID, cid, &t);
-                        ret = 0;
-                        at_response_free(p_response);
                     }
                 } else if (i < MAX_PDP) {
                     putPDP(i);
@@ -1198,7 +1198,7 @@ RETRY:
     if (ret == 0) {
         return;
     } else if (ret > 0) {
-        primaryindex = ret;
+        primaryindex = ret - 1;
         goto error;
     }
     /* Don't need reuse default bearer */
