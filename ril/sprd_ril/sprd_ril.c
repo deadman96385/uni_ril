@@ -128,6 +128,7 @@ char RIL_SP_SIM_PIN_PROPERTYS[128]; // ril.*.sim.pin* --ril.*.sim.pin1 or ril.*.
 #define PROP_MTBF_ENABLE "persist.sys.mtbf.enable"
 
 #define PRO_SIMLOCK_UNLOCK_BYNV  "ro.simlock.unlock.bynv"
+#define PROP_RELIANCE_SIMLOCK_ENABLE "persist.sys.reliance.simlock"
 #define PROP_HARDWARE_VERSION "sys.hardware.version"
 
 #define PROP_BUILD_TYPE "ro.build.type"
@@ -15489,6 +15490,7 @@ int getNetLockRemainTimes(int channelID, int type){
     int fac = type;
     int ck_type = 1;
     char *line;
+    char prop[PROPERTY_VALUE_MAX] = {0};
     int result[2] = {0,0};
     ATResponse   *p_response = NULL;
     int err;
@@ -15514,6 +15516,15 @@ int getNetLockRemainTimes(int channelID, int type){
 
         if (err == 0) {
             ret= result[0] - result[1];
+            /* SPRD: Add for Reliance simlock @{*/
+            property_get(PROP_RELIANCE_SIMLOCK_ENABLE, prop, "false");
+            if(!strcmp(prop, "true")) {
+                if (fac == 2) {  // NETWORK LOCK
+                    ALOGD("For Reliance simlock, just return retrial times %d", result[1]);
+                    ret = result[1];
+                }
+            }
+            /* @}*/
         }
         else {
             ret= 10;
