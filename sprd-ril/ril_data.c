@@ -77,9 +77,8 @@ static int getPDP(RIL_SOCKET_ID socket_id) {
     int ret = -1;
     int i;
     char prop[PROPERTY_VALUE_MAX] = {0};
-
     for (i = 0; i < MAX_PDP; i++) {
-        if (s_workMode[socket_id] != GSM_ONLY && s_activePDN > 0 &&
+        if (socket_id == s_multiModeSim && s_activePDN > 0 &&
             s_PDN[i].nCid == (i + 1)) {
             continue;
         }
@@ -1193,10 +1192,9 @@ static int reuseDefaultBearer(int channelID, const char *apn,
     char cmd[AT_COMMAND_LEN] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
-
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (islte && s_workMode[socket_id] != GSM_ONLY) {
+    if (islte && socket_id == s_multiModeSim) {
         queryAllActivePDNInfos(channelID);
         int i, cid;
         if (s_activePDN > 0) {
@@ -1679,14 +1677,13 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
 #if defined (ANDROID_MULTI_SIM)
 
     if (s_autoDetach == 1) {
         doDetachGPRS(1 - socket_id, data, datalen, NULL);
     }
     if (islte) {
-        if (s_workMode[socket_id] == GSM_ONLY ) {
+        if (socket_id != s_multiModeSim ) {
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
             if (s_sessionId[socket_id] != 0) {
@@ -1736,7 +1733,6 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
     char cmd[AT_COMMAND_LEN];
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
-
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     if (islte) {
@@ -1756,7 +1752,7 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 #if defined (ANDROID_MULTI_SIM)
         if (s_presentSIMCount == SIM_COUNT) {
             RLOGD("simID = %d", socket_id);
-            if (s_workMode[socket_id] == GSM_ONLY) {
+            if (socket_id != s_multiModeSim) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SGFD", &p_response);
                 if (err < 0 || p_response->success == 0) {
                     goto error;
@@ -1884,7 +1880,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 if (s_isLTE) {
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
-                    if (s_workMode[socket_id] == GSM_ONLY ||
+                    if (socket_id != s_multiModeSim ||
                         s_PSRegState[socket_id] == STATE_IN_SERVICE) {
                         requestSetupDataCall(channelID, data, datalen, t);
                     } else {

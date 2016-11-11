@@ -47,6 +47,8 @@
 
 #define NUM_ELEMS(x)        (sizeof(x) / sizeof(x[0]))
 #define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
+#define MODEM_CONFIG_PROP   "persist.radio.modem.config"
+#define PRIMARY_SIM_PROP    "persist.radio.primary.sim"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \
@@ -83,6 +85,8 @@ typedef struct {
 } CallbackPara;
 
 extern bool s_isLTE;
+extern int s_modemConfig;
+extern int s_multiModeSim;
 extern sem_t s_sem[SIM_COUNT];
 extern RIL_RadioState s_radioState[SIM_COUNT];
 extern const RIL_SOCKET_ID s_socketId[SIM_COUNT];

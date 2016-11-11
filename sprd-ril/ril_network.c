@@ -14,7 +14,6 @@
 #include "ril_async_cmd_handler.h"
 
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
-#define MODEM_CONFIG_PROP       "persist.radio.modem.config"
 /* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
 /* Save NITZ operator name string for UI to display right PLMN name */
@@ -111,7 +110,6 @@ int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
 int s_sessionId[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
-int s_multiModeSim = 0;
 bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
@@ -152,11 +150,11 @@ int getMultiMode() {
     if (strcmp(prop, "") == 0) {
         // WCDMA
         workMode = WCDMA_AND_GSM;
-    } else if (strcmp(prop, "TL_LF_TD_W_G,G") == 0) {
+    } else if (strstr(prop, "TL_LF_TD_W_G")) {
         workMode = TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB;
-    } else if (strcmp(prop, "TL_LF_W_G,G") == 0) {
+    } else if (strstr(prop, "TL_LF_W_G")) {
         workMode = TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB;
-    } else if (strcmp(prop, "TL_TD_G,G") == 0) {
+    } else if (strstr(prop, "TL_TD_G")) {
         workMode = TD_LTE_AND_TD_AND_GSM_CSFB;
     } else if (strcmp(prop, "W_G,G") == 0) {
         workMode = WCDMA_AND_GSM;
@@ -189,9 +187,22 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
 //        }
     } else if (s_presentSIMCount == 1) {  // only one SIM card present
         if (!isSimPresent(socket_id)) {
-            workMode = GSM_ONLY;
-        } else if (workMode == GSM_ONLY || workMode == NONE) {
-            workMode = getMultiMode();
+            if (s_modemConfig == LWG_WG) {
+                //workMode = TD_AND_WCDMA;
+            } else {
+                workMode = GSM_ONLY;
+            }
+        } else {
+            if (s_modemConfig == LWG_WG) {
+
+            } else if (workMode == GSM_ONLY || workMode == NONE) {
+                workMode = getMultiMode();
+            }
+            if (s_multiModeSim != socket_id) {
+                s_multiModeSim = socket_id;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
         }
     } else if (s_presentSIMCount == SIM_COUNT) {  // multi SIM cards
         if (workMode == NONE) {
@@ -880,25 +891,33 @@ static int getRadioFeatures(int socket_id, int isUnsolHandling) {
     const int WCDMA = RAF_HSDPA | RAF_HSUPA | RAF_HSPA | RAF_HSPAP | RAF_UMTS;
     const int GSM = RAF_GSM | RAF_GPRS | RAF_EDGE;
     int workMode;
-    if (isUnsolHandling == 1) {  // UNSOL_RADIO_CAPABILITY
-        char prop[PROPERTY_VALUE_MAX] = {0};
-        getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
-        workMode = atoi(prop);
-    } else {  // GET_RADIO_CAPABILITY
-        workMode = getWorkMode(socket_id);
-    }
 
-    if (workMode == GSM_ONLY) {
-        rat = GSM;
-    } else if (workMode == NONE) {
-        rat = RAF_UNKNOWN;
-    } else if (s_isLTE) {
-        rat = RAF_LTE | WCDMA | GSM;
+    if (s_modemConfig == LWG_WG) {
+        if (socket_id == s_multiModeSim) {
+            rat = RAF_LTE | WCDMA | GSM;
+        } else {
+            rat = WCDMA | GSM;
+        }
     } else {
-        rat = WCDMA | GSM;
-    }
-    if (workMode == NONE && isSimPresent(socket_id)) {
-       rat = GSM;
+        if (isUnsolHandling == 1) {  // UNSOL_RADIO_CAPABILITY
+            char prop[PROPERTY_VALUE_MAX] = {0};
+            getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
+            workMode = atoi(prop);
+        } else {  // GET_RADIO_CAPABILITY
+            workMode = getWorkMode(socket_id);
+        }
+        if (workMode == GSM_ONLY) {
+            rat = GSM;
+        } else if (workMode == NONE) {
+            rat = RAF_UNKNOWN;
+        } else if (s_isLTE) {
+            rat = RAF_LTE | WCDMA | GSM;
+        } else {
+            rat = WCDMA | GSM;
+        }
+        if (workMode == NONE && isSimPresent(socket_id)) {
+           rat = GSM;
+        }
     }
     RLOGD("getRadioFeatures rat %d", rat);
     return rat;
@@ -973,7 +992,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
 
 #if (SIM_COUNT == 2)
         if (s_presentSIMCount == 0) {
-            if (s_workMode[socket_id] == GSM_ONLY || s_workMode[socket_id] == NONE) {
+            if (socket_id != s_multiModeSim) {
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                           NULL, 0, socket_id);
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -1004,7 +1023,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             }
 #if defined (ANDROID_MULTI_SIM)
             else {
-                if (s_workMode[socket_id] == GSM_ONLY) {
+                if (socket_id != s_multiModeSim) {
                     RLOGD("socket_id = %d, s_dataAllowed = %d", socket_id,
                           s_dataAllowed[socket_id]);
                     snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
@@ -1404,18 +1423,34 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
                 type = getMultiMode();
                 break;
             case NETWORK_MODE_WCDMA_PREF: {
-                int mode = getMultiMode();
-                if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
-                    type = TD_AND_WCDMA;
-                } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
-                    type = WCDMA_AND_GSM;
-                } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
-                    type = TD_AND_GSM;
+                if (s_modemConfig == LWG_WG) {
+                    if (socket_id == s_multiModeSim) {
+                        type = PRIMARY_TD_AND_WCDMA;
+                    } else {
+                        type = TD_AND_WCDMA;
+                    }
+                } else {
+                    int mode = getMultiMode();
+                    if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
+                        type = TD_AND_WCDMA;
+                    } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
+                        type = WCDMA_AND_GSM;
+                    } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
+                        type = TD_AND_GSM;
+                    }
                 }
                 break;
             }
             case NETWORK_MODE_GSM_ONLY:
-                type = PRIMARY_GSM_ONLY;
+                if (s_modemConfig != LWG_WG) {
+                    type = PRIMARY_GSM_ONLY;
+                } else {
+                    if (socket_id == s_multiModeSim) {
+                        type = PRIMARY_GSM_ONLY;
+                    } else {
+                        type = GSM_ONLY;
+                    }
+                }
                 break;
             case NETWORK_MODE_LTE_ONLY: {
                 int mode = getMultiMode();
@@ -1428,7 +1463,15 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NETWORK_MODE_WCDMA_ONLY:
-                type = WCDMA_ONLY;
+                if (s_modemConfig == LWG_WG) {
+                    if (socket_id == s_multiModeSim) {
+                        type = PRIMARY_WCDMA_ONLY;
+                    } else {
+                        type = WCDMA_ONLY;
+                    }
+                } else {
+                    type = WCDMA_ONLY;
+                }
                 break;
             default:
                 break;
@@ -1446,10 +1489,12 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
     char numToStr[ARRAY_SIZE];
 
     workMode = s_workMode[socket_id];
-    if (workMode == NONE || workMode == GSM_ONLY) {
-        RLOGD("SetLTEPreferredNetType: not data card");
-        errType = RIL_E_SUCCESS;
-        goto done;
+    if (s_modemConfig != LWG_WG) {
+        if (workMode == NONE || workMode == GSM_ONLY) {
+            RLOGD("SetLTEPreferredNetType: not data card");
+            errType = RIL_E_SUCCESS;
+            goto done;
+        }
     }
     if (type == workMode) {
         RLOGD("SetLTEPreferredNetType: has send the request before");
@@ -1681,7 +1726,9 @@ static void requestGetLTEPreferredNetType(int channelID,
                 type = NETWORK_MODE_LTE_GSM_WCDMA;
                 break;
             case TD_AND_WCDMA:
+            case PRIMARY_TD_AND_WCDMA:
             case WCDMA_AND_GSM:
+            case PRIMARY_WCDMA_AND_GSM:
             case TD_AND_GSM:
                 type = NETWORK_MODE_WCDMA_PREF;
                 break;
@@ -1695,6 +1742,7 @@ static void requestGetLTEPreferredNetType(int channelID,
                 type = NETWORK_MODE_LTE_ONLY;
                 break;
             case WCDMA_ONLY:
+            case PRIMARY_WCDMA_ONLY:
                 type = NETWORK_MODE_WCDMA_ONLY;
                 break;
             default:
@@ -2183,9 +2231,10 @@ static void requestGetRadioCapability(int channelID, void *data,
     rc->phase = RC_PHASE_CONFIGURED;
     rc->rat = getRadioFeatures(socket_id, 0);
     rc->status = RC_STATUS_NONE;
-    if ((rc->rat & RAF_UMTS) == RAF_UMTS
-                || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
-                || (rc->rat & RAF_LTE) == RAF_LTE) {
+//    if ((rc->rat & RAF_UMTS) == RAF_UMTS
+//                || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
+//                || (rc->rat & RAF_LTE) == RAF_LTE) {
+    if (socket_id == s_multiModeSim) {
         strncpy(rc->logicalModemUuid, "com.sprd.modem_multiMode",
                 sizeof("com.sprd.modem_multiMode"));
     } else {
@@ -2211,18 +2260,17 @@ void setWorkMode() {
     } else if (s_multiModeSim == RIL_SOCKET_2) {
         singleModeSim = RIL_SOCKET_1;
     }
-
-    s_workMode[singleModeSim] = GSM_ONLY;
 #endif
     pthread_mutex_lock(&s_workModeMutex);
+    getProperty(s_multiModeSim, MODEM_WORKMODE_PROP, prop, "10");
+    workMode = atoi(prop);
+    s_workMode[singleModeSim] = workMode;
+
     getProperty(singleModeSim, MODEM_WORKMODE_PROP, prop, "10");
     workMode = atoi(prop);
-    RLOGD("setRadioCapability singleMode is %d", workMode);
-    if (workMode == GSM_ONLY || workMode == NONE) {
-        workMode = getMultiMode();
-    }
     s_workMode[s_multiModeSim] = workMode;
     RLOGD("setRadioCapability multiMode is %d", s_workMode[s_multiModeSim]);
+
     for (simId = 0; simId < SIM_COUNT; simId++) {
         memset(numToStr, 0, sizeof(numToStr));
         snprintf(numToStr, sizeof(numToStr), "%d", s_workMode[simId]);
@@ -2238,11 +2286,9 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
+    char numToStr[ARRAY_SIZE];
     // set modem work mode
-    if ((rc->rat & RAF_UMTS) == RAF_UMTS
-            || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
-            || (rc->rat & RAF_LTE) == RAF_LTE) {
+    if ((rc->rat & RAF_LTE) == RAF_LTE) {
         s_multiModeSim = socket_id;
     } else {
 #if (SIM_COUNT == 2)
@@ -2253,9 +2299,13 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
         }
 #endif
     }
+    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+    property_set(PRIMARY_SIM_PROP, numToStr);
+
     RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
     setWorkMode();
-
+    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", s_multiModeSim);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
 #if (SIM_COUNT == 2)
     snprintf(cmd, sizeof(cmd), "AT+SPTESTMODE=%d,%d", s_workMode[RIL_SOCKET_1],
             s_workMode[RIL_SOCKET_2]);
@@ -2284,6 +2334,7 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
     int err, channel[SIM_COUNT];
     int simId = 0;
     char cmd[AT_COMMAND_LEN] = {0};
+    char numToStr[ARRAY_SIZE];
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -2327,6 +2378,8 @@ static int applySetRadioCapability(RIL_RadioCapability *rc, int channelID) {
         }
 #endif
     }
+    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+    property_set(PRIMARY_SIM_PROP, numToStr);
     RLOGD("applySetRadioCapability: multiModeSim %d", s_multiModeSim);
     setWorkMode();
     buildWorkModeCmd(cmd, sizeof(cmd));
