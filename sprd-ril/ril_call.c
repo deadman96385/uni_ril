@@ -495,6 +495,7 @@ static void requestDial(int channelID, void *data, size_t datalen,
 
     RIL_Dial *p_dial = NULL;
     p_dial = (RIL_Dial *)data;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     switch (p_dial->clir) {
         case 0: clir = ""; break;   /* subscription default */
@@ -503,6 +504,7 @@ static void requestDial(int channelID, void *data, size_t datalen,
         default: break;
     }
 
+    s_callFailCause[socket_id] = CALL_FAIL_ERROR_UNSPECIFIED;
     ret = asprintf(&cmd, "ATD%s%s;", p_dial->address, clir);
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
@@ -885,6 +887,7 @@ static void requestEccDial(int channelID, void *data, size_t datalen,
             break;
     }
 
+    s_callFailCause[socket_id] = CALL_FAIL_ERROR_UNSPECIFIED;
     if (catgry != -1) {
         ret = asprintf(&cmd, "ATD%s@%d,#%s;", p_dial->address, catgry, clir);
     } else {
@@ -1066,7 +1069,9 @@ static void requestVideoPhoneDial(int channelID, void *data,
     int ret;
 
     p_dial = (RIL_VideoPhone_Dial *)data;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    s_callFailCause[socket_id] = CALL_FAIL_ERROR_UNSPECIFIED;
 #ifdef NEW_AT
     ret = asprintf(&cmd, "ATD=%s", p_dial->address);
 #else
