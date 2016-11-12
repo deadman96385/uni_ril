@@ -1680,11 +1680,6 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (s_sessionId[socket_id] != 0) {
-        RLOGD("setRadioCapability is on going, return!!");
-        goto error;
-    }
-
 #if defined (ANDROID_MULTI_SIM)
 
     if (s_autoDetach == 1) {
@@ -1694,6 +1689,10 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
         if (s_workMode[socket_id] == GSM_ONLY ) {
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
+            if (s_sessionId[socket_id] != 0) {
+                RLOGD("setRadioCapability is on going, return!!");
+                goto error;
+            }
             err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                                    &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -1706,6 +1705,10 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     }
 #endif
     if (!islte) {
+        if (s_sessionId[socket_id] != 0) {
+            RLOGD("setRadioCapability is on going, return!!");
+            goto error;
+        }
         err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                               &p_response);
         if (err < 0 || p_response->success == 0) {
