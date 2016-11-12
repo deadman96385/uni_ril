@@ -1465,14 +1465,10 @@ static int getPco(int channelID, RIL_InitialAttachApn *response,
         if (err < 0) {
             goto done;
         }
-        snprintf(response->username, ARRAY_SIZE,
-                 "%s", username);
         err = at_tok_nextstr(&line, &password);
         if (err < 0) {
             goto done;
         }
-        snprintf(response->password, ARRAY_SIZE,
-                 "%s", password);
         err = at_tok_nextint(&line, &curr_cid);
         if (err < 0) {
             goto done;
@@ -1480,6 +1476,10 @@ static int getPco(int channelID, RIL_InitialAttachApn *response,
         if (curr_cid != cid) {
             continue;
         }
+        snprintf(response->username, ARRAY_SIZE,
+                 "%s", username);
+        snprintf(response->password, ARRAY_SIZE,
+                 "%s", password);
         err = at_tok_nextint(&line, &response->authtype);
     }
 done:
