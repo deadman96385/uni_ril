@@ -49,6 +49,20 @@ static int s_trafficClass[SIM_COUNT] = {
 #endif
 #endif
 };
+
+static int s_singlePDNAllowed[SIM_COUNT] = {
+        0
+#if(SIM_COUNT >= 2)
+        ,0
+#if(SIM_COUNT >= 3)
+        ,0
+#if(SIM_COUNT >= 4)
+        ,0
+#endif
+#endif
+#endif
+};
+
 struct PDPInfo s_PDP[MAX_PDP] = {
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
     { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
@@ -1205,8 +1219,9 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                 if (cid == (i + 1)) {
                     RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
                     if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
-                        isApnEqual((char *)apn, getPDNAPN(i)) &&
-                        isProtocolEqual((char *)type, getPDNIPType(i))) {
+                        ((isApnEqual((char *)apn, getPDNAPN(i)) &&
+                        isProtocolEqual((char *)type, getPDNIPType(i))) ||
+                        s_singlePDNAllowed[socket_id] == 1)) {
                         RLOGD("Using default PDN");
                         getPDPByIndex(i);
                         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid,
@@ -2033,6 +2048,11 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         /* }@ */
+        case RIL_EXT_REQUEST_SET_SINGLE_PDN: {
+            s_singlePDNAllowed[socket_id] = ((int *)data)[0];
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
         default :
             ret = 0;
             break;
