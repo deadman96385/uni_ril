@@ -1031,8 +1031,8 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
                 ppp_info[tmp_cid-1].state = PPP_STATE_DEACTING;
                 ppp_info[tmp_cid - 1].cmux = mux;
                 if(tmp_cid2 != 0){
-                   if (tmp_cid2 != -1) {
-                        snprintf(at_cmd_str,sizeof(at_cmd_str), "AT+CGACT=0,%d,%d\r",tmp_cid,tmp_cid2);
+                    if (tmp_cid2 != -1) {
+                        snprintf(at_cmd_str, sizeof(at_cmd_str), "AT+CGACT=0,%d,%d\r",tmp_cid,tmp_cid2);
                     } else {
                         snprintf(at_cmd_str,sizeof(at_cmd_str), "AT+CGACT=0,%d\r",tmp_cid);
                     }
@@ -1041,17 +1041,20 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req)
 
                     adapter_cmux_write(mux, at_cmd_str, strlen(at_cmd_str),
                         req->timeout);
+                    ppp_info[tmp_cid - 1].state = PPP_STATE_IDLE;
+                    usleep(200 * 1000);
+                    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", modem);
+                    property_get(ETH_SP, prop, "veth");
+                    down_netcard(tmp_cid, prop);
                 }else{
+                    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", modem);
+                    property_get(ETH_SP, prop, "veth");
+                    down_netcard(tmp_cid, prop);
                     adapter_pty_write(req->recv_pty,"OK\r",strlen("OK\r"));
                     adapter_pty_end_cmd(req->recv_pty);
                     adapter_free_cmux(mux);
+                    ppp_info[tmp_cid - 1].state = PPP_STATE_IDLE;
                 }
-                ppp_info[tmp_cid - 1].state = PPP_STATE_IDLE;
-
-                usleep(200*1000);
-                snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", modem);
-                property_get(ETH_SP, prop, "veth");
-                down_netcard(tmp_cid,prop);
 
                 if (ppp_info[tmp_cid-1].ip_state == IPV6 ||
                     ppp_info[tmp_cid-1].ip_state == IPV4V6) {
