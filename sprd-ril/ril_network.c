@@ -2239,6 +2239,11 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+   if (SIM_COUNT <= 2) {
+       snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", 1 - s_multiModeSim);
+       at_send_command(s_ATChannels[channelID], cmd, NULL);
+   }
+
     // set modem work mode
     if ((rc->rat & RAF_UMTS) == RAF_UMTS
             || (rc->rat & RAF_TD_SCDMA) == RAF_TD_SCDMA
