@@ -8,6 +8,8 @@
 #ifndef RIL_NETWORK_H_
 #define RIL_NETWORK_H_
 
+#define SIG_POOL_SIZE           10
+
 /*  LTE PS registration state */
 typedef enum {
     STATE_OUT_OF_SERVICE = 0,
@@ -161,5 +163,17 @@ int isSimPresent(RIL_SOCKET_ID socket_id);
 uint64_t ril_nano_time();
 
 void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp);
+
+/* for AT+CSQ execute command response process */
+void csq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse);
+
+/* for AT+CESQ execute command response process */
+void cesq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse);
+
+/* for +CSQ: unsol response process */
+int csq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
+
+/* for +CESQ: unsol response process */
+int cesq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 
 #endif  // RIL_NETWORK_H_

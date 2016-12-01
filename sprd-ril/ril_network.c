@@ -12,6 +12,7 @@
 #include "ril_misc.h"
 #include "TelephonyEx.h"
 #include "ril_async_cmd_handler.h"
+#include "channel_controller.h"
 
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 /* Save physical cellID for AGPS */
@@ -113,6 +114,11 @@ int s_presentSIMCount = 0;
 bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
+
+int s_psOpened[SIM_COUNT] = {0};
+int rxlev[SIM_COUNT], ber[SIM_COUNT], rscp[SIM_COUNT];
+int ecno[SIM_COUNT], rsrq[SIM_COUNT], rsrp[SIM_COUNT];
+int rssi[SIM_COUNT], berr[SIM_COUNT];
 
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
@@ -357,6 +363,7 @@ static void requestSignalStrength(int channelID, void *data,
     int err;
     char *line;
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     RIL_SignalStrength_v6 response_v6;
 
     RIL_SIGNALSTRENGTH_INIT(response_v6);
@@ -367,7 +374,10 @@ static void requestSignalStrength(int channelID, void *data,
         goto error;
     }
 
-    line = p_response->p_intermediates->line;
+    csq_execute_cmd_rsp(p_response, &p_newResponse);
+    if (p_newResponse == NULL) goto error;
+
+    line = p_newResponse->p_intermediates->line;
 
     err = at_tok_start(&line);
     if (err < 0) goto error;
@@ -382,11 +392,13 @@ static void requestSignalStrength(int channelID, void *data,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &response_v6,
                           sizeof(RIL_SignalStrength_v6));
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
 }
 
 static void requestSignalStrengthLTE(int channelID, void *data,
@@ -399,6 +411,7 @@ static void requestSignalStrengthLTE(int channelID, void *data,
     char *line;
     int response[6] = {-1, -1, -1, -1, -1, -1};
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     RIL_SignalStrength_v6 responseV6;
 
     RIL_SIGNALSTRENGTH_INIT(responseV6);
@@ -410,7 +423,10 @@ static void requestSignalStrengthLTE(int channelID, void *data,
         goto error;
     }
 
-    line = p_response->p_intermediates->line;
+    cesq_execute_cmd_rsp(p_response, &p_newResponse);
+    if (p_newResponse == NULL) goto error;
+
+    line = p_newResponse->p_intermediates->line;
 
     err = at_tok_start(&line);
     if (err < 0) goto error;
@@ -446,11 +462,13 @@ static void requestSignalStrengthLTE(int channelID, void *data,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &responseV6,
                           sizeof(RIL_SignalStrength_v6));
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
 }
 
 static void queryCeregTac(int channelID, int *tac) {
@@ -1063,7 +1081,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                 goto error;
             }
 
-            if (strStartsWith(p_response->finalResponse, "ERROR")) {
+            if (err == AT_ERROR_TIMEOUT) {
                 s_radioOnError[socket_id] = true;
                 RLOGD("requestRadioPower: radio on ERROR");
                 goto error;
@@ -2032,6 +2050,7 @@ static void requestGetCellInfoList(int channelID, void *data,
     char *line =  NULL, *p = NULL, *skip = NULL, *plmn = NULL;
 
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     RIL_CellInfo **response = NULL;
 
     if (!s_screenState) {
@@ -2157,11 +2176,13 @@ static void requestGetCellInfoList(int channelID, void *data,
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CESQ",
                                      "+CESQ:", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
         goto error;
     }
 
-    line = p_response->p_intermediates->line;
+    cesq_execute_cmd_rsp(p_response, &p_newResponse);
+    if (p_newResponse == NULL) goto error;
+
+    line = p_newResponse->p_intermediates->line;
     err = at_tok_start(&line);
     if (err < 0) goto error;
 
@@ -2220,6 +2241,7 @@ static void requestGetCellInfoList(int channelID, void *data,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, (*response),
                           count * sizeof(RIL_CellInfo));
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     if (response != NULL) {
         for (i = 0; i < count; i++) {
             free(response[i]);
@@ -2230,6 +2252,7 @@ static void requestGetCellInfoList(int channelID, void *data,
 
 error:
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     if (response != NULL) {
         for (i = 0; i < count; i++) {
             free(response[i]);
@@ -2742,76 +2765,88 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
 
     if (strStartsWith(s, "+CSQ:")) {
-        RIL_SignalStrength_v6 responseV6;
-        char *tmp;
-
         if (s_isLTE) {
             RLOGD("for +CSQ, current is lte ril,do nothing");
             goto out;
         }
 
-        RIL_SIGNALSTRENGTH_INIT(responseV6);
+        RIL_SignalStrength_v6 responseV6;
+        char *tmp;
+        char newLine[AT_COMMAND_LEN];
+
         line = strdup(s);
         tmp = line;
 
-        at_tok_start(&tmp);
+        err = csq_unsol_rsp(tmp, socket_id, newLine);
+        if (err == 0) {
+            RIL_SIGNALSTRENGTH_INIT(responseV6);
 
-        err = at_tok_nextint(&tmp,
-                             &(responseV6.GW_SignalStrength.signalStrength));
-        if (err < 0) goto out;
+            tmp = newLine;
+            at_tok_start(&tmp);
 
-        err = at_tok_nextint(&tmp,
-                             &(responseV6.GW_SignalStrength.bitErrorRate));
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp,
+                    &(responseV6.GW_SignalStrength.signalStrength));
+            if (err < 0) goto out;
 
-        RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &responseV6,
-                                  sizeof(RIL_SignalStrength_v6), socket_id);
+            err = at_tok_nextint(&tmp,
+                    &(responseV6.GW_SignalStrength.bitErrorRate));
+            if (err < 0) goto out;
+
+            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &responseV6,
+                                      sizeof(RIL_SignalStrength_v6), socket_id);
+        }
     } else if (strStartsWith(s, "+CESQ:")) {
-        RIL_SignalStrength_v6 response_v6;
-        char *tmp;
-        int skip;
-        int response[6] = {-1, -1, -1, -1, -1, -1};
-
         if (!strcmp(s_modem, "t")) {
             RLOGD("for +CESQ, current is td ril, do nothing");
             goto out;
         }
 
-        RIL_SIGNALSTRENGTH_INIT(response_v6);
+        RIL_SignalStrength_v6 response_v6;
+        char *tmp;
+        int skip;
+        int response[6] = {-1, -1, -1, -1, -1, -1};
+        char newLine[AT_COMMAND_LEN];
+
         line = strdup(s);
         tmp = line;
 
-        at_tok_start(&tmp);
+        err = cesq_unsol_rsp(tmp, socket_id, newLine);
+        if (err == 0) {
+            RIL_SIGNALSTRENGTH_INIT(response_v6);
 
-        err = at_tok_nextint(&tmp, &response[0]);
-        if (err < 0) goto out;
+            tmp = newLine;
+            at_tok_start(&tmp);
 
-        err = at_tok_nextint(&tmp, &response[1]);
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp, &response[0]);
+            if (err < 0) goto out;
 
-        err = at_tok_nextint(&tmp, &response[2]);
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp, &response[1]);
+            if (err < 0) goto out;
 
-        err = at_tok_nextint(&tmp, &skip);
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp, &response[2]);
+            if (err < 0) goto out;
 
-        err = at_tok_nextint(&tmp, &skip);
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp, &skip);
+            if (err < 0) goto out;
 
-        err = at_tok_nextint(&tmp, &response[5]);
-        if (err < 0) goto out;
+            err = at_tok_nextint(&tmp, &skip);
+            if (err < 0) goto out;
 
-        if (response[0] != -1 && response[0] != 99) {
-            response_v6.GW_SignalStrength.signalStrength = response[0];
+            err = at_tok_nextint(&tmp, &response[5]);
+            if (err < 0) goto out;
+
+            if (response[0] != -1 && response[0] != 99) {
+                response_v6.GW_SignalStrength.signalStrength = response[0];
+            }
+            if (response[2] != -1 && response[2] != 255) {
+                response_v6.GW_SignalStrength.signalStrength = response[2];
+            }
+            if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
+                response_v6.LTE_SignalStrength.rsrp = response[5];
+            }
+            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
+                                      sizeof(RIL_SignalStrength_v6), socket_id);
         }
-        if (response[2] != -1 && response[2] != 255) {
-            response_v6.GW_SignalStrength.signalStrength = response[2];
-        }
-        if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
-            response_v6.LTE_SignalStrength.rsrp = response[5];
-        }
-        RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
-                                  sizeof(RIL_SignalStrength_v6), socket_id);
     } else if (strStartsWith(s, "+CREG:") ||
                 strStartsWith(s, "+CGREG:")) {
         RIL_onUnsolicitedResponse(
@@ -3030,4 +3065,451 @@ void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp) {
             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
         }
     }
+}
+
+
+/*
+ * phoneserver used to process these AT Commands or its response
+ *    # AT+CSQ execute command response process
+ *    # AT+CESQ execute command response process
+ *    # +CSQ: unsol response process
+ *    # +CESQ: unsol response process
+ *
+ * since phoneserver has been removed, its function should be realized in RIL,
+ * so when used AT+CSQ, AT+CESQ, AT+CGDATA=, +CSQ: and +CESQ:,
+ * please make sure to call the corresponding process functions.
+ */
+
+static int least_squares(int y[]) {
+    int i = 0;
+    int x[SIG_POOL_SIZE] = {0};
+    int sum_x = 0, sum_y = 0, sum_xy = 0, square = 0;
+    float a = 0.0, b = 0.0, value = 0.0;
+
+    for (i = 0; i < SIG_POOL_SIZE; ++i) {
+        x[i] = i;
+        sum_x += x[i];
+        sum_y += y[i];
+        sum_xy += x[i] * y[i];
+        square += x[i] * x[i];
+    }
+    a = ((float)(sum_xy * SIG_POOL_SIZE - sum_x * sum_y))
+            / (square * SIG_POOL_SIZE - sum_x * sum_x);
+    b = ((float)sum_y) / SIG_POOL_SIZE - a * sum_x / SIG_POOL_SIZE;
+    value = a * x[SIG_POOL_SIZE - 1] + b;
+    return (int)(value) + ((int)(10 * value) % 10 < 5 ? 0 : 1);
+}
+
+void *signal_process() {
+    int sim_index = 0;
+    int i = 0;
+    int sample_rsrp_sim[SIM_COUNT][SIG_POOL_SIZE];
+    int sample_rscp_sim[SIM_COUNT][SIG_POOL_SIZE];
+    int sample_rxlev_sim[SIM_COUNT][SIG_POOL_SIZE];
+    int sample_rssi_sim[SIM_COUNT][SIG_POOL_SIZE];
+    int *rsrp_array = NULL, *rscp_array = NULL, *rxlev_array, newSig;
+    int upValue = -1, lowValue = -1;
+    int rsrp_value, rscp_value, rxlev_value;
+    // 3 means count 2G/3G/4G
+    int nosigUpdate[SIM_COUNT], MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
+
+    memset(sample_rsrp_sim, 0, SIM_COUNT);
+    memset(sample_rscp_sim, 0, SIM_COUNT);
+    memset(sample_rxlev_sim, 0, SIM_COUNT);
+    memset(sample_rssi_sim, 0, SIM_COUNT);
+
+    if (!s_isLTE) {
+        MAXSigCount = SIG_POOL_SIZE - 1;
+    }
+
+    while (1) {
+        for (sim_index = 0; sim_index < SIM_COUNT; sim_index++) {
+            // compute the rsrp(4G) rscp(3G) rxlev(2G) or rssi(CSQ)
+            if (!s_isLTE) {
+                rsrp_array = NULL;
+                rscp_array = sample_rssi_sim[sim_index];
+                rxlev_array = NULL;
+                newSig = rssi[sim_index];
+                upValue = 31;
+                lowValue = 0;
+            } else {
+                rsrp_array = sample_rsrp_sim[sim_index];
+                rscp_array = sample_rscp_sim[sim_index];
+                rxlev_array = sample_rxlev_sim[sim_index];
+                newSig = rscp[sim_index];
+                upValue = 140;
+                lowValue = 44;
+            }
+            nosigUpdate[sim_index] = 0;
+
+            for (i = 0; i < SIG_POOL_SIZE - 1; ++i) {
+                if (rsrp_array != NULL) {  // w/td mode no rsrp
+                    if (rsrp_array[i] == rsrp_array[i + 1]) {
+                        if (rsrp_array[i] == rsrp[sim_index]) {
+                            nosigUpdate[sim_index]++;
+                        } else if (rsrp_array[i] == 0 ||
+                                   rsrp_array[i] < lowValue ||
+                                   rsrp_array[i] > upValue) {
+                            rsrp_array[i] = rsrp[sim_index];
+                        }
+                    } else {
+                        rsrp_array[i] = rsrp_array[i + 1];
+                    }
+                }
+
+                if (rscp_array != NULL) {
+                    if (rscp_array[i] == rscp_array[i + 1]) {
+                        if (rscp_array[i] == newSig) {
+                            nosigUpdate[sim_index]++;
+                        } else if (rscp_array[i] <= 0 || rscp_array[i] > 31) {
+                            // the first unsolicitied
+                            rscp_array[i] = newSig;
+                        }
+                    } else {
+                        rscp_array[i] = rscp_array[i + 1];
+                    }
+                }
+
+                if (rxlev_array != NULL) {  // w/td mode no rxlev
+                    if (rxlev_array[i] == rxlev_array[i + 1]) {
+                        if (rxlev_array[i] == rxlev[sim_index]) {
+                            nosigUpdate[sim_index]++;
+                        } else if (rxlev_array[i] <= 0 ||
+                                    rxlev_array[i] > 31) {
+                            rxlev_array[i] = rxlev[sim_index];
+                        }
+                    } else {
+                        rxlev_array[i] = rxlev_array[i + 1];
+                    }
+                }
+            }
+
+            if (nosigUpdate[sim_index] == MAXSigCount) {
+                continue;
+            }
+
+            if (rsrp_array != NULL) {  // w/td mode no rsrp
+                rsrp_array[SIG_POOL_SIZE - 1] = rsrp[sim_index];
+                if (rsrp_array[SIG_POOL_SIZE - 1] <=
+                    rsrp_array[SIG_POOL_SIZE - 2]) {  // signal go up
+                    rsrp_value = rsrp[sim_index];
+                } else {  // signal come down
+                    if (rsrp_array[SIG_POOL_SIZE - 1] ==
+                        rsrp_array[SIG_POOL_SIZE - 2] + 1) {
+                        rsrp_value = rsrp[sim_index];
+                    } else {
+                        rsrp_value = least_squares(rsrp_array);
+                        // if invalid, use current value
+                        if (rsrp_value < lowValue || rsrp_value > upValue  ||
+                            rsrp_value > rsrp[sim_index]) {
+                            rsrp_value = rsrp[sim_index];
+                        }
+                        rsrp_array[SIG_POOL_SIZE - 1] = rsrp_value;
+                    }
+                }
+            }
+
+            if (rscp_array != NULL) {
+                rscp_array[SIG_POOL_SIZE - 1] = newSig;
+                if (rscp_array[SIG_POOL_SIZE - 1]
+                        >= rscp_array[SIG_POOL_SIZE - 2]) {  // signal go up
+                    rscp_value = newSig;
+                } else {  // signal come down
+                    if (rscp_array[SIG_POOL_SIZE - 1]
+                            == rscp_array[SIG_POOL_SIZE - 2] - 1) {
+                        rscp_value = newSig;
+                    } else {
+                        rscp_value = least_squares(rscp_array);
+                        // if invalid, use current value
+                        if (rscp_value < 0 || rscp_value > 31
+                                || rscp_value < newSig) {
+                            rscp_value = newSig;
+                        }
+                        rscp_array[SIG_POOL_SIZE - 1] = rscp_value;
+                    }
+                }
+            }
+            if (rxlev_array != NULL) {  // w/td mode no rxlev
+                rxlev_array[SIG_POOL_SIZE - 1] = rxlev[sim_index];
+                if (rxlev_array[SIG_POOL_SIZE - 1]
+                        >= rxlev_array[SIG_POOL_SIZE - 2]) {  // signal go up
+                    rxlev_value = rxlev[sim_index];
+                } else {  // signal come down
+                    if (rxlev_array[SIG_POOL_SIZE - 1]
+                            == rxlev_array[SIG_POOL_SIZE - 2] - 1) {
+                        rxlev_value = rxlev[sim_index];
+                    } else {
+                        rxlev_value = least_squares(rxlev_array);
+                        // if invalid, use current value
+                        if (rxlev_value < 0 || rxlev_value > 31
+                                || rxlev_value < rxlev[sim_index]) {
+                            rxlev_value = rxlev[sim_index];
+                        }
+                        rxlev_array[SIG_POOL_SIZE - 1] = rxlev_value;
+                    }
+                }
+            }
+
+            if (s_isLTE) {  // l/tl/lf
+                RIL_SignalStrength_v6 response_v6;
+                int response[6] = {-1, -1, -1, -1, -1, -1};
+                RIL_SIGNALSTRENGTH_INIT(response_v6);
+
+                response[0] = rxlev_value;
+                response[1] = ber[sim_index];
+                response[2] = rscp_value;
+                response[5] = rsrp_value;
+
+                if (response[0] != -1 && response[0] != 99) {
+                    response_v6.GW_SignalStrength.signalStrength = response[0];
+                }
+                if (response[2] != -1 && response[2] != 255) {
+                    response_v6.GW_SignalStrength.signalStrength = response[2];
+                }
+                if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
+                    response_v6.LTE_SignalStrength.rsrp = response[5];
+                }
+                RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
+                        &response_v6, sizeof(RIL_SignalStrength_v6), sim_index);
+            } else {  // w/t
+                RIL_SignalStrength_v6 responseV6;
+                responseV6.GW_SignalStrength.signalStrength = rscp_value;
+                responseV6.GW_SignalStrength.bitErrorRate = ber[sim_index];
+                RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
+                        &responseV6, sizeof(RIL_SignalStrength_v6), sim_index);
+            }
+        }
+        sleep(1);
+    }
+    return NULL;
+}
+
+/* for +CSQ: unsol response process */
+int csq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine) {
+    int err;
+    char *atInStr;
+
+    atInStr = line;
+    err = at_tok_flag_start(&atInStr, ':');
+    if (err < 0) goto error;
+
+    /*skip cause value */
+    err = at_tok_nextint(&atInStr, &rssi[socket_id]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&atInStr, &berr[socket_id]);
+    if (err < 0) goto error;
+
+    if (rssi[socket_id] >= 100 && rssi[socket_id] < 103) {
+        rssi[socket_id] = 0;
+    } else if (rssi[socket_id] >= 103 && rssi[socket_id] < 165) {
+        // add 1 for compensation
+        rssi[socket_id] = ((rssi[socket_id] - 103) + 1) / 2;
+    } else if (rssi[socket_id] >= 165 && rssi[socket_id] <= 191) {
+        rssi[socket_id] = 31;
+    } else if ((rssi[socket_id] > 31 && rssi[socket_id] < 100 ) ||
+                rssi[socket_id] > 191) {
+        rssi[socket_id] = 99;
+    }
+    if (berr[socket_id] > 99) {
+        berr[socket_id] = 99;
+    }
+
+    if (s_psOpened[socket_id] == 1) {
+        if (!s_isLTE) {
+            s_psOpened[socket_id] = 0;
+            if (newLine != NULL) {
+                snprintf(newLine, AT_COMMAND_LEN, "+CSQ: %d,%d",
+                         rssi[socket_id], berr[socket_id]);
+                return AT_RESULT_OK;
+            }
+        }
+    }
+
+error:
+    return AT_RESULT_NG;
+}
+
+/* for +CESQ: unsol response process */
+int cesq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine) {
+    int err;
+    char *atInStr;
+
+    atInStr = line;
+    err = at_tok_flag_start(&atInStr, ':');
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&atInStr, &rxlev[socket_id]);
+    if (err < 0) goto error;
+
+    if (rxlev[socket_id] <= 61) {
+        rxlev[socket_id] = (rxlev[socket_id] + 2) / 2;
+    } else if (rxlev[socket_id] > 61 && rxlev[socket_id] <= 63) {
+        rxlev[socket_id] = 31;
+    } else if (rxlev[socket_id] >= 100 && rxlev[socket_id] < 103) {
+        rxlev[socket_id] = 0;
+    } else if (rxlev[socket_id] >= 103 && rxlev[socket_id] < 165) {
+        rxlev[socket_id] = ((rxlev[socket_id] - 103) + 1) / 2;
+    } else if (rxlev[socket_id] >= 165 && rxlev[socket_id] <= 191) {
+        rxlev[socket_id] = 31;
+    }
+
+    err = at_tok_nextint(&atInStr, &ber[socket_id]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&atInStr, &rscp[socket_id]);
+    if (err < 0) goto error;
+
+    if (rscp[socket_id] >= 100 && rscp[socket_id] < 103) {
+        rscp[socket_id] = 0;
+    } else if (rscp[socket_id] >= 103 && rscp[socket_id] < 165) {
+        rscp[socket_id] = ((rscp[socket_id] - 103) + 1) / 2;
+    } else if (rscp[socket_id] >= 165 && rscp[socket_id] <= 191) {
+        rscp[socket_id] = 31;
+    }
+
+    err = at_tok_nextint(&atInStr, &ecno[socket_id]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&atInStr, &rsrq[socket_id]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&atInStr, &rsrp[socket_id]);
+    if (err < 0) goto error;
+
+    if (rsrp[socket_id] == 255) {
+        rsrp[socket_id] = -255;
+    } else {
+        rsrp[socket_id] = 141 - rsrp[socket_id];
+    }
+
+    if (s_psOpened[socket_id] == 1) {
+        if (s_isLTE) {
+            s_psOpened[socket_id] = 0;
+            snprintf(newLine, AT_COMMAND_LEN, "+CESQ: %d,%d,%d,%d,%d,%d",
+                     rxlev[socket_id], ber[socket_id], rscp[socket_id],
+                     ecno[socket_id], rsrq[socket_id], rsrp[socket_id]);
+            return AT_RESULT_OK;
+        }
+    }
+
+error:
+    return AT_RESULT_NG;
+}
+
+/* for AT+CSQ execute command response process */
+void csq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
+    int ret;
+    char *input;
+    int len;
+    int rssi_3g = 0, rssi_2g = 0, ber;
+    char rspStr[MAX_AT_RESPONSE];
+
+    ATResponse *sp_response = at_response_new();
+
+    input = p_response->p_intermediates->line;
+    len = strlen(input);
+    if (findInBuf(input, len, "+CSQ")) {
+        /* get the 3g rssi value and then convert into 2g rssi */
+        if (0 == at_tok_flag_start(&input, ':')) {
+            if (0 == at_tok_nextint(&input, &rssi_3g)) {
+                if (rssi_3g <= 31) {
+                    rssi_2g = rssi_3g;
+                } else if (rssi_3g >= 100 && rssi_3g < 103) {
+                    rssi_2g = 0;
+                } else if (rssi_3g >= 103 && rssi_3g < 165) {
+                    rssi_2g = ((rssi_3g - 103) + 1) / 2;
+                } else if (rssi_3g >= 165 && rssi_3g <= 191) {
+                    rssi_2g = 31;
+                } else {
+                    rssi_2g = 99;
+                }
+
+                if (0 == at_tok_nextint(&input, &ber)) {
+                    if (ber > 99) {
+                        ber = 99;
+                    }
+                }
+                snprintf(rspStr, sizeof(rspStr), "+CSQ:%d,%d", rssi_2g, ber);
+                reWriteIntermediate(sp_response, rspStr);
+                if (p_newResponse == NULL) {
+                    at_response_free(sp_response);
+                } else {
+                    *p_newResponse = sp_response;
+                }
+            }
+        }
+    }
+}
+
+/* for AT+CESQ execute command response process */
+void cesq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
+    int ret;
+    char *line;
+    int err, len;
+    int rxlev = 0, ber = 0, rscp = 0, ecno = 0, rsrq = 0, rsrp = 0;
+    char respStr[MAX_AT_RESPONSE];
+    ATResponse *sp_response = at_response_new();
+
+    line = p_response->p_intermediates->line;
+    len = strlen(line);
+    if (findInBuf(line, len, "+CESQ")) {
+        err = at_tok_flag_start(&line, ':');
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rxlev);
+        if (err < 0) goto error;
+
+        if (rxlev <= 61) {
+            rxlev = (rxlev + 2) / 2;
+        } else if (rxlev > 61 && rxlev <= 63) {
+            rxlev = 31;
+        } else if (rxlev >= 100 && rxlev < 103) {
+            rxlev = 0;
+        } else if (rxlev >= 103 && rxlev < 165) {
+            rxlev = ((rxlev - 103) + 1) / 2;  // add 1 for compensation
+        } else if (rxlev >= 165 && rxlev <= 191) {
+            rxlev = 31;
+        }
+
+        err = at_tok_nextint(&line, &ber);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rscp);
+        if (err < 0) goto error;
+
+        if (rscp >= 100 && rscp < 103) {
+            rscp = 0;
+        } else if (rscp >= 103 && rscp < 165) {
+            rscp = ((rscp - 103) + 1) / 2;  // add 1 for compensation
+        } else if (rscp >= 165 && rscp <= 191) {
+            rscp = 31;
+        }
+
+        err = at_tok_nextint(&line, &ecno);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrq);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrp);
+        if (err < 0) goto error;
+
+        if (rsrp == 255) {
+            rsrp = -255;
+        } else {
+            rsrp = 141 - rsrp;  // modified by bug#486220
+        }
+        snprintf(respStr, sizeof(respStr), "+CESQ: %d,%d,%d,%d,%d,%d",
+                 rxlev, ber, rscp, ecno, rsrq, rsrp);
+        reWriteIntermediate(sp_response, respStr);
+        if (p_newResponse == NULL) {
+            at_response_free(sp_response);
+        } else {
+            *p_newResponse = sp_response;
+        }
+    }
+
+error:
+    return;
 }

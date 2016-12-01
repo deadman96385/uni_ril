@@ -144,6 +144,10 @@ typedef enum {
 
 extern RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
 
+ATResponse * at_response_new();
+int isFinalResponseError(const char *line);
+int isFinalResponseSuccess(const char *line);
+
 void init_channels(RIL_SOCKET_ID socket_id);
 void stop_reader(RIL_SOCKET_ID socket_id);
 int start_reader(RIL_SOCKET_ID socket_id);

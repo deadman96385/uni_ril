@@ -9,12 +9,14 @@
 #include "ril_stk.h"
 #include "ril_network.h"
 #include "ril_sim.h"
+#include "channel_controller.h"
 
 bool s_stkServiceRunning[SIM_COUNT];
 static char *s_stkUnsolResponse[SIM_COUNT];
 
 static void requestDefaultNetworkName(int channelID, RIL_Token t) {
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     ATLine *p_cur;
     int err;
     char *apn = NULL;
@@ -25,7 +27,8 @@ static void requestDefaultNetworkName(int channelID, RIL_Token t) {
         goto error;
     }
 
-    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+    cgdcont_read_cmd_rsp(p_response, &p_newResponse);
+    for (p_cur = p_newResponse->p_intermediates; p_cur != NULL;
             p_cur = p_cur->p_next) {
         char *line = p_cur->line;
         int ncid;
@@ -46,10 +49,12 @@ static void requestDefaultNetworkName(int channelID, RIL_Token t) {
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, apn, strlen(apn) + 1);
     AT_RESPONSE_FREE(p_response);
+    AT_RESPONSE_FREE(p_newResponse);
     return;
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     AT_RESPONSE_FREE(p_response);
+    AT_RESPONSE_FREE(p_newResponse);
     return;
 }
 

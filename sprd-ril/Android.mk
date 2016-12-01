@@ -21,9 +21,10 @@ LOCAL_SRC_FILES := \
     ril_utils.c \
     custom/ril_custom.c \
     ril_async_cmd_handler.c \
+    channel_controller.c \
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog libcutils libutils librilsprd librilutils libril_tele
+    liblog libcutils libutils librilsprd librilutils libril_tele libnetutils
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE

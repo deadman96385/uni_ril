@@ -1671,6 +1671,7 @@ fetch:
             p_args->sessionid, sr.sw2);
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CSIM:",
             &p_response);
+    free(cmd);
     if (err < 0 || p_response->success == 0) {
         goto fetch_error;
     }
@@ -1697,7 +1698,6 @@ error:
 
 fetch_error:
     at_response_free(p_response);
-    free(cmd);
 }
 
 int base64_decode(const char *base64, unsigned char *bindata) {

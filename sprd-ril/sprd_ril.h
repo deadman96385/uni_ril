@@ -47,6 +47,8 @@
 
 #define NUM_ELEMS(x)        (sizeof(x) / sizeof(x[0]))
 #define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
+#define AT_CMD_STR(str)     (str), sizeof((str)) - 1
+
 #define MODEM_CONFIG_PROP   "persist.radio.modem.config"
 #define PRIMARY_SIM_PROP    "persist.radio.primary.sim"
 

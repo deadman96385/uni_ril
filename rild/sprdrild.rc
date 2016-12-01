@@ -7,4 +7,4 @@ service spril-daemon /system/bin/sprdrild
     socket rild-debug2 stream 660 radio system
     disabled
     user root
-    group radio cache inet misc audio log sdcard_rw shell readproc wakelock
+    group radio cache inet misc audio log sdcard_rw shell readproc wakelock system

@@ -8,7 +8,6 @@
 #ifndef RIL_ASYNC_CMD_HANDLER_H_
 #define RIL_ASYNC_CMD_HANDLER_H_
 
-#define AT_CMD_STR(str)         (str), sizeof((str)) - 1
 #define MUTEX_ACQUIRE(mutex)    pthread_mutex_lock(&mutex)
 #define MUTEX_RELEASE(mutex)    pthread_mutex_unlock(&mutex)
 #define MUTEX_INIT(mutex)       pthread_mutex_init(&mutex, NULL)

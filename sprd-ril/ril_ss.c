@@ -906,7 +906,8 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
 
             err = at_send_command(s_ATChannels[channelID], cmd,  &p_response);
             if (err < 0 || p_response->success == 0) {
-                if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+                if (p_response != NULL &&
+                    strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
                     line = p_response->finalResponse;
                     errCode = at_tok_start(&line);
                     if (errCode >= 0) {

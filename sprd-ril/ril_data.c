@@ -6,15 +6,19 @@
 
 #define LOG_TAG "RIL"
 
+#include <netutils/ifc.h>
+#include <net/if.h>
+#include <netinet/in.h>
 #include "sprd_ril.h"
 #include "ril_data.h"
 #include "ril_network.h"
 #include "ril_call.h"
+#include "channel_controller.h"
 
 #define APN_DELAY_PROP          "persist.radio.apn_delay"
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
 #define DDR_STATUS_PROP         "persist.sys.ddr.status"
-#define REUSE_DEFAULT_PDN          "persist.sys.pdp.reuse"
+#define REUSE_DEFAULT_PDN       "persist.sys.pdp.reuse"
 
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
@@ -25,6 +29,13 @@ static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
 static int s_autoDetach = 1;  /* whether support auto detach */
+
+PDP_INFO pdp_info[MAX_PDP_NUM];
+pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
+static int s_extDataFd = -1;
+static char s_SavedDns[IP_ADDR_SIZE] = {0};
+static char s_SavedDns_IPV6[IP_ADDR_SIZE * 4] ={0};
+
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
         PDP_FAIL_ERROR_UNSPECIFIED
@@ -403,7 +414,8 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
 
     if (err < 0 || p_response->success == 0) {
         ret = DATA_ACTIVE_FAILED;
-        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        if (p_response != NULL &&
+                strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
             line = p_response->finalResponse;
             err = at_tok_start(&line);
             if (err >= 0) {
@@ -424,10 +436,12 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
         }
         // when cgdata timeout then send deactive to modem
-        if (strStartsWith(p_response->finalResponse, "ERROR")) {
+        if (err == AT_ERROR_TIMEOUT || (p_response != NULL &&
+                strStartsWith(p_response->finalResponse, "ERROR"))) {
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
+            cgact_deact_cmd_rsp(cid);
         }
     }
     return ret;
@@ -538,6 +552,7 @@ static int queryAllActivePDN(int channelID) {
     ATLine *pCur;
     PDNInfo *pdns = s_PDN;
     ATResponse *pdnResponse = NULL;
+    ATResponse *p_newResponse = NULL;
 
     s_activePDN = 0;
 
@@ -575,7 +590,8 @@ static int queryAllActivePDN(int channelID) {
         return s_activePDN;
     }
 
-    for (pCur = pdnResponse->p_intermediates; pCur != NULL;
+    cgdcont_read_cmd_rsp(pdnResponse, &p_newResponse);
+    for (pCur = p_newResponse->p_intermediates; pCur != NULL;
          pCur = pCur->p_next) {
         line = pCur->line;
         int cid;
@@ -607,6 +623,7 @@ static int queryAllActivePDN(int channelID) {
               s_PDN[cid-1].nCid, s_PDN[cid-1].strIPType, s_PDN[cid-1].strApn);
     }
     at_response_free(pdnResponse);
+    at_response_free(p_newResponse);
     return s_activePDN;
 }
 
@@ -706,6 +723,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     int failCause;
     char *line;
     char cmd[AT_COMMAND_LEN] = {0};
+    char newCmd[AT_COMMAND_LEN] = {0};
     char qosState[PROPERTY_VALUE_MAX] = {0};
     char eth[PROPERTY_VALUE_MAX] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
@@ -721,6 +739,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
 
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, NULL);
+    cgact_deact_cmd_rsp(cid);
 
 
     if (!strcmp(pdp_type, "IPV4+IPV6")) {
@@ -730,14 +749,17 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
         snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
                   cid, pdp_type, apn);
     }
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    if (err < 0 || p_response->success == 0) {
-        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-        putPDP(cid - 1);
-        at_response_free(p_response);
-        return ret;
+    err = cgdcont_set_cmd_req(cmd, newCmd);
+    if (err == 0) {
+        err = at_send_command(s_ATChannels[channelID], newCmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+            putPDP(cid - 1);
+            at_response_free(p_response);
+            return ret;
+        }
+        AT_RESPONSE_FREE(p_response);
     }
-    AT_RESPONSE_FREE(p_response);
 
     snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username,
               password, cid, atoi(authtype));
@@ -766,7 +788,9 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", cid);
         }
     }
+    cgdata_set_cmd_req(cmd);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    cgdata_set_cmd_rsp(p_response, cid - 1, primaryCid, channelID);
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
     if (ret != DATA_ACTIVE_SUCCESS) {
@@ -786,6 +810,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
             RLOGD("Fallback s_PDP type mismatch, do deactive");
             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
             at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            cgact_deact_cmd_rsp(cid);
             at_response_free(p_response);
             putPDP(cid - 1);
             ret = DATA_ACTIVE_FALLBACK_FAILED;
@@ -851,6 +876,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
     bool islte = s_isLTE;
     ATLine *p_cur;
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     RIL_Data_Call_Response_v11 *responses;
     RIL_Data_Call_Response_v11 *response;
 
@@ -915,7 +941,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
         at_response_free(p_response);
         return;
     }
-    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+    cgdcont_read_cmd_rsp(p_response, &p_newResponse);
+    for (p_cur = p_newResponse->p_intermediates; p_cur != NULL;
          p_cur = p_cur->p_next) {
         char *line = p_cur->line;
         int ncid;
@@ -1105,6 +1132,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
     }
 
     AT_RESPONSE_FREE(p_response);
+    AT_RESPONSE_FREE(p_newResponse);
 
     if ((t != NULL) && (cid > 0)) {
         RLOGD("requestOrSendDataCallList is called by SetupDataCall!");
@@ -1228,29 +1256,26 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                         s_singlePDNAllowed[socket_id] == 1)) {
                         RLOGD("Using default PDN");
                         getPDPByIndex(i);
-                        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid,
-                                  0);
-                        at_send_command(s_ATChannels[channelID], cmd,
-                                        &p_response);
+                        cgact_deact_cmd_rsp(cid);
                         AT_RESPONSE_FREE(p_response);
                         snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
                                   cid);
+                        cgdata_set_cmd_req(cmd);
                         err = at_send_command(s_ATChannels[channelID], cmd,
                                               &p_response);
-                        cgdata_err = errorHandlingForCGDATA(channelID, p_response, err,
-                                cid);
+                        cgdata_set_cmd_rsp(p_response, cid - 1, 0, channelID);
+                        cgdata_err = errorHandlingForCGDATA(channelID,
+                                p_response, err, cid);
+                        AT_RESPONSE_FREE(p_response);
                         if (cgdata_err == 0) {  // success
                             updatePDPCid(i + 1, 1);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
-                            at_response_free(p_response);
                         } else if (cgdata_err > 0) {  // no retry
                             ret = cid;
-                            at_response_free(p_response);
                         } else {  // need retry active for another cid
                             updatePDPCid(i + 1, -1);
                             putPDPByIndex(i);
-                            AT_RESPONSE_FREE(p_response);
                         }
                     }
                 } else if (i < MAX_PDP) {
@@ -1432,12 +1457,14 @@ static void deactivateDataConnection(int channelID, void *data,
     secondaryCid = getFallbackCid(cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    cgact_deact_cmd_rsp(cid);
     AT_RESPONSE_FREE(p_response);
 
     if (secondaryCid != -1) {
         RLOGD("dual PDP, do CGACT again, fallback cid = %d", secondaryCid);
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondaryCid);
         at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        cgact_deact_cmd_rsp(secondaryCid);
     }
 
 done:
@@ -1601,9 +1628,13 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
                              int channelID, int socket_id) {
     char qosState[PROPERTY_VALUE_MAX] = {0};
     char cmd[AT_COMMAND_LEN] = {0};
+    char newCmd[AT_COMMAND_LEN] = {0};
     snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
              cid, new->protocol, new->apn);
-    at_send_command(s_ATChannels[channelID], cmd, NULL);
+    int err = cgdcont_set_cmd_req(cmd, newCmd);
+    if (err == 0) {
+        at_send_command(s_ATChannels[channelID], newCmd, NULL);
+    }
 
     snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d",
              new->username, new->password, cid, new->authtype);
@@ -1765,6 +1796,7 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 
     int ret;
     int err, i;
+    int cid;
     char cmd[AT_COMMAND_LEN];
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
@@ -1772,12 +1804,13 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 
     if (islte) {
         for (i = 0; i < MAX_PDP; i++) {
-            if (getPDPCid(i) > 0) {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
+            cid = getPDPCid(i);
+            if (cid > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
+                cgact_deact_cmd_rsp(cid);
                 RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
                 if (s_PDP[i].state == PDP_BUSY) {
-                    int cid = getPDPCid(i);
                     putPDP(i);
                     requestOrSendDataCallList(channelID, cid, NULL);
                 }
@@ -1868,6 +1901,7 @@ int getDefaultDataCardId() {
 
 void cleanUpAllConnections() {
     int i;
+    int cid;
     char cmd[AT_COMMAND_LEN];
 
     s_defaultDataId = getDefaultDataCardId();
@@ -1877,9 +1911,11 @@ void cleanUpAllConnections() {
     }
     int dataChannelID = getChannel(s_defaultDataId);
     for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(i) > 0) {
-            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
+        cid = getPDPCid(i);
+        if (cid > 0) {
+            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
             at_send_command(s_ATChannels[dataChannelID], cmd, NULL);
+            cgact_deact_cmd_rsp(cid);
         }
     }
     putChannel(dataChannelID);
@@ -1967,6 +2003,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         /* IMS request @{ */
         case RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN: {
             char cmd[AT_COMMAND_LEN] = {0};
+            char newCmd[AT_COMMAND_LEN] = {0};
             char qosState[PROPERTY_VALUE_MAX] = {0};
             int initialAttachId = 11;  // use index of 11
             RIL_InitialAttachApn *initialAttachIMSApn = NULL;
@@ -1978,9 +2015,11 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                         "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
                          initialAttachId, initialAttachIMSApn->protocol,
                          initialAttachIMSApn->apn);
-                err = at_send_command(s_ATChannels[channelID],
-                        cmd, &p_response);
-
+                err = cgdcont_set_cmd_req(cmd, newCmd);
+                if (err == 0) {
+                    err = at_send_command(s_ATChannels[channelID], newCmd,
+                                          &p_response);
+                }
                 snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d",
                           initialAttachIMSApn->username,
                           initialAttachIMSApn->password,
@@ -2147,6 +2186,7 @@ static void startGSPS(void *param) {
     int channelID;
     int err;
     char cmd[AT_COMMAND_LEN];
+    ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
 
     RLOGD("startGSPS cid  %d, eth state: %d", s_GSCid, s_ethOnOff);
@@ -2154,13 +2194,21 @@ static void startGSPS(void *param) {
     if (s_ethOnOff) {
         property_set(GSPS_ETH_UP_PROP, "1");
         snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\", %d", s_GSCid);
+        cgdata_set_cmd_req(cmd);
     } else {
         property_set(GSPS_ETH_DOWN_PROP, "1");
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0, %d", s_GSCid);
     }
 
-    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (s_ethOnOff) {
+        cgdata_set_cmd_rsp(p_response, s_GSCid - 1, 0, channelID);
+    } else {
+        cgact_deact_cmd_rsp(s_GSCid);
+    }
+
     putChannel(channelID);
+    at_response_free(p_response);
 }
 
 static void queryVideoCid(void *param) {
@@ -2421,3 +2469,988 @@ out:
     free(line);
     return ret;
 }
+
+/*
+ * phoneserver used to process these AT Commands or its response
+ *    # AT+CGACT=0 set command response process
+ *    # AT+CGDATA= set command process
+ *    # AT+CGDATA= set command response process
+ *    # AT+CGDCONT= set command response process
+ *    # AT+CGDCONT? read response process
+ *
+ * since phoneserver has been removed, its function should be realized in RIL,
+ * so when used AT+CGACT=0, AT+CGDATA=, AT+CGDATA=, AT+CGDCONT= and AT+CGDCONT?,
+ * please make sure to call the corresponding process functions.
+ */
+
+void setSockTimeout() {
+    struct timeval writetm, recvtm;
+    writetm.tv_sec = 1;  // write timeout: 1s
+    writetm.tv_usec = 0;
+    recvtm.tv_sec = 10;  // recv timeout: 10s
+    recvtm.tv_usec = 0;
+
+    if (setsockopt(s_extDataFd, SOL_SOCKET, SO_SNDTIMEO, &writetm,
+                     sizeof(writetm)) == -1) {
+        RLOGE("WARNING: Cannot set send timeout value on socket: %s",
+                 strerror(errno));
+    }
+    if (setsockopt(s_extDataFd, SOL_SOCKET, SO_RCVTIMEO, &recvtm,
+                     sizeof(recvtm)) == -1) {
+        RLOGE("WARNING: Cannot set receive timeout value on socket: %s",
+                 strerror(errno));
+    }
+}
+
+void *listenExtDataThread(void) {
+    RLOGD("try to connect socket ext_data...");
+
+    do {
+        s_extDataFd = socket_local_client(SOCKET_NAME_EXT_DATA,
+                ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+        usleep(10 * 1000);  // wait for 10ms, try again
+    } while (s_extDataFd < 0);
+    RLOGD("connect to ext_data socket success!");
+
+    setSockTimeout();
+    return NULL;
+}
+
+void sendCmdToExtData(char cmd[]) {
+    int ret;
+    int retryTimes = 0;
+
+RECONNECT:
+    retryTimes = 0;
+    while (s_extDataFd < 0 && retryTimes < 10) {
+        s_extDataFd = socket_local_client(SOCKET_NAME_EXT_DATA,
+                ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+        usleep(10 * 1000);  // wait for 10ms, try again
+        retryTimes++;
+    }
+    if (s_extDataFd >= 0 && retryTimes != 0) {
+        setSockTimeout();
+    }
+
+    if (s_extDataFd >= 0) {
+        int len = strlen(cmd) + 1;
+        if (TEMP_FAILURE_RETRY(write(s_extDataFd, cmd, len)) !=
+                                      len) {
+            RLOGE("Failed to write cmd to ext_data!");
+            close(s_extDataFd);
+            s_extDataFd = -1;
+        } else {
+            int error;
+            if (TEMP_FAILURE_RETRY(read(s_extDataFd, &error, sizeof(error)))
+                    <= 0) {
+                RLOGE("read error from ext_data!");
+                close(s_extDataFd);
+                s_extDataFd = -1;
+            }
+        }
+    }
+}
+
+void ps_service_init() {
+    int i;
+    int ret;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    memset(pdp_info, 0x0, sizeof(pdp_info));
+    for (i = 0; i < MAX_PDP_NUM; i++) {
+        pdp_info[i].state = PDP_STATE_IDLE;
+    }
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    ret = pthread_create(&tid, &attr, (void *)listenExtDataThread, NULL);
+    if (ret < 0) {
+        RLOGE("Failed to create listen_ext_data_thread errno: %d", errno);
+    }
+}
+
+int ifc_set_noarp(const char *ifname) {
+    struct ifreq ifr;
+    int fd, err;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    memset(&ifr, 0, sizeof(struct ifreq));
+    strlcpy(ifr.ifr_name, ifname, IFNAMSIZ);
+
+    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    ifr.ifr_flags = ifr.ifr_flags | IFF_NOARP;
+    err = ioctl(fd, SIOCSIFFLAGS, &ifr);
+    close(fd);
+    return err;
+}
+
+int getIPV6Addr(const char *prop, int cidIndex) {
+    char netInterface[NET_INTERFACE_LENGTH] = {0};
+    const int maxRetry = 120;  // wait 12s
+    int retry = 0;
+    int setup_success = 0;
+    char cmd[AT_COMMAND_LEN] = {0};
+    const int ipv6AddrLen = 32;
+
+    snprintf(netInterface, sizeof(netInterface), "%s%d", prop, cidIndex);
+    RLOGD("query interface %s", netInterface);
+    while (!setup_success) {
+        char rawaddrstr[INET6_ADDRSTRLEN], addrstr[INET6_ADDRSTRLEN];
+        unsigned int prefixlen;
+        int lasterror = 0, i, j, ret;
+        char ifname[NET_INTERFACE_LENGTH];  // Currently, IFNAMSIZ = 16.
+        FILE *f = fopen("/proc/net/if_inet6", "r");
+        if (!f) {
+            return -errno;
+        }
+
+        // Format:
+        // 20010db8000a0001fc446aa4b5b347ed 03 40 00 01    wlan0
+        while (fscanf(f, "%32s %*02x %02x %*02x %*02x %63s\n", rawaddrstr,
+                &prefixlen, ifname) == 3) {
+            // Is this the interface we're looking for?
+            if (strcmp(netInterface, ifname)) {
+                continue;
+            }
+
+            // Put the colons the address
+            // and add ':' to separate every 4 addr char
+            for (i = 0, j = 0; i < ipv6AddrLen; i++, j++) {
+                addrstr[j] = rawaddrstr[i];
+                if (i % 4 == 3) {
+                    addrstr[++j] = ':';
+                }
+            }
+            addrstr[j - 1] = '\0';
+            RLOGD("getipv6addr found ip %s", addrstr);
+            // Don't add the link-local address
+            if (strncmp(addrstr, "fe80:", sizeof("fe80:") - 1) == 0) {
+                RLOGD("getipv6addr found fe80");
+                continue;
+            }
+            snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s", prop,
+                      cidIndex, addrstr);
+            system(cmd);
+            RLOGD("getipv6addr propset %s ", cmd);
+            setup_success = 1;
+            break;
+        }
+
+        fclose(f);
+        if (!setup_success) {
+            usleep(100 * 1000);
+            retry++;
+        }
+        if (retry == maxRetry) {
+            break;
+        }
+    }
+    return setup_success;
+}
+
+IPType readIPAddr(char *raw, char *rsp) {
+    int comma_count = 0;
+    int num = 0, comma4_num = 0, comma16_num = 0;
+    int space_num = 0;
+    char *buf = raw;
+    int len = 0;
+    int ip_type = UNKNOWN;
+
+    if (raw != NULL) {
+        len = strlen(raw);
+        for (num = 0; num < len; num++) {
+            if (raw[num] == '.') {
+                comma_count++;
+            }
+
+            if (raw[num] == ' ') {
+                space_num = num;
+                break;
+            }
+
+            if (comma_count == 4 && comma4_num == 0) {
+                comma4_num = num;
+            }
+
+            if (comma_count > 7 && comma_count == 16) {
+                comma16_num = num;
+                break;
+            }
+        }
+
+        if (space_num > 0) {
+            buf[space_num] = '\0';
+            ip_type = IPV6;
+            memcpy(rsp, buf, strlen(buf) + 1);
+        } else if (comma_count >= 7) {
+            if (comma_count == 7) {  // ipv4
+                buf[comma4_num] = '\0';
+                ip_type = IPV4;
+            } else {  // ipv6
+                buf[comma16_num] = '\0';
+                ip_type = IPV6;
+            }
+            memcpy(rsp, buf, strlen(buf) + 1);
+        }
+    }
+
+    return ip_type;
+}
+
+void resetDNS2(char *out, size_t dataLen) {
+    if (strlen(s_SavedDns) > 0) {
+        RLOGD("Use saved DNS2 instead.");
+        memcpy(out, s_SavedDns, sizeof(s_SavedDns));
+    } else {
+        RLOGD("Use default DNS2 instead.");
+        snprintf(out, dataLen, "%s", DEFAULT_PUBLIC_DNS2);
+    }
+}
+
+/* for AT+CGDCONT? read response process */
+void cgdcont_read_cmd_rsp(ATResponse *p_response, ATResponse **pp_outResponse) {
+    int ret, err;
+    int tmpCid = 0;
+    int respLen;
+    char *out;
+    char atCmdStr[MAX_AT_RESPONSE], ip[IP_ADDR_MAX], net[IP_ADDR_MAX];
+
+    if (p_response == NULL) {
+        return;
+    }
+
+    char *line = NULL;
+    char *newLine = NULL;
+    ATLine *p_cur = NULL;
+    ATResponse *sp_response = at_response_new();
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        line = p_cur->line;
+        respLen = strlen(line);
+        snprintf(atCmdStr, sizeof(atCmdStr), "%s", line);
+        if (findInBuf(line, respLen, "+CGDCONT")) {
+            do {
+                err = at_tok_start(&line);
+                if (err < 0) break;
+
+                err = at_tok_nextint(&line, &tmpCid);
+                if (err < 0) break;
+
+                err = at_tok_nextstr(&line, &out);  // ip
+                if (err < 0) break;
+
+                snprintf(ip, sizeof(ip), "%s", out);
+
+                err = at_tok_nextstr(&line, &out);  // cmnet
+                if (err < 0) break;
+
+                snprintf(net, sizeof(net), "%s", out);
+
+                if (tmpCid <= MAX_PDP_NUM) {
+                    if (pdp_info[tmpCid - 1].state == PDP_STATE_ACTIVE) {
+                        if (pdp_info[tmpCid - 1].manual_dns == 1) {
+                            snprintf(atCmdStr, sizeof(atCmdStr),
+                                "+CGDCONT:%d,\"%s\",\"%s\",\"%s\",0,0,\"%s\",\"%s\"\r",
+                                tmpCid, ip, net, pdp_info[tmpCid].ipladdr,
+                                pdp_info[tmpCid - 1].userdns1addr,
+                                pdp_info[tmpCid - 1].userdns2addr);
+                        } else {
+                            snprintf(atCmdStr, sizeof(atCmdStr),
+                                "+CGDCONT:%d,\"%s\",\"%s\",\"%s\",0,0,\"%s\",\"%s\"\r",
+                                tmpCid, ip, net, pdp_info[tmpCid - 1].ipladdr,
+                                pdp_info[tmpCid - 1].dns1addr,
+                                pdp_info[tmpCid - 1].dns2addr);
+                        }
+                    } else {
+                        snprintf(atCmdStr, sizeof(atCmdStr),
+                                "+CGDCONT:%d,\"%s\",\"%s\",\"%s\",0,0,\"%s\",\"%s\"\r",
+                                tmpCid, ip, net, "0.0.0.0", "0.0.0.0", "0.0.0.0");
+                    }
+                }
+            } while (0);
+        }
+        reWriteIntermediate(sp_response, atCmdStr);
+    }
+
+    if (pp_outResponse == NULL) {
+        at_response_free(sp_response);
+    } else {
+        reverseNewIntermediates(sp_response);
+        *pp_outResponse = sp_response;
+    }
+}
+
+/* for AT+CGDCONT= set command response process */
+int cgdcont_set_cmd_req(char *cmd, char *newCmd) {
+    int tmpCid = 0;
+    char *input = cmd;
+    char ip[IP_ADDR_MAX], net[IP_ADDR_MAX],
+         ipladdr[IP_ADDR_MAX], hcomp[IP_ADDR_MAX], dcomp[IP_ADDR_MAX];
+    char *out;
+    int err = 0, ret = 0;
+    int maxPDPNum = MAX_PDP_NUM;
+
+    if (cmd == NULL || newCmd == NULL) {
+        goto error;
+    }
+
+    memset(ip, 0, IP_ADDR_MAX);
+    memset(net, 0, IP_ADDR_MAX);
+    memset(ipladdr, 0, IP_ADDR_MAX);
+    memset(hcomp, 0, IP_ADDR_MAX);
+    memset(dcomp, 0, IP_ADDR_MAX);
+
+    err = at_tok_flag_start(&input, '=');
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&input, &tmpCid);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&input, &out);  // ip
+    if (err < 0) goto exit;
+
+    snprintf(ip, sizeof(ip), "%s", out);
+
+    err = at_tok_nextstr(&input, &out);  // cmnet
+    if (err < 0) goto exit;
+
+    snprintf(net, sizeof(net), "%s", out);
+
+    err = at_tok_nextstr(&input, &out);  // ipladdr
+    if (err < 0) goto exit;
+
+    snprintf(ipladdr, sizeof(ipladdr), "%s", out);
+
+    err = at_tok_nextstr(&input, &out);  // dcomp
+    if (err < 0) goto exit;
+
+    snprintf(dcomp, sizeof(dcomp), "%s", out);
+
+    err = at_tok_nextstr(&input, &out);  // hcomp
+    if (err < 0) goto exit;
+
+    snprintf(hcomp, sizeof(hcomp), "%s", out);
+
+    // cp dns to pdp_info ?
+    if (tmpCid <= maxPDPNum) {
+        strncpy(pdp_info[tmpCid - 1].userdns1addr, "0.0.0.0",
+                 sizeof("0.0.0.0"));
+        strncpy(pdp_info[tmpCid - 1].userdns2addr, "0.0.0.0",
+                 sizeof("0.0.0.0"));
+        pdp_info[tmpCid - 1].manual_dns = 0;
+    }
+
+    // dns1, info used with cgdata
+    err = at_tok_nextstr(&input, &out);
+    if (err < 0) goto exit;
+
+    if (tmpCid <= maxPDPNum && *out != 0) {
+        strncpy(pdp_info[tmpCid - 1].userdns1addr, out,
+                sizeof(pdp_info[tmpCid - 1].userdns1addr));
+        pdp_info[tmpCid - 1].userdns1addr[
+                sizeof(pdp_info[tmpCid - 1].userdns1addr) - 1] = '\0';
+    }
+
+    // dns2, info used with cgdata
+    err = at_tok_nextstr(&input, &out);
+    if (err < 0) goto exit;
+
+    if (tmpCid <= maxPDPNum && *out != 0) {
+        strncpy(pdp_info[tmpCid - 1].userdns2addr, out,
+                sizeof(pdp_info[tmpCid - 1].userdns2addr));
+        pdp_info[tmpCid - 1].userdns2addr[
+                sizeof(pdp_info[tmpCid - 1].userdns2addr)- 1] = '\0';
+    }
+
+    // cp dns to pdp_info?
+exit:
+    if (tmpCid <= maxPDPNum) {
+        if (strncasecmp(pdp_info[tmpCid - 1].userdns1addr, "0.0.0.0",
+                strlen("0.0.0.0"))) {
+            pdp_info[tmpCid - 1].manual_dns = 1;
+        }
+    }
+
+    snprintf(newCmd, AT_COMMAND_LEN,
+            "AT+CGDCONT=%d,\"%s\",\"%s\",\"%s\",%s,%s\r", tmpCid, ip, net,
+            ipladdr, dcomp, hcomp);
+
+    return AT_RESULT_OK;
+
+error:
+    return AT_RESULT_NG;
+}
+
+/* for AT+CGDATA= set command process */
+int cgdata_set_cmd_req(char *cgdataCmd) {
+    int cid, pdpIndex;
+    int err;
+    char *cmdStr, *out;
+    char atBuffer[MAX_AT_RESPONSE];
+
+    if (cgdataCmd == NULL || strlen(cgdataCmd) <= 0) {
+        goto error;
+    }
+
+    cmdStr = atBuffer;
+    snprintf(cmdStr, sizeof(atBuffer), "%s", cgdataCmd);
+
+    err = at_tok_flag_start(&cmdStr, '=');
+    if (err < 0) goto error;
+
+    /* get L2P */
+    err = at_tok_nextstr(&cmdStr, &out);
+    if (err < 0) goto error;
+
+    /* Get cid */
+    err = at_tok_nextint(&cmdStr, &cid);
+    if (err < 0) goto error;
+
+    pdpIndex = cid - 1;
+    pthread_mutex_lock(&s_psServiceMutex);
+    pdp_info[pdpIndex].state = PDP_STATE_ACTING;
+    pdp_info[pdpIndex].cid = cid;
+    pdp_info[pdpIndex].error_num = -1;
+    pthread_mutex_unlock(&s_psServiceMutex);
+    return AT_RESULT_OK;
+
+error:
+    return AT_RESULT_NG;
+}
+
+int downNetcard(int cid, char *netinterface) {
+    int index = cid - 1;
+    int isAutoTest = 0;
+    char linker[AT_COMMAND_LEN] = {0};
+    char cmd[AT_COMMAND_LEN];
+    char gspsprop[PROPERTY_VALUE_MAX] = {0};
+
+    if (cid < 1 || cid >= MAX_PDP_NUM || netinterface == NULL) {
+        return 0;
+    }
+    RLOGD("down cid %d, network interface %s ", cid, netinterface);
+    snprintf(linker, sizeof(linker), "%s%d", netinterface, index);
+    if (ifc_disable(linker)) {
+        RLOGE("ifc_disable %s fail: %s\n", linker, strerror(errno));
+    }
+    if (ifc_clear_addresses(linker)) {
+        RLOGE("ifc_clear_addresses %s fail: %s\n", linker, strerror(errno));
+    }
+
+    property_get(GSPS_ETH_DOWN_PROP, gspsprop, "0");
+    isAutoTest = atoi(gspsprop);
+
+    snprintf(cmd, sizeof(cmd), "<ifdown>%s;%s;%d", linker, "IPV4V6",
+             isAutoTest);
+    sendCmdToExtData(cmd);
+    property_set(GSPS_ETH_DOWN_PROP, "0");
+
+    RLOGD("data_off execute done");
+    return 1;
+}
+
+int dispose_data_fallback(int masterCid, int secondaryCid) {
+    int master_index = masterCid - 1;
+    int secondary_index = secondaryCid - 1;
+    char cmd[AT_COMMAND_LEN];
+    char prop[PROPERTY_VALUE_MAX];
+    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
+    int count = 0;
+
+    if (masterCid < 1|| masterCid >= MAX_PDP_NUM || secondaryCid <1 ||
+        secondaryCid >= MAX_PDP_NUM) {
+    // 1~11 is valid cid
+        return 0;
+    }
+    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+    property_get(ETH_SP, prop, "veth");
+    RLOGD("master ip type %d ,secondary ip type %d",
+             pdp_info[master_index].ip_state,
+             pdp_info[secondary_index].ip_state);
+    // fallback get same type ip with master
+    if (pdp_info[master_index].ip_state ==
+        pdp_info[secondary_index].ip_state) {
+        return 0;
+    }
+    if (pdp_info[master_index].ip_state == IPV4) {
+        // down ipv4, because need set ipv6 firstly
+        downNetcard(masterCid, prop);
+        // copy secondary ppp to master ppp
+        memcpy(pdp_info[master_index].ipv6laddr,
+                pdp_info[secondary_index].ipv6laddr,
+                sizeof(pdp_info[master_index].ipv6laddr));
+        memcpy(pdp_info[master_index].ipv6dns1addr,
+                pdp_info[secondary_index].ipv6dns1addr,
+                sizeof(pdp_info[master_index].ipv6dns1addr));
+        memcpy(pdp_info[master_index].ipv6dns2addr,
+                pdp_info[secondary_index].ipv6dns2addr,
+                sizeof(pdp_info[master_index].ipv6dns2addr));
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s", prop,
+                  master_index, pdp_info[master_index].ipv6laddr);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_dns1 %s", prop,
+                  master_index, pdp_info[master_index].ipv6dns1addr);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_dns2 %s", prop,
+                  master_index, pdp_info[master_index].ipv6dns2addr);
+        system(cmd);
+    } else if (pdp_info[master_index].ip_state == IPV6) {
+        // copy secondary ppp to master ppp
+        memcpy(pdp_info[master_index].ipladdr,
+                pdp_info[secondary_index].ipladdr,
+                sizeof(pdp_info[master_index].ipladdr));
+        memcpy(pdp_info[master_index].dns1addr,
+                pdp_info[secondary_index].dns1addr,
+                sizeof(pdp_info[master_index].dns1addr));
+        memcpy(pdp_info[master_index].dns2addr,
+                pdp_info[secondary_index].dns2addr,
+                sizeof(pdp_info[master_index].dns2addr));
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip %s", prop,
+                  master_index, pdp_info[master_index].ipladdr);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns1 %s", prop,
+                  master_index, pdp_info[master_index].dns1addr);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns2 %s", prop,
+                  master_index, pdp_info[secondary_index].dns2addr);
+        system(cmd);
+    }
+    snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d", prop,
+              master_index, IPV4V6);
+    system(cmd);
+    pdp_info[master_index].ip_state = IPV4V6;
+    return 1;
+}
+
+/*
+ * return value: 1: success
+ *               0: getIpv6 header 64bit failed
+ */
+static int upNetInterface(int cidIndex, IPType ipType) {
+    char linker[AT_COMMAND_LEN] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char ETH_SP[PROPERTY_NAME_MAX] = {0};  // "ro.modem.*.eth"
+    char gspsprop[PROPERTY_VALUE_MAX] = {0};
+    char cmd[AT_COMMAND_LEN];
+    IPType actIPType = ipType;
+    char ifName[AT_COMMAND_LEN] = {0};
+    int isAutoTest = 0;
+    int err = -1;
+
+    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+    property_get(ETH_SP, prop, "veth");
+
+    /* set net interface name */
+    snprintf(ifName, sizeof(ifName), "%s%d", prop, cidIndex);
+    property_set(SYS_NET_ADDR, ifName);
+    RLOGD("Net interface addr linker = %s", ifName);
+
+    property_get(GSPS_ETH_UP_PROP, gspsprop, "0");
+    RLOGD("GSPS up prop = %s", gspsprop);
+    isAutoTest = atoi(gspsprop);
+
+    if (ipType != IPV4) {
+        actIPType = IPV6;
+    }
+    do {
+        if (actIPType == IPV6) {
+            property_set(SYS_IPV6_LINKLOCAL, pdp_info[cidIndex].ipv6laddr);
+        }
+        snprintf(cmd, sizeof(cmd), "<preifup>%s;%s;%d", ifName,
+                  (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
+                  "IPV6" : "IPV4V6"), isAutoTest);
+        sendCmdToExtData(cmd);
+
+        snprintf(linker, sizeof(linker), "%s%d", prop, cidIndex);
+        RLOGD("set IP linker = %s", linker);
+
+        /* config ip addr */
+        if (actIPType != IPV4) {
+            property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
+            err = ifc_add_address(linker, pdp_info[cidIndex].ipv6laddr, 64);
+        } else {
+            property_set(SYS_NET_ACTIVATING_TYPE, "IPV4");
+            err = ifc_add_address(linker, pdp_info[cidIndex].ipladdr, 32);
+        }
+        if (err != 0) {
+            RLOGE("ifc_add_address %s fail: %s\n", linker, strerror(errno));
+        }
+
+        if (ifc_set_noarp(linker)) {
+            RLOGE("ifc_set_noarp %s fail: %s\n", linker, strerror(errno));
+        }
+
+        /* up the net interface */
+        if (ifc_enable(linker)) {
+            RLOGE("ifc_enable %s fail: %s\n", linker, strerror(errno));
+        }
+
+        snprintf(cmd, sizeof(cmd), "<ifup>%s;%s;%d", ifName,
+                  (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
+                  "IPV6" : "IPV4V6"), isAutoTest);
+        sendCmdToExtData(cmd);
+
+        /* Get IPV6 Header 64bit */
+        if (actIPType != IPV4) {
+            if (!getIPV6Addr(prop, cidIndex)) {
+                RLOGD("get IPv6 address timeout, actIPType = %d", actIPType);
+                if (ipType == IPV4V6) {
+                    pdp_info[cidIndex].ip_state = IPV4;
+                } else {
+                    return 0;
+                }
+            }
+        }
+
+        /* if IPV4V6 actived, need set IPV4 again */
+        if (ipType == IPV4V6 && actIPType != IPV4) {
+            actIPType = IPV4;
+        } else {
+            break;
+        }
+    } while (ipType == IPV4V6);
+
+    property_set(GSPS_ETH_UP_PROP, "0");
+
+    return 1;
+}
+
+int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
+    int err;
+    char *input;
+    int cid;
+    char *local_addr_subnet_mask = NULL, *gw_addr = NULL;
+    char *dns_prim_addr = NULL, *dns_sec_addr = NULL;
+    char ip[IP_ADDR_SIZE * 4], dns1[IP_ADDR_SIZE * 4], dns2[IP_ADDR_SIZE * 4];
+    char cmd[AT_COMMAND_LEN];
+    char prop[PROPERTY_VALUE_MAX];
+    int count = 0;
+    char *sskip;
+    char *tmp;
+    int skip;
+    static int ip_type_num = 0;
+    int ip_type;
+    int maxPDPNum = MAX_PDP_NUM;
+    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
+    ATLine *p_cur = NULL;
+
+    if (p_response == NULL) {
+        RLOGE("leave cgcontrdp_set_cmd_rsp:AT_RESULT_NG");
+        return AT_RESULT_NG;
+    }
+
+    memset(ip, 0, sizeof(ip));
+    memset(dns1, 0, sizeof(dns1));
+    memset(dns2, 0, sizeof(dns2));
+
+    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+    property_get(ETH_SP, prop, "veth");
+
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        input = p_cur->line;
+        if (findInBuf(input, strlen(p_cur->line), "+CGCONTRDP") ||
+            findInBuf(input, strlen(p_cur->line), "+SIPCONFIG")) {
+            do {
+                err = at_tok_flag_start(&input, ':');
+                if (err < 0) break;
+
+                err = at_tok_nextint(&input, &cid);  // cid
+                if (err < 0) break;
+
+                err = at_tok_nextint(&input, &skip);  // bearer_id
+                if (err < 0) break;
+
+                err = at_tok_nextstr(&input, &sskip);  // apn
+                if (err < 0) break;
+
+                if (at_tok_hasmore(&input)) {
+                    // local_addr_and_subnet_mask
+                    err = at_tok_nextstr(&input, &local_addr_subnet_mask);
+                    if (err < 0) break;
+
+                    if (at_tok_hasmore(&input)) {
+                        err = at_tok_nextstr(&input, &sskip);  // gw_addr
+                        if (err < 0) break;
+
+                        if (at_tok_hasmore(&input)) {
+                            // dns_prim_addr
+                            err = at_tok_nextstr(&input, &dns_prim_addr);
+                            if (err < 0) break;
+
+                            snprintf(dns1, sizeof(dns1), "%s", dns_prim_addr);
+
+                            if (at_tok_hasmore(&input)) {
+                                // dns_sec_addr
+                                err = at_tok_nextstr(&input, &dns_sec_addr);
+                                if (err < 0) break;
+
+                                snprintf(dns2, sizeof(dns2), "%s", dns_sec_addr);
+                            }
+                        }
+                    }
+                }
+
+                if ((cid < maxPDPNum) && (cid >= 1)) {
+                    ip_type = readIPAddr(local_addr_subnet_mask, ip);
+                    RLOGD("PS:cid = %d,ip_type = %d,ip = %s,dns1 = %s,dns2 = %s",
+                             cid, ip_type, ip, dns1, dns2);
+
+                    if (ip_type == IPV6) {  // ipv6
+                        RLOGD("cgcontrdp_set_cmd_rsp: IPV6");
+                        if (!strncasecmp(ip, "0000:0000:0000:0000",
+                                strlen("0000:0000:0000:0000"))) {
+                            // incomplete address
+                            tmp = strchr(ip, ':');
+                            if (tmp != NULL) {
+                                snprintf(ip, sizeof(ip), "FE80%s", tmp);
+                            }
+                        }
+                        memcpy(pdp_info[cid - 1].ipv6laddr, ip,
+                                sizeof(pdp_info[cid - 1].ipv6laddr));
+                        memcpy(pdp_info[cid - 1].ipv6dns1addr, dns1,
+                                sizeof(pdp_info[cid - 1].ipv6dns1addr));
+
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                                  prop, cid - 1, IPV6);
+                        system(cmd);
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s",
+                                  prop, cid - 1, ip);
+                        system(cmd);
+                        snprintf(cmd, sizeof(cmd),
+                                  "setprop net.%s%d.ipv6_dns1 %s", prop, cid - 1,
+                                  dns1);
+                        system(cmd);
+                        if (strlen(dns2) != 0) {
+                            if (!strcmp(dns1, dns2)) {
+                                if (strlen(s_SavedDns_IPV6) > 0) {
+                                    RLOGD("Use saved DNS2 instead.");
+                                    memcpy(dns2, s_SavedDns_IPV6,
+                                            sizeof(s_SavedDns_IPV6));
+                                } else {
+                                    RLOGD("Use default DNS2 instead.");
+                                    snprintf(dns2, sizeof(dns2), "%s",
+                                              DEFAULT_PUBLIC_DNS2_IPV6);
+                                }
+                            } else {
+                                RLOGD("Backup DNS2");
+                                memset(s_SavedDns_IPV6, 0,
+                                        sizeof(s_SavedDns_IPV6));
+                                memcpy(s_SavedDns_IPV6, dns2, sizeof(dns2));
+                            }
+                        } else {
+                            RLOGD("DNS2 is empty!!");
+                            memset(dns2, 0, IP_ADDR_SIZE * 4);
+                            snprintf(dns2, sizeof(dns2), "%s",
+                                      DEFAULT_PUBLIC_DNS2_IPV6);
+                        }
+                        memcpy(pdp_info[cid - 1].ipv6dns2addr, dns2,
+                                sizeof(pdp_info[cid - 1].ipv6dns2addr));
+                        snprintf(cmd, sizeof(cmd),
+                                  "setprop net.%s%d.ipv6_dns2 %s", prop, cid - 1,
+                                  dns2);
+                        system(cmd);
+
+                        pdp_info[cid - 1].ip_state = IPV6;
+                        ip_type_num++;
+                    } else if (ip_type == IPV4) {  // ipv4
+                        RLOGD("cgcontrdp_set_cmd_rsp: IPV4");
+                        memcpy(pdp_info[cid - 1].ipladdr, ip,
+                                sizeof(pdp_info[cid - 1].ipladdr));
+                        memcpy(pdp_info[cid - 1].dns1addr, dns1,
+                                sizeof(pdp_info[cid - 1].dns1addr));
+
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                                  prop, cid - 1, IPV4);
+                        system(cmd);
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip %s", prop,
+                                  cid - 1, ip);
+                        system(cmd);
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns1 %s",
+                                  prop, cid - 1, dns1);
+                        system(cmd);
+                        if (strlen(dns2) != 0) {
+                            if (!strcmp(dns1, dns2)) {
+                                RLOGD("Two DNS are the same, so need to reset"
+                                         "dns2!!");
+                                resetDNS2(dns2, sizeof(dns2));
+                            } else {
+                                RLOGD("Backup DNS2");
+                                memset(s_SavedDns, 0, sizeof(s_SavedDns));
+                                memcpy(s_SavedDns, dns2, IP_ADDR_SIZE);
+                            }
+                        } else {
+                            RLOGD("DNS2 is empty!!");
+                            memset(dns2, 0, IP_ADDR_SIZE);
+                            resetDNS2(dns2, sizeof(dns2));
+                        }
+                        memcpy(pdp_info[cid - 1].dns2addr, dns2,
+                                sizeof(pdp_info[cid - 1].dns2addr));
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns2 %s",
+                                  prop, cid - 1, dns2);
+                        system(cmd);
+
+                        pdp_info[cid - 1].ip_state = IPV4;
+                        ip_type_num++;
+                    } else {  // unknown
+                        pdp_info[cid - 1].state = PDP_STATE_EST_UP_ERROR;
+                        RLOGD("PDP_STATE_EST_UP_ERROR: unknown ip type!");
+                    }
+
+                    if (ip_type_num > 1) {
+                        RLOGD("cgcontrdp_set_cmd_rsp: IPV4V6");
+                        pdp_info[cid - 1].ip_state = IPV4V6;
+                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                                 prop, cid - 1, IPV4V6);
+                        system(cmd);
+                    }
+                    pdp_info[cid - 1].state = PDP_STATE_ACTIVE;
+                    RLOGD("PDP_STATE_ACTIVE");
+                }
+            } while (0);
+        }
+    }
+
+    return AT_RESULT_OK;
+}
+
+/* for AT+CGDATA= set command response process */
+int cgdata_set_cmd_rsp(ATResponse *p_response, int pdpIndex, int primaryCid,
+                       int channelID) {
+    int rspType;
+    char cmd[AT_COMMAND_LEN];
+    char errStr[ARRAY_SIZE];
+    char atCmdStr[AT_COMMAND_LEN];
+    char *input;
+    int err, error_num;
+    ATResponse *p_rdpResponse = NULL;
+    ATResponse *p_cgactResponse = NULL;
+    int cid = pdp_info[pdpIndex].cid;
+
+    if (p_response == NULL) {
+        return AT_RESULT_NG;
+    }
+    if (pdpIndex < 0 || pdpIndex >= MAX_PDP_NUM) {
+        return AT_RESULT_NG;
+    }
+
+    pthread_mutex_lock(&s_psServiceMutex);
+    rspType = getATResponseType(p_response->finalResponse);
+    if (rspType == AT_RSP_TYPE_CONNECT) {
+        pdp_info[pdpIndex].state = PDP_STATE_CONNECT;
+    } else if (rspType == AT_RSP_TYPE_ERROR) {
+        RLOGE("PDP activate error");
+        pdp_info[pdpIndex].state = PDP_STATE_ACT_ERROR;
+        input = p_response->finalResponse;
+        if (strStartsWith(input, "+CME ERROR:")) {
+            err = at_tok_flag_start(&input, ':');
+            if (err >= 0) {
+                err = at_tok_nextint(&input, &error_num);
+                if (err >= 0) {
+                    if (error_num >= 0)
+                        pdp_info[pdpIndex].error_num = error_num;
+                }
+            }
+        }
+    } else {
+        goto error;
+    }
+
+    if (pdp_info[pdpIndex].state != PDP_STATE_CONNECT) {
+        RLOGE("PDP activate error: %d", pdp_info[pdpIndex].state);
+        // p_response->finalResponse stay unchanged
+        pdp_info[pdpIndex].state = PDP_STATE_IDLE;
+    } else {  // PDP_STATE_CONNECT
+        pdp_info[pdpIndex].state = PDP_STATE_ESTING;
+        pdp_info[pdpIndex].manual_dns = 0;
+
+        if (s_isLTE) {
+            snprintf(atCmdStr, sizeof(atCmdStr), "AT+CGCONTRDP=%d", cid);
+            err = at_send_command_multiline(s_ATChannels[channelID], atCmdStr,
+                                            "+CGCONTRDP:", &p_rdpResponse);
+        } else {
+            snprintf(atCmdStr, sizeof(atCmdStr), "AT+SIPCONFIG=%d", cid);
+            err = at_send_command_multiline(s_ATChannels[channelID], atCmdStr,
+                                            "+SIPCONFIG:", &p_rdpResponse);
+        }
+        if (err == AT_ERROR_TIMEOUT) {
+            AT_RESPONSE_FREE(p_rdpResponse);
+            RLOGE("Get IP address timeout");
+            pdp_info[pdpIndex].state = PDP_STATE_DEACTING;
+            snprintf(atCmdStr, sizeof(atCmdStr), "AT+CGACT=0,%d", cid);
+            err = at_send_command(s_ATChannels[channelID], atCmdStr, NULL);
+            if (err == AT_ERROR_TIMEOUT) {
+                RLOGE("PDP deactivate timeout");
+                goto error;
+            }
+        } else {
+            cgcontrdp_set_cmd_rsp(p_rdpResponse);
+            AT_RESPONSE_FREE(p_rdpResponse);
+        }
+
+        if (pdp_info[pdpIndex].state == PDP_STATE_ACTIVE) {
+            RLOGD("PS connected successful");
+
+            // if fallback, need map ipv4 and ipv6 to one net device
+            if (dispose_data_fallback(primaryCid, cid)) {
+                cid = primaryCid;
+            }
+
+            RLOGD("PS ip_state = %d", pdp_info[pdpIndex].ip_state);
+            if (upNetInterface(pdpIndex, pdp_info[pdpIndex].ip_state) == 0) {
+                RLOGE("get IPv6 address timeout ");
+                goto error;
+            }
+            RLOGD("data_on execute done");
+        }
+    }
+
+    pthread_mutex_unlock(&s_psServiceMutex);
+    return AT_RESULT_OK;
+
+error:
+    pthread_mutex_unlock(&s_psServiceMutex);
+    free(p_response->finalResponse);
+    p_response->finalResponse = strdup("ERROR");
+    return AT_RESULT_NG;
+}
+
+/* for AT+CGACT=0 set command response process */
+void cgact_deact_cmd_rsp(int cid) {
+    char cmd[AT_COMMAND_LEN];
+    char prop[PROPERTY_VALUE_MAX];
+    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
+    char ipv6_dhcpcd_cmd[AT_COMMAND_LEN] = {0};
+
+    pthread_mutex_lock(&s_psServiceMutex);
+    /* deactivate PDP connection */
+    pdp_info[cid - 1].state = PDP_STATE_IDLE;
+
+//    usleep(200 * 1000);
+    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+    property_get(ETH_SP, prop, "veth");
+    downNetcard(cid, prop);
+
+    if (pdp_info[cid - 1].ip_state == IPV6 ||
+        pdp_info[cid - 1].ip_state == IPV4V6) {
+        snprintf(ipv6_dhcpcd_cmd, sizeof(ipv6_dhcpcd_cmd),
+                "dhcpcd_ipv6:%s%d", prop, cid - 1);
+        property_set("ctl.stop", ipv6_dhcpcd_cmd);
+    }
+
+    snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d", prop,
+            cid - 1, UNKNOWN);
+    system(cmd);
+
+    pthread_mutex_unlock(&s_psServiceMutex);
+}
+

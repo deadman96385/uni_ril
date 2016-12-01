@@ -775,6 +775,7 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
             ret = asprintf(&cmd, "AT+CSCA=\"%s\"", hexData);
             if (ret < 0) {
                 RLOGE("Failed to allocate memory");
+                free(hexData);
                 cmd = NULL;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;

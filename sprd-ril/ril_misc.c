@@ -10,6 +10,7 @@
 #include "ril_misc.h"
 #include "ril_data.h"
 #include "ril_network.h"
+#include "channel_controller.h"
 
 /* Fast Dormancy disable property */
 #define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
@@ -121,6 +122,7 @@ static void onQuerySignalStrengthLTE(void *param) {
     int response[6] = {-1, -1, -1, -1, -1, -1};
     char *line;
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
     RIL_SignalStrength_v6 response_v6;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
@@ -136,7 +138,10 @@ static void onQuerySignalStrengthLTE(void *param) {
         goto error;
     }
 
-    line = p_response->p_intermediates->line;
+    cesq_execute_cmd_rsp(p_response, &p_newResponse);
+    if (p_newResponse == NULL) goto error;
+
+    line = p_newResponse->p_intermediates->line;
 
     err = at_tok_start(&line);
     if (err < 0) goto error;
@@ -173,12 +178,14 @@ static void onQuerySignalStrengthLTE(void *param) {
                               sizeof(RIL_SignalStrength_v6), socket_id);
     putChannel(channelID);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     return;
 
 error:
     RLOGE("onQuerySignalStrengthLTE fail");
     putChannel(channelID);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
 }
 
 static void onQuerySignalStrength(void *param) {
@@ -186,6 +193,7 @@ static void onQuerySignalStrength(void *param) {
     char *line;
     RIL_SignalStrength_v6 response_v6;
     ATResponse *p_response = NULL;
+    ATResponse *p_newResponse = NULL;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
     int channelID = getChannel(socket_id);
@@ -200,7 +208,10 @@ static void onQuerySignalStrength(void *param) {
         goto error;
     }
 
-    line = p_response->p_intermediates->line;
+    csq_execute_cmd_rsp(p_response, &p_newResponse);
+    if (p_newResponse == NULL) goto error;
+
+    line = p_newResponse->p_intermediates->line;
 
     err = at_tok_start(&line);
     if (err < 0) goto error;
@@ -216,12 +227,14 @@ static void onQuerySignalStrength(void *param) {
                               sizeof(RIL_SignalStrength_v6), socket_id);
     putChannel(channelID);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
     return;
 
 error:
     RLOGE("onQuerySignalStrength fail");
     putChannel(channelID);
     at_response_free(p_response);
+    at_response_free(p_newResponse);
 }
 
 static void requestScreeState(int channelID, int status, RIL_Token t) {

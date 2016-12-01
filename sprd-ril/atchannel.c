@@ -33,16 +33,20 @@
 #include <unistd.h>
 #include <utils/Log.h>
 #include "misc.h"
-
+#include "channel_controller.h"
 
 #define LOG_NDEBUG              1
 #define HANDSHAKE_RETRY_COUNT   8
 #define HANDSHAKE_TIMEOUT_MSEC  250
 #define NUM_ELEMS(x)            (sizeof(x) / sizeof(x[0]))
 
+int s_atTimeoutCount[MAX_AT_CHANNELS];
 struct ATChannels s_ATChannel[MAX_AT_CHANNELS];
 static pthread_mutex_t s_ATChannelMutex[MAX_AT_CHANNELS];
 static pthread_cond_t s_ATChannelCond[MAX_AT_CHANNELS];
+
+extern PDP_INFO pdp_info[MAX_PDP_NUM];
+extern int s_psOpened[SIM_COUNT];
 
 typedef struct {
     int openedATChs;
@@ -72,12 +76,12 @@ static int writeline(struct ATChannels *ATch, const char *s);
 #define NS_PER_S 1000000000
 
 static void setTimespecRelative(struct timespec *p_ts, long long msec) {
-    struct timeval tv;
+    struct timespec tv;
 
-    gettimeofday(&tv, (struct timezone *)NULL);
+    clock_gettime(CLOCK_MONOTONIC, &tv);
 
     p_ts->tv_sec = tv.tv_sec + (msec / 1000);
-    p_ts->tv_nsec = (tv.tv_usec + (msec % 1000) * 1000L) * 1000L;
+    p_ts->tv_nsec = tv.tv_nsec + (msec % 1000) * 1000L * 1000L;
     /* assuming tv.tv_usec < 10^6 */
     if (p_ts->tv_nsec >= NS_PER_S) {
         p_ts->tv_sec++;
@@ -126,7 +130,7 @@ static const char *s_finalResponsesError[] = {
     "NO DIALTONE",
 };
 
-static int isFinalResponseError(const char *line) {
+int isFinalResponseError(const char *line) {
     size_t i;
 
     for (i = 0; i < NUM_ELEMS(s_finalResponsesError); i++) {
@@ -148,7 +152,7 @@ static const char *s_finalResponsesSuccess[] = {
     "CONNECT"  /* some stacks start up data on another channel */
 };
 
-static int isFinalResponseSuccess(const char *line) {
+int isFinalResponseSuccess(const char *line) {
     size_t i;
 
     for (i = 0; i < NUM_ELEMS(s_finalResponsesSuccess); i++) {
@@ -628,6 +632,7 @@ struct ATChannels *at_open(int fd, int channelID, char *name,
                              ATUnsolHandler h) {
     struct ATChannels *ATch;
     int channelNums;
+    pthread_condattr_t attr;
 
 #if defined (ANDROID_MULTI_SIM)
     channelNums = MAX_AT_CHANNELS;
@@ -662,7 +667,10 @@ struct ATChannels *at_open(int fd, int channelID, char *name,
     FD_SET(fd, &s_readerThread[socket_id].ATchFd);
     *open_ATchs = fd > (*open_ATchs) ? fd : (*open_ATchs);
     pthread_mutex_init(&s_ATChannelMutex[channelID], NULL);
-    pthread_cond_init(&s_ATChannelCond[channelID], NULL);
+
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&s_ATChannelCond[channelID], &attr);
     return ATch;
 }
 
@@ -724,7 +732,7 @@ void stop_reader(RIL_SOCKET_ID socket_id) {
     /* the reader thread should eventually die */
 }
 
-static ATResponse * at_response_new() {
+ATResponse * at_response_new() {
     return (ATResponse *)calloc(1, sizeof(ATResponse));
 }
 
@@ -871,12 +879,49 @@ static int at_send_command_full(struct ATChannels *ATch,
 
     pthread_mutex_unlock(&s_ATChannelMutex[ATch->channelID]);
 
-    if (err == AT_ERROR_TIMEOUT && s_onTimeout != NULL) {
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
-        s_onTimeout(socket_id);
+    /* for google android, when one AT timeout, will stop readerLoop*/
+//    if (err == AT_ERROR_TIMEOUT && s_onTimeout != NULL) {
+//        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
+//        s_onTimeout(socket_id);
+//    }
+    if (err == AT_ERROR_TIMEOUT) {
+        s_atTimeoutCount[ATch->channelID] += 1;
+        RLOGE("After %lld s, channel%d %s timeout, timeout AT number: %d",
+                (timeoutMsec / 1000), ATch->channelID, command,
+                s_atTimeoutCount[ATch->channelID]);
+        if (s_atTimeoutCount[ATch->channelID] > BLOCKED_MAX_COUNT) {
+            s_atTimeoutCount[ATch->channelID] = 0;
+            char blockStr[ARRAY_SIZE];
+            snprintf(blockStr, sizeof(blockStr), "%s", "Modem Blocked");
+            if (s_modemdFd < 0) {
+                detectATNoResponse();
+            }
+            if (s_modemdFd > 0) {
+                int ret = write(s_modemdFd, blockStr, strlen(blockStr) + 1);
+                RLOGE("write %d bytes to client:%d modemd is blocked",
+                      ret, s_modemdFd);
+            }
+        }
+    } else {
+        s_atTimeoutCount[ATch->channelID] = 0;
     }
 
     return err;
+}
+
+long long getATTimeoutMesc(const char *command) {
+    int i, count;
+    long long timeoutMesc = 50 * 1000;
+
+    for (i = 0; i < s_ATTableSize; i++) {
+        if (!strncasecmp(s_ATTimeoutTable[i].cmd, command,
+                s_ATTimeoutTable[i].len)) {
+            timeoutMesc = s_ATTimeoutTable[i].timeout * 1000;
+            break;
+        }
+    }
+
+    return timeoutMesc;
 }
 
 /**
@@ -891,22 +936,37 @@ static int at_send_command_full(struct ATChannels *ATch,
 int at_send_command(struct ATChannels *ATch, const char *command,
                        ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
 
-    err = at_send_command_full(ATch, command, NO_RESULT, NULL, NULL, 0,
-                               pp_outResponse);
+    timeoutMesc = getATTimeoutMesc(command);
+
+    if (!strncasecmp(command, "AT+CFUN=0", sizeof("AT+CFUN=0"))||
+        !strncasecmp(command, "AT+SFUN=5", sizeof("AT+SFUN=5"))) {
+        int i;
+        for (i = 0; i < MAX_PDP_NUM; i++) {
+            pdp_info[i].state = PDP_STATE_IDLE;
+        }
+    } else if (!strncasecmp(command, "AT+SFUN=4", sizeof("AT+SFUN=4"))) {
+        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
+        s_psOpened[socket_id] = 1;
+    }
+
+    err = at_send_command_full(ATch, command, NO_RESULT, NULL, NULL,
+                               timeoutMesc, pp_outResponse);
 
     return err;
 }
-
 
 int at_send_command_snvm(struct ATChannels *ATch, const char *command,
                             const char *pdu,
                             const char *responsePrefix,
                             ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
 
+    timeoutMesc = getATTimeoutMesc(command);
     err = at_send_command_full(ATch, command, NO_RESULT, responsePrefix,
-                               pdu, 0, pp_outResponse);
+                               pdu, timeoutMesc, pp_outResponse);
 
     return err;
 }
@@ -916,9 +976,11 @@ int at_send_command_singleline(struct ATChannels *ATch,
                                    const char *responsePrefix,
                                    ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
 
+    timeoutMesc = getATTimeoutMesc(command);
     err = at_send_command_full(ATch, command, SINGLELINE, responsePrefix, NULL,
-                               0, pp_outResponse);
+                               timeoutMesc, pp_outResponse);
 
     if (err == 0 && pp_outResponse != NULL
         && (*pp_outResponse)->success > 0
@@ -936,8 +998,10 @@ int at_send_command_singleline(struct ATChannels *ATch,
 int at_send_command_numeric(struct ATChannels *ATch, const char *command,
                                ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
 
-    err = at_send_command_full(ATch, command, NUMERIC, NULL, NULL, 0,
+    timeoutMesc = getATTimeoutMesc(command);
+    err = at_send_command_full(ATch, command, NUMERIC, NULL, NULL, timeoutMesc,
                                pp_outResponse);
 
     if (err == 0 && pp_outResponse != NULL && (*pp_outResponse)->success > 0 &&
@@ -956,9 +1020,11 @@ int at_send_command_sms(struct ATChannels *ATch, const char *command,
                            const char *pdu, const char *responsePrefix,
                            ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
 
+    timeoutMesc = getATTimeoutMesc(command);
     err = at_send_command_full(ATch, command, SINGLELINE, responsePrefix, pdu,
-                               0, pp_outResponse);
+                               timeoutMesc, pp_outResponse);
 
     if (err == 0 && pp_outResponse != NULL && (*pp_outResponse)->success > 0 &&
         (*pp_outResponse)->p_intermediates == NULL) {
@@ -971,15 +1037,28 @@ int at_send_command_sms(struct ATChannels *ATch, const char *command,
     return err;
 }
 
-
 int at_send_command_multiline(struct ATChannels *ATch,
                                   const char *command,
                                   const char *responsePrefix,
                                   ATResponse **pp_outResponse) {
     int err;
+    long long timeoutMesc = 0;
+
+    timeoutMesc = getATTimeoutMesc(command);
+
+    if (!strncasecmp(command, "AT+CFUN=0", sizeof("AT+CFUN=0"))||
+        !strncasecmp(command, "AT+SFUN=5", sizeof("AT+SFUN=5"))) {
+        int i;
+        for (i = 0; i < MAX_PDP_NUM; i++) {
+            pdp_info[i].state = PDP_STATE_IDLE;
+        }
+    } else if (!strncasecmp(command, "AT+SFUN=4", sizeof("AT+SFUN=4"))) {
+        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
+        s_psOpened[socket_id] = 1;
+    }
 
     err = at_send_command_full(ATch, command, MULTILINE, responsePrefix, NULL,
-                               0, pp_outResponse);
+                               timeoutMesc, pp_outResponse);
 
     return err;
 }

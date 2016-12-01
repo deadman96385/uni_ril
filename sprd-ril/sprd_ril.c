@@ -33,6 +33,7 @@
 #include "ril_call.h"
 #include "ril_data.h"
 #include "ril_async_cmd_handler.h"
+#include "channel_controller.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
 #define VOLTE_ENABLE_PROP       "persist.sys.volte.enable"
@@ -497,8 +498,8 @@ static void onRadioPowerOn(int channelID) {
         cbPara->para = (int *)malloc(sizeof(int));
         *((int *)(cbPara->para)) = channelID;
         cbPara->socket_id = socket_id;
+        pollSIMState(cbPara);
     }
-    pollSIMState(cbPara);
 }
 
 /**
@@ -835,6 +836,8 @@ static void *mainLoop(void *param) {
     int fd;
     int channelID = 0;
     int firstChannel, lastChannel;
+    char muxDevice[ARRAY_SIZE] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
     struct ChannelInfo *p_channelInfo = s_channelInfo;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
 
@@ -845,6 +848,13 @@ static void *mainLoop(void *param) {
     firstChannel = AT_URC;
     lastChannel = MAX_AT_CHANNELS;
 #endif
+
+    snprintf(muxDevice, sizeof(muxDevice), "ro.modem.%s.tty", s_modem);
+    if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
+        property_get(muxDevice, prop, "/dev/ts0710mux");
+    } else if (s_isLTE) {
+        property_get(muxDevice, prop, "/dev/sdiomux");
+    }
 
     for (;;) {
         fd = -1;
@@ -857,8 +867,8 @@ static void *mainLoop(void *param) {
             p_channelInfo[channelID].state = CHANNEL_IDLE;
 
             snprintf(p_channelInfo[channelID].ttyName,
-                    sizeof(p_channelInfo[channelID].ttyName), "/dev/CHNPTY%d",
-                    channelID);
+                    sizeof(p_channelInfo[channelID].ttyName), "%s%d",
+                    prop, channelID);
 
             /* open TTY device, and attach it to channel */
             p_channelInfo[channelID].channelID = channelID;
@@ -930,7 +940,7 @@ void setHwVerPorp() {
 
     memset(cmdline, 0, 1024);
     fd = open("/proc/cmdline", O_RDONLY);
-    if (fd > 0) {
+    if (fd >= 0) {
         ret = read(fd, cmdline, sizeof(cmdline));
         if (ret > 0) {
             pHwVer = strstr(cmdline, pKeyWord);
@@ -997,6 +1007,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     at_set_on_reader_closed(onATReaderClosed);
     at_set_on_timeout(onATTimeout);
 
+    detectATNoResponse();
+    ps_service_init();
+
     int simId;
     for (simId = 0; simId < SIM_COUNT; simId++) {
         sem_init(&(s_sem[simId]), 0, 1);
@@ -1007,6 +1020,10 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
+    ret = pthread_create(&tid, &attr, signal_process, NULL);
+    if (ret < 0) {
+        RLOGE("Failed to create signal_process");
+    }
 
     initSIMVariables();
     setHwVerPorp();
