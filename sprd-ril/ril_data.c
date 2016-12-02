@@ -14,6 +14,7 @@
 #define APN_DELAY_PROP          "persist.radio.apn_delay"
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
 #define DDR_STATUS_PROP         "persist.sys.ddr.status"
+#define REUSE_DEFAULT_PDN          "persist.sys.pdp.reuse"
 
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
@@ -1207,6 +1208,11 @@ static int reuseDefaultBearer(int channelID, const char *apn,
     char cmd[AT_COMMAND_LEN] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
+    int useDefaultPDN;
+
+    property_get(REUSE_DEFAULT_PDN, prop, "0");
+    useDefaultPDN = atoi(prop);
+    RLOGD("useDefaultPDN = %d",useDefaultPDN);
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1219,7 +1225,8 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                 if (cid == (i + 1)) {
                     RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
                     if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
-                        ((isApnEqual((char *)apn, getPDNAPN(i)) &&
+                        (useDefaultPDN ||
+                        (isApnEqual((char *)apn, getPDNAPN(i)) &&
                         isProtocolEqual((char *)type, getPDNIPType(i))) ||
                         s_singlePDNAllowed[socket_id] == 1)) {
                         RLOGD("Using default PDN");
