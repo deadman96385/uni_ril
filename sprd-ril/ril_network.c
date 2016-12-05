@@ -1334,7 +1334,7 @@ error:
     return;
 }
 
-static void requestSetLTEPreferredNetType(int channelID, void *data,
+static int requestSetLTEPreferredNetType(int channelID, void *data,
                                             size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
 
@@ -1488,12 +1488,13 @@ static void requestSetLTEPreferredNetType(int channelID, void *data,
 
     at_response_free(p_response);
     pthread_mutex_unlock(&s_workModeMutex);
-    return;
+    return 0;
 
 done:
     pthread_mutex_unlock(&s_workModeMutex);
     at_response_free(p_response);
     RIL_onRequestComplete(t, errType, NULL, 0);
+    return -1;
 }
 
 static void requestSetPreferredNetType(int channelID, void *data,
@@ -2430,13 +2431,29 @@ static void requestSetRadioCapability(int channelID, void *data,
                 s_requestSetRC[simId] = 0;
             }
             if (s_isLTE) {
+#if (SIM_COUNT == 2)
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
                 ret = applySetLTERadioCapability(responseRc, channelID, t);
                 if (ret <= 0) {
+#if (SIM_COUNT == 2)
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
                     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, responseRc,
                             sizeof(RIL_RadioCapability));
                 }
             } else {
+#if (SIM_COUNT == 2)
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
                 ret = applySetRadioCapability(responseRc, channelID);
+#if (SIM_COUNT == 2)
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
                 if (ret > 0) {
                     RIL_onRequestComplete(t, RIL_E_SUCCESS, responseRc,
                                           sizeof(RIL_RadioCapability));
@@ -2526,9 +2543,17 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         //    break;
         case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE: {
             if (s_isLTE) {
-                pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
-                requestSetLTEPreferredNetType(channelID, data, datalen, t);
-                pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
+#if (SIM_COUNT == 2)
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
+                err = requestSetLTEPreferredNetType(channelID, data, datalen, t);
+                if (err < 0) {
+#if (SIM_COUNT == 2)
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
+                }
             } else {
                 requestSetPreferredNetType(channelID, data, datalen, t);
             }
@@ -2871,6 +2896,10 @@ out:
 void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp) {
     int status = ((int *)resp)[0];
 
+#if (SIM_COUNT == 2)
+    pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+    pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
     if (data != NULL) {
         RIL_RadioCapability *rc = (RIL_RadioCapability *)data;
         if (status == 1) {

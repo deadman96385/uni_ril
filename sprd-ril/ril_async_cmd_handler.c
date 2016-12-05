@@ -248,6 +248,13 @@ static void userTimerCallback(void *param) {
     p_info = (UserCallbackInfo *)param;
 
     RLOGE("AT command wait for URC %s timeout", p_info->cmd);
+
+#if (SIM_COUNT == 2)
+    if (strcmp(p_info->cmd, "+SPTESTMODE:") == 0) {
+        pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+        pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+    }
+#endif
     RIL_onRequestComplete(p_info->token, RIL_E_GENERIC_FAILURE, NULL, 0);
 
     free(p_info->data);
