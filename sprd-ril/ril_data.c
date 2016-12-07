@@ -347,6 +347,9 @@ static void convertFailCause(RIL_SOCKET_ID socket_id, int cause) {
         case MN_GPRS_ERR_UNSPECIFIED:
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
             break;
+        case MN_GPRS_ERR_MAX_ACTIVE_PDP_REACHED:
+            s_lastPDPFailCause[socket_id] = PDP_FAIL_MAX_ACTIVE_PDP_CONTEXT_REACHED;
+            break;
         default:
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
             break;

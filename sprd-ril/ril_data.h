@@ -77,6 +77,7 @@ typedef enum {
     MN_GPRS_ERR_SYNTAX_ERROR_IN_PACKET_FILTER      = 0x2D,
     MN_GPRS_ERR_PDP_CONTEXT_WO_TFT_ALREADY_ACT     = 0x2E,
     MN_GPRS_ERR_SM_ERR_UNSPECIFIED                 = 0x2F,
+    MN_GPRS_ERR_MAX_ACTIVE_PDP_REACHED             = 0x41,
     MN_GPRS_ERR_INVALID_TI                         = 0x51,
     MN_GPRS_ERR_INCORRECT_MSG                      = 0x5F,
     MN_GPRS_ERR_INVALID_MAND_INFO                  = 0x60,
