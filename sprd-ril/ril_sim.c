@@ -1178,16 +1178,13 @@ error:
             if (err >= 0) {
                 if (errNum == 11 || errNum == 12) {
                     setRadioState(channelID, RADIO_STATE_SIM_LOCKED_OR_ABSENT);
-                } else if (errNum == 70 || errNum == 3 || errNum == 128 ||
-                            errNum == 254) {
-                    if (errNum == 3 && !strcmp(data[0], "SC") &&
-                        *data[1] == '1') {
-                        errnoType = RIL_E_SUCCESS;
-                    } else {
-                        errnoType = RIL_E_FDN_CHECK_FAILURE;
-                    }
+                } else if (errNum == 70 || errNum == 128 || errNum == 254) {
+                    errnoType = RIL_E_FDN_CHECK_FAILURE;
                 } else if (errNum == 16) {
                     errnoType = RIL_E_PASSWORD_INCORRECT;
+                } else if (errNum == 3 && !strcmp(data[0], "SC") &&
+                        *data[1] == '1') {
+                    errnoType = RIL_E_SUCCESS;
                 }
             }
         }
