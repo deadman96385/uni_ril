@@ -111,6 +111,8 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 
 sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
+int s_modemConfig = 0;
+int s_multiModeSim = 0;
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
@@ -905,6 +907,19 @@ static void *mainLoop(void *param) {
     }
 }
 
+int getModemConfig() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    int modemConfig = 0;
+
+    property_get(MODEM_CONFIG_PROP, prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0) {
+        modemConfig = LWG_WG;
+    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+        modemConfig = LWG_LWG;
+    }
+    return modemConfig;
+}
+
 void setHwVerPorp() {
     int ret = -1;
     int fd = -1;
@@ -944,7 +959,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     int fd = -1;
     int opt;
     pthread_attr_t attr;
-
+    char prop[PROPERTY_VALUE_MAX];
     s_rilEnv = env;
 
     while (-1 != (opt = getopt(argc, argv, "m:n:"))) {
@@ -970,6 +985,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         }
     }
     s_isLTE = isLte();
+    s_modemConfig = getModemConfig();
+    property_get(PRIMARY_SIM_PROP, prop, "0");
+    s_multiModeSim = atoi(prop);
     RLOGD("rild connect %s modem, SIM_COUNT: %d\n", s_modem, SIM_COUNT);
 
     pthread_attr_init(&attr);

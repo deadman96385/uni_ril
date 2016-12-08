@@ -30,6 +30,10 @@ typedef enum {
     TD_AND_GSM = 13,
     WCDMA_AND_GSM = 14,
     PRIMARY_GSM_ONLY = 15,
+    PRIMARY_WCDMA_ONLY = 18,
+    PRIMARY_TD_ONLY = 19,
+    PRIMARY_TD_AND_WCDMA = 20,
+    PRIMARY_WCDMA_AND_GSM = 22,
     NONE = 254,
     TD_AND_WCDMA = 255,
 } RadioFeatures;
@@ -94,6 +98,13 @@ typedef enum {
     RIL_REG_STATE_UNKNOWN_EMERGENCY_CALL_ENABLED    = 14   /* Same as 4, but indicates that emergency calls */
                                                            /* are enabled. */
 } RIL_RegState;
+
+typedef enum {
+    LWG_G = 0,
+    LWG_WG = 1,
+    W_G = 2,
+    LWG_LWG = 3,
+} ModemConfig;
 
 typedef struct OperatorInfoList {
     char *plmn;
