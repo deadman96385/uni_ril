@@ -184,6 +184,11 @@ int s_isstkcall = 0;
 static int add_ip_cid = -1;   //for volte addtional business
 static int s_screenState = 1;
 static int s_video_call_id = -1;
+
+static int s_FDNEnabled = 0;
+static pthread_mutex_t s_FDNEnableMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_FDNEnableCond = PTHREAD_COND_INITIALIZER;
+
 /*SPRD: add for VoLTE to handle SRVCC */
 typedef struct Srvccpendingrequest{
     char *cmd;
@@ -1678,16 +1683,52 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
     }
     RILLOGD("requestFacilityLock: %s", cmd);
 
-    if (*data[1] == '2') {
+    if (*data[1] == '2') {  // query status
         err = at_send_command_multiline(ATch_type[channelID], cmd, "+CLCK: ",
                 &p_response);
         free(cmd);
-    } else {
-        err = at_send_command(ATch_type[channelID],  cmd, &p_response);
+
+        if (err < 0 || p_response->success == 0)
+            goto error;
+
+        for (p_cur = p_response->p_intermediates
+                ; p_cur != NULL
+                ; p_cur = p_cur->p_next
+            ) {
+            line = p_cur->line;
+
+            err = at_tok_start(&line);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &status);
+            if (err < 0) goto error;
+            if (at_tok_hasmore(&line)) {
+                err = at_tok_nextint(&line, &serviceClass);
+                if (err < 0) goto error;
+            }
+
+            response[0] = status;
+            if (!strcmp(data[0], "FD")) {
+                s_FDNEnabled = status;
+            }
+            response[1] |= serviceClass;
+        }
+
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+        at_response_free(p_response);
+        return;
+    } else {  // lock or unlock this facility
+        if (!strcmp(data[0], "FD")) {
+            pthread_mutex_lock(&s_FDNEnableMutex);
+        }
+        err = at_send_command(ATch_type[channelID], cmd, &p_response);
         free(cmd);
         if (err < 0 || p_response->success == 0) {
+            if (!strcmp(data[0], "FD")) {
+                pthread_mutex_unlock(&s_FDNEnableMutex);
+            }
             goto error;
-        }else if(!strcmp(data[0], "SC")){
+        } else if (!strcmp(data[0], "SC")) {
             /* add for modem reboot */
             const char *pin = NULL;
             extern int s_sim_num;
@@ -1717,6 +1758,18 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
                     property_set(sim_prop, pin);
                 }
             }
+        } else if (!strcmp(data[0], "FD")) {
+            struct timespec tv;
+            int mode = atoi(data[1]);
+
+            clock_gettime(CLOCK_MONOTONIC, &tv);
+            tv.tv_sec = tv.tv_sec + 10;  // wait for 10s
+
+            err = pthread_cond_timedwait(&s_FDNEnableCond, &s_FDNEnableMutex, &tv);
+            pthread_mutex_unlock(&s_FDNEnableMutex);
+            if (err == ETIMEDOUT || s_FDNEnabled != mode) {
+                goto error1;
+            }
         }
 
         result = 1;
@@ -1725,33 +1778,6 @@ static void requestFacilityLock(int channelID,  char **data, size_t datalen, RIL
         at_response_free(p_response);
         return;
     }
-
-    if (err < 0 || p_response->success == 0)
-        goto error;
-
-    for (p_cur = p_response->p_intermediates
-            ; p_cur != NULL
-            ; p_cur = p_cur->p_next
-        ) {
-        line = p_cur->line;
-
-        err = at_tok_start(&line);
-        if (err < 0) goto error;
-
-        err = at_tok_nextint(&line, &status);
-        if (err < 0) goto error;
-        if (at_tok_hasmore(&line)) {
-            err = at_tok_nextint(&line, &serviceClass);
-            if (err < 0) goto error;
-        }
-
-        response[0] = status;
-        response[1] |= serviceClass;
-    }
-
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
-    at_response_free(p_response);
-    return;
 
 error:
     if(strStartsWith(p_response->finalResponse,"+CME ERROR:")) {
@@ -6709,6 +6735,34 @@ error:
     at_response_free(p_response);
 }
 
+static void requestEnterSimPin2(int channelID, void *data, size_t datalen,
+                                RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    int remaintimes = 3;
+    char cmd[128];
+    ATResponse *p_response = NULL;
+    SimUnlockType rsqtype = UNLOCK_PIN2;
+    RIL_Errno errnoType = RIL_E_PASSWORD_INCORRECT;
+
+    const char **pin2 = (const char **)data;
+    snprintf(cmd, sizeof(cmd), "AT+ECPIN2=\"%s\"", pin2[0]);
+    err = at_send_command(ATch_type[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        errnoType = RIL_E_PASSWORD_INCORRECT;
+        goto out;
+    }
+
+    errnoType = RIL_E_SUCCESS;
+
+out:
+    remaintimes = getSimlockRemainTimes(channelID, rsqtype);
+    RIL_onRequestComplete(t, errnoType, &remaintimes,
+                          sizeof(remaintimes));
+    at_response_free(p_response);
+}
+
 static void  requestVerifySimPuk2(int channelID, void*  data, size_t  datalen, RIL_Token  t)
 {
     ATResponse *p_response = NULL;
@@ -6822,7 +6876,7 @@ error:
     at_response_free(p_response);
 }
 
-static void  requestEnterSimPin2(int channelID, void*  data, size_t  datalen, RIL_Token  t)
+static void  requestChangeSimPin2(int channelID, void*  data, size_t  datalen, RIL_Token  t)
 {
     ATResponse   *p_response = NULL;
     int err;
@@ -10146,9 +10200,11 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             }
 
         case RIL_REQUEST_ENTER_SIM_PIN:
-        case RIL_REQUEST_ENTER_SIM_PIN2:
         case RIL_REQUEST_ENTER_SIM_PUK:
             requestVerifySimPin(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_ENTER_SIM_PIN2:
+            requestEnterSimPin2(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ENTER_SIM_PUK2:
             requestVerifySimPuk2(channelID, data, datalen, t);
@@ -10157,7 +10213,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             requestEnterSimPin(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_CHANGE_SIM_PIN2:
-            requestEnterSimPin2(channelID, data, datalen, t);
+            requestChangeSimPin2(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SET_MUTE:
             {
@@ -14656,7 +14712,11 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             err = at_tok_nextint(&tmp, &response);
             if (err < 0) goto out;
             RILLOGD("onUnsolicited(),CLCK response : %d", response);
-            RIL_onUnsolicitedResponse(RIL_UNSOL_FDN_ENABLE, &response, sizeof(response));
+
+            pthread_mutex_lock(&s_FDNEnableMutex);
+            s_FDNEnabled = response;
+            pthread_cond_signal(&s_FDNEnableCond);
+            pthread_mutex_unlock(&s_FDNEnableMutex);
         }
     }
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
@@ -15216,6 +15276,10 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     if (s_sim_num == 0) {
         setHwVerPorp();
     }
+
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&s_FDNEnableCond, &attr);
 
     return &s_callbacks;
 }
