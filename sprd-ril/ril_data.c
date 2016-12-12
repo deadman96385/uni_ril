@@ -88,12 +88,17 @@ static PDNInfo s_PDN[MAX_PDP_CP] = {
 static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
 static bool isApnEqual(char *new, char *old);
 static bool isProtocolEqual(char *new, char *old);
+static int getMaxPDPNum(void) {
+    return isLte() ? MAX_PDP : MAX_PDP / 2;
+}
+
 static int getPDP(RIL_SOCKET_ID socket_id) {
     int ret = -1;
     int i;
     char prop[PROPERTY_VALUE_MAX] = {0};
+    int maxPDPNum = getMaxPDPNum();
 
-    for (i = 0; i < MAX_PDP; i++) {
+    for (i = 0; i < maxPDPNum; i++) {
         if (s_workMode[socket_id] != GSM_ONLY && s_activePDN > 0 &&
             s_PDN[i].nCid == (i + 1)) {
             continue;
@@ -1320,7 +1325,7 @@ RETRY:
             goto RETRY;
         }
     } else if (ret == DATA_ACTIVE_SUCCESS &&
-            (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6"))) {
+            (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) && s_isLTE ) {
         const char *tmpType = NULL;
         /* Check if need fall back or not */
         if (!strcmp(pdpType, "IPV4+IPV6")) {
@@ -1905,7 +1910,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
-            if (isAttachEnable()) {
+            if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()) {
                 if (s_isLTE) {
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
