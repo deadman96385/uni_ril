@@ -472,7 +472,7 @@ static void pollSIMState(void *param) {
         }
         case SIM_READY: {
             RLOGI("SIM_READY");
-            onSIMReady(channelID);
+            setRadioState(channelID, RADIO_STATE_SIM_READY);
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                     NULL, 0, socket_id);
             if (channelIDPassed < 0) {

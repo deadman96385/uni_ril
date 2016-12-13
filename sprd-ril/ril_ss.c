@@ -258,8 +258,7 @@ error:
             if (err < 0) goto error1;
             err = at_tok_nextint(&line, &errNum);
             if (err < 0) goto error1;
-            if (errNum == 70 || errNum == 254 || errNum == 128 ||
-                errNum == 254) {
+            if (errNum == 70 || errNum == 254 || errNum == 128 ) {
                 RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
                 at_response_free(p_response);
                 return;
@@ -314,9 +313,9 @@ static void requestChangeFacilityLock(int channelID, char **data,
     return;
 
 error:
-    if (err < 0 || errNum == 0xff) {
+    if (err < 0 || errNum == 0xff || errNum == 3 ) {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    } else if (errNum == 70 || errNum == 3 || errNum == 128 || errNum == 254) {
+    } else if (errNum == 70 || errNum == 128 || errNum == 254) {
         RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
     } else {
         RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, NULL, 0);
@@ -790,7 +789,7 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                         }
                     }
                 }
-                if (err >= 0 && (errNum == 70 || errNum == 3 || errNum == 128 ||
+                if (err >= 0 && (errNum == 70 || errNum == 128 ||
                                  errNum == 254)) {
                     RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
                 } else {
@@ -871,8 +870,8 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                     err = at_tok_start(&line);
                     if (err >= 0) {
                         err = at_tok_nextint(&line, &errNum);
-                        if (err >= 0 && (errNum == 70 || errNum == 3 ||
-                                         errNum == 128 || errNum == 254)) {
+                        if (err >= 0 && (errNum == 70 || errNum == 128 ||
+                                         errNum == 254)) {
                             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE,
                                                   NULL, 0);
                         } else {
