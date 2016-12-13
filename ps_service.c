@@ -738,17 +738,19 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req) {
                         (uintptr_t)req->recv_pty);
                 adapter_cmux_write(mux, atCmdStr, strlen(atCmdStr),
                         req->timeout);
+                usleep(200 * 1000);
+                snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+                property_get(ETH_SP, prop, "veth");
+                down_netcard(tmp_cid, prop);
             } else {
+                snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
+                property_get(ETH_SP, prop, "veth");
+                down_netcard(tmp_cid, prop);
                 adapter_pty_write(req->recv_pty, "OK\r", strlen("OK\r"));
                 adapter_pty_end_cmd(req->recv_pty);
                 adapter_free_cmux(mux);
             }
             pdp_info[tmp_cid - 1].state = PDP_STATE_IDLE;
-
-            usleep(200 * 1000);
-            snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-            property_get(ETH_SP, prop, "veth");
-            down_netcard(tmp_cid, prop);
 
             if (pdp_info[tmp_cid - 1].ip_state == IPV6
                     || pdp_info[tmp_cid - 1].ip_state == IPV4V6) {
@@ -756,7 +758,6 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req) {
                         "dhcpcd_ipv6:%s%d", prop, tmp_cid - 1);
                 property_set("ctl.stop", ipv6_dhcpcd_cmd);
             }
-            PHS_LOGD("data_off execute done");
 
             snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d", prop,
                       tmp_cid - 1, UNKNOWN);
@@ -808,7 +809,6 @@ int cvt_cgact_deact_req(AT_CMD_REQ_T * req) {
                             "dhcpcd_ipv6:%s%d", prop, i);
                     property_set("ctl.stop", ipv6_dhcpcd_cmd);
                 }
-                PHS_LOGD("data_off execute done");
                 snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
                           prop, i, UNKNOWN);
                 system(cmd);
