@@ -161,16 +161,41 @@ static int getPDPByIndex(int index) {
     return -1;
 }
 
+void putPDPByIndex(int index) {
+    if (index < 0 || index >= MAX_PDP) {
+        return;
+    }
+    pthread_mutex_lock(&s_PDP[index].mutex);
+    if (s_PDP[index].state == PDP_BUSY) {
+        s_PDP[index].state = PDP_IDLE;
+    }
+    pthread_mutex_unlock(&s_PDP[index].mutex);
+}
+
+void putUnusablePDPCid() {
+    int i = 0;
+    for (; i < MAX_PDP; i++) {
+        pthread_mutex_lock(&s_PDP[i].mutex);
+        if (s_PDP[i].cid == UNUSABLE_CID) {
+            RLOGD("putUnusablePDPCid cid = %d", i + 1);
+            s_PDP[i].cid = -1;
+        }
+        pthread_mutex_unlock(&s_PDP[i].mutex);
+    }
+}
+
 int updatePDPCid(int cid, int state) {
     int index = cid - 1;
     if (cid <= 0 || cid > MAX_PDP) {
         return 0;
     }
     pthread_mutex_lock(&s_PDP[index].mutex);
-    if (state != 0) {
+    if (state == 1) {
         s_PDP[index].cid = cid;
-    } else {
+    } else if (state == 0){
         s_PDP[index].cid = -1;
+    }else if (state == -1 && s_PDP[index].cid == -1){
+        s_PDP[index].cid = UNUSABLE_CID;
     }
     pthread_mutex_unlock(&s_PDP[index].mutex);
     return 1;
@@ -362,7 +387,8 @@ static void convertFailCause(RIL_SOCKET_ID socket_id, int cause) {
 }
 
 /**
- * return  0: success;
+ * return -2: fail cause 253, need retry active for another cid;
+ *         0: success;
  *         1: general failed;
  *         2: fail cause 288, need retry active;
  *         3: fail cause 128
@@ -384,7 +410,9 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                 err = at_tok_nextint(&line, &failCause);
                 if (err >= 0) {
                     if (failCause == 288 || failCause == 128) {
-                         ret = DATA_ACTIVE_NEED_RETRY;  // 128: network reject
+                        ret = DATA_ACTIVE_NEED_RETRY;  // 128: network reject
+                    } else if (failCause == 253) {
+                        ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
                     } else {
                         convertFailCause(socket_id, failCause);
                     }
@@ -1211,7 +1239,7 @@ error:
 static int reuseDefaultBearer(int channelID, const char *apn,
                                const char *type, RIL_Token t) {
     bool islte = s_isLTE;
-    int err, ret = -1;
+    int err, ret = -1, cgdata_err;
     char strApnName[ARRAY_SIZE] = {0};
     char cmd[AT_COMMAND_LEN] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
@@ -1248,15 +1276,20 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                                   cid);
                         err = at_send_command(s_ATChannels[channelID], cmd,
                                               &p_response);
-                        if (errorHandlingForCGDATA(channelID, p_response, err,
-                                                   cid) != 0) {
-                            ret = cid;
-                            at_response_free(p_response);
-                        } else {
+                        cgdata_err = errorHandlingForCGDATA(channelID, p_response, err,
+                                cid);
+                        if (cgdata_err == 0) {  // success
                             updatePDPCid(i + 1, 1);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
                             at_response_free(p_response);
+                        } else if (cgdata_err > 0) {  // no retry
+                            ret = cid;
+                            at_response_free(p_response);
+                        } else {  // need retry active for another cid
+                            updatePDPCid(i + 1, -1);
+                            putPDPByIndex(i);
+                            AT_RESPONSE_FREE(p_response);
                         }
                     }
                 } else if (i < MAX_PDP) {
@@ -1313,6 +1346,7 @@ RETRY:
 
 
     index = getPDP(socket_id);
+
     if (index < 0 || getPDPCid(index) >= 0) {
         s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
         goto error;
@@ -1324,6 +1358,9 @@ RETRY:
             nRetryTimes++;
             goto RETRY;
         }
+    } else if (ret == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
+        updatePDPCid(index + 1, -1);
+        goto RETRY;
     } else if (ret == DATA_ACTIVE_SUCCESS &&
             (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) && s_isLTE ) {
         const char *tmpType = NULL;
@@ -1353,6 +1390,7 @@ RETRY:
     }
 
 done:
+    putUnusablePDPCid();
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     return;
 
@@ -1361,6 +1399,7 @@ error:
         putPDP(getFallbackCid(primaryindex) - 1);
         putPDP(primaryindex);
     }
+    putUnusablePDPCid();
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
