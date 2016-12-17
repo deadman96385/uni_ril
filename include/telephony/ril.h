@@ -1801,6 +1801,35 @@ typedef struct {
                    */
 } RIL_VideoPhone_DSCI;
 
+/* SPRD: add for VoWifi @{ */
+typedef enum {
+    IDEL_HANDOVER_TO_VOWIFI = 1,
+    IDEL_HANDOVER_TO_VOLTE = 2,
+    INCALL_HANDOVER_TO_VOWIFI = 3,
+    INCALL_HANDOVER_TO_VOLTE = 4
+} IMS_HandoverType;
+
+typedef enum {
+    IMS_PDN_ACTIVE_FAILED = 0,
+    IMS_PDN_READY = 1,
+    IMS_PDN_START = 2
+} IMS_PDNStatus;
+
+typedef enum {
+    IMS_HANDOVER_REGISTER_FAIL = 0,
+    IMS_HANDOVER_SUCCESS = 1,
+    IMS_HANDOVER_PDN_BUILD_FAIL = 2,
+    IMS_HANDOVER_RE_REGISTER_FAIL = 3,
+    IMS_HANDOVER_ATTACH_FAIL = 4,
+    IMS_HANDOVER_ATTACH_SUCCESS = 5
+} IMS_HandoverToVoWifiResult;
+
+typedef struct {
+    int      type;
+    char *   info;
+} IMS_NetworkInfo;
+/* @} */
+
 /**
  * RIL_REQUEST_GET_SIM_STATUS
  *
@@ -5831,13 +5860,33 @@ typedef struct {
 #define RIL_REQUEST_DISABLE_IMS                         (RIL_IMS_REQUEST_BASE + 16)
 #define RIL_REQUEST_GET_IMS_BEARER_STATE                (RIL_IMS_REQUEST_BASE + 17)
 #define RIL_REQUEST_VIDEOPHONE_CODEC                    (RIL_IMS_REQUEST_BASE + 18)
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_VIDEOPHONE_CODEC
+#define RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN          (RIL_IMS_REQUEST_BASE + 19)
+/* SPRD: add for VoWifi @{ */
+#define RIL_REQUEST_IMS_HANDOVER                        (RIL_IMS_REQUEST_BASE + 20)
+#define RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE          (RIL_IMS_REQUEST_BASE + 21)
+#define RIL_REQUEST_IMS_NETWORK_INFO_CHANGE             (RIL_IMS_REQUEST_BASE + 22)
+#define RIL_REQUEST_IMS_HANDOVER_CALL_END               (RIL_IMS_REQUEST_BASE + 23)
+#define RIL_REQUEST_GET_TPMR_STATE                      (RIL_IMS_REQUEST_BASE + 24)
+#define RIL_REQUEST_SET_TPMR_STATE                      (RIL_IMS_REQUEST_BASE + 25)
+#define RIL_REQUEST_IMS_WIFI_ENABLE                     (RIL_IMS_REQUEST_BASE + 26)
+#define RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE          (RIL_IMS_REQUEST_BASE + 27)
+#define RIL_REQUEST_IMS_UPDATE_DATA_ROUTER              (RIL_IMS_REQUEST_BASE + 28)
+/* @} */
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_UPDATE_DATA_ROUTER
 
 #define RIL_IMS_UNSOL_RESPONSE_BASE                     3000
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
 #define RIL_UNSOL_RESPONSE_VIDEO_QUALITY                (RIL_IMS_UNSOL_RESPONSE_BASE + 1)
 #define RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED       (RIL_IMS_UNSOL_RESPONSE_BASE + 2)
-#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED
+/* SPRD: add for VoWifi @{ */
+#define RIL_UNSOL_IMS_HANDOVER_REQUEST                  (RIL_IMS_UNSOL_RESPONSE_BASE + 3)
+#define RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE            (RIL_IMS_UNSOL_RESPONSE_BASE + 4)
+#define RIL_UNSOL_IMS_NETWORK_INFO_CHANGE               (RIL_IMS_UNSOL_RESPONSE_BASE + 5)
+#define RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE           (RIL_IMS_UNSOL_RESPONSE_BASE + 6)
+#define RIL_UNSOL_IMS_WIFI_PARAM                        (RIL_IMS_UNSOL_RESPONSE_BASE + 7)
+#define RIL_UNSOL_IMS_NETWORK_STATE_CHANGED             (RIL_IMS_UNSOL_RESPONSE_BASE + 8)
+/* @} */
+#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_IMS_NETWORK_STATE_CHANGED
 /*****************************************************************************/
 
 

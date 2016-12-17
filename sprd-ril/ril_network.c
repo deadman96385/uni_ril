@@ -2839,6 +2839,8 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
                                   &response, sizeof(response), socket_id);
+        RIL_onUnsolicitedResponse(RIL_UNSOL_IMS_NETWORK_STATE_CHANGED,
+                                  &response, sizeof(response), socket_id);
     } else if (strStartsWith(s, "^CONN:")) {
         int cid;
         int type;
