@@ -352,6 +352,15 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
                  request == RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN ||
+                 request == RIL_REQUEST_GET_TPMR_STATE ||
+                 request == RIL_REQUEST_SET_TPMR_STATE ||
+                 request == RIL_REQUEST_IMS_HANDOVER ||
+                 request == RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE ||
+                 request == RIL_REQUEST_IMS_NETWORK_INFO_CHANGE ||
+                 request == RIL_REQUEST_IMS_HANDOVER_CALL_END ||
+                 request == RIL_REQUEST_IMS_WIFI_ENABLE ||
+                 request == RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE ||
+                 request == RIL_REQUEST_IMS_UPDATE_DATA_ROUTER ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIM_POWER ||
