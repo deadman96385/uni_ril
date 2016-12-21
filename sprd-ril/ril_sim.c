@@ -68,6 +68,8 @@
 #define IMSI_TOTAL_LEN                          (16 + 1)
 #define SMALL_IMSI_LEN                          (2 + 1)
 
+#define PROP_RELIANCE_SIMLOCK_ENABLE "persist.sys.reliance.simlock"
+
 static int s_simEnabled[SIM_COUNT];
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -692,6 +694,7 @@ int getNetLockRemainTimes(int channelID, int type) {
     int ck_type = 1;
     int result[2] = {0, 0};
     char *line;
+    char prop[PROPERTY_VALUE_MAX] = {0};
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
 
@@ -716,6 +719,15 @@ int getNetLockRemainTimes(int channelID, int type) {
 
         if (err == 0) {
             ret = result[0] - result[1];
+            /* SPRD: Add for Reliance simlock @{ */
+            property_get(PROP_RELIANCE_SIMLOCK_ENABLE, prop, "false");
+            if(!strcmp(prop, "true")) {
+                if (fac == 2) {  // NETWORK LOCK
+                    RLOGD("For Reliance simlock, just return retrial times %d", result[1]);
+                    ret = result[1];
+                }
+            }
+            /* @} */
         } else {
             ret = -1;
         }
