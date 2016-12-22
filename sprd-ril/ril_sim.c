@@ -1577,6 +1577,8 @@ static void requestTransmitApdu(int channelID, void *data, size_t datalen,
     memset(&sr, 0, sizeof(sr));
 
     p_args = (RIL_SIM_APDU *)data;
+
+retry:
     if ((p_args->data == NULL) || (strlen(p_args->data) == 0)) {
         if (p_args->p3 < 0) {
             asprintf(&cmd, "AT+CGLA=%d,%d,\"%02x%02x%02x%02x\"",
@@ -1596,6 +1598,7 @@ static void requestTransmitApdu(int channelID, void *data, size_t datalen,
 
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
                                      &p_response);
+    free(cmd);
     if (err < 0) goto error;
     if (p_response != NULL && p_response->success == 0) {
         if (!strcmp(p_response->finalResponse, "+CME ERROR: 21") ||
@@ -1615,10 +1618,15 @@ static void requestTransmitApdu(int channelID, void *data, size_t datalen,
 
     sscanf(&(sr.simResponse[len - 4]), "%02x%02x", &(sr.sw1), &(sr.sw2));
     sr.simResponse[len - 4] = '\0';
+    if (sr.sw1 == 0x6c) {
+        p_args->p3 = sr.sw2;
+        AT_RESPONSE_FREE(p_response);
+        goto retry;
+    }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &sr, sizeof(sr));
     at_response_free(p_response);
-    free(cmd);
+
     // end sim toolkit session if 90 00 on TERMINAL RESPONSE
     if ((p_args->instruction == 20) && (sr.sw1 == 0x90)) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_STK_SESSION_END, NULL, 0,
