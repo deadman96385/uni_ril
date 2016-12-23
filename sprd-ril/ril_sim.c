@@ -1618,8 +1618,17 @@ retry:
 
     sscanf(&(sr.simResponse[len - 4]), "%02x%02x", &(sr.sw1), &(sr.sw2));
     sr.simResponse[len - 4] = '\0';
+    // modified for CMCC SimAPITest.apk
     if (sr.sw1 == 0x6c) {
         p_args->p3 = sr.sw2;
+        AT_RESPONSE_FREE(p_response);
+        goto retry;
+    } else if (sr.sw1 == 0x61) {
+        p_args->p1 = 0x00;
+        p_args->p2 = 0x00;
+        p_args->p3 = sr.sw2;
+        p_args->instruction = 0xc0;
+        p_args->data = NULL;
         AT_RESPONSE_FREE(p_response);
         goto retry;
     }
