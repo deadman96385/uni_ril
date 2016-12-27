@@ -13166,8 +13166,16 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                             RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
                             RIL_requestTimedCallback (sendStkNotReady, NULL, NULL);
                         }
-                        if(cause == 1)  //no sim card
+                        if(cause == 1) { //no sim card
                             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,NULL, 0);
+                            // sim removed fast,it may report 3,1,1,add for stk
+                            RIL_requestTimedCallback (sendStkNotReady, NULL, NULL);
+                        }
+                        // sim removed fast,it may report 3,1,7,add for stk
+                        if(cause == 7){
+                            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,NULL, 0);
+                            RIL_requestTimedCallback (sendStkNotReady, NULL, NULL);
+                        }
                     }
                 } else if (value == 100 || value == 4) {
                     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
