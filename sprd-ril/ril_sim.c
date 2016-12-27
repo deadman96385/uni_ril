@@ -1239,7 +1239,9 @@ static int queryFDNServiceAvailable(int channelID) {
         if (err < 0) goto out;
     }
 
-    if (strlen(sr.simResponse) < 2) goto out;
+    if (sr.simResponse == NULL || strlen(sr.simResponse) < 2) {
+        goto out;
+    }
 
     unsigned char byteFdn[2];
     memset(byteFdn, 0, sizeof(byteFdn));
