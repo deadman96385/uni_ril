@@ -40,11 +40,11 @@ static int s_lastPDPFailCause[SIM_COUNT] = {
 };
 static int s_trafficClass[SIM_COUNT] = {
         TRAFFIC_CLASS_DEFAULT
-#if(SIM_COUNT >= 2)
+#if (SIM_COUNT >= 2)
         ,TRAFFIC_CLASS_DEFAULT
-#if(SIM_COUNT >= 3)
+#if (SIM_COUNT >= 3)
         ,TRAFFIC_CLASS_DEFAULT
-#if(SIM_COUNT >= 4)
+#if (SIM_COUNT >= 4)
         ,TRAFFIC_CLASS_DEFAULT
 #endif
 #endif
@@ -53,11 +53,11 @@ static int s_trafficClass[SIM_COUNT] = {
 
 static int s_singlePDNAllowed[SIM_COUNT] = {
         0
-#if(SIM_COUNT >= 2)
+#if (SIM_COUNT >= 2)
         ,0
-#if(SIM_COUNT >= 3)
+#if (SIM_COUNT >= 3)
         ,0
-#if(SIM_COUNT >= 4)
+#if (SIM_COUNT >= 4)
         ,0
 #endif
 #endif
@@ -192,9 +192,9 @@ int updatePDPCid(int cid, int state) {
     pthread_mutex_lock(&s_PDP[index].mutex);
     if (state == 1) {
         s_PDP[index].cid = cid;
-    } else if (state == 0){
+    } else if (state == 0) {
         s_PDP[index].cid = -1;
-    }else if (state == -1 && s_PDP[index].cid == -1){
+    } else if (state == -1 && s_PDP[index].cid == -1) {
         s_PDP[index].cid = UNUSABLE_CID;
     }
     pthread_mutex_unlock(&s_PDP[index].mutex);
@@ -1713,12 +1713,13 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
         doDetachGPRS(1 - socket_id, data, datalen, NULL);
     }
     if (islte) {
-        if (s_modemConfig == LWG_LWG){
+        if (s_modemConfig == LWG_LWG) {
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD");
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
             if (socket_id != s_multiModeSim ) {
-                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", socket_id);
+                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1",
+                         socket_id);
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
                 if (s_sessionId[socket_id] != 0) {
                     RLOGD("setRadioCapability is on going, return!!");
@@ -1729,13 +1730,13 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
                 if (err < 0 || p_response->success == 0) {
                      goto error;
                 }
-            }else {
-                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", 1 - socket_id);
+            } else {
+                snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0",
+                         1 - socket_id);
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
             }
         }
-    }
-    if (!islte) {
+    } else {
         if (s_sessionId[socket_id] != 0) {
             RLOGD("setRadioCapability is on going, return!!");
             goto error;
@@ -1787,16 +1788,19 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
         if (s_presentSIMCount == SIM_COUNT) {
             RLOGD("simID = %d", socket_id);
             if (s_modemConfig == LWG_LWG) {
-                //ap do nothing when detach on L+L version
+                // ap do nothing when detach on L+L version
             } else {
                 if (socket_id != s_multiModeSim) {
-                    err = at_send_command(s_ATChannels[channelID], "AT+SGFD", &p_response);
+                    err = at_send_command(s_ATChannels[channelID], "AT+SGFD",
+                                          &p_response);
                     if (err < 0 || p_response->success == 0) {
                         goto error;
                     }
-                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0",
+                             socket_id);
                 } else {
-                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", 1 - socket_id);
+                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1",
+                             1 - socket_id);
                 }
                 err = at_send_command(s_ATChannels[channelID], cmd, NULL);
             }
@@ -1920,7 +1924,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                     if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
                         requestSetupDataCall(channelID, data, datalen, t);
                     } else {
-                        if (s_modemConfig != LWG_LWG && s_multiModeSim != socket_id) {
+                        if (s_modemConfig != LWG_LWG &&
+                                s_multiModeSim != socket_id) {
                             requestSetupDataCall(channelID, data, datalen, t);
                         } else {
                             s_lastPDPFailCause[socket_id] =

@@ -72,6 +72,7 @@
 static int s_simEnabled[SIM_COUNT];
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
+static RIL_AppType s_appType[SIM_COUNT];
 static bool s_needQueryPinTimes[SIM_COUNT] = {
         true
 #if (SIM_COUNT >= 2)
@@ -663,7 +664,8 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     p_card_status->ims_subscription_app_index = RIL_CARD_MAX_APPS;
     p_card_status->num_applications = num_apps;
 
-    RIL_AppType app_type = getSimType(channelID);
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    s_appType[socket_id] = getSimType(channelID);
 
     /* Initialize application status */
     unsigned int i;
@@ -672,7 +674,7 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     }
 
     for (i = 0; i < sizeof(app_status_array) / sizeof(RIL_AppStatus); i++) {
-        app_status_array[i].app_type = app_type;
+        app_status_array[i].app_type = s_appType[socket_id];
     }
     /* Pickup the appropriate application status
      * that reflects sim_status for gsm.
@@ -1211,7 +1213,6 @@ error1:
 }
 
 static int queryFDNServiceAvailable(int channelID) {
-    RIL_AppType app_type = getSimType(channelID);
     int status = -1;
     int err;
     char *cmd = NULL;
@@ -1219,13 +1220,14 @@ static int queryFDNServiceAvailable(int channelID) {
     char pad_data = '0';
     ATResponse *p_response = NULL;
     RIL_SIM_IO_Response sr;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     memset(&sr, 0, sizeof(sr));
 
-    if (app_type == RIL_APPTYPE_USIM) {
+    if (s_appType[socket_id] == RIL_APPTYPE_USIM) {
         asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
                  READ_BINERY, EFID_SST, 0, 0, 1, pad_data, DF_ADF);
-    } else if (app_type == RIL_APPTYPE_SIM) {
+    } else if (s_appType[socket_id] == RIL_APPTYPE_SIM) {
         asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
                  READ_BINERY, EFID_SST, 0, 0, 1, pad_data, DF_GSM);
     } else {
@@ -1262,9 +1264,9 @@ static int queryFDNServiceAvailable(int channelID) {
     convertHexToBin(sr.simResponse, strlen(sr.simResponse),
                     (char *)byteFdn);
     RLOGD("queryFDNServiceAvailable: byteFdn[0] = %d", byteFdn[0]);
-    if (app_type == RIL_APPTYPE_USIM) {
+    if (s_appType[socket_id] == RIL_APPTYPE_USIM) {
         if ((byteFdn[0] & 0x02) != 0x02) status = 2;
-    } else if (app_type == RIL_APPTYPE_SIM) {
+    } else if (s_appType[socket_id] == RIL_APPTYPE_SIM) {
         if (((byteFdn[0] >> 4) & 0x01) != 0x01) status = 2;
     }
 out:
@@ -1283,6 +1285,7 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
     RIL_SIM_IO_v6 *p_args;
     ATResponse *p_response = NULL;
     RIL_SIM_IO_Response sr;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     memset(&sr, 0, sizeof(sr));
 
@@ -1331,7 +1334,7 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         if (err < 0) goto error;
     }
 
-    if (getSimType(channelID) == RIL_APPTYPE_USIM &&
+    if (s_appType[socket_id] == RIL_APPTYPE_USIM &&
         (p_args->command == COMMAND_GET_RESPONSE)) {
         RLOGD("usim card, change to sim format");
         if (sr.simResponse != NULL) {
@@ -2959,14 +2962,12 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                         s_simState[socket_id] = SIM_DROP;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
-                    }
-                    if (cause == 34) {  // sim removed
+                    } else if (cause == 34) {  // sim removed
                         setProperty(socket_id, SIM_OFF_PROP, "0");
                         s_simState[socket_id] = SIM_REMOVE;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
-                    }
-                    if (cause == 1 || cause == 7) {  // no sim card
+                    } else if (cause == 1 || cause == 7) {  // no sim card
                         RIL_onUnsolicitedResponse(
                                 RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
                                 socket_id);

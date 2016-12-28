@@ -475,14 +475,13 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
                     && serviceId[current + 1] >= 4352 &&
                     serviceId[current + 1] <= 4359) &&
                     (serviceId[current] != 4355 &&
-                            serviceId[current + 1] != 4355)){
+                            serviceId[current + 1] != 4355)) {
                  // etws primary and second message under LTE, channel is from
                  // 4352 to 4359 except 4355.
                  etws++;
-            } else if(serviceId[current] == 4355 &&
-                    serviceId[current + 1] ==4355){
+            } else if (serviceId[current] == 4355 &&
+                    serviceId[current + 1] ==4355) {
                 // etws test message under LTE, channel is 4355
-
                 etwsTest++;
             }
         }
