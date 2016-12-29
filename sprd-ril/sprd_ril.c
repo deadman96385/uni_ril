@@ -336,7 +336,6 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_OEM_HOOK_STRINGS ||
                  request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
                  request == RIL_REQUEST_SET_INITIAL_ATTACH_APN ||
-                 request == RIL_REQUEST_SET_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_ALLOW_DATA ||
                  request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
                  request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
@@ -351,6 +350,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_IMS_SMSC ||
                  request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
+                 request == RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIM_POWER ||

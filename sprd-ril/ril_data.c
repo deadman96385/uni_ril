@@ -2003,6 +2003,44 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
+        case RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            char qosState[PROPERTY_VALUE_MAX] = {0};
+            int initialAttachId = 9;  // use index of 9 for sos
+            RIL_InitialAttachApn *initialAttachSOSApn = NULL;
+            p_response = NULL;
+            if (data != NULL) {
+                initialAttachSOSApn = (RIL_InitialAttachApn *)data;
+
+                snprintf(cmd, sizeof(cmd),
+                        "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
+                         initialAttachId, initialAttachSOSApn->protocol,
+                         initialAttachSOSApn->apn);
+                err = at_send_command(s_ATChannels[channelID],
+                        cmd, &p_response);
+
+                snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d",
+                        initialAttachSOSApn->username,
+                        initialAttachSOSApn->password,
+                          initialAttachId, initialAttachSOSApn->authtype);
+                err = at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+                /* Set required QoS params to default */
+                property_get("persist.sys.qosstate", qosState, "0");
+                if (!strcmp(qosState, "0")) {
+                    snprintf(cmd, sizeof(cmd),
+                        "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                        initialAttachId, s_trafficClass[socket_id]);
+                    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                at_response_free(p_response);
+            } else {
+                RLOGD("INITIAL_ATTACH_SOS_APN data is null");
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+            break;
+        }
         /* }@ */
         case RIL_EXT_REQUEST_TRAFFIC_CLASS: {
             s_trafficClass[socket_id] = ((int *)data)[0];
