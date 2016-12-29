@@ -6620,6 +6620,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_DISABLE_IMS: return "DISABLE_IMS";
         case RIL_REQUEST_GET_IMS_BEARER_STATE: return "GET_IMS_BEARER_STATE";
         case RIL_REQUEST_VIDEOPHONE_CODEC: return "VIDEOPHONE_CODEC";
+        case RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN: return "SET_SOS_INITIAL_ATTACH_APN";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
