@@ -34,4 +34,6 @@
     {RIL_REQUEST_IMS_HOLD_SINGLE_CALL, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_MUTE_SINGLE_CALL, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_SILENCE_SINGLE_CALL, dispatchInts, responseVoid},
-    {RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE, dispatchInts, responseVoid}
+    {RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE, dispatchInts, responseVoid},
+    {RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO, dispatchStrings, responseVoid},
+    {RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, dispatchVoid, responseInts}
