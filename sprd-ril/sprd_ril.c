@@ -377,7 +377,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE ||
                  request == RIL_EXT_REQUEST_UPDATE_ECCLIST ||
                  request == RIL_EXT_REQUEST_GET_BAND_INFO ||
-                 request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE)) {
+                 request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE ||
+                 request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }

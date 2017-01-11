@@ -34,3 +34,4 @@
     {RIL_EXT_REQUEST_GET_BAND_INFO, dispatchVoid, responseString},
     {RIL_EXT_REQUEST_SET_BAND_INFO_MODE, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_SET_SINGLE_PDN, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_SET_SPECIAL_RATCAP, dispatchInts, responseVoid}
