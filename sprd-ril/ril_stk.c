@@ -10,6 +10,9 @@
 #include "ril_network.h"
 #include "ril_sim.h"
 
+bool s_stkServiceRunning[SIM_COUNT];
+static char *s_stkUnsolResponse[SIM_COUNT];
+
 static void requestDefaultNetworkName(int channelID, RIL_Token t) {
     ATResponse *p_response = NULL;
     ATLine *p_cur;
@@ -135,6 +138,17 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_REPORT_STK_SERVICE_IS_RUNNING: {
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            s_stkServiceRunning[socket_id] = true;
+            if (NULL != s_stkUnsolResponse[socket_id]) {
+               int respLen = strlen(s_stkUnsolResponse[socket_id]) + 1;
+               RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND,
+                             s_stkUnsolResponse[socket_id], respLen, socket_id);
+               free(s_stkUnsolResponse[socket_id]);
+               s_stkUnsolResponse[socket_id] = NULL;
+               RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+               break;
+            }
             int response = 0;
             err = at_send_command_singleline(s_ATChannels[channelID],
                     "AT+SPUSATPROFILE?", "+SPUSATPROFILE:", &p_response);
@@ -192,8 +206,17 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
 
-        RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
-                                  strlen(response) + 1, socket_id);
+        if (false == s_stkServiceRunning[socket_id]) {
+            s_stkUnsolResponse[socket_id] =
+                          (char *)calloc((strlen(response) + 1), sizeof(char));
+            snprintf(s_stkUnsolResponse[socket_id], strlen(response) + 1,
+                     "%s", response);
+            RLOGD("STK service is not running [%s]",
+                     s_stkUnsolResponse[socket_id]);
+        } else {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
+                                      strlen(response) + 1, socket_id);
+        }
     } else if (strStartsWith(s, "+SPUSATDISPLAY:")) {
         char *response = NULL;
         char *tmp;
