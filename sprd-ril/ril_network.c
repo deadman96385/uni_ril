@@ -970,7 +970,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         }
 
         for (i = 0; i < MAX_PDP; i++) {
-            if (s_PDP[i].state == PDP_BUSY) {
+            if (s_dataAllowed[socket_id] && s_PDP[i].state == PDP_BUSY) {
                 RLOGD("s_PDP[%d].state = %d", i, s_PDP[i].state);
                 putPDP(i);
             }
