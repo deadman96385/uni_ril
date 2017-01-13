@@ -2108,6 +2108,10 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
     char cmd[AT_COMMAND_LEN] = {0};
     const char **strings = (const char **)data;
     ATResponse *p_response = NULL;
+    if (response == 1) {
+        RLOGE("ISIM card, need send AT+IMSCOUNTCFG=1 to CP");
+        err = at_send_command(s_ATChannels[channelID], "AT+IMSCOUNTCFG=1" , NULL);
+    }
 
     /* 7 means the number of data from fwk, represents 7 AT commands value */
     if (datalen == 7 * sizeof(char *) && strings[0] != NULL &&
