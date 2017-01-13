@@ -903,7 +903,8 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
         } else {
             RLOGE("Convert hex to bin failed for SMSCB");
         }
-    } else if (strStartsWith(s, "+SPWRN:")) {
+    } else if (strStartsWith(s, "+SPLWRN:")) {
+        //  +SPLWRN:<segment_id>,<total_segments>,<length>,<CR><LF><data>
         int skip;
         int segmentId;
         int totalSegments;
@@ -929,15 +930,6 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
         err = at_tok_nextint(&tmp, &skip);
         if (err < 0) goto out;
 
-        err = at_tok_nextint(&tmp, &skip);
-        if (err < 0) goto out;
-
-        err = at_tok_nextint(&tmp, &skip);
-        if (err < 0) goto out;
-
-        err = at_tok_nextint(&tmp, &skip);
-        if (err < 0) goto out;
-
         err = at_tok_nextstr(&tmp, &data);
         if (err < 0) goto out;
 
@@ -953,7 +945,7 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
 
         if (segmentId <= totalSegments) {
             pdus[segmentId -1] =
-                    (char *)calloc((strlen(data + 1)), sizeof(char));
+                    (char *)calloc(strlen(data) + 1, sizeof(char));
             snprintf(pdus[segmentId -1], strlen(data) + 1, "%s", data);
 
             count++;
@@ -962,32 +954,31 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
 
         // To make sure no missing pages, then concat all pages.
         if (count == totalSegments) {
-            msg = (char *)calloc((dataLen + sizeof("01")), sizeof(char));
+            msg = (char *)calloc(dataLen + 1, sizeof(char));
             int index = 0;
-            strncat(msg, "01", sizeof("01"));  // concat message_type and msg
             for (; index < count; index++) {
                 if (pdus[index] != NULL) {
                     strncat(msg, pdus[index], strlen(pdus[index]));
                 }
             }
             RLOGD("concat pdu: %s", msg);
-            /* +SPWRN:1,N,<xx>,<xx>,<xx>,<xx>,<data1>
-             * +SPWRN:2,N,<xx>,<xx>,<xx>,<xx>,<data2>
+            /* +SPLWRN:1,N,<xx>,<data1>
+             * +SPLWRN:2,N,<xx>,<data2>
              * ...
-             * +SPWRN:N,N,<xx>,<xx>,<xx>,<xx>,<dataN>
-             * Response message_type + data1 + data2 + ... + dataN to framework
+             * +SPLWRN:N,N,<xx>,<dataN>
+             * Response data1 + data2 + ... + dataN to framework
              */
-            binData = (char *)calloc(strlen(msg) / 2, sizeof(char));
+            binData = (char *)calloc(strlen(msg) / 2 + 1, sizeof(char));
             if (!convertHexToBin(msg, strlen(msg), binData)) {
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_BROADCAST_SMS,
                         binData, strlen(msg) / 2, socket_id);
             } else {
-                RLOGD("Convert hex to bin failed for SPWRN");
+                RLOGD("Convert hex to bin failed for SPLWRN");
             }
             free(msg);
             free(binData);
             for (index = 0; index < count; index++) {
-                 free(pdus[index]);
+                free(pdus[index]);
             }
             free(pdus);
             pdus = NULL;
