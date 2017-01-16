@@ -13089,6 +13089,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RIL_onUnsolicitedResponse (
                 RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
                 NULL, 0);
+
         if (radioOnERROR && strStartsWith(s,"+CREG:") && sState == RADIO_STATE_OFF){
             RILLOGD("Radio is on, setRadioState now.");
             radioOnERROR = false;
@@ -13606,10 +13607,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         if (SIM_RESET == result) {
             RIL_requestTimedCallback (reopenSimCardAndProtocolStack, NULL, NULL);
         }
-        else {
-            response->result = result;
-            RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response, sizeof(RIL_SimRefreshResponse_v7));
-        }
+        response->result = result;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response, sizeof(RIL_SimRefreshResponse_v7));
     } else if (strStartsWith(s, "+CSSI:")) {
         RIL_SuppSvcNotification *response = NULL;
         int code = 0;
