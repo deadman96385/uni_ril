@@ -317,8 +317,7 @@ int callFromCLCCLineVoLTE(char *line, RIL_Call_VoLTE *p_call) {
     if (err < 0) goto error;
 
     err = voLTEStateToRILState(state, &(p_call->state));
-    if ((RIL_VoLTE_CallState)p_call->state == VOLTE_CALL_HOLD_MO ||
-        (RIL_VoLTE_CallState)p_call->state == VOLTE_CALL_HOLD_MT) {
+    if ((RIL_VoLTE_CallState)p_call->state == RIL_CALL_HOLDING ) {
         s_maybeAddCall = 1;
     }
     if (p_call->state == RIL_CALL_WAITING) {
