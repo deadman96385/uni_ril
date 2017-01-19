@@ -3526,7 +3526,11 @@ static void responseSimRefreshV7(Parcel &p, void *response) {
       RIL_SimRefreshResponse_v7 *p_cur = ((RIL_SimRefreshResponse_v7 *) response);
       p.writeInt32(p_cur->result);
       p.writeInt32(p_cur->ef_id);
-      writeStringToParcel(p, p_cur->aid);
+      if (p_cur->aid != NULL && strcmp(p_cur->aid, "")) {
+          writeStringToParcel(p, p_cur->aid);
+      } else {
+          writeStringToParcel(p, NULL);
+      }
 
       appendPrintBuf("%sresult=%d, ef_id=%d, aid=%s",
             printBuf,
