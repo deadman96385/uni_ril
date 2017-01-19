@@ -489,7 +489,7 @@ static void requestCallForwardUri(int channelID,
         memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfoUri));
 
         /* init the pointer array */
-        for (i = 0; i < forwardCount ; i++) {
+        for (i = 0; i < forwardCount; i++) {
             forwardList[i] = &(forwardPool[i]);
         }
 

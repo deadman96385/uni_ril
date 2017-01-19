@@ -2464,12 +2464,12 @@ invalid:
     return;
 }
 
-static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI){
+static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI) {
     IMS_NetworkInfo info;
     int32_t t;
     status_t status;
 
-    memset (&info, 0, sizeof(info));
+    memset(&info, 0, sizeof(info));
 
     // note we only check status at the end
 
@@ -2503,7 +2503,8 @@ static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI){
 #endif
 
     return;
-    invalid:
+
+invalid:
     invalidCommandBlock(pRI);
     return;
 }
@@ -4515,7 +4516,7 @@ static int responseDSCI(Parcel &p, void *response, size_t responselen) {
     return 0;
 }
 
-static int responseImsNetworkInfo(Parcel &p, void *response, size_t responselen){
+static int responseImsNetworkInfo(Parcel &p, void *response, size_t responselen) {
     if (response == NULL) {
         RLOGE("invalid response: NULL");
         return RIL_ERRNO_INVALID_RESPONSE;
@@ -4526,7 +4527,7 @@ static int responseImsNetworkInfo(Parcel &p, void *response, size_t responselen)
                 (int)responselen, (int)sizeof (IMS_NetworkInfo));
         return RIL_ERRNO_INVALID_RESPONSE;
     }
-    IMS_NetworkInfo *p_cur = (IMS_NetworkInfo *) response;
+    IMS_NetworkInfo *p_cur = (IMS_NetworkInfo *)response;
     p.writeInt32(p_cur->type);
     writeStringToParcel(p, p_cur->info);
     startResponse;
@@ -6659,15 +6660,15 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_IMS_BEARER_STATE: return "GET_IMS_BEARER_STATE";
         case RIL_REQUEST_VIDEOPHONE_CODEC: return "VIDEOPHONE_CODEC";
         case RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN: return "SET_SOS_INITIAL_ATTACH_APN";
-        case RIL_REQUEST_IMS_HANDOVER: return "RIL_REQUEST_IMS_HANDOVER";
-        case RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE: return "RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE";
-        case RIL_REQUEST_IMS_NETWORK_INFO_CHANGE: return "RIL_REQUEST_IMS_NETWORK_INFO_CHANGE";
-        case RIL_REQUEST_IMS_HANDOVER_CALL_END: return "RIL_REQUEST_IMS_HANDOVER_CALL_END";
-        case RIL_REQUEST_IMS_WIFI_ENABLE: return "RIL_REQUEST_IMS_WIFI_ENABLE";
-        case RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE: return "RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE";
-        case RIL_REQUEST_IMS_UPDATE_DATA_ROUTER: return "RIL_REQUEST_IMS_UPDATE_DATA_ROUTER";
-        case RIL_REQUEST_GET_TPMR_STATE: return "RIL_REQUEST_GET_TPMR_STATE";
-        case RIL_REQUEST_SET_TPMR_STATE: return "RIL_REQUEST_SET_TPMR_STATE";
+        case RIL_REQUEST_IMS_HANDOVER: return "IMS_HANDOVER";
+        case RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE: return "IMS_HANDOVER_STATUS_UPDATE";
+        case RIL_REQUEST_IMS_NETWORK_INFO_CHANGE: return "IMS_NETWORK_INFO_CHANGE";
+        case RIL_REQUEST_IMS_HANDOVER_CALL_END: return "IMS_HANDOVER_CALL_END";
+        case RIL_REQUEST_IMS_WIFI_ENABLE: return "IMS_WIFI_ENABLE";
+        case RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE: return "IMS_WIFI_CALL_STATE_CHANGE";
+        case RIL_REQUEST_IMS_UPDATE_DATA_ROUTER: return "IMS_UPDATE_DATA_ROUTER";
+        case RIL_REQUEST_GET_TPMR_STATE: return "GET_TPMR_STATE";
+        case RIL_REQUEST_SET_TPMR_STATE: return "SET_TPMR_STATE";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
@@ -6700,8 +6701,9 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS: return "GET_SIMLOCK_DUMMYS";
         case RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST: return "GET_SIMLOCK_WHITE_LIST";
         case RIL_EXT_REQUEST_UPDATE_ECCLIST: return "UPDATE_ECCLIST";
-        case RIL_EXT_REQUEST_GET_BAND_INFO: return "REQUEST_GET_BAND_INFO";
-        case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: return "REQUEST_SET_BAND_INFO_MODE";
+        case RIL_EXT_REQUEST_GET_BAND_INFO: return "GET_BAND_INFO";
+        case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: return "SET_BAND_INFO_MODE";
+        case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "SET_SINGLE_PDN";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6752,12 +6754,12 @@ const char *requestToString(int request) {
         case RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED: return "UNSOL_IMS_CALL_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_VIDEO_QUALITY: return "UNSOL_VIDEO_QUALITY";
         case RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED: return "UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED";
-        case RIL_UNSOL_IMS_HANDOVER_REQUEST: return "RIL_UNSOL_IMS_HANDOVER_REQUEST";
-        case RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE: return "RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE";
-        case RIL_UNSOL_IMS_NETWORK_INFO_CHANGE: return "RIL_UNSOL_IMS_NETWORK_INFO_CHANGE";
-        case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
-        case RIL_UNSOL_IMS_WIFI_PARAM: return "RIL_UNSOL_IMS_WIFI_PARAM";
-        case RIL_UNSOL_IMS_NETWORK_STATE_CHANGED: return "RIL_UNSOL_IMS_NETWORK_STATE_CHANGED";
+        case RIL_UNSOL_IMS_HANDOVER_REQUEST: return "UNSOL_IMS_HANDOVER_REQUEST";
+        case RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE: return "UNSOL_IMS_HANDOVER_STATUS_CHANGE";
+        case RIL_UNSOL_IMS_NETWORK_INFO_CHANGE: return "UNSOL_IMS_NETWORK_INFO_CHANGE";
+        case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
+        case RIL_UNSOL_IMS_WIFI_PARAM: return "UNSOL_IMS_WIFI_PARAM";
+        case RIL_UNSOL_IMS_NETWORK_STATE_CHANGED: return "UNSOL_IMS_NETWORK_STATE_CHANGED";
         /* }@ */
         /* videophone @{ */
         case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";
@@ -6772,11 +6774,10 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED: return "UNSOL_ECC_NETWORKLIST_CHANGED";
         case RIL_EXT_UNSOL_RAU_SUCCESS: return "UNSOL_RAU_SUCCESS";
         case RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK: return "UNSOL_CLEAR_CODE_FALLBACK";
-        case RIL_EXT_UNSOL_RIL_CONNECTED: return "EXT_UNSOL_RIL_CONNECTED";
+        case RIL_EXT_UNSOL_RIL_CONNECTED: return "UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED: return "UNSOL_SIMLOCK_STATUS_CHANGED";
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
-        case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "RIL_EXT_REQUEST_SET_SINGLE_PDN";
         default: return "<unknown request>";
     }
 }

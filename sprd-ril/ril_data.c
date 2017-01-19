@@ -712,8 +712,8 @@ static bool isAttachEnable() {
  * return : -1: Active Cid success,but isnt fall back cid ip type;
  *           0: Active Cid success;
  *           1: Active Cid failed;
- *           2: Active Cid failed, error 288, need retry ;
- *           3: Active Cid failed, error 128, need do fall back ? need_debug ;
+ *           2: Active Cid failed, error 288, need retry;
+ *           3: Active Cid failed, error 128, need do fall back ? need_debug;
  */
 static int activeSpeciedCidProcess(int channelID, void *data, int cid,
                                        const char *pdp_type, int primaryCid) {
@@ -1316,7 +1316,7 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
 RETRY:
 
     if (datalen > 6 * sizeof(char *)) {
-        pdpType = ((const char **) data)[6];
+        pdpType = ((const char **)data)[6];
     } else {
         pdpType = "IP";
     }
@@ -2240,7 +2240,7 @@ static void queryVideoCid(void *param) {
     err = at_tok_start(&line);
     if (err < 0) goto error;
 
-    for (p = line ; *p != '\0'; p++) {
+    for (p = line; *p != '\0'; p++) {
         if (*p == ',') {
             commas++;
         }
@@ -2973,7 +2973,7 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
     }
     snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
     property_get(ETH_SP, prop, "veth");
-    RLOGD("master ip type %d ,secondary ip type %d",
+    RLOGD("master ip type %d, secondary ip type %d",
              pdp_info[master_index].ip_state,
              pdp_info[secondary_index].ip_state);
     // fallback get same type ip with master

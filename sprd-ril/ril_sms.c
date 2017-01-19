@@ -381,7 +381,7 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
             (RIL_GSM_BroadcastSmsConfigInfo **)data;
     RIL_GSM_BroadcastSmsConfigInfo gsmBci;
 
-    RLOGD("requestSetSmsBroadcastConfig %zu ,count %d", datalen, count);
+    RLOGD("requestSetSmsBroadcastConfig %zu, count %d", datalen, count);
     int size = datalen * 16 * sizeof(char);
     channel = (char *)alloca(size);
     lang = (char *)alloca(size);
@@ -404,7 +404,7 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
                 tmp);
         memcpy(channel + channelLen, tmp, strlen(tmp));
         channelLen += len;
-        RLOGI("SetSmsBroadcastConfig channel %s ,%d ", channel, channelLen);
+        RLOGI("SetSmsBroadcastConfig channel %s, %d ", channel, channelLen);
         serviceId[index++] = gsmBci.fromServiceId;
         if (gsmBci.fromServiceId != gsmBci.toServiceId) {
             memset(tmp, 0, 20);
@@ -412,7 +412,7 @@ static void requestSetSmsBroadcastConfig(int channelID, void *data,
                                       tmp);
             memcpy(channel + channelLen, tmp, strlen(tmp));
             channelLen += len;
-            RLOGI("SetSmsBroadcastConfig channel %s ,%d", channel, channelLen);
+            RLOGI("SetSmsBroadcastConfig channel %s, %d", channel, channelLen);
         }
         serviceId[index++] = gsmBci.toServiceId;
 
@@ -792,7 +792,7 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_REPORT_SMS_MEMORY_STATUS: {
-            char cmd[AT_COMMAND_LEN] = { 0 };
+            char cmd[AT_COMMAND_LEN] = {0};
             snprintf(cmd, sizeof(cmd), "AT+SPSMSFULL=%d", !((int *)data)[0]);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -893,8 +893,8 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
                                   sizeof(location), socket_id);
     } else if (strStartsWith(s, "+CBM:")) {
         char *pdu_bin = NULL;
-        RLOGD("CBM sss %s ,len  %d", s, (int)strlen(s));
-        RLOGD("CBM  %s ,len  %d", sms_pdu, (int)strlen(sms_pdu));
+        RLOGD("CBM sss %s, len  %d", s, (int)strlen(s));
+        RLOGD("CBM  %s, len  %d", sms_pdu, (int)strlen(sms_pdu));
         pdu_bin = (char *)alloca(strlen(sms_pdu) / 2);
         memset(pdu_bin, 0, strlen(sms_pdu) / 2);
         if (!convertHexToBin(sms_pdu, strlen(sms_pdu), pdu_bin)) {

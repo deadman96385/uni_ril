@@ -491,7 +491,7 @@ static void queryCeregTac(int channelID, int *tac) {
     if (err < 0) goto error;
 
     commas = 0;
-    for (p = line ; *p != '\0'; p++) {
+    for (p = line; *p != '\0'; p++) {
         if (*p == ',') commas++;
     }
     // +CEREG: <n>,<stat>[,[<tac>,[<ci>],[<AcT>]]{,<cause_type>,<reject_cause>]}
@@ -584,7 +584,7 @@ static void requestRegistrationState(int channelID, int request,
 
     /* count number of commas */
     commas = 0;
-    for (p = line ; *p != '\0'; p++) {
+    for (p = line; *p != '\0'; p++) {
         if (*p == ',') commas++;
     }
 

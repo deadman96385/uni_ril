@@ -275,13 +275,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
 
         if (isVoLteEnable()) {
             at_send_command(s_ATChannels[channelID], "AT+CIREG=2", NULL);
-            /**
-             * add for bug 534775
-             * due to the unsol response is reported
-             * with a int value which means the IMS registration state,
-             * and the FWK does not use the response,
-             * so report the 0 response
-             */
+            /* add for bug 534775 */
             int response = s_imsRegistered[socket_id];
             RIL_onUnsolicitedResponse(
                 RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED, &response,

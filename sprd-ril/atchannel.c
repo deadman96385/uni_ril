@@ -541,7 +541,7 @@ static int writeline(struct ATChannels *ATch, const char *s) {
 
     /* the \r */
     do {
-        written = write(ATch->s_fd, "\r" , 1);
+        written = write(ATch->s_fd, "\r", 1);
     } while ((written < 0 && errno == EINTR) || (written == 0));
 
     if (written < 0) {
@@ -581,7 +581,7 @@ static int writeCtrlZ(struct ATChannels *ATch, const char *s) {
     /* the ^Z  */
 
     do {
-        written = write(ATch->s_fd, "\032" , 1);
+        written = write(ATch->s_fd, "\032", 1);
     } while ((written < 0 && errno == EINTR) || (written == 0));
 
     if (written < 0) {

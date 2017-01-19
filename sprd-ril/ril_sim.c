@@ -127,7 +127,7 @@ int s_imsInitISIM[SIM_COUNT] = {
 const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-int s_sim_sessionId[SIM_COUNT] = {
+int s_simSessionId[SIM_COUNT] = {
         -1
 #if (SIM_COUNT >= 2)
        ,-1
@@ -511,7 +511,7 @@ done:
         s_needQueryPukTimes[socket_id] = true;
         s_needQueryPinPuk2Times[socket_id] = true;
         s_imsInitISIM[socket_id] = -1;
-        s_sim_sessionId[socket_id] = -1;
+        s_simSessionId[socket_id] = -1;
     }
     /** }@ */
     sem_post(&(s_sem[socket_id]));
@@ -648,9 +648,10 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
          RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
     };
     static RIL_AppStatus ims_app_status_array[] = {
-         { RIL_APPTYPE_ISIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
-             NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN }
-     };
+        {RIL_APPTYPE_ISIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
+         NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN}
+    };
+
     RIL_CardState card_state;
     int num_apps;
 
@@ -676,7 +677,7 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     s_appType[socket_id] = getSimType(channelID);
 
     int isimResp = 0;
-    if(sim_status == SIM_READY && s_appType[socket_id] == RIL_APPTYPE_USIM) {
+    if (sim_status == SIM_READY && s_appType[socket_id] == RIL_APPTYPE_USIM) {
         isimResp = initISIM(channelID);
         RLOGD("app type %d", isimResp);
     }
@@ -694,7 +695,7 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
      * that reflects sim_status for gsm.
      */
     if (num_apps != 0) {
-        if(isimResp != 1)  {
+        if (isimResp != 1)  {
             /* Only support one app, gsm */
             p_card_status->num_applications = 1;
             p_card_status->gsm_umts_subscription_app_index = 0;
@@ -755,7 +756,7 @@ int getNetLockRemainTimes(int channelID, int type) {
             ret = result[0] - result[1];
             /* SPRD: Add for Reliance simlock @{ */
             property_get(PROP_RELIANCE_SIMLOCK_ENABLE, prop, "false");
-            if(!strcmp(prop, "true")) {
+            if (!strcmp(prop, "true")) {
                 if (fac == 2) {  // NETWORK LOCK
                     RLOGD("For Reliance simlock, just return retrial times %d", result[1]);
                     ret = result[1];
@@ -786,7 +787,7 @@ int getRemainTimes(int channelID, char *type) {
   } else if (0 == strcmp(type, "FD")) {
       return getSimlockRemainTimes(channelID, 1);
   } else {
-      RLOGD("wrong type %s , return -1", type);
+      RLOGD("wrong type %s, return -1", type);
       return -1;
   }
 }
@@ -1307,7 +1308,8 @@ out:
 }
 
 static bool isISIMFileId(int fileId) {
-    return fileId == 0x6f04 || fileId == 0x6f02 || fileId == 0x6f03 || fileId == 0x6f07  || fileId == 0x6f09 || fileId == 0x6fe5;
+    return (fileId == 0x6f04 || fileId == 0x6f02 || fileId == 0x6f03 ||
+            fileId == 0x6f07  || fileId == 0x6f09 || fileId == 0x6fe5);
 }
 
 static void requestSIM_IO(int channelID, void *data, size_t datalen,
@@ -1333,8 +1335,9 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         RLOGI("Reference-ril. requestSIM_IO pin2");
     }
     if (p_args->data == NULL) {
-        if(isISIMfile) {
-            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"", s_sim_sessionId[getSocketIdByChannelID(channelID)],
+        if (isISIMfile) {
+            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"",
+                    s_simSessionId[socket_id],
                     p_args->command, p_args->fileid,
                     p_args->p1, p_args->p2, p_args->p3,pad_data,p_args->path);
         }  else {
@@ -1343,8 +1346,9 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
                     p_args->p3, pad_data, p_args->path);
         }
     } else {
-        if(isISIMfile) {
-            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"", s_sim_sessionId[getSocketIdByChannelID(channelID)],
+        if (isISIMfile) {
+            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"",
+                    s_simSessionId[socket_id],
                     p_args->command, p_args->fileid,
                     p_args->p1, p_args->p2, p_args->p3, p_args->data,p_args->path);
         } else {
@@ -1359,8 +1363,8 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         goto error;
     }
 
-    err = at_send_command_singleline(s_ATChannels[channelID], cmd, isISIMfile ? "+CRLA:" : "+CRSM:",
-                                     &p_response);
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd,
+            isISIMfile ? "+CRLA:" : "+CRSM:",  &p_response);
     free(cmd);
 
     if (err < 0 || p_response->success == 0) {
@@ -2146,9 +2150,9 @@ static int initISIM(int channelID) {
         if (err >= 0) {
             err = at_tok_nextint(&line, &s_imsInitISIM[socket_id]);
             RLOGD("Response of ISIM is %d", s_imsInitISIM[socket_id]);
-            if(s_imsInitISIM[socket_id] == 1) {
-                err = at_tok_nextint(&line, &s_sim_sessionId[socket_id]);
-                RLOGE("SessionId of ISIM is %d", s_sim_sessionId[socket_id]);
+            if (s_imsInitISIM[socket_id] == 1) {
+                err = at_tok_nextint(&line, &s_simSessionId[socket_id]);
+                RLOGE("SessionId of ISIM is %d", s_simSessionId[socket_id]);
             }
         }
     }
@@ -2157,15 +2161,16 @@ static int initISIM(int channelID) {
 }
 
 static void requestInitISIM(int channelID, void *data, size_t datalen,
-                               RIL_Token t) {
+                            RIL_Token t) {
     int err;
     int response = initISIM(channelID);;
     char cmd[AT_COMMAND_LEN] = {0};
     const char **strings = (const char **)data;
     ATResponse *p_response = NULL;
-    if(response == 1){
-        RLOGE("ISIM card, need send AT+IMSCOUNTCFG=1 to CP");
-        err = at_send_command(s_ATChannels[channelID], "AT+IMSCOUNTCFG=1" , NULL);
+
+    if (response == 1) {
+        RLOGD("ISIM card, need send AT+IMSCOUNTCFG=1 to CP");
+        err = at_send_command(s_ATChannels[channelID], "AT+IMSCOUNTCFG=1", NULL);
     }
 
     /* 7 means the number of data from fwk, represents 7 AT commands value */
@@ -2173,39 +2178,39 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
         strlen(strings[0]) > 0) {
         if (response == 0) {
             memset(cmd, 0, sizeof(cmd));
-            RLOGE("requestInitISIM impu = \"%s\"", strings[2]);
+            RLOGD("requestInitISIM impu = \"%s\"", strings[2]);
             snprintf(cmd, sizeof(cmd), "AT+IMPU=\"%s\"", strings[2]);
-            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
             memset(cmd, 0, sizeof(cmd));
             RLOGD("requestInitISIM impi = \"%s\"", strings[3]);
             snprintf(cmd, sizeof(cmd), "AT+IMPI=\"%s\"", strings[3]);
-            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
             memset(cmd, 0, sizeof(cmd));
             RLOGD("requestInitISIM domain = \"%s\"", strings[4]);
             snprintf(cmd, sizeof(cmd), "AT+DOMAIN=\"%s\"", strings[4]);
-            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
             memset(cmd, 0, sizeof(cmd));
             RLOGD("requestInitISIM xcap = \"%s\"", strings[5]);
             snprintf(cmd, sizeof(cmd), "AT+XCAPRTURI=\"%s\"", strings[5]);
-            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
             memset(cmd, 0, sizeof(cmd));
             RLOGD("requestInitISIM bsf = \"%s\"", strings[6]);
             snprintf(cmd, sizeof(cmd), "AT+BSF=\"%s\"", strings[6]);
-            err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
         memset(cmd, 0, sizeof(cmd));
         RLOGD("requestInitISIM instanceId = \"%s\"", strings[1]);
         snprintf(cmd, sizeof(cmd), "AT+INSTANCEID=\"%s\"", strings[1]);
-        err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+        err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
         memset(cmd, 0, sizeof(cmd));
         RLOGD("requestInitISIM confuri = \"%s\"", strings[0]);
         snprintf(cmd, sizeof(cmd), "AT+CONFURI=0,\"%s\"", strings[0]);
-        err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+        err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
     } else {
@@ -2907,7 +2912,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestInitISIM(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ENABLE_IMS: {
-            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=1" , NULL);
+            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=1", NULL);
             if (err < 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
@@ -2916,7 +2921,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_DISABLE_IMS: {
-            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=0" , NULL);
+            err = at_send_command(s_ATChannels[channelID], "AT+IMSEN=0", NULL);
             if (err < 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
