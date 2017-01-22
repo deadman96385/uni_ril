@@ -375,7 +375,9 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2 ||
                  request == RIL_EXT_REQUEST_STORE_SMS_TO_SIM ||
                  request == RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE ||
-                 request == RIL_EXT_REQUEST_UPDATE_ECCLIST)) {
+                 request == RIL_EXT_REQUEST_UPDATE_ECCLIST ||
+                 request == RIL_EXT_REQUEST_GET_BAND_INFO ||
+                 request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
