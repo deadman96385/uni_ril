@@ -8,6 +8,8 @@
 #ifndef RIL_NETWORK_H_
 #define RIL_NETWORK_H_
 
+#define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
+
 /*  LTE PS registration state */
 typedef enum {
     STATE_OUT_OF_SERVICE = 0,
