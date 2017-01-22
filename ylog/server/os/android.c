@@ -50,6 +50,7 @@ struct os_status {
 #include "modem.c"
 #include "snapshot-android.c"
 
+
 static int ylog_open_default_hook(char *file, char *mode, struct ylog *y) {
     UNUSED(file);
     UNUSED(mode);
@@ -1591,6 +1592,12 @@ static void os_init(struct ydst_root *root, struct context **c, struct os_hooks 
                 .max_segment = 6,
                 .max_segment_size = 20*1024*1024,
             },
+			.cache = {
+			    .size = 15 * 1024,
+			    .num = 1,
+			    .timeout = 2000,
+			    .debuglevel = CACHELINE_DEBUG_CRITICAL,
+			},
         },
         /* traces/ */ {
             .ylog = {
@@ -1628,6 +1635,12 @@ static void os_init(struct ydst_root *root, struct context **c, struct os_hooks 
                 .max_segment_size = 50*1024*1024,
                 .nowrap = 1,
             },
+			.cache = {
+			    .size = 15 * 1024,
+			    .num = 1,
+			    .timeout = 1000,
+			    .debuglevel = CACHELINE_DEBUG_CRITICAL,
+			},
         },
         /* sys_info/ */ {
             .ylog = {
@@ -1644,6 +1657,12 @@ static void os_init(struct ydst_root *root, struct context **c, struct os_hooks 
                 .file_name = "sys_info.log",
                 .max_segment = 5,
                 .max_segment_size = 50*1024*1024,
+			},
+			.cache = {
+			    .size = 15 * 1024,
+			    .num = 1,
+			    .timeout = 2000,
+			    .debuglevel = CACHELINE_DEBUG_CRITICAL,
             },
         },
         /* ftrace/ */ {
@@ -1694,14 +1713,12 @@ static void os_init(struct ydst_root *root, struct context **c, struct os_hooks 
                 .max_segment = 2,
                 .max_segment_size = 35*1024*1024,
             },
-            /*
-            .cache = {
-                .size = 15 * 1024,
-                .num = 2,
-                .timeout = 5000,
-                .debuglevel = CACHELINE_DEBUG_CRITICAL,
-            },
-            */
+			.cache = {
+			    .size = 15 * 1024,
+			    .num = 1,
+			    .timeout = 2000,
+			    .debuglevel = CACHELINE_DEBUG_CRITICAL,
+			},
         },
         /* snapshot/xxxx */ {
             .ylog = {
@@ -1719,6 +1736,12 @@ static void os_init(struct ydst_root *root, struct context **c, struct os_hooks 
                 .max_segment = 2,
                 .max_segment_size = 50*1024*1024,
             },
+			.cache = {
+			    .size = 15 * 1024,
+			    .num = 1,
+			    .timeout = 2000,
+			    .debuglevel = CACHELINE_DEBUG_CRITICAL,
+			},
         },
     };
 
