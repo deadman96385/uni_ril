@@ -14,7 +14,6 @@
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
 
-#define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 /* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
 /* Save NITZ operator name string for UI to display right PLMN name */
@@ -23,7 +22,7 @@
 #define PHONE_EXTENSION_PROP    "ril.sim.phone_ex.start"
 #define COPS_MODE_PROP          "persist.sys.cops.mode"
 /* set network type for engineer mode */
-#define ENGTEST_ENABLE_PROP      "persist.radio.engtest.enable"
+#define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN

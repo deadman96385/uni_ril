@@ -9,6 +9,7 @@
 #define RIL_NETWORK_H_
 
 #define SIG_POOL_SIZE           10
+#define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 
 /*  LTE PS registration state */
 typedef enum {

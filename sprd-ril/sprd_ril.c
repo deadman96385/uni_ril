@@ -977,6 +977,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     int ret;
     int fd = -1;
     int opt;
+    int simId;
     pthread_attr_t attr;
     char prop[PROPERTY_VALUE_MAX];
     s_rilEnv = env;
@@ -1003,11 +1004,25 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
             usage(argv[0]);
         }
     }
+
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
+
     property_get(PRIMARY_SIM_PROP, prop, "0");
     s_multiModeSim = atoi(prop);
-    RLOGD("rild connect %s modem, SIM_COUNT: %d, s_multiModeSim: %d\n",
+
+#if (SIM_COUNT == 2)
+    if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
+        for (simId = 0; simId < SIM_COUNT; simId++) {
+            getProperty(simId, MODEM_WORKMODE_PROP, prop, "");
+            if (strcmp(prop, "10") == 0) {
+                s_multiModeSim = 1 - simId;
+            }
+        }
+    }
+#endif
+
+    RLOGD("rild connect %s modem, SIM_COUNT: %d, s_multiModeSim: %d",
             s_modem, SIM_COUNT, s_multiModeSim);
 
     pthread_attr_init(&attr);
@@ -1019,7 +1034,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     detectATNoResponse();
     ps_service_init();
 
-    int simId;
     for (simId = 0; simId < SIM_COUNT; simId++) {
         sem_init(&(s_sem[simId]), 0, 1);
         ret = pthread_create(&s_mainLoopTid[simId], &attr, mainLoop,
