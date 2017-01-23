@@ -186,7 +186,10 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
     RLOGD("getWorkmode: s_presentSIMCount = %d", s_presentSIMCount);
 #if (SIM_COUNT == 2)
     if (s_presentSIMCount == 1) {  // only one SIM card present
-        if (!isSimPresent(socket_id)) {
+        getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
+        if (strcmp(prop, "-1") != 0) {
+            goto exit;
+        } else if (!isSimPresent(socket_id)) {
             if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
                 workMode = GSM_ONLY;
             }
@@ -207,6 +210,8 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
     snprintf(numToStr, sizeof(numToStr), "%d", workMode);
     setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
 #endif
+
+exit:
     s_workMode[socket_id] = workMode;
     pthread_mutex_unlock(&s_workModeMutex);
     RLOGD("getWorkMode socket_id = %d, workMode = %d", socket_id, workMode);
@@ -2720,6 +2725,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             break;
         case RIL_REQUEST_SET_RADIO_CAPABILITY: {
             char prop[PROPERTY_VALUE_MAX];
+
             property_get(FIXED_SLOT_PROP, prop, "false");
             if (strcmp(prop, "true") == 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);

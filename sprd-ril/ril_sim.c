@@ -472,18 +472,24 @@ out:
 
 done:
     at_response_free(p_response);
-    if (ret != SIM_ABSENT && s_simEnabled[socket_id] == 0) {
-        if (s_radioState[socket_id] != RADIO_STATE_UNAVAILABLE) {
-            pthread_t tid;
-            pthread_attr_t attr;
-            pthread_attr_init(&attr);
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-            if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
-                               (void *)&s_socketId[socket_id]) < 0) {
-                RLOGE("Failed to create setSIMPowerOff");
+    if (ret != SIM_ABSENT) {
+        char prop[PROPERTY_VALUE_MAX];
+        getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
+        if (strcmp(prop, "0") == 0) {
+            ret = SIM_ABSENT;
+        } else if (strcmp(prop, "-1") == 0 && s_simEnabled[socket_id] == 0) {
+            if (s_radioState[socket_id] != RADIO_STATE_UNAVAILABLE) {
+                pthread_t tid;
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
+                                   (void *)&s_socketId[socket_id]) < 0) {
+                    RLOGE("Failed to create setSIMPowerOff");
+                }
             }
+            ret = SIM_ABSENT;
         }
-        ret = SIM_ABSENT;
     }
 
     if (ret == SIM_ABSENT) {
@@ -654,8 +660,17 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
 
     RIL_CardState card_state;
     int num_apps;
+    int sim_status;
+    char prop[PROPERTY_VALUE_MAX];
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    int sim_status = getSIMStatus(channelID);
+    getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
+    if (strcmp(prop, "0") == 0) {
+        sim_status = SIM_ABSENT;
+    } else {
+        sim_status = getSIMStatus(channelID);
+    }
+
     if (sim_status == SIM_ABSENT) {
         card_state = RIL_CARDSTATE_ABSENT;
         num_apps = 0;
@@ -673,7 +688,6 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     p_card_status->ims_subscription_app_index = RIL_CARD_MAX_APPS;
     p_card_status->num_applications = num_apps;
 
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_appType[socket_id] = getSimType(channelID);
 
     int isimResp = 0;
@@ -2222,7 +2236,14 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     int err = 0;
+    char prop[PROPERTY_VALUE_MAX];
+
     s_simEnabled[socket_id] = onOff;
+
+    getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
+    if (strcmp(prop, "-1") != 0) {
+        goto exit;
+    }
 
     if (onOff == 0) {
         err = at_send_command(s_ATChannels[channelID], "AT+SPDISABLESIM=1",
@@ -2243,6 +2264,8 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
                               NULL);
     }
     at_response_free(p_response);
+
+exit:
     if (t != NULL) {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     }
