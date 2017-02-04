@@ -103,7 +103,6 @@ void putChannel(int channel);
 int isRadioOn(int channelID);
 bool isVoLteEnable();
 bool isLte(void);
-bool isCMCC(void);
 int getChannel(RIL_SOCKET_ID socket_id);
 RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
 RIL_RadioState getRadioState(RIL_SOCKET_ID socket_id);

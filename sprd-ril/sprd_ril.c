@@ -718,11 +718,13 @@ static void initializeCallback(void *param) {
     }
     /* @} */
 
-    /* for non-CMCC version @{ */
+    /* for CMCC version @{ */
     if (s_isLTE) {
-        if (!isCMCC()) {
-        at_send_command_singleline(s_ATChannels[channelID],
-                "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
+        char prop[PROPERTY_VALUE_MAX] = {0};
+        property_get("ro.radio.spice", prop, "0");
+        if (!strcmp(prop, "1")) {
+            at_send_command_singleline(s_ATChannels[channelID],
+                    "at+spcapability=32,1,1", "+SPCAPABILITY:", NULL);
         }
     }
     /* @} */
@@ -1159,15 +1161,6 @@ bool isVoLteEnable() {
     } else {
         return false;
     }
-}
-
-bool isCMCC(void) {
-    char prop[PROPERTY_VALUE_MAX] = "";
-    property_get("ro.operator", prop, NULL);
-    if (!strcmp(prop, "cmcc")) {
-        return true;
-    }
-    return false;
 }
 
 void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
