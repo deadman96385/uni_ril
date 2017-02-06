@@ -42,6 +42,7 @@
 #define HARDWARE_VERSION_PROP   "sys.hardware.version"
 #define BUILD_TYPE_PROP         "ro.build.type"
 #define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
+#define VOLTE_MODE              "persist.sys.volte.mode"
 
 enum ChannelState {
     CHANNEL_IDLE,
@@ -706,6 +707,11 @@ static void initializeCallback(void *param) {
                 snprintf(cmd, sizeof(cmd), "AT+PCSCF=1,\"%s\"", address);
             }
             at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
+        char volte_mode[PROPERTY_VALUE_MAX];
+        property_get(VOLTE_MODE, volte_mode, "");
+        if(strcmp(volte_mode, "DualVoLTEActive") == 0){
+            at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,1", NULL);
         }
     }
 

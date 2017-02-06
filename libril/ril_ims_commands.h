@@ -30,4 +30,8 @@
     {RIL_REQUEST_SET_TPMR_STATE, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_WIFI_ENABLE, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE, dispatchInts, responseVoid},
-    {RIL_REQUEST_IMS_UPDATE_DATA_ROUTER, dispatchVoid, responseVoid}
+    {RIL_REQUEST_IMS_UPDATE_DATA_ROUTER, dispatchVoid, responseVoid},
+    {RIL_REQUEST_IMS_HOLD_SINGLE_CALL, dispatchInts, responseVoid},
+    {RIL_REQUEST_IMS_MUTE_SINGLE_CALL, dispatchInts, responseVoid},
+    {RIL_REQUEST_IMS_SILENCE_SINGLE_CALL, dispatchInts, responseVoid},
+    {RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE, dispatchInts, responseVoid}
