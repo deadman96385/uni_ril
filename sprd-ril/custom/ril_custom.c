@@ -4,7 +4,7 @@
  * Copyright (C) 2016 Spreadtrum Communications Inc.
  */
 
-#define LOG_TAG "CUSTOM"
+#define LOG_TAG "RIL-CUSTOM"
 
 #include "sprd_ril.h"
 #include "ril_custom.h"

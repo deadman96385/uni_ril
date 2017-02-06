@@ -14,7 +14,7 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
-#define LOG_TAG "AT"
+#define LOG_TAG "RIL-AT"
 
 #include "atchannel.h"
 #include "at_tok.h"
@@ -450,7 +450,7 @@ static void *readerLoop(void *arg) {
     for (;;) {
         do {
             rfds = s_readerThread[socket_id].ATchFd;
-            ret = select(open_ATchs + 1, &rfds, NULL, NULL, 0);
+            ret = select(open_ATchs + 1, &rfds, NULL, NULL, NULL);
         } while (ret == -1 && errno == EINTR);
         if (ret > 0) {
             for (channelID = firstChannel; channelID < lastChannel;

@@ -2,7 +2,7 @@
  * Copyright (C) 2016 Spreadtrum Communications Inc.
  */
 
-#define LOG_TAG "RIL-Tele"
+#define LOG_TAG "RIL-TELE"
 
 #include <android/log.h>
 #include <binder/IServiceManager.h>

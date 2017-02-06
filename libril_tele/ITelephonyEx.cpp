@@ -2,7 +2,7 @@
  * Copyright (C) 2016 Spreadtrum Communications Inc.
  */
 
-#define LOG_TAG "RIL-Tele"
+#define LOG_TAG "RIL-TELE"
 
 #include <ITelephonyEx.h>
 #include <binder/Parcel.h>
