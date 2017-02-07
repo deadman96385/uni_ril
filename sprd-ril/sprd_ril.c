@@ -711,8 +711,11 @@ static void initializeCallback(void *param) {
     /* for non-CMCC version @{ */
     if (s_isLTE) {
         if (!isCMCC()) {
-        at_send_command_singleline(s_ATChannels[channelID],
-                "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
+            at_send_command_singleline(s_ATChannels[channelID],
+                    "at+spcapability=32,1,0", "+SPCAPABILITY:", NULL);
+        } else {
+            at_send_command_singleline(s_ATChannels[channelID],
+                    "at+spcapability=32,1,1", "+SPCAPABILITY:", NULL);
         }
     }
     /* @} */
