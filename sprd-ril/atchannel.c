@@ -916,7 +916,7 @@ long long getATTimeoutMesc(const char *command) {
     for (i = 0; i < s_ATTableSize; i++) {
         if (!strncasecmp(s_ATTimeoutTable[i].cmd, command,
                 s_ATTimeoutTable[i].len)) {
-            timeoutMesc = s_ATTimeoutTable[i].timeout * 1000;
+            timeoutMesc = s_ATTimeoutTable[i].timeout * (long long)1000;
             break;
         }
     }

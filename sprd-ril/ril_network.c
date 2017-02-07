@@ -3406,8 +3406,6 @@ void csq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
     int rssi_3g = 0, rssi_2g = 0, ber;
     char rspStr[MAX_AT_RESPONSE];
 
-    ATResponse *sp_response = at_response_new();
-
     input = p_response->p_intermediates->line;
     len = strlen(input);
     if (findInBuf(input, len, "+CSQ")) {
@@ -3432,6 +3430,7 @@ void csq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
                     }
                 }
                 snprintf(rspStr, sizeof(rspStr), "+CSQ:%d,%d", rssi_2g, ber);
+                ATResponse *sp_response = at_response_new();
                 reWriteIntermediate(sp_response, rspStr);
                 if (p_newResponse == NULL) {
                     at_response_free(sp_response);
@@ -3450,7 +3449,6 @@ void cesq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
     int err, len;
     int rxlev = 0, ber = 0, rscp = 0, ecno = 0, rsrq = 0, rsrp = 0;
     char respStr[MAX_AT_RESPONSE];
-    ATResponse *sp_response = at_response_new();
 
     line = p_response->p_intermediates->line;
     len = strlen(line);
@@ -3503,6 +3501,7 @@ void cesq_execute_cmd_rsp(ATResponse *p_response, ATResponse **p_newResponse) {
         }
         snprintf(respStr, sizeof(respStr), "+CESQ: %d,%d,%d,%d,%d,%d",
                  rxlev, ber, rscp, ecno, rsrq, rsrp);
+        ATResponse *sp_response = at_response_new();
         reWriteIntermediate(sp_response, respStr);
         if (p_newResponse == NULL) {
             at_response_free(sp_response);

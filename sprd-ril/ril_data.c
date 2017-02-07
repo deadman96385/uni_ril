@@ -3334,7 +3334,6 @@ int cgdata_set_cmd_rsp(ATResponse *p_response, int pdpIndex, int primaryCid,
     int err, error_num;
     ATResponse *p_rdpResponse = NULL;
     ATResponse *p_cgactResponse = NULL;
-    int cid = pdp_info[pdpIndex].cid;
 
     if (p_response == NULL) {
         return AT_RESULT_NG;
@@ -3342,6 +3341,8 @@ int cgdata_set_cmd_rsp(ATResponse *p_response, int pdpIndex, int primaryCid,
     if (pdpIndex < 0 || pdpIndex >= MAX_PDP_NUM) {
         return AT_RESULT_NG;
     }
+
+    int cid = pdp_info[pdpIndex].cid;
 
     pthread_mutex_lock(&s_psServiceMutex);
     rspType = getATResponseType(p_response->finalResponse);

@@ -1764,7 +1764,7 @@ static void excuteSrvccPendingOperate(void *param) {
             if (err < 0 || p_response->success == 0) {
                 RLOGD("excuteSrvccPendingOperate fail!");
             }
-            at_response_free(p_response);
+            AT_RESPONSE_FREE(p_response);
             putChannel(channelID);
             s_srvccPendingRequest[socket_id] = request->p_next;
 
