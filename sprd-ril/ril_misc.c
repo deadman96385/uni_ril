@@ -539,14 +539,8 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         case RIL_REQUEST_OEM_HOOK_STRINGS: {
             int i;
-            const char **cur;
+            const char **cur = (const char **)data;
 
-            for (i = (datalen / sizeof(char *)), cur = (const char **)data;
-                 i > 0; cur++, i--) {
-                RLOGD("> '%s'", *cur);
-                break;
-            }
-            RLOGD(">>> '%s'", *cur);
             requestSendAT(channelID, *cur, datalen, t);
             break;
         }

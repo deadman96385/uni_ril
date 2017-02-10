@@ -39,6 +39,8 @@
 /* For special instrument's test */
 #define VOLTE_PCSCF_PROP        "persist.sys.volte.pcscf"
 #define HARDWARE_VERSION_PROP   "sys.hardware.version"
+#define BUILD_TYPE_PROP         "ro.build.type"
+#define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
 
 enum ChannelState {
     CHANNEL_IDLE,
@@ -111,6 +113,7 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 
 sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
+bool s_isUserdebug = false;
 int s_modemConfig = 0;
 
 const char *s_modem = NULL;
@@ -901,7 +904,9 @@ static void *mainLoop(void *param) {
                 RLOGE("AT error on at_open\n");
                 return 0;
             }
-            s_ATChannels[channelID]->nolog = 0;
+            if (s_isUserdebug) {  // only userdebug version print AT logs
+                s_ATChannels[channelID]->nolog = 0;
+            }
         }
 
         s_channelOpen[socket_id] = 1;
@@ -996,6 +1001,13 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
             free((char *)s_modem);
             usage(argv[0]);
         }
+    }
+
+    char mtbfProp[PROPERTY_VALUE_MAX];
+    property_get(BUILD_TYPE_PROP, prop, "user");
+    property_get(MTBF_ENABLE_PROP, mtbfProp, "0");
+    if (strstr(prop, "userdebug") || strcmp(mtbfProp, "1") == 0) {
+        s_isUserdebug = true;
     }
 
     s_isLTE = isLte();
