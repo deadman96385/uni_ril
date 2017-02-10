@@ -371,7 +371,10 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 #endif
 };
 
-#define MAX_THR 3
+bool s_isUserdebug = false;
+
+#define MAX_THR             3
+#define BUILD_TYPE_PROP     "ro.build.type"
 
 void list_init(ListNode **list);
 void list_add_tail(ListNode *list, ListNode *item, RIL_SOCKET_ID socket_id);
@@ -385,6 +388,7 @@ static int sendResponse(Parcel &p, RIL_SOCKET_ID socket_id,
 static void dispatchVoid(Parcel &p, RequestInfo *pRI);
 static void dispatchString(Parcel &p, RequestInfo *pRI);
 static void dispatchStrings(Parcel &p, RequestInfo *pRI);
+static void dispatchStringsForSafety(Parcel &p, RequestInfo *pRI);
 static void dispatchInts(Parcel &p, RequestInfo *pRI);
 static void dispatchDial(Parcel &p, RequestInfo *pRI);
 static void dispatchSIM_IO(Parcel &p, RequestInfo *pRI);
@@ -839,6 +843,78 @@ invalid:
     return;
 }
 
+static void dispatchStringsForSafety(Parcel &p, RequestInfo *pRI) {
+    int32_t countStrings;
+    status_t status;
+    size_t datalen;
+    char **pStrings;
+
+    status = p.readInt32(&countStrings);
+
+    if (status != NO_ERROR) {
+        goto invalid;
+    }
+
+    startRequest;
+    if (countStrings == 0) {
+        // just some non-null pointer
+        pStrings = (char **)calloc(1, sizeof(char *));
+        if (pStrings == NULL) {
+            RLOGE("Memory allocation failed for request %s",
+                    requestToString(pRI->pCI->requestNumber));
+            closeRequest;
+            return;
+        }
+
+        datalen = 0;
+    } else if (countStrings < 0) {
+        pStrings = NULL;
+        datalen = 0;
+    } else {
+        datalen = sizeof(char *) * countStrings;
+
+        pStrings = (char **)calloc(countStrings, sizeof(char *));
+        if (pStrings == NULL) {
+            RLOGE("Memory allocation failed for request %s",
+                    requestToString(pRI->pCI->requestNumber));
+            closeRequest;
+            return;
+        }
+
+        for (int i = 0; i < countStrings; i++) {
+            pStrings[i] = strdupReadString(p);
+            if (s_isUserdebug) {
+                appendPrintBuf("%s%s,", printBuf, pStrings[i]);
+            }
+        }
+    }
+    removeLastChar;
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+
+    CALL_ONREQUEST(pRI->pCI->requestNumber, pStrings, datalen, pRI,
+                   pRI->socket_id);
+
+    if (pStrings != NULL) {
+        for (int i = 0; i < countStrings; i++) {
+#ifdef MEMSET_FREED
+            memsetString(pStrings[i]);
+#endif
+            free(pStrings[i]);
+        }
+
+#ifdef MEMSET_FREED
+        memset(pStrings, 0, datalen);
+#endif
+        free(pStrings);
+    }
+
+    return;
+invalid:
+    invalidCommandBlock(pRI);
+    return;
+}
+
 /** Callee expects const int **/
 static void dispatchInts(Parcel &p, RequestInfo *pRI) {
     int32_t count;
@@ -1009,7 +1085,11 @@ static void dispatchDial(Parcel &p, RequestInfo *pRI) {
     }
 
     startRequest;
-    appendPrintBuf("%snum=%s,clir=%d", printBuf, dial.address, dial.clir);
+    if (s_isUserdebug) {
+        appendPrintBuf("%snum=%s,clir=%d", printBuf, dial.address, dial.clir);
+    } else {
+        appendPrintBuf("%snum=****,clir=%d", printBuf, dial.clir);
+    }
     if (uusPresent) {
         appendPrintBuf("%s,uusType=%d,uusDcs=%d,uusLen=%d", printBuf,
                 dial.uusInfo->uusType, dial.uusInfo->uusDcs,
@@ -2766,12 +2846,20 @@ static int responseCallList(Parcel &p, void *response, size_t responselen) {
             p_cur->als,
             (p_cur->isVoice)?"voc":"nonvoc",
             (p_cur->isVoicePrivacy)?"evp":"noevp");
-        appendPrintBuf("%s%s,cli=%d,name='%s',%d]",
-            printBuf,
-            p_cur->number,
-            p_cur->numberPresentation,
-            p_cur->name,
-            p_cur->namePresentation);
+        if (s_isUserdebug) {
+            appendPrintBuf("%s%s,cli=%d,name='%s',%d]",
+                printBuf,
+                p_cur->number,
+                p_cur->numberPresentation,
+                p_cur->name,
+                p_cur->namePresentation);
+        } else {
+            appendPrintBuf("%s****,cli=%d,name='%s',%d]",
+                printBuf,
+                p_cur->numberPresentation,
+                p_cur->name,
+                p_cur->namePresentation);
+        }
     }
     removeLastChar;
     closeResponse;
@@ -4354,13 +4442,23 @@ static int responseCallListIMS(Parcel &p, void *response, size_t responselen) {
             (p_cur->mpty),
             p_cur->numberType);
 
-        appendPrintBuf("%s,toa=%d,%s],[pri_p=%d,priority=%d,CliValidity=%d,",
-            printBuf,
-            p_cur->toa,
-            p_cur->number,
-            p_cur->prioritypresent,
-            p_cur->priority,
-            p_cur->CliValidityPresent);
+        if (s_isUserdebug) {
+            appendPrintBuf("%s,toa=%d,%s],[pri_p=%d,priority=%d,CliValidity=%d,",
+                printBuf,
+                p_cur->toa,
+                p_cur->number,
+                p_cur->prioritypresent,
+                p_cur->priority,
+                p_cur->CliValidityPresent);
+        } else {
+            appendPrintBuf("%s,toa=%d,****],[pri_p=%d,priority=%d,CliValidity=%d,",
+                printBuf,
+                p_cur->toa,
+                p_cur->prioritypresent,
+                p_cur->priority,
+                p_cur->CliValidityPresent);
+        }
+
         appendPrintBuf("%s,cli=%d],als='%d',%s,%s,%d]",
             printBuf,
             p_cur->numberPresentation,
@@ -4406,13 +4504,22 @@ static int responseCallForwardsUri(Parcel &p, void *response, size_t responselen
         writeStringToParcel(p, p_cur->ruleset);
         p.writeInt32(p_cur->timeSeconds);
 
-        appendPrintBuf("%s[%s, reason=%d, numType = %d, ton = %d,%s, cls = %d, rule = %s, tout = %d],",
-                printBuf, (p_cur->status == 1)? "enable" : "disable",
-                p_cur->reason, p_cur->numberType, p_cur->ton,
-                (char*)p_cur->number,
-                p_cur->serviceClass,
-                p_cur->ruleset,
-                p_cur->timeSeconds);
+        if (s_isUserdebug) {
+            appendPrintBuf("%s[%s, reason=%d, numType = %d, ton = %d,%s, cls = %d, rule = %s, tout = %d],",
+                    printBuf, (p_cur->status == 1)? "enable" : "disable",
+                    p_cur->reason, p_cur->numberType, p_cur->ton,
+                    (char*)p_cur->number,
+                    p_cur->serviceClass,
+                    p_cur->ruleset,
+                    p_cur->timeSeconds);
+        } else {
+            appendPrintBuf("%s[%s, reason=%d, numType = %d, ton = %d,****, cls = %d, rule = %s, tout = %d],",
+                    printBuf, (p_cur->status == 1)? "enable" : "disable",
+                    p_cur->reason, p_cur->numberType, p_cur->ton,
+                    p_cur->serviceClass,
+                    p_cur->ruleset,
+                    p_cur->timeSeconds);
+        }
     }
     removeLastChar;
     closeResponse;
@@ -4477,9 +4584,15 @@ static int responseDSCI(Parcel &p, void *response, size_t responselen) {
     p.writeInt32(p_cur->location);
 
     startResponse;
-    appendPrintBuf("%sstatus = %d, type = %s, number = %s, cause = %d, location = %d",
-                   printBuf, p_cur->stat, (p_cur->type == 0)? "voice" : "video",
-                   p_cur->number, p_cur->cause, p_cur->location);
+    if (s_isUserdebug) {
+        appendPrintBuf("%sstatus = %d, type = %s, number = %s, cause = %d, location = %d",
+                       printBuf, p_cur->stat, (p_cur->type == 0)? "voice" : "video",
+                       p_cur->number, p_cur->cause, p_cur->location);
+    } else {
+        appendPrintBuf("%sstatus = %d, type = %s, number = ****, cause = %d, location = %d",
+                       printBuf, p_cur->stat, (p_cur->type == 0)? "voice" : "video",
+                       p_cur->cause, p_cur->location);
+    }
     closeResponse;
 
     return 0;
@@ -5525,6 +5638,7 @@ extern "C" void RIL_register(const RIL_RadioFunctions *callbacks) {
     int flags;
     int fdListen;
     char socket_name[20];
+    char prop[PROPERTY_VALUE_MAX];
 
     RLOGI("SIM_COUNT: %d", SIM_COUNT);
 
@@ -5543,6 +5657,11 @@ extern "C" void RIL_register(const RIL_RadioFunctions *callbacks) {
         RLOGE("RIL_register has been called more than once. "
                 "Subsequent call ignored");
         return;
+    }
+
+    property_get(BUILD_TYPE_PROP, prop, "user");
+    if (strstr(prop, "userdebug")) {
+        s_isUserdebug = true;
     }
 
     memcpy(&s_callbacks, callbacks, sizeof(RIL_RadioFunctions));
