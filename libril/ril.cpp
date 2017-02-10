@@ -6627,6 +6627,9 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_GET_BAND_INFO: return "REQUEST_GET_BAND_INFO";
         case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: return "REQUEST_SET_BAND_INFO_MODE";
         case RIL_EXT_REQUEST_SET_SPECIAL_RATCAP: return "SET_SPECIAL_RATCAP";
+        case RIL_EXT_REQUEST_QUERY_COLP: return "QUERY_COLP";
+        case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
+        case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
