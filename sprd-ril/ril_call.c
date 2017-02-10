@@ -1231,8 +1231,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
             ret = isEccNumber(socket_id, p_dial->address, &category);
-            RLOGD("p_dial->address = %s, isEccNumber = %d", p_dial->address,
-                   ret);
+            RLOGD("requestDial isEccNumber = %d", ret);
             if (ret == 1) {
                 requestEccDial(channelID, data, datalen, t, category);
             } else {
@@ -1728,7 +1727,7 @@ static void dialEmergencyWhileCallFailed(void *param) {
 }
 
 static void redialWhileCallFailed(void *param) {
-    RLOGD("redialWhileCallFailed->address =%s", (char *)param);
+    RLOGD("redialWhileCallFailed");
 
     if (param != NULL) {
         CallbackPara *cbPara = (CallbackPara *)param;
