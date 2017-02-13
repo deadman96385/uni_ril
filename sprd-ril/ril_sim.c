@@ -140,6 +140,19 @@ int s_simSessionId[SIM_COUNT] = {
 #endif
 };
 
+static pthread_mutex_t s_simStatusMutex[SIM_COUNT] = {
+        PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 2)
+       ,PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 3)
+       ,PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 4)
+       ,PTHREAD_MUTEX_INITIALIZER
+#endif
+#endif
+#endif
+};
+
 static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
 static int initISIM(int channelID);
@@ -339,7 +352,7 @@ SimStatus getSIMStatus(int channelID) {
     char *cpinResult;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    sem_wait(&(s_sem[socket_id]));
+    pthread_mutex_lock(&s_simStatusMutex[socket_id]);
 
     if (s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE) {
         ret = SIM_NOT_READY;
@@ -520,7 +533,7 @@ done:
         s_simSessionId[socket_id] = -1;
     }
     /** }@ */
-    sem_post(&(s_sem[socket_id]));
+    pthread_mutex_unlock(&s_simStatusMutex[socket_id]);
 
     return ret;
 }
@@ -2825,8 +2838,12 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             RIL_CardStatus_v6 *p_card_status;
             char *p_buffer;
             int buffer_size;
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+            sem_wait(&(s_sem[socket_id]));
             int result = getCardStatus(channelID, &p_card_status);
+            sem_post(&(s_sem[socket_id]));
+
             if (result == RIL_E_SUCCESS) {
                 p_buffer = (char *)p_card_status;
                 buffer_size = sizeof(*p_card_status);
