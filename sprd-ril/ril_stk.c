@@ -20,7 +20,7 @@ static void requestDefaultNetworkName(int channelID, RIL_Token t) {
     char *apn = NULL;
 
     err = at_send_command_multiline(s_ATChannels[channelID],
-                "AT+CGDCONT?", "+CGDCONT:", &p_response);
+                "AT+SPIPCONTEXT?", "+SPIPCONTEXT:", &p_response);
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
@@ -29,6 +29,7 @@ static void requestDefaultNetworkName(int channelID, RIL_Token t) {
             p_cur = p_cur->p_next) {
         char *line = p_cur->line;
         int ncid;
+        int active;
 
         err = at_tok_start(&line);
         if (err < 0) goto error;
@@ -36,8 +37,9 @@ static void requestDefaultNetworkName(int channelID, RIL_Token t) {
         err = at_tok_nextint(&line, &ncid);
         if (err < 0) goto error;
 
+        err = at_tok_nextint(&line, &active);
+        if (err < 0) goto error;
         if (ncid == 1) {
-            skipNextComma(&line);
             err = at_tok_nextstr(&line, &apn);
             if (err < 0 || strlen(apn) == 0) goto error;
             break;
