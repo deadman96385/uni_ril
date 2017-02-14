@@ -175,22 +175,6 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
     return 1;
 }
 
-static void resetSimAndRadio(void *param) {
-    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    int channelID = getChannel(socket_id);
-    pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
-    s_desiredRadioState[socket_id] = 0;
-    s_imsInitISIM[socket_id] = -1;
-
-    at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
-    at_send_command(s_ATChannels[channelID], "AT+SFUN=3", NULL);
-    at_send_command(s_ATChannels[channelID], "AT+SFUN=2", NULL);
-
-    setRadioState(channelID, RADIO_STATE_OFF);
-    pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
-    putChannel(channelID);
-}
-
 int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     char *line = NULL;
@@ -279,15 +263,9 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
             goto out;
         }
-        if (SIM_RESET == result) {
-            RIL_requestTimedCallback(resetSimAndRadio,
-                                     (void *)&s_socketId[socket_id], NULL);
-        } else {
-            response->result = result;
-            RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
-                                      sizeof(RIL_SimRefreshResponse_v7),
-                                      socket_id);
-        }
+        response->result = result;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
+                sizeof(RIL_SimRefreshResponse_v7), socket_id);
     /* SPRD: add for alpha identifier display in stk @{ */
     } else if (strStartsWith(s, "+SPUSATCALLCTRL:")) {
         char *tmp;
