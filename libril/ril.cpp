@@ -6905,6 +6905,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED: return "UNSOL_SIMLOCK_STATUS_CHANGED";
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
+        case RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD: return "UNSOL_SWITCH_PRIMARY_CARD";
         default: return "<unknown request>";
     }
 }

@@ -2461,6 +2461,17 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if ((type == 5) && (s_ussdRun[socket_id] == 1)) {  // 5: for SS
             s_ussdError[socket_id] = 1;
         }
+    } else if (strStartsWith(s, "+SPSWAPCARD:")) {
+        int id = 0;
+        char *tmp;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &id);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+        }
+        RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD, (void *)&id, sizeof(int), socket_id);
     } else {
         ret = 0;
     }
