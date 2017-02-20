@@ -252,7 +252,8 @@ static void requestCallForward(int channelID, RIL_CallForwardInfo *data,
 
 error:
     if (data->status == 2) {
-        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
             line = p_response->finalResponse;
             err = at_tok_start(&line);
             if (err < 0) goto error1;
@@ -293,7 +294,8 @@ static void requestChangeFacilityLock(int channelID, char **data,
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     free(cmd);
     if (err < 0 || p_response->success == 0) {
-        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
             line = p_response->finalResponse;
             err = at_tok_start(&line);
             if (err >= 0) {
@@ -513,7 +515,8 @@ static void requestCallForwardUri(int channelID,
 
 error:
     if (data->status == 2) {
-        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
             line = p_response->finalResponse;
             err = at_tok_start(&line);
             if (err < 0) goto error1;
@@ -713,7 +716,8 @@ static void requestCallForwardU(int channelID, RIL_CallForwardInfo *data,
 
 error:
     if (data->status == 2) {
-        if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        if (p_response != NULL &&
+            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
             line = p_response->finalResponse;
             err = at_tok_start(&line);
             if (err < 0) goto error1;
@@ -865,7 +869,8 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, response,
                                       sizeof(response));
             } else {
-                if (strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+                if (p_response != NULL &&
+                    strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
                     line = p_response->finalResponse;
                     err = at_tok_start(&line);
                     if (err >= 0) {
