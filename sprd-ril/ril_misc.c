@@ -526,17 +526,23 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_GET_BAND_INFO: {
             p_response = NULL;
             char *line = NULL;
-            err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPCLB?",
-                                             "+SPCLB:", &p_response);
-            if (err < 0 || p_response->success == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            RLOGD("GET_BAND_INFO s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
+            if (s_in4G[socket_id]) {
+                err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPCLB?",
+                                                 "+SPCLB:", &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                } else {
+                    line = p_response->p_intermediates->line;
+                    at_tok_start(&line);
+                    skipWhiteSpace(&line);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line) + 1);
+                }
+                at_response_free(p_response);
             } else {
-                line = p_response->p_intermediates->line;
-                at_tok_start(&line);
-                skipWhiteSpace(&line);
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line) + 1);
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
-            at_response_free(p_response);
             break;
         }
         case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: {
