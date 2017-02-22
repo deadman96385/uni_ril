@@ -184,32 +184,7 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
         }
     }
 
-    initSIMPresentState();
-    RLOGD("getWorkmode: s_presentSIMCount = %d", s_presentSIMCount);
 #if (SIM_COUNT == 2)
-    if (s_presentSIMCount == 1) {  // only one SIM card present
-        getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
-        if (strcmp(prop, "-1") != 0) {
-            goto exit;
-        } else if (!isSimPresent(socket_id)) {
-            if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
-                newWorkMode = GSM_ONLY;
-            }
-        } else {
-            if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
-                if (newWorkMode == GSM_ONLY || newWorkMode == NONE) {
-                    newWorkMode = getMultiMode();
-                }
-            }
-            if (s_multiModeSim != socket_id) {
-                s_multiModeSim = socket_id;
-                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
-                property_set(PRIMARY_SIM_PROP, numToStr);
-            }
-        }
-    }
-
-
     if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
         if (newWorkMode != GSM_ONLY) {
             getProperty(1 - socket_id, MODEM_WORKMODE_PROP, prop, "10");
