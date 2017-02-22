@@ -3425,6 +3425,7 @@ int cgdata_set_cmd_rsp(ATResponse *p_response, int pdpIndex, int primaryCid,
             // if fallback, need map ipv4 and ipv6 to one net device
             if (dispose_data_fallback(primaryCid, cid)) {
                 cid = primaryCid;
+                pdpIndex = cid - 1;
             }
 
             RLOGD("PS ip_state = %d", pdp_info[pdpIndex].ip_state);
