@@ -2458,8 +2458,18 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
                                       0, socket_id);
         }
-        if ((type == 5) && (s_ussdRun[socket_id] == 1)) {  // 5: for SS
+        if ((type == 5) && (s_ussdRun[socket_id] == 1)) { // 5: for SS
             s_ussdError[socket_id] = 1;
+        } else if (type == 10) { // ps business in this sim is rejected by network
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
+                    socket_id);
+        } else if (type == 1) {
+            setProperty(socket_id, "ril.sim.ps.reject", "1");
+            if ((errCode == 3) || (errCode == 6) || (errCode == 7)
+                    || (errCode == 8) || (errCode == 14)) {
+                RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
+                        socket_id);
+            }
         }
     } else if (strStartsWith(s, "+SPSWAPCARD:")) {
         int id = 0;
