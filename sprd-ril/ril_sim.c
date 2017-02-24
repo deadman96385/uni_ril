@@ -681,8 +681,8 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
 
     s_appType[socket_id] = getSimType(channelID);
 
-    int isimResp = 0;
-    if(sim_status == SIM_READY && app_type == RIL_APPTYPE_USIM) {
+    int isimResp =  0;
+    if(sim_status == SIM_READY && s_appType[socket_id] == RIL_APPTYPE_USIM) {
         isimResp = initISIM(channelID);
         RLOGD("app type %d", isimResp);
     }
