@@ -12,11 +12,12 @@
 #define MAX_PDP_CP                  11
 #define MINIMUM_APN_LEN             19
 
-#define DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID  -2
-#define DATA_ACTIVE_FALLBACK_FAILED             -1
+#define DATA_ACTIVE_FALLBACK_FAILED             -2
+#define DATA_ACTIVE_FAILED                      -1
 #define DATA_ACTIVE_SUCCESS                     0
-#define DATA_ACTIVE_FAILED                      1
-#define DATA_ACTIVE_NEED_RETRY                  2
+#define DATA_ACTIVE_NEED_RETRY                  1
+#define DATA_ACTIVE_NEED_FALLBACK               2
+#define DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID  3
 
 #define TRAFFIC_CLASS_DEFAULT       2
 #define UNUSABLE_CID                0

@@ -398,16 +398,16 @@ static void convertFailCause(RIL_SOCKET_ID socket_id, int cause) {
 }
 
 /**
- * return -2: fail cause 253, need retry active for another cid;
- *         0: success;
- *         1: general failed;
- *         2: fail cause 288, need retry active;
- *         3: fail cause 128
+ * return  -1: general failed;
+ *          0: success;
+ *          1: fail cause 288, need retry active;
+ *          2: fail cause 128, need fall back;
+ *          3: fail cause 253, need retry active for another cid;
  */
 static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                                       int err, int cid) {
-    int failCause = DATA_ACTIVE_SUCCESS;
-    int ret = 0;
+    int failCause;
+    int ret = DATA_ACTIVE_SUCCESS;
     char cmd[AT_COMMAND_LEN] = {0};
     char *line;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
@@ -421,8 +421,10 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
             if (err >= 0) {
                 err = at_tok_nextint(&line, &failCause);
                 if (err >= 0) {
-                    if (failCause == 288 || failCause == 128) {
-                        ret = DATA_ACTIVE_NEED_RETRY;  // 128: network reject
+                    if (failCause == 288) {
+                        ret = DATA_ACTIVE_NEED_RETRY;
+                    } else if (failCause == 128){ // 128: network reject
+                        ret = DATA_ACTIVE_NEED_FALLBACK;
                     } else if (failCause == 253) {
                         ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
                     } else {
@@ -709,16 +711,16 @@ static bool isAttachEnable() {
  */
 
 /*
- * return : -1: Active Cid success,but isnt fall back cid ip type;
+ * return : -2: Active Cid success,but isnt fall back cid ip type;
+ *          -1: Active Cid failed;
  *           0: Active Cid success;
- *           1: Active Cid failed;
- *           2: Active Cid failed, error 288, need retry;
- *           3: Active Cid failed, error 128, need do fall back ? need_debug;
+ *           1: Active Cid failed, error 288, need retry;
+ *           2: Active Cid failed, error 128, need do fall back;
  */
 static int activeSpeciedCidProcess(int channelID, void *data, int cid,
                                        const char *pdp_type, int primaryCid) {
     int err;
-    int ret = 1, ipType;
+    int ret = -1, ipType;
     int islte = s_isLTE;
     int failCause;
     char *line;
@@ -862,6 +864,60 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
             }
         }
     }
+    return ret;
+}
+
+static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
+    bool ret = false;
+    int err = 0;
+    char *line;
+    char cmd[AT_COMMAND_LEN] = {0};
+    char newCmd[AT_COMMAND_LEN] = {0};
+    const char *apn = NULL;
+    ATResponse *p_response = NULL;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    apn = ((const char **)data)[2];
+
+    // active IPV4
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0",
+            index + 1, apn);
+    err = cgdcont_set_cmd_req(cmd, newCmd);
+    if (err == 0) {
+        err = at_send_command(s_ATChannels[channelID], newCmd, NULL);
+    }
+    if (err < 0 || p_response->success == 0) {
+        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+        goto error;
+    }
+    AT_RESPONSE_FREE(p_response);
+
+    if (s_isLTE) {
+        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index + 1);
+    } else {
+        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    }
+    cgdata_set_cmd_req(cmd);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    cgdata_set_cmd_rsp(p_response, index, 0, channelID);
+    if (errorHandlingForCGDATA(channelID, p_response, err,index) !=
+            DATA_ACTIVE_SUCCESS) {
+        goto error;
+    }
+
+    updatePDPCid(index + 1, 1);
+    // active IPV6
+    index = getPDP(socket_id);
+    if (index < 0 || getPDPCid(index) >= 0) {
+        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+        putPDP(index);
+    } else {
+        activeSpeciedCidProcess(channelID, data, index + 1, "IPV6", 0);
+    }
+    ret = true;
+
+error:
+    at_response_free(p_response);
     return ret;
 }
 
@@ -1267,15 +1323,15 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                         cgdata_err = errorHandlingForCGDATA(channelID,
                                 p_response, err, cid);
                         AT_RESPONSE_FREE(p_response);
-                        if (cgdata_err == 0) {  // success
+                        if (cgdata_err == DATA_ACTIVE_SUCCESS) {
                             updatePDPCid(i + 1, 1);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
-                        } else if (cgdata_err > 0) {  // no retry
-                            ret = cid;
-                        } else {  // need retry active for another cid
+                        } else if(cgdata_err == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID){
                             updatePDPCid(i + 1, -1);
                             putPDPByIndex(i);
+                        } else {
+                            ret = cid;
                         }
                     }
                 } else if (i < MAX_PDP) {
@@ -1330,7 +1386,6 @@ RETRY:
         goto error;
     }
 
-
     index = getPDP(socket_id);
 
     if (index < 0 || getPDPCid(index) >= 0) {
@@ -1344,11 +1399,18 @@ RETRY:
             nRetryTimes++;
             goto RETRY;
         }
+    } else if( ret == DATA_ACTIVE_NEED_FALLBACK) {
+        if (doIPV4_IPV6_Fallback(channelID, index, data) == false) {
+            goto error;
+        } else {
+            goto done;
+        }
     } else if (ret == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
         updatePDPCid(index + 1, -1);
         goto RETRY;
     } else if (ret == DATA_ACTIVE_SUCCESS &&
-            (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) && s_isLTE ) {
+            (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) &&
+            s_isLTE ) {
         const char *tmpType = NULL;
         /* Check if need fall back or not */
         if (!strcmp(pdpType, "IPV4+IPV6")) {
