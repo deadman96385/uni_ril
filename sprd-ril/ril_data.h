@@ -74,6 +74,7 @@ enum PDPState {
 };
 
 struct PDPInfo {
+    int socketId;
     int cid;
     int secondary_cid;  // for fallback cid
     bool isPrimary;
