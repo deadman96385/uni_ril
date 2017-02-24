@@ -65,12 +65,12 @@ static int s_singlePDNAllowed[SIM_COUNT] = {
 };
 
 struct PDPInfo s_PDP[MAX_PDP] = {
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    { -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER}
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER}
 };
 static PDNInfo s_PDN[MAX_PDP_CP] = {
     { -1, "", ""},
@@ -183,7 +183,24 @@ void putUnusablePDPCid() {
         pthread_mutex_unlock(&s_PDP[i].mutex);
     }
 }
+int updatePDPSocketId(int cid, int socketId) {
+    int index = cid - 1;
+    if (cid <= 0 || cid > MAX_PDP) {
+        return 0;
+    }
+    pthread_mutex_lock(&s_PDP[index].mutex);
+    s_PDP[index].socketId = socketId;
+    pthread_mutex_unlock(&s_PDP[index].mutex);
+    return 1;
+}
 
+int getPDPSocketId(int index) {
+    if (index >= MAX_PDP || index < 0) {
+        return -1;
+    } else {
+        return s_PDP[index].socketId;
+    }
+}
 int updatePDPCid(int cid, int state) {
     int index = cid - 1;
     if (cid <= 0 || cid > MAX_PDP) {
@@ -791,10 +808,12 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
             ret = DATA_ACTIVE_FALLBACK_FAILED;
         } else {
             setPDPMapping(primaryCid - 1, cid - 1);
+            updatePDPSocketId(primaryCid, socket_id);
             ret = DATA_ACTIVE_SUCCESS;
         }
     } else {
         updatePDPCid(cid, 1);
+        updatePDPSocketId(cid, socket_id);
         ret = DATA_ACTIVE_SUCCESS;
     }
     s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
@@ -1241,6 +1260,7 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                                 cid);
                         if (cgdata_err == 0) {  // success
                             updatePDPCid(i + 1, 1);
+                            updatePDPSocketId(cid, socket_id);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
                             at_response_free(p_response);
@@ -1433,7 +1453,7 @@ static void deactivateDataConnection(int channelID, void *data,
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
     AT_RESPONSE_FREE(p_response);
-
+    updatePDPSocketId(cid, -1);
     if (secondaryCid != -1) {
         RLOGD("dual PDP, do CGACT again, fallback cid = %d", secondaryCid);
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondaryCid);
@@ -1765,6 +1785,7 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 
     int ret;
     int err, i;
+    int cid;
     char cmd[AT_COMMAND_LEN];
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
@@ -1772,12 +1793,13 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 
     if (islte) {
         for (i = 0; i < MAX_PDP; i++) {
-            if (getPDPCid(i) > 0) {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
+            cid = getPDPCid(i);
+            if (cid > 0 && getPDPSocketId(i) == socket_id) {
+                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
+                updatePDPSocketId(cid, -1);
                 RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
                 if (s_PDP[i].state == PDP_BUSY) {
-                    int cid = getPDPCid(i);
                     putPDP(i);
                     requestOrSendDataCallList(channelID, cid, NULL);
                 }
