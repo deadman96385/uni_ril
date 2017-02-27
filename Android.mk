@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+# lisa
 
 common_ril_dirs := libril_tele libril sprd-ril rild libatci
 include $(call all-named-subdir-makefiles,$(common_ril_dirs))
