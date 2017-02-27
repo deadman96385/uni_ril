@@ -1541,7 +1541,7 @@ static void deactivateDataConnection(int channelID, void *data,
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
     cgact_deact_cmd_rsp(cid);
     AT_RESPONSE_FREE(p_response);
-
+    updatePDPSocketId(cid, -1);
     if (secondaryCid != -1) {
         RLOGD("dual PDP, do CGACT again, fallback cid = %d", secondaryCid);
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondaryCid);
