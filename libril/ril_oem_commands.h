@@ -38,3 +38,4 @@
     {RIL_EXT_REQUEST_QUERY_COLP, dispatchVoid, responseInts},
     {RIL_EXT_REQUEST_QUERY_COLR, dispatchVoid, responseInts},
     {RIL_EXT_REQUEST_MMI_ENTER_SIM, dispatchString, responseVoid},
+    {RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME, dispatchString, responseVoid},
