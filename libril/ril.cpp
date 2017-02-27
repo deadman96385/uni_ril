@@ -98,7 +98,7 @@ namespace android {
 #define RIL_ERRNO_NO_MEMORY -12
 
 // request, response, and unsolicited msg print macro
-#define PRINTBUF_SIZE 8096
+#define PRINTBUF_SIZE 1024
 
 // Enable verbose logging
 #define VDBG 0
@@ -107,17 +107,18 @@ namespace android {
 #define RILC_LOG 1
 
 #if RILC_LOG
-    #define startRequest           sprintf(printBuf, "(")
-    #define closeRequest           sprintf(printBuf, "%s)", printBuf)
+    #define startRequest           snprintf(printBuf, PRINTBUF_SIZE, "(")
+    #define closeRequest           snprintf(printBuf, PRINTBUF_SIZE, "%s)", printBuf)
     #define printRequest(token, req)           \
             RLOGD("[%04d]> %s %s", token, requestToString(req), printBuf)
 
-    #define startResponse           sprintf(printBuf, "%s {", printBuf)
-    #define closeResponse           sprintf(printBuf, "%s}", printBuf)
+    #define startResponse           snprintf(printBuf, PRINTBUF_SIZE, "%s {", printBuf)
+    #define closeResponse           snprintf(printBuf, PRINTBUF_SIZE, "%s}", printBuf)
     #define printResponse           RLOGD("%s", printBuf)
 
     #define clearPrintBuf           printBuf[0] = 0
-    #define removeLastChar          printBuf[strlen(printBuf)-1] = 0
+//    #define removeLastChar          printBuf[strlen(printBuf)-1] = 0
+    #define removeLastChar
     #define appendPrintBuf(x...)    snprintf(printBuf, PRINTBUF_SIZE, x)
 #else
     #define startRequest
