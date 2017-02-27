@@ -2707,6 +2707,50 @@ exit:
     free(responseRc);
 }
 
+void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    char *plmn = (char *)data;
+    char operatorName[ARRAY_SIZE] = {0};
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    memset(operatorName, 0, sizeof(operatorName));
+    err = updatePlmn(socket_id, (const char *)plmn, operatorName);
+    if (err == 0) {
+        RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
+        MUTEX_ACQUIRE(s_operatorInfoListMutex);
+        OperatorInfoList *pList = s_operatorInfoList.next;
+        OperatorInfoList *next;
+        while (pList != &s_operatorInfoList) {
+            next = pList->next;
+            if (strcmp(plmn, pList->plmn) == 0) {
+                RLOGD("find the plmn, remove if from s_operatorInfoList!");
+                pList->next->prev = pList->prev;
+                pList->prev->next = pList->next;
+                pList->next = NULL;
+                pList->prev = NULL;
+
+                free(pList->plmn);
+                free(pList->operatorName);
+                free(pList);
+                break;
+            }
+            pList = next;
+        }
+        MUTEX_RELEASE(s_operatorInfoListMutex);
+        addToOperatorInfoList(plmn, operatorName);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+
+        RIL_onUnsolicitedResponse(
+                RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+                NULL, 0, socket_id);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
+}
+
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID) {
     int err;
@@ -2845,6 +2889,10 @@ int processNetworkRequests(int request, void *data, size_t datalen,
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
             at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: {
+            requestUpdateOperatorName(channelID, data, datalen, t);
             break;
         }
         default:
