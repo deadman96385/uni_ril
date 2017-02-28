@@ -2717,6 +2717,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_GET_RADIO_CAPABILITY:
             requestGetRadioCapability(channelID, data, datalen, t);
             break;
+#if defined (ANDROID_MULTI_SIM)
         case RIL_REQUEST_SET_RADIO_CAPABILITY: {
             char prop[PROPERTY_VALUE_MAX];
 
@@ -2728,6 +2729,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             }
             break;
         }
+#endif
         case RIL_REQUEST_GET_IMS_BEARER_STATE:
             RIL_onRequestComplete(t, RIL_E_SUCCESS,
                     (void *)&s_imsBearerEstablished[socket_id], sizeof(int));

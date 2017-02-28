@@ -1822,9 +1822,13 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+#if (SIM_COUNT == 2)
     if (s_autoDetach == 1) {
         doDetachGPRS(1 - socket_id, data, datalen, NULL);
     }
+#endif
+
     if (islte) {
         if (s_modemConfig == LWG_LWG) {
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD");
