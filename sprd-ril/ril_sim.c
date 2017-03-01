@@ -2994,6 +2994,7 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     err = at_tok_nextint(&tmp, &cause);
                     if (err < 0) goto out;
                     if (cause == 2) {
+                        setProperty(socket_id, SIM_OFF_PROP, "0");
                         s_simState[socket_id] = SIM_DROP;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
@@ -3016,6 +3017,8 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                 if (value == 4) {
                     RIL_requestTimedCallback(onSimlockLocked,
                             (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
+                } else if (value == 100) {
+                    setProperty(socket_id, SIM_OFF_PROP, "0");
                 }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,
