@@ -42,7 +42,7 @@
 #define HARDWARE_VERSION_PROP   "sys.hardware.version"
 #define BUILD_TYPE_PROP         "ro.build.type"
 #define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
-#define VOLTE_MODE              "persist.sys.volte.mode"
+#define VOLTE_MODE_PROP         "persist.sys.volte.mode"
 
 enum ChannelState {
     CHANNEL_IDLE,
@@ -201,6 +201,11 @@ done:
 
 /* Return channel ID */
 int getChannel(RIL_SOCKET_ID socket_id) {
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("getChannel: invalid socket_id %d", socket_id);
+        return -1;
+    }
+
     int ret = 0;
     int channelID;
     int firstChannel, lastChannel;
@@ -708,10 +713,11 @@ static void initializeCallback(void *param) {
             }
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
-        char volte_mode[PROPERTY_VALUE_MAX];
-        property_get(VOLTE_MODE, volte_mode, "");
-        if(strcmp(volte_mode, "DualVoLTEActive") == 0){
-            at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,1", NULL);
+        char volteMode[PROPERTY_VALUE_MAX];
+        property_get(VOLTE_MODE_PROP, volteMode, "");
+        if (strcmp(volteMode, "DualVoLTEActive") == 0) {
+            at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,1",
+                            NULL);
         }
     }
 

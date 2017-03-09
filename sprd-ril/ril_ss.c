@@ -737,6 +737,68 @@ error1:
     at_response_free(p_response);
 }
 
+void requestQueryCOLP(int channelID, RIL_Token t) {
+    int err;
+    int response[2] = {0, 0};
+    char *line = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+COLP?",
+                                     "+COLP: ", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[0]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[1]);
+    if (err < 0) goto error;
+
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response[1], sizeof(int));
+    return;
+
+error:
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+}
+
+void requestQueryCOLR(int channelID, RIL_Token t) {
+    int err;
+    int response[2] = {0, 0};
+    char *line = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+COLR?",
+                                     "+COLR: ", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[0]);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[1]);
+    if (err < 0) goto error;
+
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response[1], sizeof(int));
+    return;
+
+error:
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+}
+
 int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                          int channelID) {
     int err;
@@ -979,6 +1041,49 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestCallForwardUri(channelID, data, datalen, t);
             break;
         /* }@ */
+        case RIL_EXT_REQUEST_SET_COLP: {
+            char cmd[AT_COMMAND_LEN];
+            snprintf(cmd, sizeof(cmd), "AT+COLP=%d", ((int *)data)[0]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+        case RIL_EXT_REQUEST_QUERY_COLP:
+            requestQueryCOLP(channelID, t);
+            break;
+        case RIL_EXT_REQUEST_QUERY_COLR:
+            requestQueryCOLR(channelID, t);
+            break;
+        case RIL_EXT_REQUEST_MMI_ENTER_SIM: {
+            int ret;
+            char *cmd = NULL;
+            char *str = (char *)data;
+            p_response = NULL;
+
+            ret = asprintf(&cmd, "ATD%s", str);
+            if (ret < 0) {
+                RLOGE("Failed to allocate memory");
+                cmd = NULL;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            free(cmd);
+
+            if (err < 0 || p_response->success == 0) {
+                if (p_response != NULL &&
+                    strcmp(p_response->finalResponse, "+CME ERROR: 16") == 0) {
+                    RIL_onRequestComplete(t, RIL_E_PASSWORD_INCORRECT, NULL, 0);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }

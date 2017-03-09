@@ -381,7 +381,7 @@ int callFromCLCCLineVoLTE(char *line, RIL_Call_VoLTE *p_call) {
     if (at_tok_hasmore(&line)) {
         int localHold = 0;
         err = at_tok_nextint(&line, &localHold);
-        if(localHold){
+        if (localHold) {
             p_call->state = RIL_CALL_HOLDING;
         }
         RLOGD("CLCCS->localHold:%d \n",localHold);
@@ -1701,26 +1701,22 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         }
         /* @} */
         case RIL_REQUEST_IMS_HOLD_SINGLE_CALL: {
-            RLOGD("enter to handle event: RIL_REQUEST_IMS_HOLD_SINGLE_CALL");
             p_response = NULL;
-            int id = ((int*)data)[0];
-            int state = ((int*)data)[1];
-            char cmd[20] = {0};
+            int id = ((int *)data)[0];
+            int state = ((int *)data)[1];
+            char cmd[AT_COMMAND_LEN] = {0};
 
-            RLOGD("RIL_REQUEST_IMS_HOLD_SINGLE_CALL to data id: %d, state: %d", id, state);
-            if(state){
-                state = 1;//hold
+            if (state) {
+                state = 1;  // hold
             } else {
-                state = 2;//resume
+                state = 2;  // resume
             }
             snprintf(cmd, sizeof(cmd), "AT+SPCHLD=%d,%d", state, id);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
 
             if (err < 0 || p_response->success == 0) {
-                RLOGD("response of RIL_REQUEST_IMS_HOLD_SINGLE_CALL: generic failure!");
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
-                RLOGD("response of RIL_REQUEST_IMS_HOLD_SINGLE_CALL: success!");
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
 
@@ -1728,26 +1724,22 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_IMS_MUTE_SINGLE_CALL: {
-            RLOGD("enter to handle event: RIL_REQUEST_IMS_MUTE_SINGLE_CALL");
             p_response = NULL;
-            int id = ((int*)data)[0];
-            int state = ((int*)data)[1];
-            char cmd[20] = {0};
+            int id = ((int *)data)[0];
+            int state = ((int *)data)[1];
+            char cmd[AT_COMMAND_LEN] = {0};
 
-            RLOGD("RIL_REQUEST_IMS_MUTE_SINGLE_CALL to data id: %d, state: %d", id, state);
-            if(state){
-                state = 3;//mute
+            if (state) {
+                state = 3;  // mute
             } else {
-                state = 4;//not mute
+                state = 4;  // not mute
             }
             snprintf(cmd, sizeof(cmd), "AT+SPCHLD=%d,%d", state, id);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
 
             if (err < 0 || p_response->success == 0) {
-                RLOGD("response of RIL_REQUEST_IMS_MUTE_SINGLE_CALL: generic failure!");
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
-                RLOGD("response of RIL_REQUEST_IMS_MUTE_SINGLE_CALL: success!");
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
 
@@ -1755,26 +1747,22 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_IMS_SILENCE_SINGLE_CALL: {
-            RLOGD("enter to handle event: RIL_REQUEST_IMS_SILENCE_SINGLE_CALL");
             p_response = NULL;
-            int id = ((int*)data)[0];
-            int state = ((int*)data)[1];
-            char cmd[20] = {0};
+            int id = ((int *)data)[0];
+            int state = ((int *)data)[1];
+            char cmd[AT_COMMAND_LEN] = {0};
 
-            RLOGD("RIL_REQUEST_IMS_SILENCE_SINGLE_CALL to data id: %d, state: %d", id, state);
-            if(state){
-                state = 5;//silence
+            if (state) {
+                state = 5;  // silence
             } else {
-                state = 6;//not silence
+                state = 6;  // not silence
             }
             snprintf(cmd, sizeof(cmd), "AT+SPCHLD=%d,%d", state, id);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
 
             if (err < 0 || p_response->success == 0) {
-                RLOGD("response of RIL_REQUEST_IMS_SILENCE_SINGLE_CALL: generic failure!");
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
-                RLOGD("response of RIL_REQUEST_IMS_SILENCE_SINGLE_CALL: success!");
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
 
@@ -1782,20 +1770,16 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE: {
-            RLOGD("enter to handle event: RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE");
             p_response = NULL;
-            int enable = ((int*)data)[0];
-            char cmd[20] = {0};
+            int enable = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
 
-            RLOGD("RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE to data enable: %d", enable);
             snprintf(cmd, sizeof(cmd), "AT+MIXVOICE=%d", enable);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
 
             if (err < 0 || p_response->success == 0) {
-                RLOGD("response of RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE: generic failure!");
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
-                RLOGD("response of RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE: success!");
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
             at_response_free(p_response);

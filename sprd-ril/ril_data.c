@@ -440,7 +440,7 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                 if (err >= 0) {
                     if (failCause == 288) {
                         ret = DATA_ACTIVE_NEED_RETRY;
-                    } else if (failCause == 128){ // 128: network reject
+                    } else if (failCause == 128) {  // 128: network reject
                         ret = DATA_ACTIVE_NEED_FALLBACK;
                     } else if (failCause == 253) {
                         ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
@@ -1347,7 +1347,8 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                             updatePDPSocketId(cid, socket_id);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
-                        } else if(cgdata_err == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID){
+                        } else if (cgdata_err ==
+                                DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
                             updatePDPCid(i + 1, -1);
                             putPDPByIndex(i);
                         } else {
@@ -1419,7 +1420,7 @@ RETRY:
             nRetryTimes++;
             goto RETRY;
         }
-    } else if( ret == DATA_ACTIVE_NEED_FALLBACK) {
+    } else if ( ret == DATA_ACTIVE_NEED_FALLBACK) {
         if (doIPV4_IPV6_Fallback(channelID, index, data) == false) {
             goto error;
         } else {
@@ -2009,6 +2010,10 @@ void cleanUpAllConnections() {
 }
 
 void activeAllConnections() {
+    if (s_defaultDataId < 0) {
+        return;
+    }
+
     int i;
     int dataChannelID = getChannel(s_defaultDataId);
 
@@ -2227,13 +2232,6 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: {
             // set RAU SUCCESS report to AP
             at_send_command(s_ATChannels[channelID], "AT+SPREPORTRAU=1", NULL);
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-            break;
-        }
-        case RIL_EXT_REQUEST_SET_COLP: {
-            char cmd[AT_COMMAND_LEN];
-            snprintf(cmd, sizeof(cmd), "AT+COLP=%d", ((int *)data)[0]);
-            at_send_command(s_ATChannels[channelID], cmd, NULL);
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
