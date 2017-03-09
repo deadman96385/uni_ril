@@ -17,7 +17,6 @@
 /* Property to save pin for modem assert */
 #define SIM_PIN_PROP                            "ril.sim.pin"
 #define MODEM_ASSERT_PROP                       "ril.modem.assert"
-#define SIM_OFF_PROP                            "ril.sim.off"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -389,14 +388,10 @@ SimStatus getSIMStatus(int channelID) {
 
     if (0 == strcmp(cpinResult, "SIM PIN")) {
         char modemAssertProp[PROPERTY_VALUE_MAX];
-        char simOffProp[PROPERTY_VALUE_MAX];
 
         getProperty(socket_id, MODEM_ASSERT_PROP, modemAssertProp, "0");
-        getProperty(socket_id, SIM_OFF_PROP, simOffProp, "0");
-        if (strcmp(modemAssertProp, "1") == 0 ||
-                strcmp(simOffProp, "1") == 0) {
+        if (strcmp(modemAssertProp, "1") == 0) {
             setProperty(socket_id, MODEM_ASSERT_PROP, "0");
-            setProperty(socket_id, SIM_OFF_PROP, "0");
 
             char cmd[AT_COMMAND_LEN];
             char pin[PROPERTY_VALUE_MAX];
@@ -472,21 +467,7 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT) {
-        char prop[PROPERTY_VALUE_MAX];
-        getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
-        if (strcmp(prop, "0") == 0) {
-            ret = SIM_ABSENT;
-        } else if (strcmp(prop, "-1") == 0 && s_simEnabled[socket_id] == 0) {
-            if (s_radioState[socket_id] != RADIO_STATE_UNAVAILABLE) {
-                pthread_t tid;
-                pthread_attr_t attr;
-                pthread_attr_init(&attr);
-                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-                if (pthread_create(&tid, &attr, (void *)setSIMPowerOff,
-                                   (void *)&s_socketId[socket_id]) < 0) {
-                    RLOGE("Failed to create setSIMPowerOff");
-                }
-            }
+        if (s_simEnabled[socket_id] == 0) {
             ret = SIM_ABSENT;
         }
     }
@@ -654,11 +635,9 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     RIL_CardState card_state;
     int num_apps;
     int sim_status;
-    char prop[PROPERTY_VALUE_MAX];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
-    if (strcmp(prop, "0") == 0) {
+    if (s_simEnabled[socket_id] == 0) {
         sim_status = SIM_ABSENT;
     } else {
         sim_status = getSIMStatus(channelID);
@@ -2186,18 +2165,25 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
     }
 }
 
-void requestSIMPower(int channelID, int onOff, RIL_Token t) {
-    ATResponse *p_response = NULL;
+void notifySIMStatus(int channelID, void *data, RIL_Token t) {
+    int onOff = ((int *)data)[0];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    int err = 0;
-    char prop[PROPERTY_VALUE_MAX];
 
     s_simEnabled[socket_id] = onOff;
 
-    getProperty(socket_id, FAKE_SIM_ENABLED_PROP, prop, "-1");
-    if (strcmp(prop, "-1") != 0) {
-        goto exit;
-    }
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+
+    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
+                              socket_id);
+}
+
+void requestSIMPower(int channelID, void *data, RIL_Token t) {
+    int err = 0;
+    int onOff = ((int *)data)[0];
+    ATResponse *p_response = NULL;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    s_simEnabled[socket_id] = onOff;
 
     if (onOff == 0) {
         err = at_send_command(s_ATChannels[channelID], "AT+SPDISABLESIM=1",
@@ -2211,20 +2197,9 @@ void requestSIMPower(int channelID, int onOff, RIL_Token t) {
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
-    // If power off sim success, send following AT to no response setupmenu of STK
-    if (onOff == 0) {
-        setProperty(socket_id, SIM_OFF_PROP, "1");
-        err = at_send_command(s_ATChannels[channelID], "AT+SPUSATAPREADY=0",
-                              NULL);
-    }
     at_response_free(p_response);
 
-exit:
-    if (t != NULL) {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-    }
-    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
-                              socket_id);
+    notifySIMStatus(channelID, data, t);
     return;
 
 error:
@@ -2910,14 +2885,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
-        case RIL_EXT_REQUEST_SIM_POWER: {
-            int onOff = ((int *)data)[0];
-            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-            pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
-            requestSIMPower(channelID, onOff, t);
-            pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
+        case RIL_EXT_REQUEST_SIM_POWER:
+            notifySIMStatus(channelID, data, t);
             break;
-        }
         /* }@ */
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
@@ -2994,12 +2964,10 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     err = at_tok_nextint(&tmp, &cause);
                     if (err < 0) goto out;
                     if (cause == 2) {
-                        setProperty(socket_id, SIM_OFF_PROP, "0");
                         s_simState[socket_id] = SIM_DROP;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                     } else if (cause == 34) {  // sim removed
-                        setProperty(socket_id, SIM_OFF_PROP, "0");
                         s_simState[socket_id] = SIM_REMOVE;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
@@ -3017,8 +2985,6 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                 if (value == 4) {
                     RIL_requestTimedCallback(onSimlockLocked,
                             (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
-                } else if (value == 100) {
-                    setProperty(socket_id, SIM_OFF_PROP, "0");
                 }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,

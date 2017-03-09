@@ -9,7 +9,6 @@
 #define RIL_SIM_H_
 
 #define SIM_ENABLED_PROP            "persist.radio.sim_enabled"
-#define FAKE_SIM_ENABLED_PROP       "persist.radio.fake_sim_enabled"
 
 typedef enum {
     UNLOCK_PIN   = 0,

@@ -995,6 +995,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
 
+    initSIMVariables();
+
     property_get(PRIMARY_SIM_PROP, prop, "0");
     s_multiModeSim = atoi(prop);
 
@@ -1028,7 +1030,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
 
-    initSIMVariables();
     setHwVerPorp();
     initOperatorInfoList(&s_operatorInfoList);
     return &s_callbacks;
