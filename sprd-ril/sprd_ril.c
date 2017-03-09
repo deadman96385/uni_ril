@@ -1037,6 +1037,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
 
+    initSIMVariables();
+
     property_get(PRIMARY_SIM_PROP, prop, "0");
     s_multiModeSim = atoi(prop);
 
@@ -1077,7 +1079,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         RLOGE("Failed to create signal_process");
     }
 
-    initSIMVariables();
     setHwVerPorp();
     initOperatorInfoList(&s_operatorInfoList);
     return &s_callbacks;
