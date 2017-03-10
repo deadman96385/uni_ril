@@ -14,6 +14,8 @@
 
 /* Fast Dormancy disable property */
 #define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
+/* PROP_FAST_DORMANCY value is "a,b". a is screen_off value, b is on value */
+#define PROP_FAST_DORMANCY    "persist.radio.fastdormancy"
 
 /* for sleep log */
 #define BUFFER_SIZE     (12 * 1024 * 4)
@@ -237,6 +239,29 @@ error:
     at_response_free(p_newResponse);
 }
 
+int getFastDormancyTime(int screeState) {
+    int screenOffValue = 2, screenOnValue = 5, fastDormancyTime = 0, err;
+    char fastDormancyPropValue[PROPERTY_VALUE_MAX] = {0};
+    char *p_fastDormancy = NULL;
+
+    property_get(PROP_FAST_DORMANCY, fastDormancyPropValue, "");
+    if (strcmp(fastDormancyPropValue, "")) {
+        p_fastDormancy = fastDormancyPropValue;
+        err = at_tok_nextint(&p_fastDormancy, &screenOffValue);
+        if (err < 0) {
+            goto done;
+        }
+        err = at_tok_nextint(&p_fastDormancy, &screenOnValue);
+        if (err < 0) {
+            goto done;
+        }
+    }
+done:
+    screeState ? (fastDormancyTime = screenOnValue) :
+                 (fastDormancyTime = screenOffValue);
+    return fastDormancyTime;
+}
+
 static void requestScreeState(int channelID, int status, RIL_Token t) {
     int err;
     int stat;
@@ -262,7 +287,10 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
             at_send_command(s_ATChannels[channelID], "AT+CIREG=0", NULL);
         }
         if (isExistActivePdp() && !strcmp(prop, "0")) {
-            at_send_command(s_ATChannels[channelID], "AT*FDY=1,2", NULL);
+            char cmd[ARRAY_SIZE] = {0};
+            snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
+                     getFastDormancyTime(status));
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
     } else {
         /* Resume */
@@ -285,7 +313,10 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
                 sizeof(response), socket_id);
         }
         if (isExistActivePdp() && !strcmp(prop, "0")) {
-            at_send_command(s_ATChannels[channelID], "AT*FDY=1,5", NULL);
+            char cmd[ARRAY_SIZE] = {0};
+            snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
+                     getFastDormancyTime(status));
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
 
         if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
