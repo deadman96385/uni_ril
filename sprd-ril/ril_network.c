@@ -3160,10 +3160,10 @@ void *signal_process() {
     // 3 means count 2G/3G/4G
     int nosigUpdate[SIM_COUNT], MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
 
-    memset(sample_rsrp_sim, 0, SIM_COUNT);
-    memset(sample_rscp_sim, 0, SIM_COUNT);
-    memset(sample_rxlev_sim, 0, SIM_COUNT);
-    memset(sample_rssi_sim, 0, SIM_COUNT);
+    memset(sample_rsrp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
+    memset(sample_rscp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
+    memset(sample_rxlev_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
+    memset(sample_rssi_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
 
     if (!s_isLTE) {
         MAXSigCount = SIG_POOL_SIZE - 1;

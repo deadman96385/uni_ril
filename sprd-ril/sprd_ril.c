@@ -739,7 +739,7 @@ static void initializeCallback(void *param) {
         property_get("ro.radio.spice", prop, "0");
         if (!strcmp(prop, "1")) {
             at_send_command_singleline(s_ATChannels[channelID],
-                    "at+spcapability=32,1,1", "+SPCAPABILITY:", NULL);
+                    "AT+SPCAPABILITY=32,1,1", "+SPCAPABILITY:", NULL);
         }
     }
     /* @} */

@@ -1,3 +1,4 @@
+#define LOG_TAG "RIL"
 
 #include "sprd_ril.h"
 #include "ril_network.h"
