@@ -3243,7 +3243,7 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
     char *sskip;
     char *tmp;
     int skip;
-    static int ip_type_num = 0;
+    int ip_type_num = 0;
     int ip_type;
     int maxPDPNum = MAX_PDP_NUM;
     char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
@@ -3425,7 +3425,6 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
             } while (0);
         }
     }
-
     return AT_RESULT_OK;
 }
 
