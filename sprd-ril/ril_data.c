@@ -1535,7 +1535,9 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
-
+    if (getPDPSocketId(cid - 1) != socket_id) {
+        goto done;
+    }
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
     secondaryCid = getFallbackCid(cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
@@ -1550,7 +1552,6 @@ static void deactivateDataConnection(int channelID, void *data,
         cgact_deact_cmd_rsp(secondaryCid);
     }
 
-done:
     putPDP(secondaryCid - 1);
     putPDP(cid - 1);
     at_response_free(p_response);
@@ -1565,8 +1566,11 @@ done:
             at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=1", NULL);
         }
     }
-error:
+done:
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     return;
 }
 
