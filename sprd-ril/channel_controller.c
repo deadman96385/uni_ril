@@ -32,7 +32,7 @@ const cmd_table s_ATTimeoutTable[] = {
         {AT_CMD_STR("ATH"), 40},
         {AT_CMD_STR("AT+CLCC"), 5},
         {AT_CMD_STR("AT+SFUN=2"),300},
-        {AT_CMD_STR("AT+SFUN=4"), 120},
+        {AT_CMD_STR("AT+SFUN=4"), 180},
         {AT_CMD_STR("AT+CTZR"), 5},
         {AT_CMD_STR("AT+CGSN"), 5},
         {AT_CMD_STR("AT+CIMI"), 5},

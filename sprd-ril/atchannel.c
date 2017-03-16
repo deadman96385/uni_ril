@@ -889,7 +889,8 @@ static int at_send_command_full(struct ATChannels *ATch,
         RLOGE("After %lld s, channel%d %s timeout, timeout AT number: %d",
                 (timeoutMsec / 1000), ATch->channelID, command,
                 s_atTimeoutCount[ATch->channelID]);
-        if (s_atTimeoutCount[ATch->channelID] > BLOCKED_MAX_COUNT) {
+        if (s_atTimeoutCount[ATch->channelID] > BLOCKED_MAX_COUNT ||
+                strcmp(command, "AT+SFUN=4") == 0) {
             s_atTimeoutCount[ATch->channelID] = 0;
             char blockStr[ARRAY_SIZE];
             snprintf(blockStr, sizeof(blockStr), "%s", "Modem Blocked");
