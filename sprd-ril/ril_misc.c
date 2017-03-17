@@ -246,7 +246,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         at_send_command(s_ATChannels[channelID], "AT+CGREG=1", NULL);
 
         if (isVoLteEnable()) {
-            at_send_command(s_ATChannels[channelID], "AT+CIREG=0", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+CIREG=1", NULL);
         }
         if (isExistActivePdp() && !strcmp(prop, "0")) {
             at_send_command(s_ATChannels[channelID], "AT*FDY=1,2", NULL);
