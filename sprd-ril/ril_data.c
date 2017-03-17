@@ -20,6 +20,7 @@
 #define DDR_STATUS_PROP         "persist.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.sys.pdp.reuse"
 
+int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
@@ -29,7 +30,6 @@ static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
 static int s_autoDetach = 1;  /* whether support auto detach */
-int failCount = 0;
 
 PDP_INFO pdp_info[MAX_PDP_NUM];
 pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -2056,16 +2056,16 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           s_PSRegState[socket_id]);
                     if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
                         requestSetupDataCall(channelID, data, datalen, t);
-                        failCount = 0;
+                        s_failCount = 0;
                     } else {
                         if (s_modemConfig != LWG_LWG &&
                                 s_multiModeSim != socket_id) {
                             requestSetupDataCall(channelID, data, datalen, t);
                         } else {
-                            if (failCount < 5) {
+                            if (s_failCount < 5) {
                                 s_lastPDPFailCause[socket_id] =
                                         PDP_FAIL_ERROR_UNSPECIFIED;
-                                failCount++;
+                                s_failCount++;
                             } else {
                                 s_lastPDPFailCause[socket_id] =
                                         PDP_FAIL_SERVICE_OPTION_NOT_SUPPORTED;

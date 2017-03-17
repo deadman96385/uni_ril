@@ -1701,11 +1701,9 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: {
             int err;
-            int response;
-            char cmd[512] = {0};
+            char cmd[AT_COMMAND_LEN * 4] = {0};
             const char **strings = (const char **)data;
             ATResponse *p_response = NULL;
-            RLOGD("RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO datalen = \"%d\"", datalen);
 
             if (datalen > 0 && strings[0] != NULL && strlen(strings[0]) > 0) {
                 memset(cmd, 0, sizeof(cmd));
@@ -1720,16 +1718,16 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY:{
             p_response = NULL;
             int response = 0;
-            err = at_send_command_singleline(s_ATChannels[channelID], "AT+CISRVCC?",
-                    "+CISRVCC:", &p_response);
+
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                    "AT+CISRVCC?", "+CISRVCC:", &p_response);
             if (err >= 0 && p_response->success) {
                 char *line = p_response->p_intermediates->line;
                 err = at_tok_start(&line);
-                if (err == 0){
+                if (err == 0) {
                     err = at_tok_nextint(&line, &response);
                 }
-                RLOGD("RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY:%d",response);
-                if(err >= 0){
+                if (err >= 0) {
                     RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
                             sizeof(response));
                 } else {
@@ -1929,8 +1927,8 @@ void sendCSCallStateChanged(void *param) {
 
 void sendIMSCallStateChanged(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, NULL, 0,
-                              socket_id);
+    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, NULL,
+                              0, socket_id);
 }
 
 void queryEccNetworkList(void *param) {

@@ -2642,6 +2642,10 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
         MUTEX_RELEASE(s_operatorInfoListMutex);
         addToOperatorInfoList(plmn, operatorName);
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+
+        RIL_onUnsolicitedResponse(
+                RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+                NULL, 0, socket_id);
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
