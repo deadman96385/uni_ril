@@ -904,7 +904,7 @@ static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
             index + 1, apn);
     err = cgdcont_set_cmd_req(cmd, newCmd);
     if (err == 0) {
-        err = at_send_command(s_ATChannels[channelID], newCmd, NULL);
+        err = at_send_command(s_ATChannels[channelID], newCmd, &p_response);
     }
     if (err < 0 || p_response->success == 0) {
         s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
@@ -1812,6 +1812,10 @@ static void requestDataCallList(int channelID, void *data, size_t datalen,
 
 static void doDetachGPRS(RIL_SOCKET_ID socket_id, void *data, size_t datalen,
                          RIL_Token t) {
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
     int detachChannelID = getChannel(socket_id);
     RLOGD("doDetachGPRS socket_id = %d", socket_id);
     detachGPRS(detachChannelID, data, datalen, t);
@@ -1998,7 +2002,7 @@ void cleanUpAllConnections() {
     char cmd[AT_COMMAND_LEN];
 
     s_defaultDataId = getDefaultDataCardId();
-    if (s_defaultDataId < 0) {
+    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
         RLOGD("there is no active data connections!");
         return;
     }
@@ -2015,7 +2019,7 @@ void cleanUpAllConnections() {
 }
 
 void activeAllConnections() {
-    if (s_defaultDataId < 0) {
+    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
         return;
     }
 
@@ -2263,6 +2267,10 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
 static void onDataCallListChanged(void *param) {
     int channelID;
     CallbackPara *cbPara = (CallbackPara *)param;
+    if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", cbPara->socket_id);
+        return;
+    }
     channelID = getChannel(cbPara->socket_id);
     if (cbPara->para == NULL) {
         requestOrSendDataCallList(channelID, -1, NULL);
@@ -2284,7 +2292,12 @@ static void startGSPS(void *param) {
     int err;
     char cmd[AT_COMMAND_LEN];
     ATResponse *p_response = NULL;
+
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
 
     RLOGD("startGSPS cid  %d, eth state: %d", s_GSCid, s_ethOnOff);
     channelID = getChannel(socket_id);
@@ -2318,7 +2331,14 @@ static void queryVideoCid(void *param) {
     char *line = NULL, *p = NULL;
     ATResponse *p_response = NULL;
     CallbackPara *cbPara = (CallbackPara *)param;
+
     RIL_SOCKET_ID socket_id = cbPara->socket_id;
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        FREEMEMORY(cbPara->para);
+        FREEMEMORY(cbPara);
+        return;
+    }
 
     channelID = getChannel(socket_id);
     cid = *((int *)(cbPara->para));

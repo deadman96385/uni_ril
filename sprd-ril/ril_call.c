@@ -1837,6 +1837,13 @@ static void dialEmergencyWhileCallFailed(void *param) {
         char eccNumber[ARRAY_SIZE] = {0};
         int channelID;
         CallbackPara *cbPara = (CallbackPara *)param;
+        if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+            RLOGE("Invalid socket_id %d", cbPara->socket_id);
+            FREEMEMORY(cbPara->para);
+            FREEMEMORY(cbPara);
+            return;
+        }
+
         RIL_Dial *p_dial = (RIL_Dial *)calloc(1, sizeof(RIL_Dial));
 
         p_dial->address = cbPara->para;
@@ -1865,14 +1872,23 @@ static void redialWhileCallFailed(void *param) {
     if (param != NULL) {
         CallbackPara *cbPara = (CallbackPara *)param;
         char *number = cbPara->para;
+        if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+            RLOGE("Invalid socket_id %d", cbPara->socket_id);
+            FREEMEMORY(cbPara->para);
+            FREEMEMORY(cbPara);
+            return;
+        }
+
         RIL_Dial *p_dial = (RIL_Dial *)calloc(1, sizeof(RIL_Dial));
 
         p_dial->address = number;
         p_dial->clir = 0;
         p_dial->uusInfo = NULL;
+
         int channelID = getChannel(cbPara->socket_id);
         requestDial(channelID, p_dial, sizeof(*p_dial), NULL);
         putChannel(channelID);
+
 
         free(p_dial->address);
         free(p_dial);
@@ -1882,6 +1898,10 @@ static void redialWhileCallFailed(void *param) {
 
 static void excuteSrvccPendingOperate(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
     if (s_srvccPendingRequest[socket_id] != NULL) {
         SrvccPendingRequest *request;
         ATResponse *p_response = NULL;
@@ -1937,9 +1957,14 @@ void queryEccNetworkList(void *param) {
     int category;
     int channelID;
     int err, cen2Num = 1;
-    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
     ATResponse *p_response = NULL;
     ATLine *p_cur = NULL;
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
 
     channelID = getChannel(socket_id);
     err = at_send_command_multiline(s_ATChannels[channelID], "AT+CEN?", "+CEN",
@@ -1999,8 +2024,12 @@ done:
 
 static void onDowngradeToVoice(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
     if (s_videoCallId[socket_id] == -1) {
-        RLOGD("onDowngradeToVoice cancel id: %d", s_videoCallId[socket_id]);
+        RLOGE("onDowngradeToVoice cancel id: %d", s_videoCallId[socket_id]);
         return;
     }
 
@@ -2025,7 +2054,10 @@ static void onDowngradeToVoice(void *param) {
 void onCallCSFallBackAccept(void *param) {
     int channelID;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
     channelID = getChannel(socket_id);
     at_send_command(s_ATChannels[channelID], "AT+SCSFB=1,1", NULL);
     putChannel(channelID);

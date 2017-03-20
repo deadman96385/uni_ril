@@ -209,6 +209,11 @@ static void getSIMStatusAgainForSimBusy(void *param) {
     int channelID;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     channelID = getChannel(socket_id);
 
     if (s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE) {
@@ -2270,6 +2275,11 @@ error:
 
 static void setSIMPowerOff(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     int channelID = getChannel(socket_id);
     pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
     requestSIMPower(channelID, 0, NULL);
@@ -2964,6 +2974,10 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
 static void onSimAbsent(void *param) {
     int channelID;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
 
     channelID = getChannel(socket_id);
     if (s_radioState[socket_id] == RADIO_STATE_SIM_NOT_READY ||
@@ -2979,6 +2993,10 @@ static void onSimAbsent(void *param) {
 static void onSimPresent(void *param) {
     int channelID;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
 
     channelID = getChannel(socket_id);
     if (isRadioOn(channelID) > 0) {

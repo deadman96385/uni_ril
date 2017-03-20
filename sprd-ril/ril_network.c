@@ -237,7 +237,12 @@ void *setRadioOnWhileSimBusy(void *param) {
     int channelID;
     int err;
     ATResponse *p_response = NULL;
+
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return NULL;
+    }
 
     RLOGD("SIM is busy now, please wait!");
     pthread_mutex_lock(&s_simBusy[socket_id].s_sim_busy_mutex);
@@ -2804,6 +2809,10 @@ int processNetworkRequests(int request, void *data, size_t datalen,
 
 static void radioPowerOnTimeout(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
     int channelID = getChannel(socket_id);
     setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
     putChannel(channelID);

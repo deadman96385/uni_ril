@@ -288,6 +288,11 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
     soc_id = socket_id;
 #endif
 
+    if ((int)soc_id < 0 || (int)soc_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", soc_id);
+        return;
+    }
+
     RIL_RadioState radioState = s_radioState[soc_id];
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
@@ -453,6 +458,13 @@ static void pollSIMState(void *param) {
     CallbackPara *pollSimStatePara = (CallbackPara *)param;
     RIL_SOCKET_ID socket_id = pollSimStatePara->socket_id;
 
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        free(pollSimStatePara->para);
+        free(pollSimStatePara);
+        return;
+    }
+
     if (s_radioState[socket_id] != RADIO_STATE_SIM_NOT_READY) {
         free(pollSimStatePara->para);
         free(pollSimStatePara);
@@ -611,7 +623,13 @@ static void initializeCallback(void *param) {
     ATResponse *p_response1 = NULL;
     int err;
     int channelID;
+
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     channelID = getChannel(socket_id);
     setRadioState(channelID, RADIO_STATE_OFF);
 
@@ -813,6 +831,11 @@ onUnsolicited(int channelID, const char *s, const char *sms_pdu) {
 
 /* Called on command or reader thread */
 static void onATReaderClosed(RIL_SOCKET_ID socket_id) {
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     int channel = 0;
     int channelID;
     int firstChannel, lastChannel;
@@ -838,6 +861,11 @@ static void onATReaderClosed(RIL_SOCKET_ID socket_id) {
 
 /* Called on command thread */
 static void onATTimeout(RIL_SOCKET_ID socket_id) {
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     int channel = 0;
     int channelID;
     int firstChannel, lastChannel;

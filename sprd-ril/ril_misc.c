@@ -128,6 +128,11 @@ static void onQuerySignalStrengthLTE(void *param) {
     RIL_SignalStrength_v6 response_v6;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     int channelID = getChannel(socket_id);
 
     RLOGE("query signal strength LTE when screen on");
@@ -198,6 +203,11 @@ static void onQuerySignalStrength(void *param) {
     ATResponse *p_newResponse = NULL;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+
     int channelID = getChannel(socket_id);
 
     RLOGE("query signal strength when screen on");
