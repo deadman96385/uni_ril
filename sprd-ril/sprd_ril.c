@@ -344,6 +344,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE ||
                  request == RIL_REQUEST_SHUTDOWN ||
                  request == RIL_REQUEST_SIM_AUTHENTICATION ||
+                 request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
+                 request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
