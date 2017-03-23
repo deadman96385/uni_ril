@@ -983,7 +983,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
     if (s_desiredRadioState[socket_id] == 0) {
-        int sim_status = getSIMStatus(channelID);
+        int sim_status = getSIMStatus(false, channelID);
 
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],

@@ -6815,7 +6815,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_STOP_QUERY_NETWORK: return "STOP_QUERY_NETWORK";
         case RIL_EXT_REQUEST_FORCE_DETACH: return "FORCE_DETACH";
         case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: return "GET_HD_VOICE_STATE";
-        case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
+        case RIL_EXT_REQUEST_SIMMGR_SIM_POWER: return "SIMMGR_SIM_POWER";
         case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: return "ENABLE_RAU_NOTIFY";
         case RIL_EXT_REQUEST_SET_COLP: return "SET_COLP";
         case RIL_EXT_REQUEST_GET_DEFAULT_NAN: return "GET_DEFAULT_NAN";
@@ -6838,6 +6838,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
         case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
         case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: return "UPDATE_OPERATOR_NAME";
+        case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: return "SIMMGR_GET_SIM_STATUS";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
