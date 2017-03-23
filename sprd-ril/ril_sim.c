@@ -318,7 +318,7 @@ void decryptPin(char *pin, unsigned char encryptedPin[17]) {
 }
 
 /* Returns SIM_NOT_READY on error */
-SimStatus getSIMStatus(int channelID) {
+SimStatus getSIMStatus(int request, int channelID) {
     ATResponse *p_response = NULL;
     int err;
     int ret = SIM_NOT_READY;
@@ -456,7 +456,8 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT) {
-        if (s_simEnabled[socket_id] == 0) {
+        if (request != RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS &&
+                s_simEnabled[socket_id] == 0) {
             ret = SIM_ABSENT;
         }
     }
@@ -542,7 +543,8 @@ error:
  * This must be freed using freeCardStatus.
  * @return: On success returns RIL_E_SUCCESS
  */
-static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
+static int getCardStatus(int request, int channelID,
+                         RIL_CardStatus_v6 **pp_card_status) {
     static RIL_AppStatus app_status_array[] = {
         // SIM_ABSENT = 0
         {RIL_APPTYPE_UNKNOWN, RIL_APPSTATE_UNKNOWN, RIL_PERSOSUBSTATE_UNKNOWN,
@@ -626,10 +628,10 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
     int sim_status;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (s_simEnabled[socket_id] == 0) {
+    if (request == RIL_REQUEST_GET_SIM_STATUS && s_simEnabled[socket_id] == 0) {
         sim_status = SIM_ABSENT;
     } else {
-        sim_status = getSIMStatus(channelID);
+        sim_status = getSIMStatus(request, channelID);
     }
 
     if (sim_status == SIM_ABSENT) {
@@ -895,7 +897,7 @@ out:
         }
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &remaintime,
                 sizeof(remaintime));
-        simstatus = getSIMStatus(channelID);
+        simstatus = getSIMStatus(-1, channelID);
         if (simstatus == SIM_READY &&
             s_radioState[socket_id] == RADIO_STATE_ON) {
             setRadioState(channelID, RADIO_STATE_SIM_READY);
@@ -976,7 +978,7 @@ static void requestEnterSimPuk2(int channelID, void *data, size_t datalen,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     at_response_free(p_response);
 
-    simstatus = getSIMStatus(channelID);
+    simstatus = getSIMStatus(-1, channelID);
     RLOGD("simstatus = %d, radioStatus = %d", simstatus,
           s_radioState[socket_id]);
     if (simstatus == SIM_READY  && s_radioState[socket_id] == RADIO_STATE_ON) {
@@ -2725,14 +2727,15 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
     ATResponse *p_response = NULL;
 
     switch (request) {
-        case RIL_REQUEST_GET_SIM_STATUS: {
+        case RIL_REQUEST_GET_SIM_STATUS:
+        case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: {
             RIL_CardStatus_v6 *p_card_status;
             char *p_buffer;
             int buffer_size;
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
             sem_wait(&(s_sem[socket_id]));
-            int result = getCardStatus(channelID, &p_card_status);
+            int result = getCardStatus(request, channelID, &p_card_status);
             sem_post(&(s_sem[socket_id]));
 
             if (result == RIL_E_SUCCESS) {
@@ -2860,7 +2863,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
-        case RIL_EXT_REQUEST_SIM_POWER:
+        case RIL_EXT_REQUEST_SIMMGR_SIM_POWER:
             notifySIMStatus(channelID, data, t);
             break;
         /* }@ */
