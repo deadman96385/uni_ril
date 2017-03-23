@@ -101,6 +101,8 @@ pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
 #endif
         };
 pthread_mutex_t s_operatorInfoListMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t s_signalProcessMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_signalProcessCond = PTHREAD_COND_INITIALIZER;
 
 int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 int s_imsBearerEstablished[SIM_COUNT];
@@ -1377,6 +1379,7 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     property_get(ENGTEST_ENABLE_PROP, prop, "false");
+    RLOGD("ENGTEST_ENABLE_PROP is %s", prop);
 
     pthread_mutex_lock(&s_workModeMutex);
     if (0 == strcmp(prop, "true")) {  // request by engineer mode
@@ -1726,6 +1729,7 @@ static void requestGetLTEPreferredNetType(int channelID,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     property_get(ENGTEST_ENABLE_PROP, prop, "false");
+    RLOGD("ENGTEST_ENABLE_PROP is %s", prop);
 
     if (0 == strcmp(prop, "true")) {  // request by engineer mode
         switch (s_workMode[socket_id]) {
@@ -2824,7 +2828,6 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
     if (strStartsWith(s, "+CSQ:")) {
         if (s_isLTE) {
-            RLOGD("for +CSQ, current is lte ril,do nothing");
             goto out;
         }
 
@@ -2834,6 +2837,10 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         line = strdup(s);
         tmp = line;
+
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
 
         err = csq_unsol_rsp(tmp, socket_id, newLine);
         if (err == 0) {
@@ -2854,8 +2861,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                                       sizeof(RIL_SignalStrength_v6), socket_id);
         }
     } else if (strStartsWith(s, "+CESQ:")) {
-        if (!strcmp(s_modem, "t")) {
-            RLOGD("for +CESQ, current is td ril, do nothing");
+        if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
             goto out;
         }
 
@@ -2867,6 +2873,10 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         line = strdup(s);
         tmp = line;
+
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
 
         err = cesq_unsol_rsp(tmp, socket_id, newLine);
         if (err == 0) {
@@ -3172,6 +3182,7 @@ void *signal_process() {
     int rsrp_value, rscp_value, rxlev_value;
     // 3 means count 2G/3G/4G
     int nosigUpdate[SIM_COUNT], MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
+    int noSigChange = 0;  // numbers of SIM cards with constant signal value
 
     memset(sample_rsrp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
     memset(sample_rscp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
@@ -3183,6 +3194,7 @@ void *signal_process() {
     }
 
     while (1) {
+        noSigChange = 0;
         for (sim_index = 0; sim_index < SIM_COUNT; sim_index++) {
             // compute the rsrp(4G) rscp(3G) rxlev(2G) or rssi(CSQ)
             if (!s_isLTE) {
@@ -3245,6 +3257,7 @@ void *signal_process() {
             }
 
             if (nosigUpdate[sim_index] == MAXSigCount) {
+                noSigChange++;
                 continue;
             }
 
@@ -3329,17 +3342,26 @@ void *signal_process() {
                 if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
                     response_v6.LTE_SignalStrength.rsrp = response[5];
                 }
+                RLOGD("rxlev[%d]=%d, rscp[%d]=%d, rsrp[%d]=%d", sim_index,
+                     rxlev_value, sim_index, rscp_value, sim_index, rsrp_value);
                 RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
                         &response_v6, sizeof(RIL_SignalStrength_v6), sim_index);
             } else {  // w/t
                 RIL_SignalStrength_v6 responseV6;
+                RIL_SIGNALSTRENGTH_INIT(responseV6);
                 responseV6.GW_SignalStrength.signalStrength = rscp_value;
                 responseV6.GW_SignalStrength.bitErrorRate = ber[sim_index];
+                RLOGD("rssi[%d]=%d", sim_index, rscp_value);
                 RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
                         &responseV6, sizeof(RIL_SignalStrength_v6), sim_index);
             }
         }
         sleep(1);
+        if ((noSigChange == SIM_COUNT) || (s_screenState == 0)) {
+            pthread_mutex_lock(&s_signalProcessMutex);
+            pthread_cond_wait(&s_signalProcessCond, &s_signalProcessMutex);
+            pthread_mutex_unlock(&s_signalProcessMutex);
+        }
     }
     return NULL;
 }

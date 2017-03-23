@@ -3560,6 +3560,9 @@ static int responseRilSignalStrength(Parcel &p,
         responseRilSignalStrengthV10(p, p_cur);
     }
     startResponse;
+    appendPrintBuf("%ssignalStrength = %d, LTE_SS.rsrp = %d", printBuf,
+                    p_cur->GW_SignalStrength.signalStrength,
+                    p_cur->LTE_SignalStrength.rsrp);
     closeResponse;
     return 0;
 }
