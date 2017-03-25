@@ -3030,17 +3030,21 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                         s_simState[socket_id] = SIM_DROP;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
+                        // sim hot plug out and set stk to not enable
+                        s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 34) {  // sim removed
                         s_simState[socket_id] = SIM_REMOVE;
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
+                        // sim hot plug out and set stk to not enable
+                        s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 1 || cause == 7) {  // no sim card
                         RIL_onUnsolicitedResponse(
                                 RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
                                 socket_id);
+                        // sim hot plug out and set stk to not enable
+                        s_stkServiceRunning[socket_id] = false;
                     }
-                    // sim hot plug out and set stk to not enable
-                    s_stkServiceRunning[socket_id] = false;
                 }
             } else if (value == 100 || value == 4) {
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
