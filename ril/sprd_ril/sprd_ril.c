@@ -6311,7 +6311,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
             at_send_command(ATch_type[channelID], "AT+CIREG=0", NULL);
         }
         if(isExistActivePdp() && !strcmp(prop, "0")){
-            at_send_command(ATch_type[channelID], "AT*FDY=1,2", NULL);
+            at_send_command(ATch_type[channelID], "AT*FDY=1,3", NULL);
         }
     } else {
         /* Resume */
@@ -6334,7 +6334,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
                             &response, sizeof(response));
         }
         if(isExistActivePdp() && !strcmp(prop, "0")){
-            at_send_command(ATch_type[channelID], "AT*FDY=1,5", NULL);
+            at_send_command(ATch_type[channelID], "AT*FDY=1,15", NULL);
         }
 
         if (sState == RADIO_STATE_SIM_READY) {
