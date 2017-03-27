@@ -63,7 +63,6 @@ static int s_singlePDNAllowed[SIM_COUNT] = {
 #endif
 #endif
 };
-
 struct PDPInfo s_PDP[MAX_PDP] = {
     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
@@ -1419,9 +1418,11 @@ static void updateAdditionBusinessCid(int channelID) {
         strncpy(ipv6, "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
                 sizeof("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"));
     }
+    if (s_isLTE) {
+        snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"", cidIndex + 1,
+              ipv4, ipv6);
+    }
 
-    snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"", cidIndex + 1, ipv4,
-              ipv6);
     RLOGD("Addition business cmd = %s", cmd);
     at_send_command(s_ATChannels[channelID], cmd, NULL);
     s_addedIPCid = cidIndex + 1;
@@ -1464,9 +1465,6 @@ done:
     putPDP(secondaryCid - 1);
     putPDP(cid - 1);
     at_response_free(p_response);
-    if (islte && cid == s_addedIPCid) {
-        updateAdditionBusinessCid(channelID);
-    }
     // for ddr, power consumption
     if (isVoLteEnable() && !isExistActivePdp()) {
         property_get(DDR_STATUS_PROP, prop, "0");
@@ -2140,6 +2138,27 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         /* }@ */
         case RIL_EXT_REQUEST_SET_SINGLE_PDN: {
             s_singlePDNAllowed[socket_id] = ((int *)data)[0];
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_XCAP_IP_ADDR: {
+            char* index = ((char **)data)[0];
+            char* ipv4 = ((char **)data)[1];
+            char* ipv6 = ((char **)data)[2];
+            RLOGD("index = %s", index);
+            /* send IP for volte addtional business */
+            if (s_isLTE && index != NULL) {
+                char cmd[AT_COMMAND_LEN] = {0};
+                if (ipv4 == NULL || strlen(ipv4) <= 0) {
+                    ipv4 = "0.0.0.0";
+                }
+                if (ipv6 == NULL || strlen(ipv6) <= 0) {
+                    ipv6 = "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF";
+                }
+                snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"",
+                          atoi(index) + 1, ipv4, ipv6);
+                at_send_command(s_ATChannels[channelID], cmd, NULL);
+            }
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }

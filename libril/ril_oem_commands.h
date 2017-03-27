@@ -39,3 +39,5 @@
     {RIL_EXT_REQUEST_QUERY_COLR, dispatchVoid, responseInts},
     {RIL_EXT_REQUEST_MMI_ENTER_SIM, dispatchString, responseVoid},
     {RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME, dispatchString, responseVoid},
+    {RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS, dispatchVoid, responseSimStatus},
+    {RIL_EXT_REQUEST_SET_XCAP_IP_ADDR, dispatchStrings, responseVoid},
