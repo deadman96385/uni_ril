@@ -6650,6 +6650,9 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_COLP: return "QUERY_COLP";
         case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
         case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: return "UPDATE_OPERATOR_NAME";
+        case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: return "SIMMGR_GET_SIM_STATUS";
+        case RIL_EXT_REQUEST_SET_XCAP_IP_ADDR: return "SET_XCAP_IP_ADDR";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
