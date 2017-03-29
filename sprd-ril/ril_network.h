@@ -164,4 +164,5 @@ uint64_t ril_nano_time();
 
 void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp);
 
+void initPrimarySim();
 #endif  // RIL_NETWORK_H_

@@ -2208,12 +2208,37 @@ static void requestShutdown(int channelID,
     return;
 }
 
+void initPrimarySim() {
+    char prop[PROPERTY_VALUE_MAX];
+    char numToStr[ARRAY_SIZE];
+    int simId;
+
+    property_get(PRIMARY_SIM_PROP, prop, "0");
+    s_multiModeSim = atoi(prop);
+
+#if (SIM_COUNT == 2)
+    if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
+        for (simId = 0; simId < SIM_COUNT; simId++) {
+            getProperty(simId, MODEM_WORKMODE_PROP, prop, "");
+            if (strcmp(prop, "10") == 0 && s_multiModeSim == simId) {
+                s_multiModeSim = 1 - simId;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
+        }
+    }
+#endif
+
+    RLOGD("s_multiModeSim: %d", s_multiModeSim);
+}
+
 static void requestGetRadioCapability(int channelID, void *data,
                                            size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    initPrimarySim();
     RIL_RadioCapability *rc = (RIL_RadioCapability *)calloc(1,
             sizeof(RIL_RadioCapability));
     rc->version = RIL_RADIO_CAPABILITY_VERSION;
@@ -2221,6 +2246,7 @@ static void requestGetRadioCapability(int channelID, void *data,
     rc->phase = RC_PHASE_CONFIGURED;
     rc->rat = getRadioFeatures(socket_id, 0);
     rc->status = RC_STATUS_NONE;
+
     if (socket_id == s_multiModeSim) {
         strncpy(rc->logicalModemUuid, "com.sprd.modem_multiMode",
                 sizeof("com.sprd.modem_multiMode"));
@@ -2480,6 +2506,7 @@ static void requestSetRadioCapability(int channelID, void *data,
             for (simId = 0; simId < SIM_COUNT; simId++) {
                 s_requestSetRC[simId] = 0;
             }
+            initPrimarySim();
             if (s_isLTE) {
 #if (SIM_COUNT == 2)
                 pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);

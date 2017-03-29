@@ -467,6 +467,10 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT) {
+        char simEnabledProp[PROPERTY_VALUE_MAX];
+        getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+        s_simEnabled[socket_id] = atoi(simEnabledProp);
+
         if (s_simEnabled[socket_id] == 0) {
             ret = SIM_ABSENT;
         }

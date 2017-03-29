@@ -998,23 +998,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_modemConfig = getModemConfig();
 
     initSIMVariables();
-
-    property_get(PRIMARY_SIM_PROP, prop, "0");
-    s_multiModeSim = atoi(prop);
-
-#if (SIM_COUNT == 2)
-    if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
-        for (simId = 0; simId < SIM_COUNT; simId++) {
-            getProperty(simId, MODEM_WORKMODE_PROP, prop, "");
-            if (strcmp(prop, "10") == 0) {
-                s_multiModeSim = 1 - simId;
-            }
-        }
-    }
-#endif
-
-    RLOGD("rild connect %s modem, SIM_COUNT: %d, s_multiModeSim: %d",
-            s_modem, SIM_COUNT, s_multiModeSim);
+    initPrimarySim();
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
