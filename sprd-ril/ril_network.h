@@ -177,4 +177,5 @@ int csq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 /* for +CESQ: unsol response process */
 int cesq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 
+void initPrimarySim();
 #endif  // RIL_NETWORK_H_
