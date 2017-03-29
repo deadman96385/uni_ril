@@ -49,6 +49,9 @@
 #include <cutils/properties.h>
 #include <RilSapSocket.h>
 
+int s_multiModeSim = 0;
+int s_simEnabled[SIM_COUNT];
+
 extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                                        void *response, size_t responselen);
 
@@ -73,6 +76,11 @@ namespace android {
 #define ANDROID_WAKE_LOCK_USECS 200000
 
 #define PROPERTY_RIL_IMPL "gsm.version.ril-impl"
+
+#define SIM_ENABLED_PROP        "persist.radio.sim_enabled"
+#define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
+#define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
+#define MODEM_CONFIG_PROP       "persist.radio.modem.config"
 
 // match with constant in RIL.java
 #define MAX_COMMAND_BYTES (8 * 1024)
@@ -169,6 +177,13 @@ extern "C" const char *failCauseToString(RIL_Errno);
 extern "C" const char *callStateToString(RIL_CallState);
 extern "C" const char *radioStateToString(RIL_RadioState);
 extern "C" const char *rilSocketIdToString(RIL_SOCKET_ID socket_id);
+
+extern "C" void getProperty(RIL_SOCKET_ID socket_id, const char *property,
+                            char *value, const char *defaultVal);
+extern "C" void setProperty(RIL_SOCKET_ID socket_id, const char *property,
+                            const char *value);
+void initSIMVariables();
+void initPrimarySim();
 
 extern "C" char rild[MAX_SOCKET_NAME_LENGTH] = SOCKET_NAME_RIL;
 
@@ -4905,6 +4920,10 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
 }
 
 static void onNewCommandConnect(RIL_SOCKET_ID socket_id) {
+    // Init Variables
+    initSIMVariables();
+    initPrimarySim();
+
     // Inform we are connected and the ril version
     int rilVer = s_callbacks.version;
     RIL_UNSOL_RESPONSE(RIL_UNSOL_RIL_CONNECTED,
@@ -6823,6 +6842,123 @@ static bool isDebuggable() {
     return false;
 }
 
+void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
+                   const char *defaultVal) {
+    int simId = 0;
+    char prop[PROPERTY_VALUE_MAX];
+    int len = property_get(property, prop, "");
+    char *p[RIL_SOCKET_NUM];
+    char *buf = prop;
+    char *ptr = NULL;
+    RLOGD("get sim%d [%s] property: %s", socket_id, property, prop);
+
+    if (value == NULL) {
+        RLOGE("The memory to save prop is NULL!");
+        return;
+    }
+
+    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
+    if (len > 0) {
+        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
+            ptr = strsep(&buf, ",");
+            p[simId] = ptr;
+        }
+
+        if (socket_id >= RIL_SOCKET_1 && socket_id < RIL_SOCKET_NUM &&
+                (p[socket_id] != NULL) && strcmp(p[socket_id], "")) {
+            memcpy(value, p[socket_id], strlen(p[socket_id]) + 1);
+            return;
+        }
+    }
+
+    if (defaultVal != NULL) {
+        len = strlen(defaultVal);
+        memcpy(value, defaultVal, len);
+        value[len] = '\0';
+    }
+}
+
+void setProperty(RIL_SOCKET_ID socket_id, const char *property,
+                   const char *value) {
+    char prop[PROPERTY_VALUE_MAX];
+    char propVal[PROPERTY_VALUE_MAX];
+    int len = property_get(property, prop, "");
+    int i, simId = 0;
+    char *p[RIL_SOCKET_NUM];
+    char *buf = prop;
+    char *ptr = NULL;
+
+    if (socket_id < RIL_SOCKET_1 || socket_id >= RIL_SOCKET_NUM) {
+        RLOGE("setProperty: invalid socket id = %d, property = %s",
+                socket_id, property);
+        return;
+    }
+
+    RLOGD("set sim%d [%s] property: %s", socket_id, property, value);
+    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
+    if (len > 0) {
+        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
+            ptr = strsep(&buf, ",");
+            p[simId] = ptr;
+        }
+    }
+
+    memset(propVal, 0, sizeof(propVal));
+    for (i = 0; i < (int)socket_id; i++) {
+        if (p[i] != NULL) {
+            strncat(propVal, p[i], strlen(p[i]));
+        }
+        strncat(propVal, ",", 1);
+    }
+
+    if (value != NULL) {
+        strncat(propVal, value, strlen(value));
+    }
+
+    for (i = socket_id + 1; i < RIL_SOCKET_NUM; i++) {
+        strncat(propVal, ",", 1);
+        if (p[i] != NULL) {
+            strncat(propVal, p[i], strlen(p[i]));
+        }
+    }
+
+    property_set(property, propVal);
+}
+
+void initSIMVariables() {
+    int simId;
+    char prop[PROPERTY_VALUE_MAX];
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        memset(prop, 0, sizeof(prop));
+        getProperty((RIL_SOCKET_ID)simId, SIM_ENABLED_PROP, prop, "1");
+        s_simEnabled[simId] = atoi(prop);
+    }
+}
+
+void initPrimarySim() {
+    char prop[PROPERTY_VALUE_MAX];
+    char numToStr[128];
+    int simId;
+
+    property_get(PRIMARY_SIM_PROP, prop, "0");
+    s_multiModeSim = atoi(prop);
+
+#if (SIM_COUNT == 2)
+    property_get(MODEM_CONFIG_PROP, prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") || strcmp(prop, "TL_LF_TD_W_G,W_G")) {
+        for (simId = 0; simId < SIM_COUNT; simId++) {
+            getProperty((RIL_SOCKET_ID)simId, MODEM_WORKMODE_PROP, prop, "");
+            if (strcmp(prop, "10") == 0 && s_multiModeSim == simId) {
+                s_multiModeSim = 1 - simId;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
+        }
+    }
+#endif
+
+    RLOGD("initPrimarySim: s_multiModeSim = %d", s_multiModeSim);
+}
 } /* namespace android */
 
 void rilEventAddWakeup_helper(struct ril_event *ev) {

@@ -87,6 +87,7 @@ typedef struct {
 extern bool s_isLTE;
 extern int s_modemConfig;
 extern int s_multiModeSim;
+extern int s_simEnabled[SIM_COUNT];
 extern sem_t s_sem[SIM_COUNT];
 extern RIL_RadioState s_radioState[SIM_COUNT];
 extern const RIL_SOCKET_ID s_socketId[SIM_COUNT];
@@ -106,9 +107,9 @@ int getChannel(RIL_SOCKET_ID socket_id);
 RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
 RIL_RadioState getRadioState(RIL_SOCKET_ID socket_id);
 void setRadioState(int channelID, RIL_RadioState newState);
-void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
-                   const char *defaultVal);
-void setProperty(RIL_SOCKET_ID socket_id, const char *property,
-                   const char *value);
+extern void getProperty(RIL_SOCKET_ID socket_id, const char *property,
+                            char *value, const char *defaultVal);
+extern void setProperty(RIL_SOCKET_ID socket_id, const char *property,
+                            const char *value);
 
 #endif  // SPRD_RIL_H_
