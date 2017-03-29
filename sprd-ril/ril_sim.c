@@ -70,7 +70,6 @@
 
 #define PROP_RELIANCE_SIMLOCK_ENABLE "persist.sys.reliance.simlock"
 
-static int s_simEnabled[SIM_COUNT];
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
 static RIL_AppType s_appType[SIM_COUNT];
@@ -155,16 +154,6 @@ int s_sim_sessionId[SIM_COUNT] = {
 static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
 static int initISIM(int channelID);
-
-void initSIMVariables() {
-    int simId;
-    char prop[PROPERTY_VALUE_MAX];
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        memset(prop, 0, sizeof(prop));
-        getProperty(simId, SIM_ENABLED_PROP, prop, "1");
-        s_simEnabled[simId] = atoi(prop);
-    }
-}
 
 static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     int err, result;

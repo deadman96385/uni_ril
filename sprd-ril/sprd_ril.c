@@ -112,7 +112,7 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
 int s_modemConfig = 0;
-int s_multiModeSim = 0;
+
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
@@ -1010,24 +1010,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
 
-    initSIMVariables();
-
-    property_get(PRIMARY_SIM_PROP, prop, "0");
-    s_multiModeSim = atoi(prop);
-
-#if (SIM_COUNT == 2)
-    if (s_modemConfig == LWG_G || s_modemConfig == W_G) {
-        for (simId = 0; simId < SIM_COUNT; simId++) {
-            getProperty(simId, MODEM_WORKMODE_PROP, prop, "");
-            if (strcmp(prop, "10") == 0) {
-                s_multiModeSim = 1 - simId;
-            }
-        }
-    }
-#endif
-
-    RLOGD("rild connect %s modem, SIM_COUNT: %d, s_multiModeSim: %d",
-            s_modem, SIM_COUNT, s_multiModeSim);
+    RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -1161,87 +1144,4 @@ bool isCMCC(void) {
         return true;
     }
     return false;
-}
-
-void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
-                   const char *defaultVal) {
-    int simId = 0;
-    char prop[PROPERTY_VALUE_MAX];
-    int len = property_get(property, prop, "");
-    char *p[RIL_SOCKET_NUM];
-    char *buf = prop;
-    char *ptr = NULL;
-    RLOGD("get sim%d [%s] property: %s", socket_id, property, prop);
-
-    if (value == NULL) {
-        RLOGE("The memory to save prop is NULL!");
-        return;
-    }
-
-    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
-    if (len > 0) {
-        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
-            ptr = strsep(&buf, ",");
-            p[simId] = ptr;
-        }
-
-        if (socket_id >= RIL_SOCKET_1 && socket_id < RIL_SOCKET_NUM &&
-                (p[socket_id] != NULL) && strcmp(p[socket_id], "")) {
-            memcpy(value, p[socket_id], strlen(p[socket_id]) + 1);
-            return;
-        }
-    }
-
-    if (defaultVal != NULL) {
-        len = strlen(defaultVal);
-        memcpy(value, defaultVal, len);
-        value[len] = '\0';
-    }
-}
-
-void setProperty(RIL_SOCKET_ID socket_id, const char *property,
-                   const char *value) {
-    char prop[PROPERTY_VALUE_MAX];
-    char propVal[PROPERTY_VALUE_MAX];
-    int len = property_get(property, prop, "");
-    int i, simId = 0;
-    char *p[RIL_SOCKET_NUM];
-    char *buf = prop;
-    char *ptr = NULL;
-
-    if (socket_id < RIL_SOCKET_1 || socket_id >= RIL_SOCKET_NUM) {
-        RLOGE("setProperty: invalid socket id = %d, property = %s",
-                socket_id, property);
-        return;
-    }
-
-    RLOGD("set sim%d [%s] property: %s", socket_id, property, value);
-    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
-    if (len > 0) {
-        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
-            ptr = strsep(&buf, ",");
-            p[simId] = ptr;
-        }
-    }
-
-    memset(propVal, 0, sizeof(propVal));
-    for (i = 0; i < (int)socket_id; i++) {
-        if (p[i] != NULL) {
-            strncat(propVal, p[i], strlen(p[i]));
-        }
-        strncat(propVal, ",", 1);
-    }
-
-    if (value != NULL) {
-        strncat(propVal, value, strlen(value));
-    }
-
-    for (i = socket_id + 1; i < RIL_SOCKET_NUM; i++) {
-        strncat(propVal, ",", 1);
-        if (p[i] != NULL) {
-            strncat(propVal, p[i], strlen(p[i]));
-        }
-    }
-
-    property_set(property, propVal);
 }
