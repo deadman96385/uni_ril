@@ -2990,11 +2990,8 @@ static void onSimPresent(void *param) {
     }
     putChannel(channelID);
 
-    if (s_radioState[socket_id] == RADIO_STATE_SIM_LOCKED_OR_ABSENT ||
-        s_radioState[socket_id] == RADIO_STATE_OFF) {
-        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL,
-                                  0, socket_id);
-    }
+    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL,
+                              0, socket_id);
 }
 
 static void onSimlockLocked(void *param) {
