@@ -1390,6 +1390,7 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
             at_send_command(s_ATChannels[channelID], "AT+SPVOOLTE=0", NULL);
         }
     }
+
 RETRY:
 
     if (datalen > 6 * sizeof(char *)) {
@@ -2618,6 +2619,19 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
         }
         RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD, (void *)&id, sizeof(int), socket_id);
+    }  else if (strStartsWith(s, "+SPEXPIREPDP:")) {
+        int card_id = 0;
+        char *tmp;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextint(&tmp, &card_id);
+        if (err < 0) {
+            RLOGD("%s fail", s);
+        }
+        if(card_id == socket_id){
+            RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SETUP_DATA_FOR_CP, NULL, 0, socket_id);
+        }
     } else {
         ret = 0;
     }

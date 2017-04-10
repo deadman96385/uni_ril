@@ -5991,7 +5991,8 @@ typedef struct {
 #define RIL_EXT_UNSOL_BAND_INFO                     (RIL_EXT_UNSOL_RESPONSE_BASE + 14)
 #define RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD           (RIL_EXT_UNSOL_RESPONSE_BASE + 15)
 #define RIL_EXT_UNSOL_SIM_PS_REJECT                 (RIL_EXT_UNSOL_RESPONSE_BASE + 16)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SIM_PS_REJECT
+#define RIL_EXT_UNSOL_SETUP_DATA_FOR_CP             (RIL_EXT_UNSOL_RESPONSE_BASE + 17)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SETUP_DATA_FOR_CP
 
 /*****************************************************************************/
 

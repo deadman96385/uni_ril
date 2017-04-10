@@ -6932,6 +6932,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD: return "UNSOL_SWITCH_PRIMARY_CARD";
         case RIL_EXT_UNSOL_SIM_PS_REJECT: return "UNSOL_SIM_PS_REJECT";
+        case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
         default: return "<unknown request>";
     }
 }
