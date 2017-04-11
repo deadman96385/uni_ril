@@ -2319,7 +2319,7 @@ static void requestGetRadioCapability(int channelID, void *data,
 void setWorkMode() {
     int workMode = 0;
     int singleModeSim = 0;
-    char numToStr[ARRAY_SIZE];
+    char numToStr[ARRAY_SIZE] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     int simId = 0;
 
@@ -2338,13 +2338,19 @@ void setWorkMode() {
     getProperty(singleModeSim, MODEM_WORKMODE_PROP, prop, "10");
     workMode = atoi(prop);
     s_workMode[s_multiModeSim] = workMode;
-    RLOGD("setRadioCapability multiMode is %d", s_workMode[s_multiModeSim]);
 
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        memset(numToStr, 0, sizeof(numToStr));
-        snprintf(numToStr, sizeof(numToStr), "%d", s_workMode[simId]);
-        setProperty(simId, MODEM_WORKMODE_PROP, numToStr);
-    }
+    memset(numToStr, 0, sizeof(numToStr));
+#if defined (ANDROID_MULTI_SIM)
+#if (SIM_COUNT == 2)
+    snprintf(numToStr, sizeof(numToStr), "%d,%d", s_workMode[RIL_SOCKET_1],
+            s_workMode[RIL_SOCKET_2]);
+#endif
+#else
+    snprintf(numToStr, sizeof(numToStr), "%d,10", s_workMode[RIL_SOCKET_1]);
+#endif
+
+    RLOGD("setWorkMode: %s", numToStr);
+    property_set(MODEM_WORKMODE_PROP, numToStr);
     pthread_mutex_unlock(&s_workModeMutex);
 }
 
