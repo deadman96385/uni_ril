@@ -2023,7 +2023,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
-            if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()) {
+            if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()
+            && s_dataAllowed[socket_id] == 1) {
                 if (s_isLTE) {
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
