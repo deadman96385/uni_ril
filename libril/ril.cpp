@@ -6945,7 +6945,7 @@ void initPrimarySim() {
 
 #if (SIM_COUNT == 2)
     property_get(MODEM_CONFIG_PROP, prop, "");
-    if (strcmp(prop, "TL_LF_TD_W_G,W_G") || strcmp(prop, "TL_LF_TD_W_G,W_G")) {
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") && strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G")) {
         for (simId = 0; simId < SIM_COUNT; simId++) {
             getProperty((RIL_SOCKET_ID)simId, MODEM_WORKMODE_PROP, prop, "");
             if (strcmp(prop, "10") == 0 && s_multiModeSim == simId) {
