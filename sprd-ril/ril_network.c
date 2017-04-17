@@ -952,6 +952,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     char sim_prop[PROPERTY_VALUE_MAX];
     char data_prop[PROPERTY_VALUE_MAX];
     char cmd[AT_COMMAND_LEN] = {0};
+    char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -977,6 +978,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
         initSIMPresentState();
+        getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+        if (strcmp(simEnabledProp, "0") == 0) {
+            RLOGE("sim enable false,radio power on failed");
+            goto error;
+        }
         buildWorkModeCmd(cmd, sizeof(cmd));
 
 #if (SIM_COUNT == 2)
