@@ -17,7 +17,6 @@
 /* Property to save pin for modem assert */
 #define SIM_PIN_PROP                            "ril.sim.pin"
 #define MODEM_ASSERT_PROP                       "ril.modem.assert"
-#define SIM_ENABLED_PROP                        "persist.radio.sim_enabled"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62

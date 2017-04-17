@@ -5042,6 +5042,7 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_EXT_REQUEST_VIDEOPHONE_DIAL
                     || pCI->requestNumber == RIL_EXT_REQUEST_SWITCH_MULTI_CALL
                     || pCI->requestNumber == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
+                    || pCI->requestNumber == RIL_EXT_REQUEST_SIMMGR_SIM_POWER
                     /* }@ */
                     ) {
                 list_add_tail(cmdList->callReqList, cmd_item, socket_id);
