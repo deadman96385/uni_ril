@@ -13595,13 +13595,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             RILLOGD("%s fail", s);
             goto out;
         }
-        if (SIM_RESET == result) {
-            RIL_requestTimedCallback (reopenSimCardAndProtocolStack, NULL, NULL);
-        }
-        else {
-            response->result = result;
-            RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response, sizeof(RIL_SimRefreshResponse_v7));
-        }
+        response->result = result;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response, sizeof(RIL_SimRefreshResponse_v7));
     } else if (strStartsWith(s, "+CSSI:")) {
         RIL_SuppSvcNotification *response = NULL;
         int code = 0;
