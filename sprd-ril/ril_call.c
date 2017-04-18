@@ -2004,11 +2004,11 @@ void sendIMSCallStateChanged(void *param) {
 }
 
 void queryEccNetworkList(void *param) {
-    char *number = NULL;
+    char *mcc = NULL, *number = NULL, *line = NULL;
     char eccNetList[2 * ARRAY_SIZE] = {0};
     int category;
     int channelID;
-    int err, cen2Num = 1;
+    int err;
     ATResponse *p_response = NULL;
     ATLine *p_cur = NULL;
 
@@ -2032,9 +2032,20 @@ void queryEccNetworkList(void *param) {
         goto done;
     }
 
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto done;
+    skipNextComma(&line);
+    err = at_tok_nextstr(&line, &mcc);
+    if (err < 0) {
+        RLOGE("%s get mcc fail", p_response->p_intermediates->line);
+        goto done;
+    }
+    snprintf(eccNetList, sizeof(eccNetList), "%s", mcc);
+
     for (p_cur = p_response->p_intermediates->p_next; p_cur != NULL;
-         p_cur = p_cur->p_next, cen2Num++) {
-        char *line = p_cur->line;
+         p_cur = p_cur->p_next) {
+        line = p_cur->line;
 
         err = at_tok_start(&line);
         if (err < 0) goto done;
@@ -2051,13 +2062,8 @@ void queryEccNetworkList(void *param) {
             goto done;
         }
 
-        if (cen2Num == 1) {
-            snprintf(eccNetList, sizeof(eccNetList), "%s@%d", number,
-                      category);
-        } else {
-            snprintf(eccNetList, sizeof(eccNetList), "%s,%s@%d", eccNetList,
-                      number, category);
-        }
+        snprintf(eccNetList, sizeof(eccNetList), "%s,%s@%d", eccNetList,
+                 number, category);
         RLOGD("queryEccNetworkList category:%d, number:%s, eccNetList:%s",
                category, number, eccNetList);
     }
@@ -2401,24 +2407,6 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (ret < 0) {
             RLOGE("Failed to create slow dispatch thread errno: %s",
                    strerror(errno));
-        }
-    } else if (strStartsWith(s, "+CEN2")) {
-        char *tmp;
-        char *number;
-        int category;
-
-        line = strdup(s);
-        tmp = line;
-        at_tok_start(&tmp);
-
-        err = at_tok_nextint(&tmp, &category);
-        if (err < 0) {
-            RLOGE("%s get cat fail", s);
-        }
-        err = at_tok_nextstr(&tmp, &number);
-        if (err < 0) {
-            RLOGE("%s fail", s);
-            goto out;
         }
     } else if (strStartsWith(s, "+CIREPH")) {
         int status;
