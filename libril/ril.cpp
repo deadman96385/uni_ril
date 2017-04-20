@@ -50,7 +50,6 @@
 #include <RilSapSocket.h>
 
 int s_multiModeSim = 0;
-int s_simEnabled[SIM_COUNT];
 
 extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                                        void *response, size_t responselen);
@@ -77,7 +76,6 @@ namespace android {
 
 #define PROPERTY_RIL_IMPL "gsm.version.ril-impl"
 
-#define SIM_ENABLED_PROP        "persist.radio.sim_enabled"
 #define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
@@ -182,7 +180,6 @@ extern "C" void getProperty(RIL_SOCKET_ID socket_id, const char *property,
                             char *value, const char *defaultVal);
 extern "C" void setProperty(RIL_SOCKET_ID socket_id, const char *property,
                             const char *value);
-void initSIMVariables();
 void initPrimarySim();
 
 extern "C" char rild[MAX_SOCKET_NAME_LENGTH] = SOCKET_NAME_RIL;
@@ -5104,7 +5101,6 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
 
 static void onNewCommandConnect(RIL_SOCKET_ID socket_id) {
     // Init Variables
-    initSIMVariables();
     initPrimarySim();
 
     // Inform we are connected and the ril version
@@ -7139,16 +7135,6 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
     }
 
     property_set(property, propVal);
-}
-
-void initSIMVariables() {
-    int simId;
-    char prop[PROPERTY_VALUE_MAX];
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        memset(prop, 0, sizeof(prop));
-        getProperty((RIL_SOCKET_ID)simId, SIM_ENABLED_PROP, prop, "1");
-        s_simEnabled[simId] = atoi(prop);
-    }
 }
 
 void initPrimarySim() {

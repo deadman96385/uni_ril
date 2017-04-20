@@ -17,6 +17,7 @@
 /* Property to save pin for modem assert */
 #define SIM_PIN_PROP                            "ril.sim.pin"
 #define MODEM_ASSERT_PROP                       "ril.modem.assert"
+#define SIM_ENABLED_PROP                        "persist.radio.sim_enabled"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -475,8 +476,10 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT) {
+        char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
+        getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
         if (request != RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS &&
-                s_simEnabled[socket_id] == 0) {
+                strcmp(simEnabledProp, "0") == 0) {
             ret = SIM_ABSENT;
         }
     }
@@ -652,8 +655,10 @@ static int getCardStatus(int request, int channelID,
     int num_apps;
     int sim_status;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
 
-    if (request == RIL_REQUEST_GET_SIM_STATUS && s_simEnabled[socket_id] == 0) {
+    getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+    if (request == RIL_REQUEST_GET_SIM_STATUS && strcmp(simEnabledProp, "0") == 0) {
         sim_status = SIM_ABSENT;
     } else {
         sim_status = getSIMStatus(request, channelID);
@@ -2210,8 +2215,6 @@ void notifySIMStatus(int channelID, void *data, RIL_Token t) {
     int onOff = ((int *)data)[0];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    s_simEnabled[socket_id] = onOff;
-
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
@@ -2223,8 +2226,6 @@ void requestSIMPower(int channelID, void *data, RIL_Token t) {
     int onOff = ((int *)data)[0];
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-    s_simEnabled[socket_id] = onOff;
 
     if (onOff == 0) {
         err = at_send_command(s_ATChannels[channelID], "AT+SPDISABLESIM=1",
