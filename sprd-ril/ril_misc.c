@@ -362,7 +362,7 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 
     int i, err;
     char *ATcmd = (char *)data;
-    char buf[ARRAY_SIZE * 8] = {0};
+    char buf[MAX_AT_RESPONSE] = {0};
     char *cmd;
     char *pdu;
     char *response[1] = {NULL};
