@@ -2052,8 +2052,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
-            if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()
-            && s_dataAllowed[socket_id] == 1) {
+            if (s_desiredRadioState[socket_id] > 0 && isAttachEnable()) {
                 if (s_isLTE) {
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
@@ -2062,7 +2061,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                         s_failCount = 0;
                     } else {
                         if (s_modemConfig != LWG_LWG &&
-                                s_multiModeSim != socket_id) {
+                                s_multiModeSim != socket_id && s_dataAllowed[socket_id] == 1) {
                             requestSetupDataCall(channelID, data, datalen, t);
                         } else {
                             if (s_failCount < 5) {
