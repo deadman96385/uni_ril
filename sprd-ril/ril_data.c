@@ -2020,7 +2020,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                         requestSetupDataCall(channelID, data, datalen, t);
                     } else {
                         if (s_modemConfig != LWG_LWG &&
-                                s_multiModeSim != socket_id) {
+                                s_multiModeSim != socket_id && s_dataAllowed[socket_id] == 1) {
                             requestSetupDataCall(channelID, data, datalen, t);
                         } else {
                             s_lastPDPFailCause[socket_id] =
