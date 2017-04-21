@@ -44,6 +44,7 @@
 
 #define AT_COMMAND_LEN      128
 #define ARRAY_SIZE          128  // cannot change the value
+#define MAX_AT_RESPONSE     0x1000
 
 #define NUM_ELEMS(x)        (sizeof(x) / sizeof(x[0]))
 #define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
