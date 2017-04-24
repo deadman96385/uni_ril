@@ -291,10 +291,13 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_GET_IMEI ||
           request == RIL_REQUEST_GET_IMEISV ||
           request == RIL_REQUEST_OEM_HOOK_STRINGS ||
-          request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
           request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
           request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
+          request == RIL_REQUEST_SIM_AUTHENTICATION ||
+          request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
+          request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
           request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
+          request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC ||
           request == RIL_REQUEST_SHUTDOWN ||
           request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
           request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY ||
@@ -335,7 +338,6 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_QUERY_FACILITY_LOCK ||
                  request == RIL_REQUEST_SET_FACILITY_LOCK ||
                  request == RIL_REQUEST_OEM_HOOK_STRINGS ||
-                 request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
                  request == RIL_REQUEST_SET_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_SET_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_ALLOW_DATA ||
@@ -345,7 +347,9 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SHUTDOWN ||
                  request == RIL_REQUEST_SIM_AUTHENTICATION ||
                  request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
+                 request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
                  request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
+                 request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
