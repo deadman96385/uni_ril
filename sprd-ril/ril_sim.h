@@ -44,6 +44,12 @@ typedef enum {
     SIM_SIMLOCK_FOREVER = EXT_SIM_STATUS_BASE + 10
 } SimStatus;
 
+typedef enum {
+    ABSENT = 0,
+    PRESENT = 1,
+    SIM_UNKNOWN = 2
+} SimPresentState;
+
 extern int s_imsInitISIM[SIM_COUNT];
 
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,

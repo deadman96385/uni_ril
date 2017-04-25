@@ -112,7 +112,6 @@ int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
 int s_sessionId[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
-bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
 
@@ -121,7 +120,7 @@ int rxlev[SIM_COUNT], ber[SIM_COUNT], rscp[SIM_COUNT];
 int ecno[SIM_COUNT], rsrq[SIM_COUNT], rsrp[SIM_COUNT];
 int rssi[SIM_COUNT], berr[SIM_COUNT];
 
-void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
+void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
     pthread_mutex_lock(&s_simPresentMutex);
     s_isSimPresent[socket_id] = hasSim;
@@ -140,6 +139,14 @@ int isSimPresent(RIL_SOCKET_ID socket_id) {
 
 void initSIMPresentState() {
     int simId = 0;
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        if (s_isSimPresent[simId] == SIM_UNKNOWN) {
+            RLOGD("s_isSimPresent unknown  %d", simId);
+            int channelID = getChannel(simId);
+            getSIMStatus(false, channelID);
+            putChannel(channelID);
+        }
+    }
     pthread_mutex_lock(&s_presentSIMCountMutex);
     s_presentSIMCount = 0;
     for (simId = 0; simId < SIM_COUNT; simId++) {

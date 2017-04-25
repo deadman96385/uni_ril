@@ -484,9 +484,9 @@ done:
     }
 
     if (ret == SIM_ABSENT) {
-        setSimPresent(socket_id, false);
+        setSimPresent(socket_id, ABSENT);
     } else {
-        setSimPresent(socket_id, true);
+        setSimPresent(socket_id, PRESENT);
     }
 
     /** SPRD: Bug 523208 set pin/puk remain times to prop. @{*/
@@ -2802,7 +2802,6 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             char *p_buffer;
             int buffer_size;
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
             sem_wait(&(s_sem[socket_id]));
             int result = getCardStatus(request, channelID, &p_card_status);
             sem_post(&(s_sem[socket_id]));

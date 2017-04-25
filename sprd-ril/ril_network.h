@@ -159,7 +159,7 @@ extern OperatorInfoList s_operatorInfoList;
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID);
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
-void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim);
+void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim);
 int isSimPresent(RIL_SOCKET_ID socket_id);
 uint64_t ril_nano_time();
 

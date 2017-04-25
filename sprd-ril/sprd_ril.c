@@ -117,7 +117,7 @@ sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
 bool s_isUserdebug = false;
 int s_modemConfig = 0;
-
+int s_isSimPresent[SIM_COUNT];
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
@@ -1075,7 +1075,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
-
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        s_isSimPresent[simId] = SIM_UNKNOWN;
+    }
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
 
     pthread_attr_init(&attr);
