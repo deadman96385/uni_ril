@@ -465,6 +465,7 @@ static RIL_RegState csRegState = RIL_REG_STATE_UNKNOWN;
 static RIL_RegState psRegState = RIL_REG_STATE_UNKNOWN;
 
 int trafficclass = 2; /* SPRD add */
+int failCount = 0;
 
 void *setRadioOnWhileSimBusy(void *param);
 static pthread_mutex_t s_hasSimBusyMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -9666,8 +9667,14 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 RILLOGD("RIL_REQUEST_SETUP_DATA_CALL testmode= %d, s_PSRegState = %d", s_testmode, s_PSRegState);
                 if (s_testmode == 10 || s_PSRegState == STATE_IN_SERVICE) {
                     requestSetupDataCall(channelID, data, datalen, t);
+                    failCount = 0;
                 } else {
-                    s_lastPdpFailCause = PDP_FAIL_SERVICE_OPTION_NOT_SUPPORTED;
+                    if (failCount < 5) {
+                        s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
+                        failCount++;
+                    } else {
+                        s_lastPdpFailCause = PDP_FAIL_SERVICE_OPTION_NOT_SUPPORTED;
+                    }
                     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
             } else {
