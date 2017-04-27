@@ -2277,6 +2277,9 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
 //                    if(autoAttach && dataEnable){
 //                        err = at_send_command(ATch_type[channelID], "AT+SAUTOATT=1", &p_response);
 //                    }
+                } else {
+                    snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,%d", 1 - s_sim_num, 1 - allow_data);
+                    at_send_command(ATch_type[channelID], cmd, NULL );
                 }
                 //err = at_send_command(ATch_type[channelID], "AT+SAUTOATT=0", &p_response);
              }else {
@@ -14970,6 +14973,14 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
         RILLOGD("RIL enter single sim card mode!");
     }
     sem_wait(&w_sem);
+
+    if (isLte()) {
+        int testMode = getTestMode();
+        if (testMode != 10 && testMode != 254) {
+            RILLOGD("allow_data init 1!");
+            allow_data = 1;
+        }
+    }
 
     if (s_sim_num == 0) {
         setHwVerPorp();
