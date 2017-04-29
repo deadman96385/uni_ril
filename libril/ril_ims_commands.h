@@ -32,4 +32,5 @@
     {RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_UPDATE_DATA_ROUTER, dispatchVoid, responseVoid},
     {RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO, dispatchStrings, responseVoid},
-    {RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, dispatchVoid, responseInts}
+    {RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, dispatchVoid, responseInts},
+    {RIL_REQUEST_GET_IMS_PCSCF_ADDR, dispatchVoid, responseString}

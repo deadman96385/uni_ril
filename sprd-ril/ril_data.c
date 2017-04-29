@@ -119,6 +119,49 @@ static int getPDP(RIL_SOCKET_ID socket_id) {
     return ret;
 }
 
+/**
+ * Returns 1 if found, 0 otherwise. needle must be null-terminated.
+ * strstr might not work because WebBox sends garbage before the first OKread
+ */
+int findInBuf(char *buf, int len, char *needle) {
+    int i;
+    int needleMatchedPos = 0;
+
+    if (buf == NULL) {
+        return 0;
+    }
+
+    if (needle[0] == '\0') {
+        return 1;
+    }
+    for (i = 0; i < len; i++) {
+        if (needle[needleMatchedPos] == buf[i]) {
+            needleMatchedPos++;
+            if (needle[needleMatchedPos] == '\0') {
+                // Entire needle was found
+                return 1;
+            }
+        } else {
+            needleMatchedPos = 0;
+        }
+    }
+    return 0;
+}
+
+int at_tok_flag_start(char **p_cur, char start_flag) {
+    if (*p_cur == NULL) {
+        return -1;
+    }
+    // skip prefix
+    // consume "^[^:]:"
+    *p_cur = strchr(*p_cur, start_flag);
+    if (*p_cur == NULL) {
+        return -1;
+    }
+    (*p_cur)++;
+    return 0;
+}
+
 void putPDP(int cid) {
     if (cid < 0 || cid >= MAX_PDP) {
         return;
@@ -2160,6 +2203,74 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
             }
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+        case RIL_REQUEST_GET_IMS_PCSCF_ADDR: {
+            ATLine *p_cur = NULL;
+            char *input;
+            char *sskip;
+            char *tmp;
+            char *pcscf_prim_addr = NULL;
+            int skip;
+
+            err = at_send_command_multiline(s_ATChannels[channelID], "AT+CGCONTRDP=11",
+                                            "+CGCONTRDP:", &p_response);
+
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                for (p_cur = p_response->p_intermediates; p_cur != NULL;
+                     p_cur = p_cur->p_next) {
+                    input = p_cur->line;
+                    if (findInBuf(input, strlen(p_cur->line), "+CGCONTRDP")) {
+                         err = at_tok_flag_start(&input, ':');
+                         if (err < 0) break;
+
+                         err = at_tok_nextint(&input, &skip);  // cid
+                         if (err < 0) break;
+
+                         err = at_tok_nextint(&input, &skip);  // bearer_id
+                         if (err < 0) break;
+
+                         err = at_tok_nextstr(&input, &sskip);  // apn
+                         if (err < 0) break;
+
+                         if (at_tok_hasmore(&input)) {
+                             err = at_tok_nextstr(&input, &sskip);  // local_addr_and_subnet_mask
+                             if (err < 0) break;
+
+                             if (at_tok_hasmore(&input)) {
+                                 err = at_tok_nextstr(&input, &sskip);  // gw_addr
+                                 if (err < 0) break;
+
+                                 if (at_tok_hasmore(&input)) {
+                                     err = at_tok_nextstr(&input, &sskip);  // dns_prim_addr
+                                     if (err < 0) break;
+
+                                     if (at_tok_hasmore(&input)) {
+                                         err = at_tok_nextstr(&input, &sskip);  // dns_sec_addr
+                                         if (err < 0) break;
+
+                                         if (at_tok_hasmore(&input)) {  // PCSCF_prim_addr
+                                             err = at_tok_nextstr(&input, &pcscf_prim_addr);
+                                             if (err < 0) break;
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                         if(pcscf_prim_addr != NULL){
+                             RIL_onRequestComplete(t, RIL_E_SUCCESS, pcscf_prim_addr, strlen(pcscf_prim_addr) + 1);
+                         } else {
+                             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                         }
+                         AT_RESPONSE_FREE(p_response);
+                         break;
+                    }  // CGCONTRDP
+                }  // for
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }  // success
+            AT_RESPONSE_FREE(p_response);
             break;
         }
         default :

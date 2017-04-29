@@ -6690,6 +6690,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_SET_TPMR_STATE: return "RIL_REQUEST_SET_TPMR_STATE";
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: return "RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO";
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY";
+        case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
