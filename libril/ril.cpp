@@ -6814,6 +6814,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE: return "ENABLE_LOCAL_CONFERENCE";
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: return "IMS_NOTIFY_HANDOVER_CALL_INFO";
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "GET_IMS_SRVCC_CAPBILITY";
+        case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
