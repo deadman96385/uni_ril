@@ -175,7 +175,6 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
 int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     char *line = NULL;
-
     if (strStartsWith(s, "+SPUSATENDSESSIONIND")) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_STK_SESSION_END, NULL, 0,
                 socket_id);
@@ -235,6 +234,10 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     } else if (strStartsWith(s, "+SPUSATREFRESH:")) {
         char *tmp;
         int result = 0;
+        int i, num = 0;
+        char *ef_id;
+        char file_path[AT_COMMAND_LEN] = {0};
+
         RIL_SimRefreshResponse_v7 *response = NULL;
 
         response = (RIL_SimRefreshResponse_v7 *)
@@ -247,20 +250,39 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         at_tok_start(&tmp);
         err = at_tok_nextint(&tmp, &result);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
-        err = at_tok_nextint(&tmp, &response->ef_id);
+        err = at_tok_nextint(&tmp, &num);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGE("%s fail", s);
             goto out;
         }
-        err = at_tok_nextstr(&tmp, &response->aid);
-        if (err < 0) {
-            RLOGD("%s fail", s);
-            goto out;
+        if (num == 0) {
+            err = at_tok_nextstr(&tmp, &response->ef_id);
+            if (err < 0) {
+                RLOGE("%s fail", s);
+                goto out;
+            }
+        } else {
+            for (i = 0; i < num; i++) {
+                err = at_tok_nextstr(&tmp, &ef_id);
+                if (err < 0) {
+                    RLOGE("%s fail", s);
+                    goto out;
+                }
+                if (i > 0) {
+                    strlcat(file_path, ",", sizeof(file_path));
+                }
+                strlcat(file_path, ef_id, sizeof(file_path));
+            }
+            response->ef_id = file_path;
         }
         response->result = result;
+        response->aid = "";
+        if (SIM_RESET == result || strcmp(response->ef_id, "") != 0) {
+            s_imsInitISIM[socket_id] = -1;
+        }
         RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
                 sizeof(RIL_SimRefreshResponse_v7), socket_id);
     /* SPRD: add for alpha identifier display in stk @{ */
