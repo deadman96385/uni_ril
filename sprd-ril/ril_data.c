@@ -1701,11 +1701,12 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
         memset(old->username, 0, strlen(old->username));
         memset(old->password, 0, strlen(old->password));
     }
-    if (isApnEqual(new->apn, old->apn) &&
+    if ((isStrEmpty(new->apn) && isStrEmpty(new->protocol)) ||
+            (isApnEqual(new->apn, old->apn) &&
         isStrEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
-        new->authtype == old->authtype) {
+        new->authtype == old->authtype)) {
         ret = 1;
     }
     return ret;
@@ -1995,26 +1996,32 @@ int getDefaultDataCardId() {
     return ret;
 }
 
-void cleanUpAllConnections() {
+void cleanUpAllConnections(int channelID) {
     int i;
     int cid;
     char cmd[AT_COMMAND_LEN];
-
+    int deactiveChannelID = channelID;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_defaultDataId = getDefaultDataCardId();
     if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
         RLOGD("there is no active data connections!");
         return;
     }
-    int dataChannelID = getChannel(s_defaultDataId);
+    if (socket_id != s_defaultDataId) {
+        deactiveChannelID = getChannel(s_defaultDataId);
+    }
+
     for (i = 0; i < MAX_PDP; i++) {
         cid = getPDPCid(i);
         if (cid > 0) {
             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-            at_send_command(s_ATChannels[dataChannelID], cmd, NULL);
+            at_send_command(s_ATChannels[deactiveChannelID], cmd, NULL);
             cgact_deact_cmd_rsp(cid);
         }
     }
-    putChannel(dataChannelID);
+    if (socket_id != s_defaultDataId) {
+        putChannel(deactiveChannelID);
+    }
 }
 
 void activeAllConnections() {
