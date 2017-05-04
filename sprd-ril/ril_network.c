@@ -176,12 +176,20 @@ int getMultiMode() {
     return workMode;
 }
 
+bool isPrimaryCardWorkMode (int workMode) {
+    if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
+        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
+        workMode == NONE) {
+        return false;
+    }
+    return true;
+}
+
 int getWorkMode(RIL_SOCKET_ID socket_id) {
     int workMode = 0;
     int newWorkMode = 0;
     char prop[PROPERTY_VALUE_MAX] = {0};
     char numToStr[ARRAY_SIZE];
-
     pthread_mutex_lock(&s_workModeMutex);
     getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
 
@@ -206,6 +214,19 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
                 }
             }
         }
+    } else if (s_modemConfig == LWG_WG){
+        if (isPrimaryCardWorkMode(newWorkMode)) {
+           getProperty(1 - socket_id, MODEM_WORKMODE_PROP, prop, "10");
+           if (isPrimaryCardWorkMode(atoi(prop))) {
+               RLOGD("getWorkMode change the work mode to 255");
+               if (socket_id == s_multiModeSim) {
+                   setProperty(1 - s_multiModeSim, MODEM_WORKMODE_PROP, "255");
+                   s_workMode[1 - s_multiModeSim] = TD_AND_WCDMA;
+               } else {
+                   newWorkMode = TD_AND_WCDMA;
+               }
+           }
+       }
     }
 #endif
 
