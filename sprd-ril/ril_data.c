@@ -2352,6 +2352,25 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             AT_RESPONSE_FREE(p_response);
             break;
         }
+        case RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR: {
+            int err;
+            char cmd[AT_COMMAND_LEN] = {0};
+            const char **strings = (const char **)data;
+
+            if (datalen > 0 && strings[0] != NULL && strlen(strings[0]) > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+VOWIFIPCSCF=%s", strings[0]);
+                err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+                if (err != 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+            break;
+
+        }
         default :
             ret = 0;
             break;

@@ -37,4 +37,5 @@
     {RIL_REQUEST_IMS_ENABLE_LOCAL_CONFERENCE, dispatchInts, responseVoid},
     {RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO, dispatchStrings, responseVoid},
     {RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, dispatchVoid, responseInts},
-    {RIL_REQUEST_GET_IMS_PCSCF_ADDR, dispatchVoid, responseString}
+    {RIL_REQUEST_GET_IMS_PCSCF_ADDR, dispatchVoid, responseString},
+    {RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR, dispatchStrings, responseVoid}

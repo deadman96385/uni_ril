@@ -386,6 +386,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_IMS_UPDATE_DATA_ROUTER ||
                  request == RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO ||
                  request == RIL_REQUEST_GET_IMS_PCSCF_ADDR ||
+                 request == RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
