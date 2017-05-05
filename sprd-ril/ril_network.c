@@ -1581,7 +1581,14 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
             errType = RIL_E_SUCCESS;
             goto done;
         }
+    } else if (s_modemConfig == LWG_WG) {
+        if (s_multiModeSim != socket_id && isPrimaryCardWorkMode(type)) {
+            RLOGE("SetLTEPreferredNetType: not data card");
+            errType = RIL_E_SUCCESS;
+            goto done;
+        }
     }
+
     if (type == workMode) {
         RLOGD("SetLTEPreferredNetType: has send the request before");
         errType = RIL_E_SUCCESS;

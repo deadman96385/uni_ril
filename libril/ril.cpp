@@ -7141,7 +7141,8 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
     property_set(property, propVal);
 }
 
-bool isPrimaryCardWorkMode (int workMode) {
+// for L+W product
+bool isPrimaryCardWorkMode(int workMode) {
     if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
         workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
         workMode == NONE) {
