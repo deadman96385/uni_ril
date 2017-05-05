@@ -180,8 +180,9 @@ extern "C" void getProperty(RIL_SOCKET_ID socket_id, const char *property,
                             char *value, const char *defaultVal);
 extern "C" void setProperty(RIL_SOCKET_ID socket_id, const char *property,
                             const char *value);
-void initPrimarySim();
+extern "C" bool isPrimaryCardWorkMode(int workMode);
 
+void initPrimarySim();
 extern "C" char rild[MAX_SOCKET_NAME_LENGTH] = SOCKET_NAME_RIL;
 
 /*******************************************************************/
@@ -7140,6 +7141,15 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
     property_set(property, propVal);
 }
 
+bool isPrimaryCardWorkMode (int workMode) {
+    if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
+        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
+        workMode == NONE) {
+        return false;
+    }
+    return true;
+}
+
 void initPrimarySim() {
     char prop[PROPERTY_VALUE_MAX];
     char numToStr[128];
@@ -7147,7 +7157,7 @@ void initPrimarySim() {
 
     property_get(PRIMARY_SIM_PROP, prop, "0");
     s_multiModeSim = atoi(prop);
-
+    RLOGD("before initPrimarySim: s_multiModeSim = %d", s_multiModeSim);
 #if (SIM_COUNT == 2)
     property_get(MODEM_CONFIG_PROP, prop, "");
     if (strcmp(prop, "TL_LF_TD_W_G,W_G") && strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G")) {
@@ -7159,10 +7169,18 @@ void initPrimarySim() {
                 property_set(PRIMARY_SIM_PROP, numToStr);
             }
         }
+    } else if (!strcmp(prop, "TL_LF_TD_W_G,W_G")) {
+        for (simId = 0; simId < SIM_COUNT; simId++) {
+            getProperty((RIL_SOCKET_ID)simId, MODEM_WORKMODE_PROP, prop, "");
+            if (!isPrimaryCardWorkMode(atoi(prop)) && s_multiModeSim == simId) {
+                s_multiModeSim = 1 - simId;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
+        }
     }
 #endif
-
-    RLOGD("initPrimarySim: s_multiModeSim = %d", s_multiModeSim);
+    RLOGD("after initPrimarySim : s_multiModeSim = %d", s_multiModeSim);
 }
 } /* namespace android */
 

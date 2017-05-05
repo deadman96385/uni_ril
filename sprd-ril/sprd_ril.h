@@ -113,5 +113,6 @@ extern void getProperty(RIL_SOCKET_ID socket_id, const char *property,
                             char *value, const char *defaultVal);
 extern void setProperty(RIL_SOCKET_ID socket_id, const char *property,
                             const char *value);
+extern bool isPrimaryCardWorkMode(int workMode);
 
 #endif  // SPRD_RIL_H_

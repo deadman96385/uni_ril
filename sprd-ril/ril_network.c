@@ -176,15 +176,6 @@ int getMultiMode() {
     return workMode;
 }
 
-bool isPrimaryCardWorkMode (int workMode) {
-    if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
-        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
-        workMode == NONE) {
-        return false;
-    }
-    return true;
-}
-
 int getWorkMode(RIL_SOCKET_ID socket_id) {
     int workMode = 0;
     int newWorkMode = 0;
@@ -2417,13 +2408,13 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
         }
 #endif
     }
-    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
-    property_set(PRIMARY_SIM_PROP, numToStr);
-    RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
     if (SIM_COUNT <= 2) {
         snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", s_multiModeSim);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
+    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+    property_set(PRIMARY_SIM_PROP, numToStr);
+    RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
 
     setWorkMode();
 #if (SIM_COUNT == 2)
