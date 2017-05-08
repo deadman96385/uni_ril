@@ -33,14 +33,6 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libril_tele
 
 LOCAL_CFLAGS += -DSIM_AUTO_POWERON  -DRIL_EXTENSION
 
-ifneq ($(SIM_COUNT), 1)
-    LOCAL_CFLAGS += -DANDROID_MULTI_SIM
-endif
-
-ifeq ($(SIM_COUNT), 2)
-    LOCAL_CFLAGS += -DANDROID_SIM_COUNT_2
-endif
-
 ifeq (foo,foo)
 #build shared library
 LOCAL_SHARED_LIBRARIES += \
