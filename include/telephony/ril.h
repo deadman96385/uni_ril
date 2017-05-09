@@ -6018,7 +6018,8 @@ typedef enum {
 #define RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD           (RIL_EXT_UNSOL_RESPONSE_BASE + 15)
 #define RIL_EXT_UNSOL_SIM_PS_REJECT                 (RIL_EXT_UNSOL_RESPONSE_BASE + 16)
 #define RIL_EXT_UNSOL_SETUP_DATA_FOR_CP             (RIL_EXT_UNSOL_RESPONSE_BASE + 17)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SETUP_DATA_FOR_CP
+#define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 18)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED
 
 /*****************************************************************************/
 
