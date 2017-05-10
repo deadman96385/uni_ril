@@ -2753,7 +2753,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
             cleanUpAllConnections(channelID);
             requestNetworkList(channelID, data, datalen, t);
-            activeAllConnections();
+            activeAllConnections(channelID);
             break;
         }
         case RIL_REQUEST_RESET_RADIO:

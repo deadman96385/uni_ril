@@ -2010,7 +2010,6 @@ void cleanUpAllConnections(int channelID) {
     if (socket_id != s_defaultDataId) {
         deactiveChannelID = getChannel(s_defaultDataId);
     }
-
     for (i = 0; i < MAX_PDP; i++) {
         cid = getPDPCid(i);
         if (cid > 0) {
@@ -2024,16 +2023,19 @@ void cleanUpAllConnections(int channelID) {
     }
 }
 
-void activeAllConnections() {
+void activeAllConnections(int channelID) {
     if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
         return;
     }
 
     int i;
-    int dataChannelID = getChannel(s_defaultDataId);
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    int dataChannelID = channelID;
+    if (socket_id != s_defaultDataId) {
+        dataChannelID = getChannel(s_defaultDataId);
+    }
 
-    s_defaultDataId = -1;
-    property_set(APN_DELAY_PROP, "1");
+    //property_set(APN_DELAY_PROP, "1");
     for (i = 0; i < MAX_PDP; i++) {
         if (getPDPCid(i) > 0) {
             RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
@@ -2044,7 +2046,10 @@ void activeAllConnections() {
             }
         }
     }
-    putChannel(dataChannelID);
+    if (socket_id != s_defaultDataId) {
+        putChannel(dataChannelID);
+    }
+    s_defaultDataId = -1;
 }
 
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
