@@ -2309,8 +2309,8 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (isVoLteEnable()) {
             if (response->cs_mod == 0) {
                 RIL_onUnsolicitedResponse(
-                        RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, response,
-                        sizeof(RIL_IMSPHONE_CMCCSI), socket_id);
+                        RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, NULL,
+                        0, socket_id);
             }
         }
     } else if (strStartsWith(s, "+CMCCSS")) {
