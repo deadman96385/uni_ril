@@ -5856,7 +5856,7 @@ typedef struct {
 #define RIL_EXT_REQUEST_STOP_QUERY_NETWORK          (RIL_EXT_REQUEST_BASE + 11)
 #define RIL_EXT_REQUEST_FORCE_DETACH                (RIL_EXT_REQUEST_BASE + 12)
 #define RIL_EXT_REQUEST_GET_HD_VOICE_STATE          (RIL_EXT_REQUEST_BASE + 13)
-#define RIL_EXT_REQUEST_SIM_POWER                   (RIL_EXT_REQUEST_BASE + 14)
+#define RIL_EXT_REQUEST_SIMMGR_SIM_POWER            (RIL_EXT_REQUEST_BASE + 14)
 #define RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY           (RIL_EXT_REQUEST_BASE + 15)
 #define RIL_EXT_REQUEST_SET_COLP                    (RIL_EXT_REQUEST_BASE + 16)
 #define RIL_EXT_REQUEST_GET_DEFAULT_NAN             (RIL_EXT_REQUEST_BASE + 17)
@@ -5911,7 +5911,9 @@ typedef struct {
 #define RIL_EXT_REQUEST_QUERY_COLP                  (RIL_EXT_REQUEST_BASE + 33)
 #define RIL_EXT_REQUEST_QUERY_COLR                  (RIL_EXT_REQUEST_BASE + 34)
 #define RIL_EXT_REQUEST_MMI_ENTER_SIM               (RIL_EXT_REQUEST_BASE + 35)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_MMI_ENTER_SIM
+#define RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME        (RIL_EXT_REQUEST_BASE + 36)
+#define RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS       (RIL_EXT_REQUEST_BASE + 37)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -5929,7 +5931,9 @@ typedef struct {
 #define RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED        (RIL_EXT_UNSOL_RESPONSE_BASE + 12)
 #define RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED           (RIL_EXT_UNSOL_RESPONSE_BASE + 13)
 #define RIL_EXT_UNSOL_BAND_INFO                     (RIL_EXT_UNSOL_RESPONSE_BASE + 14)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_BAND_INFO
+#define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 15)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED
+
 /*****************************************************************************/
 
 /*****************************************************************************/

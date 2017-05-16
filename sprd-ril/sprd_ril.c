@@ -304,7 +304,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_EXT_REQUEST_GET_SIMLOCK_STATUS ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
-          request == RIL_EXT_REQUEST_SIM_POWER)) {
+          request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
+          request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -359,7 +360,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
-                 request == RIL_EXT_REQUEST_SIM_POWER ||
+                 request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
                  request == RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY ||
                  request == RIL_EXT_REQUEST_GET_SIMLOCK_REMAIN_TIMES ||
                  request == RIL_EXT_REQUEST_SET_FACILITY_LOCK_FOR_USER ||
@@ -374,7 +375,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_UPDATE_ECCLIST ||
                  request == RIL_EXT_REQUEST_GET_BAND_INFO ||
                  request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE ||
-                 request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP)) {
+                 request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP ||
+                 request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -454,7 +456,7 @@ static void pollSIMState(void *param) {
     free(pollSimStatePara->para);
     free(pollSimStatePara);
 
-    switch (getSIMStatus(channelID)) {
+    switch (getSIMStatus(-1, channelID)) {
         case SIM_ABSENT:
         case SIM_PIN:
         case SIM_PUK:
