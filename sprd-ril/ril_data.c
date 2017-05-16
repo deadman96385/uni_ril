@@ -1844,14 +1844,14 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD");
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
+            if (s_sessionId[socket_id] != 0) {
+                RLOGD("setRadioCapability is on going during attach, return!!");
+                goto error;
+            }
             if (socket_id != s_multiModeSim ) {
                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1",
                          socket_id);
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
-                if (s_sessionId[socket_id] != 0) {
-                    RLOGD("setRadioCapability is on going, return!!");
-                    goto error;
-                }
                 err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                                        &p_response);
                 if (err < 0 || p_response->success == 0) {
@@ -1920,6 +1920,10 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
             if (s_modemConfig == LWG_LWG) {
                 // ap do nothing when detach on L+L version
             } else {
+                if (s_sessionId[socket_id] != 0) {
+                    RLOGD("setRadioCapability is on going during detach, return!!");
+                    goto error;
+                }
                 if (socket_id != s_multiModeSim) {
                     err = at_send_command(s_ATChannels[channelID], "AT+SGFD",
                                           &p_response);
