@@ -1638,15 +1638,23 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
     if (isStrEmpty(new->username) || isStrEmpty(new->password) ||
         new->authtype <= 0) {
         new->authtype = AUTH_NONE;
-        memset(new->username, 0, strlen(new->username));
-        memset(new->password, 0, strlen(new->password));
+        if (new->username != NULL) {
+            memset(new->username, 0, strlen(new->username));
+        }
+        if (new->password != NULL) {
+            memset(new->password, 0, strlen(new->password));
+        }
     }
     if (isStrEmpty(old->username) || isStrEmpty(old->password) ||
         old->authtype <= 0) {
         RLOGD("old profile is empty");
         old->authtype = AUTH_NONE;
-        memset(old->username, 0, strlen(old->username));
-        memset(old->password, 0, strlen(old->password));
+        if (old->username != NULL) {
+            memset(old->username, 0, strlen(old->username));
+        }
+        if (old->password != NULL) {
+            memset(old->password, 0, strlen(old->password));
+        }
     }
     if (isApnEqual(new->apn, old->apn) &&
         isProtocolEqual(new->protocol, old->protocol) &&
