@@ -23,6 +23,9 @@
 /* set network type for engineer mode */
 #define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
 
+/* set the comb-register flag*/
+#define CEMODE_PROP             "persist.radio.cemode"
+
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
 #if (SIM_COUNT >= 2)
@@ -1000,7 +1003,13 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         at_send_command(s_ATChannels[channelID], cmd, NULL);
 
         if (s_isLTE) {
-            at_send_command(s_ATChannels[channelID], "AT+CEMODE=1", NULL);
+            int cemode = 0;
+            char cemodeProp[PROPERTY_VALUE_MAX] = {0};
+            property_get(CEMODE_PROP, cemodeProp, "1");
+            cemode = atoi(cemodeProp);
+            memset(cmd, 0, sizeof(cmd));
+            snprintf(cmd, sizeof(cmd), "AT+CEMODE=%d", cemode);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
             if (s_presentSIMCount == 1) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
