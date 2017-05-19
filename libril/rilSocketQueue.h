@@ -62,7 +62,7 @@ class Ril_queue {
          *
          * @return first element of the queue.
          */
-        T *dequeue(void);
+        T* dequeue(void);
 
        /**
          * Add a request to the front of the queue.
@@ -99,15 +99,15 @@ Ril_queue<T>::Ril_queue(void) {
 }
 
 template <typename T>
-T *Ril_queue<T>::dequeue(void) {
-    T *temp = NULL;
+T* Ril_queue<T>::dequeue(void) {
+    T* temp = NULL;
 
     pthread_mutex_lock(&mutex_instance);
-    while (empty()) {
+    while(empty()) {
         pthread_cond_wait(&cond, &mutex_instance);
     }
     temp = this->front;
-    if (NULL != this->front->p_next) {
+    if(NULL != this->front->p_next) {
         this->front = this->front->p_next;
     } else {
         this->front = NULL;
@@ -118,11 +118,11 @@ T *Ril_queue<T>::dequeue(void) {
 }
 
 template <typename T>
-void Ril_queue<T>::enqueue(T *request) {
+void Ril_queue<T>::enqueue(T* request) {
 
     pthread_mutex_lock(&mutex_instance);
 
-    if (NULL == this->front) {
+    if(NULL == this->front) {
         this->front = request;
         request->p_next = NULL;
     } else {
@@ -136,7 +136,7 @@ void Ril_queue<T>::enqueue(T *request) {
 template <typename T>
 int Ril_queue<T>::checkAndDequeue(MsgId id, int token) {
     int ret = 0;
-    T *temp;
+    T* temp;
 
     pthread_mutex_lock(&mutex_instance);
 
@@ -155,10 +155,11 @@ int Ril_queue<T>::checkAndDequeue(MsgId id, int token) {
     return ret;
 }
 
+
 template <typename T>
 int Ril_queue<T>::empty(void) {
 
-    if (this->front == NULL) {
+    if(this->front == NULL) {
         return 1;
     } else {
         return 0;

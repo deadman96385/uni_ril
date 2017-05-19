@@ -13,13 +13,15 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <alloca.h>
 #include <getopt.h>
-#include <sys/system_properties.h>
 #include <sys/socket.h>
 #include <cutils/sockets.h>
+#include <sys/system_properties.h>
+#include <system/qemu_pipe.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <telephony/ril.h>

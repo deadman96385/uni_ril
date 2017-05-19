@@ -9,7 +9,9 @@ LOCAL_SRC_FILES := \
         ITelephonyEx.cpp \
         TelephonyEx.cpp \
 
-LOCAL_SHARED_LIBRARIES := libcutils libbinder libutils
+LOCAL_SHARED_LIBRARIES := libcutils libbinder libutils liblog
+
+LOCAL_PROPRIETARY_MODULE := true
 
 LOCAL_MODULE := libril_tele
 

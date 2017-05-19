@@ -22,6 +22,7 @@ LOCAL_SRC_FILES := \
     custom/ril_custom.c \
     ril_async_cmd_handler.c \
     channel_controller.c \
+    request_threads.c \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog libcutils libutils librilsprd librilutils libril_tele libnetutils
@@ -42,6 +43,8 @@ ifeq ($(SIM_COUNT), 2)
     LOCAL_CFLAGS += -DANDROID_SIM_COUNT_2
 endif
 
+LOCAL_PROPRIETARY_MODULE := true
+
 ifeq (foo,foo)
 #build shared library
 LOCAL_SHARED_LIBRARIES += \
@@ -52,6 +55,7 @@ LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)
 else
 #build executable
+LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE:= libsprd-ril
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_STEM_32 := libsprd-ril

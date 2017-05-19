@@ -3,43 +3,30 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_C_INCLUDES :=$(LOCAL_PATH)/../include
-
 LOCAL_SRC_FILES:= \
-    rild.c
+	rild.c
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog \
-    libcutils \
-    librilsprd \
-    libdl
+	libcutils \
+	libdl \
+	liblog \
+	libril
 
-# temporary hack for broken vendor rils
+# Temporary hack for broken vendor RILs.
 LOCAL_WHOLE_STATIC_LIBRARIES := \
-    librilutils_static
+	librilutils_static
 
 LOCAL_CFLAGS := -DRIL_SHLIB
+#LOCAL_CFLAGS += -DANDROID_MULTI_SIM
 
+ifeq ($(SIM_COUNT), 2)
+    LOCAL_CFLAGS += -DANDROID_SIM_COUNT_2
+endif
+
+LOCAL_MODULE_RELATIVE_PATH := hw
+LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE:= sprdrild
-LOCAL_MODULE_TAGS := optional
 LOCAL_INIT_RC := sprdrild.rc
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/librilsprd
-include $(BUILD_EXECUTABLE)
-
-# For radiooptions binary
-# =======================
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:= \
-    radiooptions.c
-
-LOCAL_SHARED_LIBRARIES := \
-    liblog \
-    libcutils \
-
-LOCAL_CFLAGS := \
-
-LOCAL_MODULE:= sprdradiooptions
-LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_EXECUTABLE)
+

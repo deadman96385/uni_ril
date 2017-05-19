@@ -7,6 +7,7 @@
 #include <ITelephonyEx.h>
 #include <binder/Parcel.h>
 #include <cutils/jstring.h>
+#include <utils/Log.h>
 
 namespace android {
 #define PACKAGE_NAME    "com.android.internal.telephony.ITelephonyEx"

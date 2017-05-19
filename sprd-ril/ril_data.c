@@ -1763,11 +1763,11 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
             if (socket_id == s_multiModeSim && (s_in4G[socket_id] == 1 ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED)) {
+                s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_NOT_SEARCHING ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_ROAMING ||
+                s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_SEARCHING ||
+                s_PSRegStateDetail[socket_id] == RIL_UNKNOWN ||
+                s_PSRegStateDetail[socket_id] == RIL_REG_DENIED)) {
                 at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
             }
         } else {
@@ -2275,6 +2275,93 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             }
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
+        }
+        case RIL_REQUEST_GET_IMS_PCSCF_ADDR: {
+            ATLine *p_cur = NULL;
+            char *input;
+            char *sskip;
+            char *tmp;
+            char *pcscf_prim_addr = NULL;
+            int skip;
+
+            err = at_send_command_multiline(s_ATChannels[channelID], "AT+CGCONTRDP=11",
+                                            "+CGCONTRDP:", &p_response);
+
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                for (p_cur = p_response->p_intermediates; p_cur != NULL;
+                     p_cur = p_cur->p_next) {
+                    input = p_cur->line;
+                    if (findInBuf(input, strlen(p_cur->line), "+CGCONTRDP")) {
+                         err = at_tok_flag_start(&input, ':');
+                         if (err < 0) break;
+
+                         err = at_tok_nextint(&input, &skip);  // cid
+                         if (err < 0) break;
+
+                         err = at_tok_nextint(&input, &skip);  // bearer_id
+                         if (err < 0) break;
+
+                         err = at_tok_nextstr(&input, &sskip);  // apn
+                         if (err < 0) break;
+
+                         if (at_tok_hasmore(&input)) {
+                             err = at_tok_nextstr(&input, &sskip);  // local_addr_and_subnet_mask
+                             if (err < 0) break;
+
+                             if (at_tok_hasmore(&input)) {
+                                 err = at_tok_nextstr(&input, &sskip);  // gw_addr
+                                 if (err < 0) break;
+
+                                 if (at_tok_hasmore(&input)) {
+                                     err = at_tok_nextstr(&input, &sskip);  // dns_prim_addr
+                                     if (err < 0) break;
+
+                                     if (at_tok_hasmore(&input)) {
+                                         err = at_tok_nextstr(&input, &sskip);  // dns_sec_addr
+                                         if (err < 0) break;
+
+                                         if (at_tok_hasmore(&input)) {  // PCSCF_prim_addr
+                                             err = at_tok_nextstr(&input, &pcscf_prim_addr);
+                                             if (err < 0) break;
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                         if (pcscf_prim_addr != NULL) {
+                             RIL_onRequestComplete(t, RIL_E_SUCCESS, pcscf_prim_addr, strlen(pcscf_prim_addr) + 1);
+                         } else {
+                             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                         }
+                         AT_RESPONSE_FREE(p_response);
+                         break;
+                    }  // CGCONTRDP
+                }  // for
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }  // success
+            AT_RESPONSE_FREE(p_response);
+            break;
+        }
+        case RIL_REQUEST_SET_IMS_PCSCF_ADDR: {
+            int err;
+            char cmd[AT_COMMAND_LEN] = {0};
+            const char **strings = (const char **)data;
+
+            if (datalen > 0 && strings[0] != NULL && strlen(strings[0]) > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+VOWIFIPCSCF=%s", strings[0]);
+                err = at_send_command(s_ATChannels[channelID], cmd , NULL);
+                if (err != 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+            break;
+
         }
         default :
             ret = 0;

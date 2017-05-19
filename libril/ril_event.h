@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/ril/libril/ril_event.h
+/* //device/libs/telephony/ril_event.h
 **
 ** Copyright 2008, The Android Open Source Project
 **
@@ -14,11 +14,9 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
-#ifndef RIL_EVENT_H_
-#define RIL_EVENT_H_
 
 // Max number of fd's we watch at any one time.  Increase if necessary.
-#define MAX_FD_EVENTS 16
+#define MAX_FD_EVENTS 8
 
 typedef void (*ril_event_cb)(int fd, short events, void *userdata);
 
@@ -38,22 +36,17 @@ struct ril_event {
 void ril_event_init();
 
 // Initialize an event
-void ril_event_set(struct ril_event *ev, int fd, bool persist,
-                     ril_event_cb func, void *param);
+void ril_event_set(struct ril_event * ev, int fd, bool persist, ril_event_cb func, void * param);
 
 // Add event to watch list
-void ril_event_add(struct ril_event *ev);
+void ril_event_add(struct ril_event * ev);
 
 // Add timer event
-void ril_timer_add(struct ril_event *ev, struct timeval *tv);
+void ril_timer_add(struct ril_event * ev, struct timeval * tv);
 
 // Remove event from watch list
-void ril_event_del(struct ril_event *ev);
-
-// Remove event from timer list
-void ril_timer_delete(struct ril_event *ev);
+void ril_event_del(struct ril_event * ev);
 
 // Event loop
 void ril_event_loop();
 
-#endif  // RIL_EVENT_H_

@@ -21,7 +21,6 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <termios.h>
-#include "hardware/qemu_pipe.h"
 
 #include "sprd_ril.h"
 #include "ril_sim.h"
@@ -34,6 +33,7 @@
 #include "ril_data.h"
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
+#include "request_threads.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
 #define VOLTE_ENABLE_PROP       "persist.sys.volte.enable"
@@ -152,7 +152,8 @@ static const RIL_RadioFunctions s_callbacks = {
     currentState,
     onSupports,
     onCancel,
-    getVersion
+    getVersion,
+    sendCmdSync
 };
 
 void *noopRemoveWarning(void *a) {
@@ -318,7 +319,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
           request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
-          request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS)) {
+          request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
+          request == RIL_EXT_REQUEST_SEND_CMD)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -381,6 +383,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE ||
                  request == RIL_REQUEST_IMS_UPDATE_DATA_ROUTER ||
                  request == RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO ||
+                 request == RIL_REQUEST_GET_IMS_PCSCF_ADDR ||
+                 request == RIL_REQUEST_SET_IMS_PCSCF_ADDR ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
@@ -399,12 +403,19 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_GET_BAND_INFO ||
                  request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE ||
                  request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP ||
-                 request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS)) {
+                 request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
+                 request == RIL_EXT_REQUEST_SEND_CMD)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
 
-    channelID = getChannel(soc_id);
+    channelID = getRequestChannel(soc_id, request);
+    if (channelID < 0 || channelID >= MAX_AT_CHANNELS) {
+        RLOGE("Invalid request channelID");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
     if (!(processSimRequests(request, data, datalen, t, channelID) ||
           processCallRequest(request, data, datalen, t, channelID) ||
           processNetworkRequests(request, data, datalen, t, channelID) ||
@@ -415,7 +426,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           processSSRequests(request, data, datalen, t, channelID))) {
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
     }
-    putChannel(channelID);
+    putRequestChannel(soc_id, request, channelID);
 }
 
 /**
@@ -1071,6 +1082,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
+
+    requestThreadsInit();
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
 

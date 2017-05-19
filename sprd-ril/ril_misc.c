@@ -357,7 +357,7 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
 }
 
 void requestSendAT(int channelID, const char *data, size_t datalen,
-                   RIL_Token t) {
+                   RIL_Token t, char *atResp, int responseLen) {
     RIL_UNUSED_PARM(datalen);
 
     int i, err;
@@ -383,8 +383,12 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             RLOGE("SNVM: cmd is %s pdu is NULL !", cmd);
             strlcat(buf, "\r\n", sizeof(buf));
             response[0] = buf;
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
-                                  sizeof(char *));
+            if (t != NULL) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                                      sizeof(char *));
+            } else if (atResp != NULL) {
+                snprintf(atResp, responseLen, "ERROR");
+            }
             return;
         }
 
@@ -403,8 +407,12 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             strlcat(buf, p_response->finalResponse, sizeof(buf));
             strlcat(buf, "\r\n", sizeof(buf));
             response[0] = buf;
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
-                                  sizeof(char *));
+            if (t != NULL) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                                      sizeof(char *));
+            } else if (atResp != NULL) {
+                snprintf(atResp, responseLen, "%s", p_response->finalResponse);
+            }
         } else {
             goto error;
         }
@@ -417,7 +425,11 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         strlcat(buf, p_response->finalResponse, sizeof(buf));
         strlcat(buf, "\r\n", sizeof(buf));
         response[0] = buf;
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
+        if (t != NULL) {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
+        } else if (atResp != NULL) {
+            snprintf(atResp, responseLen, "%s", buf);
+        }
         if (!strncasecmp(ATcmd, "AT+SFUN=5", strlen("AT+SFUN=5"))) {
             setRadioState(channelID, RADIO_STATE_OFF);
         }
@@ -427,7 +439,20 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 
 error:
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else if (atResp != NULL) {
+        snprintf(atResp, responseLen, "ERROR");
+    }
+}
+
+
+void sendCmdSync(int phoneId, char *cmd, char *response, int responseLen) {
+    RLOGD("sendCmdSync: simId = %d, cmd = %s", phoneId, cmd);
+
+    int channelID = getChannel((RIL_SOCKET_ID)phoneId);
+    requestSendAT(channelID, (const char *)cmd, 0, NULL, response, responseLen);
+    putChannel(channelID);
 }
 
 int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
@@ -499,7 +524,7 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             int i;
             const char **cur = (const char **)data;
 
-            requestSendAT(channelID, *cur, datalen, t);
+            requestSendAT(channelID, *cur, datalen, t, NULL, 0);
             break;
         }
         case RIL_EXT_REQUEST_GET_BAND_INFO: {
@@ -551,6 +576,10 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             }
 
             at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_SEND_CMD: {
+            requestSendAT(channelID, (const char *)data, datalen, t, NULL, 0);
             break;
         }
         default:

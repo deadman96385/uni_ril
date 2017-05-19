@@ -1434,11 +1434,9 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
-        case RIL_REQUEST_VIDEOPHONE_DIAL:
         case RIL_EXT_REQUEST_VIDEOPHONE_DIAL:
             requestVideoPhoneDial(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_VIDEOPHONE_CODEC:
         case RIL_EXT_REQUEST_VIDEOPHONE_CODEC: {
             p_response = NULL;
             char cmd[AT_COMMAND_LEN] = {0};
@@ -2305,8 +2303,8 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (isVoLteEnable()) {
             if (response->cs_mod == 0) {
                 RIL_onUnsolicitedResponse(
-                        RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, response,
-                        sizeof(RIL_IMSPHONE_CMCCSI), socket_id);
+                        RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED, NULL,
+                        0, socket_id);
             }
         }
     } else if (strStartsWith(s, "+CMCCSS")) {

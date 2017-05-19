@@ -16,7 +16,7 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
 
 LOCAL_PROTOC_OPTIMIZE_TYPE := nanopb-c-enable_malloc
 
-LOCAL_MODULE:= librilutils_sp
+LOCAL_MODULE:= libsprdrilutils
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -38,7 +38,7 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
 
 LOCAL_PROTOC_OPTIMIZE_TYPE := nanopb-c-enable_malloc
 
-LOCAL_MODULE:= librilutils_static
+LOCAL_MODULE:= libsprdrilutils_static
 
 include $(BUILD_STATIC_LIBRARY)
 

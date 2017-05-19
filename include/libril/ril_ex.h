@@ -23,7 +23,6 @@
 #define NUM_ELEMS_SOCKET(a)     (sizeof(a) / sizeof(a)[0])
 
 void rilEventAddWakeup_helper(struct ril_event *ev);
-void listenCallback_helper(int fd, short flags, void *param);
 int blockingWrite_helper(int fd, void *data, size_t len);
 
 enum SocketWakeType {DONT_WAKE, WAKE_PARTIAL};
@@ -40,7 +39,7 @@ typedef struct SocketListenParam {
     RIL_SOCKET_ID socket_id;
     int fdListen;
     int fdCommand;
-    char *processName;
+    const char *processName;
     struct ril_event *commands_event;
     struct ril_event *listen_event;
     void (*processCommandsCallback)(int fd, short flags, void *param);

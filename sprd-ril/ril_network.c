@@ -25,25 +25,25 @@
 #define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
-        RIL_REG_STATE_UNKNOWN
+        RIL_UNKNOWN
 #if (SIM_COUNT >= 2)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #if (SIM_COUNT >= 3)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #if (SIM_COUNT >= 4)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #endif
 #endif
 #endif
         };
 RIL_RegState s_PSRegStateDetail[SIM_COUNT] = {
-        RIL_REG_STATE_UNKNOWN
+        RIL_UNKNOWN
 #if (SIM_COUNT >= 2)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #if (SIM_COUNT >= 3)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #if (SIM_COUNT >= 4)
-        ,RIL_REG_STATE_UNKNOWN
+        ,RIL_UNKNOWN
 #endif
 #endif
 #endif
@@ -307,42 +307,42 @@ static int mapCgregResponse(int in_response) {
 }
 
 static int mapRegState(int inResponse) {
-    int outResponse = RIL_REG_STATE_UNKNOWN;
+    int outResponse = RIL_UNKNOWN;
 
     switch (inResponse) {
         case 0:
-            outResponse = RIL_REG_STATE_NOT_REG;
+            outResponse = RIL_NOT_REG_AND_NOT_SEARCHING;
             break;
         case 1:
-            outResponse = RIL_REG_STATE_HOME;
+            outResponse = RIL_REG_HOME;
             break;
         case 2:
-            outResponse = RIL_REG_STATE_SEARCHING;
+            outResponse = RIL_NOT_REG_AND_SEARCHING;
             break;
         case 3:
-            outResponse = RIL_REG_STATE_DENIED;
+            outResponse = RIL_REG_DENIED;
             break;
         case 4:
-            outResponse = RIL_REG_STATE_UNKNOWN;
+            outResponse = RIL_UNKNOWN;
             break;
         case 5:
-            outResponse = RIL_REG_STATE_ROAMING;
+            outResponse = RIL_REG_ROAMING;
             break;
         case 8:
         case 10:
-            outResponse = RIL_REG_STATE_NOT_REG_EMERGENCY_CALL_ENABLED;
+            outResponse = RIL_NOT_REG_AND_EMERGENCY_AVAILABLE_AND_NOT_SEARCHING;
             break;
         case 12:
-            outResponse = RIL_REG_STATE_SEARCHING_EMERGENCY_CALL_ENABLED;
+            outResponse = RIL_NOT_REG_AND_EMERGENCY_AVAILABLE_AND_SEARCHING;
             break;
         case 13:
-            outResponse = RIL_REG_STATE_DENIED_EMERGENCY_CALL_ENABLED;
+            outResponse = RIL_REG_DENIED_AND_EMERGENCY_AVAILABLE;
             break;
         case 14:
-            outResponse = RIL_REG_STATE_UNKNOWN_EMERGENCY_CALL_ENABLED;
+            outResponse = RIL_UNKNOWN_AND_EMERGENCY_AVAILABLE;
             break;
         default:
-            outResponse = RIL_REG_STATE_UNKNOWN;
+            outResponse = RIL_UNKNOWN;
             break;
     }
     return outResponse;
@@ -671,7 +671,7 @@ static void requestRegistrationState(int channelID, int request,
     }
 
     if (8 == response[0]) {
-        response[0] = RIL_REG_STATE_NOT_REG_EMERGENCY_CALL_ENABLED;
+        response[0] = RIL_NOT_REG_AND_EMERGENCY_AVAILABLE_AND_NOT_SEARCHING;
     }
     snprintf(res[0], sizeof(res[0]), "%d", response[0]);
     responseStr[0] = res[0];
