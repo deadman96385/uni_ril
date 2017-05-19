@@ -16,7 +16,7 @@
 #define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
 /* PROP_FAST_DORMANCY value is "a,b". a is screen_off value, b is on value */
 #define PROP_FAST_DORMANCY    "persist.radio.fastdormancy"
-
+#define SOCKET_NAME_VSIM "vsim_socket"
 /* for sleep log */
 #define BUFFER_SIZE     (12 * 1024 * 4)
 #define CONSTANT_DIVIDE 32768.0
@@ -24,6 +24,11 @@
 /* single channel call, no need to distinguish sim1 and sim2*/
 int s_maybeAddCall = 0;
 int s_screenState = 1;
+int s_vsimClientFd = -1;
+bool s_vsimListenLoop = false;
+bool s_vsimInitFlag[SIM_COUNT] = {false, false};
+pthread_mutex_t s_vsimSocketMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_vsimSocketCond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_screenMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void requestBasebandVersion(int channelID, void *data, size_t datalen,
@@ -356,6 +361,85 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &hwCfg, sizeof(hwCfg));
 }
 
+void *listenVsimSocketThread() {
+    int ret = -1;
+    int vsimServerFd= socket_local_server(SOCKET_NAME_VSIM,
+           ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+    if (vsimServerFd < 0) {
+        RLOGE("Failed to get socket %s", SOCKET_NAME_VSIM);
+    }
+
+    ret = listen(vsimServerFd, 1);
+    if (ret < 0) {
+        RLOGE("Failed to listen on control socket '%d': %s",
+                vsimServerFd, strerror(errno));
+    }
+
+    s_vsimClientFd = accept(vsimServerFd, NULL, NULL);
+    pthread_mutex_lock(&s_vsimSocketMutex);
+    pthread_cond_signal(&s_vsimSocketCond);
+    s_vsimListenLoop = true;
+    pthread_mutex_unlock(&s_vsimSocketMutex);
+    RLOGD("vsim connected %d",s_vsimClientFd);
+    do {
+        char error[ARRAY_SIZE] = {0};
+        RLOGD("vsim read begin");
+        if (TEMP_FAILURE_RETRY(read(s_vsimClientFd, &error, sizeof(error)))
+                <= 0) {
+            RLOGE("read error from vsim! err = %s",strerror(errno));
+            close(s_vsimClientFd);
+            s_vsimClientFd = -1;
+        }
+        RLOGD("vsim read %s",error);
+    } while (s_vsimClientFd > 0);
+    return NULL;
+}
+
+void vsimInit() {
+    int ret;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    ret = pthread_create(&tid, &attr, (void *)listenVsimSocketThread, NULL);
+    if (ret < 0) {
+        RLOGE("Failed to create listen_vsim_socket_thread errno: %d", errno);
+    }
+}
+
+void* sendVsimReqThread(void *cmd) {
+    RLOGD("vsim write cmd = %s", cmd);
+    if (s_vsimClientFd >= 0) {
+        int len = strlen((char *)cmd) + 1;
+        RLOGD("vsim write cmd len= %d", len);
+        if (TEMP_FAILURE_RETRY(write(s_vsimClientFd, cmd, len)) !=
+                                      len) {
+            RLOGE("Failed to write cmd to vsim!error = %s", strerror(errno));
+            close(s_vsimClientFd);
+            s_vsimClientFd = -1;
+        }
+        RLOGD("vsim write OK");
+    } else {
+        RLOGE("vsim socket disconnected");
+    }
+    free(cmd);
+    return NULL;
+}
+
+void sendVsimReq(char *cmd) {
+    int ret;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    ret = pthread_create(&tid, &attr, (void *)sendVsimReqThread, (void *)cmd);
+    if (ret < 0) {
+        RLOGE("Failed to create sendVsimReqThread errno: %d", errno);
+    }
+}
+
 void requestSendAT(int channelID, const char *data, size_t datalen,
                    RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -393,6 +477,53 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         RLOGD("SNVM: cmd %s, pdu %s", cmd, pdu);
         err = at_send_command_snvm(s_ATChannels[channelID], cmd, pdu, "",
                                    &p_response);
+    } else if (strStartsWith(ATcmd, "VSIM_INIT")) {
+        char *cmd = NULL;
+        int socket_id = getSocketIdByChannelID(channelID);
+        s_vsimInitFlag[socket_id] = true;
+        //create socket
+        if (!s_vsimListenLoop) {
+            vsimInit();
+            response[0] = "OK";
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
+
+            RLOGD("wait for vsim socket connect");
+            pthread_mutex_lock(&s_vsimSocketMutex);
+            while (s_vsimClientFd < 0) {
+                pthread_cond_wait(&s_vsimSocketCond, &s_vsimSocketMutex);
+            }
+            pthread_mutex_unlock(&s_vsimSocketMutex);
+
+            RLOGD("vsim socket connected");
+        } else {
+            RLOGD("vsim socket has connected");
+        }
+
+        //send AT
+        cmd = ATcmd;
+        at_tok_start(&cmd);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        at_response_free(p_response);
+        return;
+    } else if (strStartsWith(ATcmd, "VSIM_EXIT")) {
+        char *cmd = NULL;
+        int socket_id = getSocketIdByChannelID(channelID);
+        s_vsimInitFlag[socket_id] = false;
+
+#if (SIM_COUNT >= 2)
+        if ((!s_vsimInitFlag[RIL_SOCKET_1]) && (!s_vsimInitFlag[RIL_SOCKET_2]))
+#else
+        if (!s_vsimInitFlag[RIL_SOCKET_1])
+#endif
+        {
+        //close socket
+            close(s_vsimClientFd);
+            s_vsimClientFd = -1;
+        }
+        //send AT
+        cmd = ATcmd;
+        at_tok_start(&cmd);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     } else {
         err = at_send_command_multiline(s_ATChannels[channelID], ATcmd, "",
                                         &p_response);
@@ -592,6 +723,17 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         response = tmp;
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_BAND_INFO, response,
                                   strlen(response) + 1, socket_id);
+    } else if (strStartsWith(s, "%RSIMREQ:")) {
+        char *tmp;
+        char *response = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        skipWhiteSpace(&tmp);
+        response = (char *)calloc((strlen(tmp) + 1), sizeof(char));
+        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
+        sendVsimReq(response);
     } else {
         return 0;
     }

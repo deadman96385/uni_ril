@@ -1854,7 +1854,7 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
 
     if (islte) {
         if (s_modemConfig == LWG_LWG) {
-            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD");
+            snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
             if (s_sessionId[socket_id] != 0) {
