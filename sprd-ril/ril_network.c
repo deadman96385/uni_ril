@@ -1239,19 +1239,6 @@ error:
     at_response_free(p_response);
 }
 
-static bool plmnFiltration(char *plmn) {
-    int i;
-    // Array of unwanted plmns; "46003","46005","46011","45502" are CTCC
-    char *unwantedPlmns[] = {"46003", "46005", "46011", "45502"};
-    int length = sizeof(unwantedPlmns) / sizeof(char *);
-    for (i = 0; i < length; i++) {
-        if (strcmp(unwantedPlmns[i], plmn) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static void requestNetworkList(int channelID, void *data, size_t datalen,
                                    RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -1347,10 +1334,6 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
 
         err = at_tok_nextstr(&line, &(cur[2]));
         if (err < 0) continue;
-        if (plmnFiltration(cur[2])) {
-            unwantedPlmnCount++;
-            continue;
-        }
 
         err = at_tok_nextint(&line, &act);
         if (err < 0) continue;
@@ -1374,7 +1357,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, responses,
-            (count - unwantedPlmnCount) * 4 * sizeof(char *));
+            count * 4 * sizeof(char *));
     at_response_free(p_response);
     free(startTmp);
     return;
