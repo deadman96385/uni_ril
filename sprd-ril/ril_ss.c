@@ -1100,6 +1100,8 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         char *tmp;
         char *buf = NULL;
         char *hexStr = NULL;
+        char tmpStr[ARRAY_SIZE * 8] = {0};
+        char utf8Str[ARRAY_SIZE * 8] = {0};
 
         s_ussdRun[socket_id] = 0;
         line = strdup(s);
@@ -1127,19 +1129,16 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 goto out;
             }
             /* convert hex string to string */
-            char str[ARRAY_SIZE * 4];
-            memset(str, 0, sizeof(str));
-            if (strcmp(response[2], "15") == 0) {  // GSM_TYPE
-                convertHexToBin((const char *)hexStr, strlen(hexStr), str);
+            convertHexToBin((const char *)hexStr, strlen(hexStr), tmpStr);
+            if (strcmp(response[2], "15") == 0) {  // GSM_7BITS_TYPE
+                convertGsm7ToUtf8((unsigned char *)tmpStr, strlen(tmpStr),
+                                  (unsigned char *)utf8Str);
             } else if (strcmp(response[2], "72") == 0) {  // UCS2_TYPE
-                char tmp[ARRAY_SIZE * 4];
-                memset(tmp, 0, sizeof(tmp));
-                convertHexToBin((const char *)hexStr, strlen(hexStr), tmp);
-                convertUcs2ToUtf8((unsigned char *)tmp, strlen(hexStr) / 2,
-                                  (unsigned char *)str);
+                convertUcs2ToUtf8((unsigned char *)tmpStr, strlen(hexStr) / 2,
+                                  (unsigned char *)utf8Str);
             }
 
-            response[1] = str;
+            response[1] = utf8Str;
             if (strcmp(response[0], "2") == 0) {
                 response[0] = "0";
             }
