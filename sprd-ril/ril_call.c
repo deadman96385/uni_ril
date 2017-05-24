@@ -917,11 +917,15 @@ static void requestEccDial(int channelID, void *data, size_t datalen,
 
     /* success or failure is ignored by the upper layer here.
        it will call GET_CURRENT_CALLS and determine success that way */
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
 }
 
 void requestLastCallFailCause(int channelID, void *data, size_t datalen,
@@ -1880,6 +1884,7 @@ static void dialEmergencyWhileCallFailed(void *param) {
         requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL, -1);
 done:
         putChannel(channelID);
+        at_response_free(p_response);
         free(p_dial->address);
         free(p_dial);
         free(cbPara);
