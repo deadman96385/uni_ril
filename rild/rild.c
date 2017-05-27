@@ -38,7 +38,6 @@
 #include <private/android_filesystem_config.h>
 #include "hardware/qemu_pipe.h"
 
-#define LIB_PATH_PROPERTY   "rild.libpath"
 #define LIB_ARGS_PROPERTY   "rild.libargs"
 #define MAX_LIB_ARGS        16
 #define MAX_CAP_NUM         (CAP_TO_INDEX(CAP_LAST_CAP) + 1)
@@ -143,7 +142,7 @@ void switchUser() {
 }
 
 int main(int argc, char **argv) {
-    const char * rilLibPath = NULL;
+    const char * rilLibPath = "libsprd-ril.so";
     char **rilArgv;
     void *dlHandle;
     const RIL_RadioFunctions *(*rilInit)(const struct RIL_Env *, int, char **);
@@ -151,7 +150,6 @@ int main(int argc, char **argv) {
     char *err_str = NULL;
 
     const RIL_RadioFunctions *funcs;
-    char libPath[PROPERTY_VALUE_MAX];
     unsigned char hasLibArgs = 0;
 
     int i;
@@ -185,16 +183,6 @@ int main(int argc, char **argv) {
     if (strncmp(clientId, "0", MAX_CLIENT_ID_LENGTH)) {
         strlcat(rild, clientId, MAX_SOCKET_NAME_LENGTH);
         RIL_setRilSocketName(rild);
-    }
-
-    if (rilLibPath == NULL) {
-        if ( 0 == property_get(LIB_PATH_PROPERTY, libPath, NULL)) {
-            // No lib sepcified on the command line, and nothing set in props.
-            // Assume "no-ril" case.
-            goto done;
-        } else {
-            rilLibPath = libPath;
-        }
     }
 
     /* special override when in the emulator */
