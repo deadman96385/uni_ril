@@ -1,4 +1,4 @@
-service spril-daemon /vendor/bin/hw/rild
+service spril-daemon /vendor/bin/hw/sprdrild
     class core
     disabled
     user root

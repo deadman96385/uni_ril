@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    dlHandle = dlopen(rilLibPath, RTLD_NOW);
+    dlHandle = dlopen("libsprd-ril.so", RTLD_NOW);
 
     if (dlHandle == NULL) {
         RLOGE("dlopen failed: %s", dlerror());

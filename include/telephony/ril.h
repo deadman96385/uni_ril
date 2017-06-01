@@ -6397,7 +6397,7 @@ typedef void (*RIL_TimedCallback) (void *param);
  */
 typedef const char * (*RIL_GetVersion) (void);
 
-typedef void * (*RIL_SendCmdSync)(int phoneId, char *cmd, char *response, int responseLen);
+typedef void (*RIL_SendCmdSync)(int phoneId, char *cmd, char *response, int responseLen);
 
 typedef struct {
     int version;        /* set to RIL_VERSION */

@@ -28,7 +28,7 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
     libprotobuf-c-nano-enable_malloc \
 
-#LOCAL_CFLAGS := -DANDROID_MULTI_SIM -DDSDA_RILD1
+LOCAL_CFLAGS := -DANDROID_MULTI_SIM
 LOCAL_CFLAGS += -Wno-unused-parameter
 
 ifeq ($(SIM_COUNT), 2)
