@@ -1608,7 +1608,7 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
         memset(old->password, 0, strlen(old->password));
     }
     if (isApnEqual(new->apn, old->apn) &&
-        isProtocolEqual(new->protocol, old->protocol) &&
+        isStrEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
         new->authtype == old->authtype) {
