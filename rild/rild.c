@@ -153,16 +153,6 @@ int main(int argc, char **argv) {
         RIL_setServiceName(ril_service_name);
     }
 
-    if (rilLibPath == NULL) {
-        if ( 0 == property_get(LIB_PATH_PROPERTY, libPath, NULL)) {
-            // No lib sepcified on the command line, and nothing set in props.
-            // Assume "no-ril" case.
-            goto done;
-        } else {
-            rilLibPath = libPath;
-        }
-    }
-
     dlHandle = dlopen("libsprd-ril.so", RTLD_NOW);
 
     if (dlHandle == NULL) {
