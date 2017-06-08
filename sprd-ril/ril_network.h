@@ -112,6 +112,8 @@ typedef struct OperatorInfoList {
     ril_signalstrength.LTE_SignalStrength.rsrq              = RIL_SIGNALSTRENGTH_INVALID;               \
     ril_signalstrength.LTE_SignalStrength.rssnr             = RIL_SIGNALSTRENGTH_INVALID;               \
     ril_signalstrength.LTE_SignalStrength.cqi               = RIL_SIGNALSTRENGTH_INVALID;               \
+    ril_signalstrength.LTE_SignalStrength.timingAdvance     = RIL_SIGNALSTRENGTH_INVALID;               \
+    ril_signalstrength.TD_SCDMA_SignalStrength.rscp         = RIL_SIGNALSTRENGTH_INVALID;               \
 } while (0);
 
 #define RIL_SIGNALSTRENGTH_INIT_LTE(ril_signalstrength) do {                          \

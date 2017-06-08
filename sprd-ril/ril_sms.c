@@ -851,14 +851,14 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
 
     if (strStartsWith(s, "+CMT:")) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS, sms_pdu,
-                                  strlen(sms_pdu) + 1, socket_id);
+                                  strlen(sms_pdu), socket_id);
     } else if (strStartsWith(s, "+CDS:")) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT,
-                                  sms_pdu, strlen(sms_pdu) + 1, socket_id);
+                                  sms_pdu, strlen(sms_pdu), socket_id);
     } else if (strStartsWith(s, "+CMGR:")) {
         if (sms_pdu != NULL) {
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NEW_SMS, sms_pdu,
-                                      strlen(sms_pdu) + 1, socket_id);
+                                      strlen(sms_pdu), socket_id);
         } else {
             RLOGD("[cmgr] sms_pdu is NULL");
         }

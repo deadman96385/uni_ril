@@ -827,9 +827,10 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
     char ecc3GPP_NoSIM[] = "112,911,000,08,110,118,119,999";
     char ecc3GPP_SIM[] = "112,911";
     int numberExist = 0;
-    int propValueSize = strlen(s_realEccList[socket_id]) + 1;
+    int propValueSize = 0;
 
     if (s_realEccList[socket_id] != NULL) {
+        propValueSize = strlen(s_realEccList[socket_id]) + 1;
         realEccList = (char *)calloc(propValueSize, sizeof(char));
         snprintf(realEccList, propValueSize, "%s", s_realEccList[socket_id]);
         tmpList = realEccList;

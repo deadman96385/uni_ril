@@ -125,7 +125,7 @@ static void onQuerySignalStrengthLTE(void *param) {
     char *line;
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    RIL_SignalStrength_v6 response_v6;
+    RIL_SignalStrength_v10 response_v10;
 
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
     if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
@@ -136,7 +136,7 @@ static void onQuerySignalStrengthLTE(void *param) {
     int channelID = getChannel(socket_id);
 
     RLOGE("query signal strength LTE when screen on");
-    RIL_SIGNALSTRENGTH_INIT(response_v6);
+    RIL_SIGNALSTRENGTH_INIT(response_v10);
 
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CESQ",
                                      "+CESQ:", &p_response);
@@ -172,17 +172,17 @@ static void onQuerySignalStrengthLTE(void *param) {
     if (err < 0) goto error;
 
     if (response[0] != -1 && response[0] != 99) {
-        response_v6.GW_SignalStrength.signalStrength = response[0];
+        response_v10.GW_SignalStrength.signalStrength = response[0];
     }
     if (response[2] != -1 && response[2] != 255) {
-        response_v6.GW_SignalStrength.signalStrength = response[2];
+        response_v10.GW_SignalStrength.signalStrength = response[2];
     }
     if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
-        response_v6.LTE_SignalStrength.rsrp = response[5];
+        response_v10.LTE_SignalStrength.rsrp = response[5];
     }
 
-    RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
-                              sizeof(RIL_SignalStrength_v6), socket_id);
+    RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v10,
+                              sizeof(RIL_SignalStrength_v10), socket_id);
     putChannel(channelID);
     at_response_free(p_response);
     at_response_free(p_newResponse);
@@ -198,7 +198,7 @@ error:
 static void onQuerySignalStrength(void *param) {
     int err;
     char *line;
-    RIL_SignalStrength_v6 response_v6;
+    RIL_SignalStrength_v10 response_v10;
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
 
@@ -211,7 +211,7 @@ static void onQuerySignalStrength(void *param) {
     int channelID = getChannel(socket_id);
 
     RLOGE("query signal strength when screen on");
-    RIL_SIGNALSTRENGTH_INIT(response_v6);
+    RIL_SIGNALSTRENGTH_INIT(response_v10);
 
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSQ", "+CSQ:",
                                      &p_response);
@@ -229,14 +229,14 @@ static void onQuerySignalStrength(void *param) {
     if (err < 0) goto error;
 
     err =
-        at_tok_nextint(&line, &(response_v6.GW_SignalStrength.signalStrength));
+        at_tok_nextint(&line, &(response_v10.GW_SignalStrength.signalStrength));
     if (err < 0) goto error;
 
-    err = at_tok_nextint(&line, &(response_v6.GW_SignalStrength.bitErrorRate));
+    err = at_tok_nextint(&line, &(response_v10.GW_SignalStrength.bitErrorRate));
     if (err < 0) goto error;
 
-    RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
-                              sizeof(RIL_SignalStrength_v6), socket_id);
+    RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v10,
+                              sizeof(RIL_SignalStrength_v10), socket_id);
     putChannel(channelID);
     at_response_free(p_response);
     at_response_free(p_newResponse);

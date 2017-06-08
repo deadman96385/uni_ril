@@ -1754,7 +1754,8 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
         if (s_isLTE) {
             ret = getDataProfile(response, channelID, initialAttachId);
-            ret = compareApnProfile(pIAApn, response);
+            //ret = compareApnProfile(pIAApn, response);
+            ret = 1;
             if (ret > 0) {
                 goto done;
             } else {

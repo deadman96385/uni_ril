@@ -369,9 +369,9 @@ static void requestSignalStrength(int channelID, void *data,
     char *line;
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    RIL_SignalStrength_v6 response_v6;
+    RIL_SignalStrength_v10 response_v10;
 
-    RIL_SIGNALSTRENGTH_INIT(response_v6);
+    RIL_SIGNALSTRENGTH_INIT(response_v10);
 
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSQ", "+CSQ:",
                                      &p_response);
@@ -388,14 +388,14 @@ static void requestSignalStrength(int channelID, void *data,
     if (err < 0) goto error;
 
     err = at_tok_nextint(&line,
-            &(response_v6.GW_SignalStrength.signalStrength));
+            &(response_v10.GW_SignalStrength.signalStrength));
     if (err < 0) goto error;
 
-    err = at_tok_nextint(&line, &(response_v6.GW_SignalStrength.bitErrorRate));
+    err = at_tok_nextint(&line, &(response_v10.GW_SignalStrength.bitErrorRate));
     if (err < 0) goto error;
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response_v6,
-                          sizeof(RIL_SignalStrength_v6));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response_v10,
+                          sizeof(RIL_SignalStrength_v10));
     at_response_free(p_response);
     at_response_free(p_newResponse);
     return;
@@ -417,9 +417,9 @@ static void requestSignalStrengthLTE(int channelID, void *data,
     int response[6] = {-1, -1, -1, -1, -1, -1};
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    RIL_SignalStrength_v6 responseV6;
+    RIL_SignalStrength_v10 responseV10;
 
-    RIL_SIGNALSTRENGTH_INIT(responseV6);
+    RIL_SIGNALSTRENGTH_INIT(responseV10);
 
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CESQ",
                                      "+CESQ:", &p_response);
@@ -455,17 +455,17 @@ static void requestSignalStrengthLTE(int channelID, void *data,
     if (err < 0) goto error;
 
     if (response[0] != -1 && response[0] != 99) {
-        responseV6.GW_SignalStrength.signalStrength = response[0];
+        responseV10.GW_SignalStrength.signalStrength = response[0];
     }
     if (response[2] != -1 && response[2] != 255) {
-        responseV6.GW_SignalStrength.signalStrength = response[2];
+        responseV10.GW_SignalStrength.signalStrength = response[2];
     }
     if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
-        responseV6.LTE_SignalStrength.rsrp = response[5];
+        responseV10.LTE_SignalStrength.rsrp = response[5];
     }
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &responseV6,
-                          sizeof(RIL_SignalStrength_v6));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &responseV10,
+                          sizeof(RIL_SignalStrength_v10));
     at_response_free(p_response);
     at_response_free(p_newResponse);
     return;
@@ -2843,7 +2843,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
 
-        RIL_SignalStrength_v6 responseV6;
+        RIL_SignalStrength_v10 response_v10;
         char *tmp;
         char newLine[AT_COMMAND_LEN];
 
@@ -2856,28 +2856,28 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = csq_unsol_rsp(tmp, socket_id, newLine);
         if (err == 0) {
-            RIL_SIGNALSTRENGTH_INIT(responseV6);
+            RIL_SIGNALSTRENGTH_INIT(response_v10);
 
             tmp = newLine;
             at_tok_start(&tmp);
 
             err = at_tok_nextint(&tmp,
-                    &(responseV6.GW_SignalStrength.signalStrength));
+                    &(response_v10.GW_SignalStrength.signalStrength));
             if (err < 0) goto out;
 
             err = at_tok_nextint(&tmp,
-                    &(responseV6.GW_SignalStrength.bitErrorRate));
+                    &(response_v10.GW_SignalStrength.bitErrorRate));
             if (err < 0) goto out;
 
-            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &responseV6,
-                                      sizeof(RIL_SignalStrength_v6), socket_id);
+            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v10,
+                                      sizeof(RIL_SignalStrength_v10), socket_id);
         }
     } else if (strStartsWith(s, "+CESQ:")) {
         if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
             goto out;
         }
 
-        RIL_SignalStrength_v6 response_v6;
+        RIL_SignalStrength_v10 response_v10;
         char *tmp;
         int skip;
         int response[6] = {-1, -1, -1, -1, -1, -1};
@@ -2892,7 +2892,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = cesq_unsol_rsp(tmp, socket_id, newLine);
         if (err == 0) {
-            RIL_SIGNALSTRENGTH_INIT(response_v6);
+            RIL_SIGNALSTRENGTH_INIT(response_v10);
 
             tmp = newLine;
             at_tok_start(&tmp);
@@ -2916,16 +2916,16 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (err < 0) goto out;
 
             if (response[0] != -1 && response[0] != 99) {
-                response_v6.GW_SignalStrength.signalStrength = response[0];
+                response_v10.GW_SignalStrength.signalStrength = response[0];
             }
             if (response[2] != -1 && response[2] != 255) {
-                response_v6.GW_SignalStrength.signalStrength = response[2];
+                response_v10.GW_SignalStrength.signalStrength = response[2];
             }
             if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
-                response_v6.LTE_SignalStrength.rsrp = response[5];
+                response_v10.LTE_SignalStrength.rsrp = response[5];
             }
-            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
-                                      sizeof(RIL_SignalStrength_v6), socket_id);
+            RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v10,
+                                      sizeof(RIL_SignalStrength_v10), socket_id);
         }
     } else if (strStartsWith(s, "+CREG:") ||
                 strStartsWith(s, "+CGREG:")) {
@@ -3336,9 +3336,9 @@ void *signal_process() {
             }
 
             if (s_isLTE) {  // l/tl/lf
-                RIL_SignalStrength_v6 response_v6;
+                RIL_SignalStrength_v10 response_v10;
                 int response[6] = {-1, -1, -1, -1, -1, -1};
-                RIL_SIGNALSTRENGTH_INIT(response_v6);
+                RIL_SIGNALSTRENGTH_INIT(response_v10);
 
                 response[0] = rxlev_value;
                 response[1] = ber[sim_index];
@@ -3346,26 +3346,26 @@ void *signal_process() {
                 response[5] = rsrp_value;
 
                 if (response[0] != -1 && response[0] != 99) {
-                    response_v6.GW_SignalStrength.signalStrength = response[0];
+                    response_v10.GW_SignalStrength.signalStrength = response[0];
                 }
                 if (response[2] != -1 && response[2] != 255) {
-                    response_v6.GW_SignalStrength.signalStrength = response[2];
+                    response_v10.GW_SignalStrength.signalStrength = response[2];
                 }
                 if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
-                    response_v6.LTE_SignalStrength.rsrp = response[5];
+                    response_v10.LTE_SignalStrength.rsrp = response[5];
                 }
                 RLOGD("rxlev[%d]=%d, rscp[%d]=%d, rsrp[%d]=%d", sim_index,
                      rxlev_value, sim_index, rscp_value, sim_index, rsrp_value);
                 RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
-                        &response_v6, sizeof(RIL_SignalStrength_v6), sim_index);
+                        &response_v10, sizeof(RIL_SignalStrength_v10), sim_index);
             } else {  // w/t
-                RIL_SignalStrength_v6 responseV6;
-                RIL_SIGNALSTRENGTH_INIT(responseV6);
-                responseV6.GW_SignalStrength.signalStrength = rscp_value;
-                responseV6.GW_SignalStrength.bitErrorRate = ber[sim_index];
+                RIL_SignalStrength_v10 responseV10;
+                RIL_SIGNALSTRENGTH_INIT(responseV10);
+                responseV10.GW_SignalStrength.signalStrength = rscp_value;
+                responseV10.GW_SignalStrength.bitErrorRate = ber[sim_index];
                 RLOGD("rssi[%d]=%d", sim_index, rscp_value);
                 RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
-                        &responseV6, sizeof(RIL_SignalStrength_v6), sim_index);
+                        &responseV10, sizeof(RIL_SignalStrength_v10), sim_index);
             }
         }
         sleep(1);
