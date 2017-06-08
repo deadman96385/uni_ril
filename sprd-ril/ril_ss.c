@@ -1131,7 +1131,7 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             /* convert hex string to string */
             convertHexToBin((const char *)hexStr, strlen(hexStr), tmpStr);
             if (strcmp(response[2], "15") == 0) {  // GSM_7BITS_TYPE
-                convertGsm7ToUtf8((unsigned char *)tmpStr, strlen(tmpStr),
+                convertGsm7ToUtf8((unsigned char *)tmpStr, strlen(hexStr) / 2,
                                   (unsigned char *)utf8Str);
             } else if (strcmp(response[2], "72") == 0) {  // UCS2_TYPE
                 convertUcs2ToUtf8((unsigned char *)tmpStr, strlen(hexStr) / 2,
