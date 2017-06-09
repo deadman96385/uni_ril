@@ -853,7 +853,7 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
     } else if (unsolResponse >= RIL_IMS_UNSOL_RESPONSE_BASE
             && unsolResponse <= RIL_IMS_UNSOL_RESPONSE_LAST) {
         unsolResponseIndex = unsolResponse - RIL_IMS_UNSOL_RESPONSE_BASE;
-//        pURI = &(s_ims_unsolResponses[unsolResponseIndex]);
+        pURI = &(s_imsUnsolResponses[unsolResponseIndex]);
     } else if (unsolResponse >= RIL_EXT_UNSOL_RESPONSE_BASE
             && unsolResponse <= RIL_EXT_UNSOL_RESPONSE_LAST) {
         unsolResponseIndex = unsolResponse - RIL_EXT_UNSOL_RESPONSE_BASE;
