@@ -31,7 +31,7 @@
 #define INVALID_HEX_CHAR 16
 
 // Enable verbose logging
-#define VDBG 0
+#define VDBG 1
 
 using namespace android::hardware::radio::V1_0;
 using namespace android::hardware::radio::deprecated::V1_0;
@@ -11193,7 +11193,7 @@ int radio::IMSBearerEstablished(int slotId, int indicationType, int token,
         }
         int32_t state = ((int32_t *)response)[0];
 #if VDBG
-        RLOGD("IMSBearerEstablished: %d", id);
+        RLOGD("IMSBearerEstablished");
 #endif
         Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
                 IMSBearerEstablished(convertIntToRadioIndicationType(indicationType), state);
@@ -11214,7 +11214,7 @@ int radio::IMSHandoverRequestInd(int slotId, int indicationType, int token,
         }
         int32_t status = ((int32_t *)response)[0];
 #if VDBG
-        RLOGD("IMSHandoverRequestInd: %d", id);
+        RLOGD("IMSHandoverRequestInd");
 #endif
         Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
                 IMSHandoverRequestInd(convertIntToRadioIndicationType(indicationType), status);
@@ -11236,7 +11236,7 @@ int radio::IMSHandoverStatusChangedInd(int slotId, int indicationType, int token
         }
         int32_t status = ((int32_t *)response)[0];
 #if VDBG
-        RLOGD("IMSHandoverStatusChangedInd: %d", id);
+        RLOGD("IMSHandoverStatusChangedInd");
 #endif
         Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
                 IMSHandoverStatusChangedInd(convertIntToRadioIndicationType(indicationType), status);
@@ -11335,7 +11335,7 @@ int radio::IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
         }
         int32_t resp = ((int32_t *)response)[0];
 #if VDBG
-        RLOGD("IMSNetworkStateChangedInd: %d", id);
+        RLOGD("IMSNetworkStateChangedInd");
 #endif
         Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
                 IMSNetworkStateChangedInd(convertIntToRadioIndicationType(indicationType), resp);

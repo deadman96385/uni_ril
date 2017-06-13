@@ -135,9 +135,75 @@ error:
     return -1;
 }
 
+static void requestSetCallForward(int channelID, RIL_CallForwardInfo *data,
+                                  size_t datalen, RIL_Token t) {
+    int err;
+    int errNum = 0xff;
+    int ret = -1;
+    char *cmd, *line;
+    ATLine *p_cur;
+    ATResponse *p_response = NULL;
 
-static void requestCallForward(int channelID, RIL_CallForwardInfo *data,
-                                   size_t datalen, RIL_Token t) {
+    if (datalen != sizeof(*data)) {
+        goto error;
+    }
+    if (data->serviceClass == 0) {
+        if (data->timeSeconds != 0 && data->status == 3) {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,,\"\",,%d",
+                    data->reason,
+                    data->status,
+                    data->number ? data->number : "",
+                    data->toa,
+                    data->timeSeconds);
+
+        } else {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d",
+                    data->reason,
+                    data->status,
+                    data->number ? data->number : "",
+                    data->toa);
+        }
+    } else {
+        if (data->timeSeconds != 0 && data->status == 3) {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d,\"\",,%d",
+                    data->reason,
+                    data->status,
+                    data->number ? data->number : "",
+                    data->toa,
+                    data->serviceClass,
+                    data->timeSeconds);
+        } else {
+            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d",
+                    data->reason,
+                    data->status,
+                    data->number ? data->number : "",
+                    data->toa,
+                    data->serviceClass);
+        }
+    }
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+    err = at_send_command_multiline(s_ATChannels[channelID], cmd, "+CCFC:",
+                                    &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestQueryCallForward(int channelID, RIL_CallForwardInfo *data,
+                                    size_t datalen, RIL_Token t) {
     int err;
     int errNum = 0xff;
     int ret = -1;
@@ -149,53 +215,14 @@ static void requestCallForward(int channelID, RIL_CallForwardInfo *data,
         goto error1;
     }
     if (data->serviceClass == 0) {
-        if (data->status == 2) {
-            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",129",
-                data->reason,
-                data->status,
-                data->number ? data->number : "");
-        } else {
-            if (data->timeSeconds != 0 && data->status == 3) {
-                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,,\"\",,%d",
-                        data->reason,
-                        data->status,
-                        data->number ? data->number : "",
-                        data->toa,
-                        data->timeSeconds);
-
-            } else {
-                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d",
-                        data->reason,
-                        data->status,
-                        data->number ? data->number : "",
-                        data->toa);
-            }
-        }
+        ret = asprintf(&cmd, "AT+CCFC=%d,2,\"%s\",129",
+            data->reason,
+            data->number ? data->number : "");
     } else {
-        if (data->status == 2) {
-            ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",129,%d",
-                data->reason,
-                data->status,
-                data->number ? data->number : "",
-                data->serviceClass);
-        } else {
-            if (data->timeSeconds != 0 && data->status == 3) {
-                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d,\"\",,%d",
-                        data->reason,
-                        data->status,
-                        data->number ? data->number : "",
-                        data->toa,
-                        data->serviceClass,
-                        data->timeSeconds);
-            } else {
-                ret = asprintf(&cmd, "AT+CCFC=%d,%d,\"%s\",%d,%d",
-                        data->reason,
-                        data->status,
-                        data->number ? data->number : "",
-                        data->toa,
-                        data->serviceClass);
-            }
-        }
+        ret = asprintf(&cmd, "AT+CCFC=%d,2,\"%s\",129,%d",
+            data->reason,
+            data->number ? data->number : "",
+            data->serviceClass);
     }
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
@@ -209,63 +236,57 @@ static void requestCallForward(int channelID, RIL_CallForwardInfo *data,
         goto error;
     }
 
-    if (data->status == 2) {
-        RIL_CallForwardInfo **forwardList, *forwardPool;
-        int forwardCount = 0;
-        int validCount = 0;
-        int i;
+    RIL_CallForwardInfo **forwardList, *forwardPool;
+    int forwardCount = 0;
+    int validCount = 0;
+    int i;
 
-        for (p_cur = p_response->p_intermediates; p_cur != NULL;
-             p_cur = p_cur->p_next, forwardCount++) {
-        }
-
-        forwardList = (RIL_CallForwardInfo **)
-            alloca(forwardCount * sizeof(RIL_CallForwardInfo *));
-
-        forwardPool = (RIL_CallForwardInfo *)
-            alloca(forwardCount * sizeof(RIL_CallForwardInfo));
-
-        memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfo));
-
-        /* init the pointer array */
-        for (i = 0; i < forwardCount; i++) {
-            forwardList[i] = &(forwardPool[i]);
-        }
-
-        for (p_cur = p_response->p_intermediates; p_cur != NULL;
-             p_cur = p_cur->p_next) {
-            err = forwardFromCCFCLine(p_cur->line, forwardList[validCount]);
-            forwardList[validCount]->reason = data->reason;
-            if (err == 0) {
-                validCount++;
-            }
-        }
-
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
-                              validCount * sizeof(RIL_CallForwardInfo *));
-    } else {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next, forwardCount++) {
     }
 
+    forwardList = (RIL_CallForwardInfo **)
+        alloca(forwardCount * sizeof(RIL_CallForwardInfo *));
+
+    forwardPool = (RIL_CallForwardInfo *)
+        alloca(forwardCount * sizeof(RIL_CallForwardInfo));
+
+    memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfo));
+
+    /* init the pointer array */
+    for (i = 0; i < forwardCount; i++) {
+        forwardList[i] = &(forwardPool[i]);
+    }
+
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        err = forwardFromCCFCLine(p_cur->line, forwardList[validCount]);
+        forwardList[validCount]->reason = data->reason;
+        if (err == 0) {
+            validCount++;
+        }
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
+                          validCount * sizeof(RIL_CallForwardInfo *));
     at_response_free(p_response);
     return;
 
 error:
-    if (data->status == 2) {
-        if (p_response != NULL &&
-            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
-            line = p_response->finalResponse;
-            err = at_tok_start(&line);
-            if (err < 0) goto error1;
-            err = at_tok_nextint(&line, &errNum);
-            if (err < 0) goto error1;
-            if (errNum == 70 || errNum == 254 || errNum == 128 ) {
-                RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
-                at_response_free(p_response);
-                return;
-            }
+    if (p_response != NULL &&
+        strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        line = p_response->finalResponse;
+        err = at_tok_start(&line);
+        if (err < 0) goto error1;
+        err = at_tok_nextint(&line, &errNum);
+        if (err < 0) goto error1;
+        if (errNum == 70 || errNum == 254 || errNum == 128 ) {
+            RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
         }
     }
+
 error1:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
@@ -587,8 +608,86 @@ error:
     return -1;
 }
 
-static void requestCallForwardU(int channelID, RIL_CallForwardInfo *data,
+static void requestSetCallForwardU(int channelID, RIL_CallForwardInfo *data,
                                     size_t datalen, RIL_Token t) {
+    int err;
+    int errNum = 0xff;
+    int ret = -1;
+    char *cmd, *line;
+    ATResponse *p_response = NULL;
+    ATLine *p_cur;
+
+    if (datalen != sizeof(*data)) {
+        goto error;
+    }
+    if (data->serviceClass == 0) {
+        if (data->timeSeconds != 0 && data->status == 3) {
+            ret = asprintf(&cmd,
+                    "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"\",\"\",,%d",
+                    data->reason,
+                    data->status,
+                    2,
+                    data->toa,
+                    data->number ? data->number : "",
+                    data->serviceClass,
+                    data->timeSeconds);
+
+        } else {
+            ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d",
+                    data->reason,
+                    data->status,
+                    2,
+                    data->toa,
+                    data->number ? data->number : "",
+                    data->serviceClass);
+        }
+    } else {
+        if (data->timeSeconds != 0 && data->status == 3) {
+            ret = asprintf(&cmd,
+                    "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\",\"\",,%d",
+                    data->reason,
+                    data->status,
+                    2,
+                    data->toa,
+                    data->number ? data->number : "",
+                    data->serviceClass,
+                    "",
+                    data->timeSeconds);
+        } else {
+            ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\"",
+                    data->reason,
+                    data->status,
+                    2,
+                    data->toa,
+                    data->number ? data->number : "",
+                    data->serviceClass,
+                    "");
+        }
+
+    }
+    if (ret < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+    err = at_send_command_multiline(s_ATChannels[channelID], cmd, "+CCFCU:",
+                                    &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
+static void requestQueryCallForwardU(int channelID, RIL_CallForwardInfo *data,
+                                     size_t datalen, RIL_Token t) {
     int err;
     int errNum = 0xff;
     int ret = -1;
@@ -600,68 +699,19 @@ static void requestCallForwardU(int channelID, RIL_CallForwardInfo *data,
         goto error1;
     }
     if (data->serviceClass == 0) {
-        if (data->status == 2) {
-            ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d",
+        ret = asprintf(&cmd, "AT+CCFCU=%d,2,%d,%d,\"%s\",%d",
+            data->reason,
+            2,
+            data->toa,
+            data->number ? data->number : "",
+            data->serviceClass);
+    } else {
+        ret = asprintf(&cmd, "AT+CCFCU=%d,2,%d,%d,\"%s\",%d",
                 data->reason,
-                data->status,
                 2,
                 data->toa,
                 data->number ? data->number : "",
                 data->serviceClass);
-        } else {
-            if (data->timeSeconds != 0 && data->status == 3) {
-                ret = asprintf(&cmd,
-                        "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"\",\"\",,%d",
-                        data->reason,
-                        data->status,
-                        2,
-                        data->toa,
-                        data->number ? data->number : "",
-                        data->serviceClass,
-                        data->timeSeconds);
-
-            } else {
-                ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d",
-                        data->reason,
-                        data->status,
-                        2,
-                        data->toa,
-                        data->number ? data->number : "",
-                        data->serviceClass);
-            }
-        }
-    } else {
-        if (data->status == 2) {
-            ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d",
-                    data->reason,
-                    data->status,
-                    2,
-                    data->toa,
-                    data->number ? data->number : "",
-                    data->serviceClass);
-        } else {
-            if (data->timeSeconds != 0 && data->status == 3) {
-                ret = asprintf(&cmd,
-                        "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\",\"\",,%d",
-                        data->reason,
-                        data->status,
-                        2,
-                        data->toa,
-                        data->number ? data->number : "",
-                        data->serviceClass,
-                        "",
-                        data->timeSeconds);
-            } else {
-                ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d,\"%s\"",
-                        data->reason,
-                        data->status,
-                        2,
-                        data->toa,
-                        data->number ? data->number : "",
-                        data->serviceClass,
-                        "");
-            }
-        }
     }
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
@@ -675,60 +725,53 @@ static void requestCallForwardU(int channelID, RIL_CallForwardInfo *data,
         goto error;
     }
 
-    if (data->status == 2) {
-        RIL_CallForwardInfo **forwardList, *forwardPool;
-        int forwardCount = 0;
-        int validCount = 0;
-        int i;
+    RIL_CallForwardInfo **forwardList, *forwardPool;
+    int forwardCount = 0;
+    int validCount = 0;
+    int i;
 
-        for (p_cur = p_response->p_intermediates; p_cur != NULL;
-             p_cur = p_cur->p_next, forwardCount++) {
-        }
-
-        forwardList = (RIL_CallForwardInfo **)
-            alloca(forwardCount * sizeof(RIL_CallForwardInfo *));
-
-        forwardPool = (RIL_CallForwardInfo *)
-            alloca(forwardCount * sizeof(RIL_CallForwardInfo));
-
-        memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfo));
-
-        /* init the pointer array */
-        for (i = 0; i < forwardCount; i++) {
-            forwardList[i] = &(forwardPool[i]);
-        }
-
-        for (p_cur = p_response->p_intermediates; p_cur != NULL;
-             p_cur = p_cur->p_next) {
-            err = forwardFromCCFCULine(p_cur->line, forwardList[validCount]);
-            forwardList[validCount]->reason = data->reason;
-            if (err == 0) validCount++;
-        }
-
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
-                              validCount * sizeof (RIL_CallForwardInfo *));
-    } else {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next, forwardCount++) {
     }
 
+    forwardList = (RIL_CallForwardInfo **)
+        alloca(forwardCount * sizeof(RIL_CallForwardInfo *));
+
+    forwardPool = (RIL_CallForwardInfo *)
+        alloca(forwardCount * sizeof(RIL_CallForwardInfo));
+
+    memset(forwardPool, 0, forwardCount * sizeof(RIL_CallForwardInfo));
+
+    /* init the pointer array */
+    for (i = 0; i < forwardCount; i++) {
+        forwardList[i] = &(forwardPool[i]);
+    }
+
+    for (p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        err = forwardFromCCFCULine(p_cur->line, forwardList[validCount]);
+        forwardList[validCount]->reason = data->reason;
+        if (err == 0) validCount++;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, validCount ? forwardList : NULL,
+                          validCount * sizeof (RIL_CallForwardInfo *));
     at_response_free(p_response);
     return;
 
 error:
-    if (data->status == 2) {
-        if (p_response != NULL &&
-            strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
-            line = p_response->finalResponse;
-            err = at_tok_start(&line);
-            if (err < 0) goto error1;
-            err = at_tok_nextint(&line, &errNum);
-            if (err < 0) goto error1;
-            if (errNum == 70 || errNum == 254 || errNum == 128 ||
-                errNum == 254) {
-                RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
-                at_response_free(p_response);
-                return;
-            }
+    if (p_response != NULL &&
+        strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        line = p_response->finalResponse;
+        err = at_tok_start(&line);
+        if (err < 0) goto error1;
+        err = at_tok_nextint(&line, &errNum);
+        if (err < 0) goto error1;
+        if (errNum == 70 || errNum == 254 || errNum == 128 ||
+            errNum == 254) {
+            RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
         }
     }
 
@@ -881,17 +924,17 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS: {
              if (isVoLteEnable()) {
-                 requestCallForwardU(channelID, data, datalen, t);
+                 requestQueryCallForwardU(channelID, data, datalen, t);
              } else {
-                 requestCallForward(channelID, data, datalen, t);
+                 requestQueryCallForward(channelID, data, datalen, t);
              }
             break;
         }
         case RIL_REQUEST_SET_CALL_FORWARD: {
              if (isVoLteEnable()) {
-                 requestCallForwardU(channelID, data, datalen, t);
+                 requestSetCallForwardU(channelID, data, datalen, t);
              } else {
-                 requestCallForward(channelID, data, datalen, t);
+                 requestSetCallForward(channelID, data, datalen, t);
              }
             break;
         }
