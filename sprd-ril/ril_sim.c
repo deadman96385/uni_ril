@@ -2423,10 +2423,8 @@ static void getIMEIPassword(int channelID, char imeiPwd[]) {
         line++;
         i++;
     }
-    for (i = 0; i < 15; j++) {
-        if (j > 6) break;
+    for (i = 0, j = 0; i < 14 && j <= 6; i += 2, j++) {
         imeiPwd[j] = (password[i] - 48 + password[i + 1] - 48) % 10 + '0';
-        i = i + 2;
     }
     imeiPwd[7] = password[0];
     imeiPwd[8] = '\0';
@@ -2441,7 +2439,7 @@ error:
 static void requestFacilityLockByUser(int channelID, char **data,
                                           size_t datalen, RIL_Token t) {
     ATResponse *p_response = NULL;
-    char imeiPwd[9];
+    char imeiPwd[9] = {0};
     int err;
     int result;
     int status;
