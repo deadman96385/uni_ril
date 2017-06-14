@@ -228,6 +228,8 @@ static void getSIMStatusAgainForSimBusy(void *param) {
             }
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                     NULL, 0, socket_id);
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
+                    NULL, 0, socket_id);
             goto done;
     }
 done:
@@ -484,9 +486,9 @@ done:
     }
 
     if (ret == SIM_ABSENT) {
-        setSimPresent(socket_id, false);
+        setSimPresent(socket_id, ABSENT);
     } else {
-        setSimPresent(socket_id, true);
+        setSimPresent(socket_id, PRESENT);
     }
 
     /** SPRD: Bug 523208 set pin/puk remain times to prop. @{*/
@@ -2802,7 +2804,6 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             char *p_buffer;
             int buffer_size;
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
             sem_wait(&(s_sem[socket_id]));
             int result = getCardStatus(request, channelID, &p_card_status);
             sem_post(&(s_sem[socket_id]));
@@ -3017,12 +3018,18 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     if (err < 0) goto out;
                     if (cause == 2) {
                         s_simState[socket_id] = SIM_DROP;
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 34) {  // sim removed
                         s_simState[socket_id] = SIM_REMOVE;
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
@@ -3041,6 +3048,10 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                 if (value == 4) {
                     RIL_requestTimedCallback(onSimlockLocked,
                             (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
+                } else if (value == 100) {
+                    RIL_onUnsolicitedResponse(
+                            RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL, 0,
+                            socket_id);
                 }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,

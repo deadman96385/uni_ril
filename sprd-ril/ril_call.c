@@ -918,11 +918,15 @@ static void requestEccDial(int channelID, void *data, size_t datalen,
 
     /* success or failure is ignored by the upper layer here.
        it will call GET_CURRENT_CALLS and determine success that way */
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
 }
 
 void requestLastCallFailCause(int channelID, void *data, size_t datalen,
@@ -1075,7 +1079,6 @@ static void requestVideoPhoneDial(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
 
     RIL_VideoPhone_Dial *p_dial;
-    ATResponse *p_response = NULL;
     int err;
     char *cmd;
     int ret;
@@ -1096,14 +1099,13 @@ static void requestVideoPhoneDial(int channelID, void *data,
         return;
     }
 
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
     free(cmd);
-    if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    } else {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-    }
-    at_response_free(p_response);
+    if (err != 0) goto error;
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    return;
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 static void requestSwitchMultiCall(int channelID, void *data,
@@ -1834,7 +1836,9 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
 static void dialEmergencyWhileCallFailed(void *param) {
     if (param != NULL) {
         char eccNumber[ARRAY_SIZE] = {0};
-        int channelID;
+        char *line = NULL, *mcc = NULL;
+        int channelID, err;
+        ATResponse *p_response = NULL;
         CallbackPara *cbPara = (CallbackPara *)param;
         if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
             RLOGE("Invalid socket_id %d", cbPara->socket_id);
@@ -1852,13 +1856,34 @@ static void dialEmergencyWhileCallFailed(void *param) {
 
         RLOGD("dialEmergencyWhileCallFailed->address = %s",
               (char *)cbPara->para);
-        snprintf(eccNumber, sizeof(eccNumber), "%s@%d", p_dial->address, -1);
+        err = at_send_command_multiline(s_ATChannels[channelID], "AT+CEN?",
+                                       "+CEN", &p_response);
+        /* AT+CEN? Return:
+         * +CEN1:<reporting >,<mcc>,<mnc>
+         * ...
+         */
+        if (err < 0 || p_response->success == 0) {
+            RLOGE("query  network eccList fail!");
+            goto done;
+        }
+
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto done;
+        skipNextComma(&line);
+        err = at_tok_nextstr(&line, &mcc);
+        if (err < 0) {
+            RLOGE("%s get mcc fail", p_response->p_intermediates->line);
+            goto done;
+        }
+        snprintf(eccNumber, sizeof(eccNumber), "%s,%s@%d", mcc, p_dial->address, -1);
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED,
                 eccNumber, strlen(eccNumber) + 1, cbPara->socket_id);
 
         requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL, -1);
+done:
         putChannel(channelID);
-
+        at_response_free(p_response);
         free(p_dial->address);
         free(p_dial);
         free(cbPara);

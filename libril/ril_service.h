@@ -884,6 +884,11 @@ int switchPrimaryCardInd(int slotId, int indicationType, int token,
 int simPSRejectInd(int slotId, int indicationType, int token,
                    RIL_Errno e, void *response, size_t responseLen);
 
+int simMgrSimStatusChangedInd(int slotId, int indicationType, int token,
+                              RIL_Errno e, void *response, size_t responseLen);
+
+int radioCapabilityChangedInd(int slotId, int indicationType, int token,
+                              RIL_Errno e, void *response, size_t responseLen);
 /*******************IMS EXTENSION REQUESTs' responseFunction******************/
 
 int getIMSCurrentCallsResponse(int slotId, int responseType, int serial,

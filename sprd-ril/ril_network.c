@@ -24,6 +24,9 @@
 /* set network type for engineer mode */
 #define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
 
+/* set the comb-register flag*/
+#define CEMODE_PROP             "persist.radio.cemode"
+
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_UNKNOWN
 #if (SIM_COUNT >= 2)
@@ -112,7 +115,6 @@ int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
 int s_sessionId[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
-bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
 
@@ -121,7 +123,9 @@ int rxlev[SIM_COUNT], ber[SIM_COUNT], rscp[SIM_COUNT];
 int ecno[SIM_COUNT], rsrq[SIM_COUNT], rsrp[SIM_COUNT];
 int rssi[SIM_COUNT], berr[SIM_COUNT];
 
-void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
+void setWorkMode();
+
+void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
     pthread_mutex_lock(&s_simPresentMutex);
     s_isSimPresent[socket_id] = hasSim;
@@ -140,6 +144,14 @@ int isSimPresent(RIL_SOCKET_ID socket_id) {
 
 void initSIMPresentState() {
     int simId = 0;
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        if (s_isSimPresent[simId] == SIM_UNKNOWN) {
+            RLOGD("s_isSimPresent unknown  %d", simId);
+            int channelID = getChannel(simId);
+            getSIMStatus(false, channelID);
+            putChannel(channelID);
+        }
+    }
     pthread_mutex_lock(&s_presentSIMCountMutex);
     s_presentSIMCount = 0;
     for (simId = 0; simId < SIM_COUNT; simId++) {
@@ -174,7 +186,6 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
     int newWorkMode = 0;
     char prop[PROPERTY_VALUE_MAX] = {0};
     char numToStr[ARRAY_SIZE];
-
     pthread_mutex_lock(&s_workModeMutex);
     getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
 
@@ -199,6 +210,19 @@ int getWorkMode(RIL_SOCKET_ID socket_id) {
                 }
             }
         }
+    } else if (s_modemConfig == LWG_WG){
+        if (isPrimaryCardWorkMode(newWorkMode)) {
+           getProperty(1 - socket_id, MODEM_WORKMODE_PROP, prop, "10");
+           if (isPrimaryCardWorkMode(atoi(prop))) {
+               RLOGD("getWorkMode change the work mode to 255");
+               if (socket_id == s_multiModeSim) {
+                   setProperty(1 - s_multiModeSim, MODEM_WORKMODE_PROP, "255");
+                   s_workMode[1 - s_multiModeSim] = TD_AND_WCDMA;
+               } else {
+                   newWorkMode = TD_AND_WCDMA;
+               }
+           }
+       }
     }
 #endif
 
@@ -974,8 +998,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(datalen);
 
     int err, i;
-    char sim_prop[PROPERTY_VALUE_MAX];
-    char data_prop[PROPERTY_VALUE_MAX];
     char cmd[AT_COMMAND_LEN] = {0};
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
@@ -1028,10 +1050,36 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         }
 #endif
 
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            if (p_response != NULL &&
+                    strcmp(p_response->finalResponse, "+CME ERROR: 15") == 0) {
+                RLOGE("set wrong workmode in cmcc version");
+            #if (SIM_COUNT == 2)
+                if (s_multiModeSim == RIL_SOCKET_1) {
+                    s_multiModeSim = RIL_SOCKET_2;
+                } else if (s_multiModeSim == RIL_SOCKET_2) {
+                    s_multiModeSim = RIL_SOCKET_1;
+                }
+            #endif
+                setWorkMode();
+                buildWorkModeCmd(cmd, sizeof(cmd));
+                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                RIL_onUnsolicitedResponse(
+                        RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED,
+                        NULL, 0, socket_id);
+            }
+        }
+        AT_RESPONSE_FREE(p_response);
 
         if (s_isLTE) {
-            at_send_command(s_ATChannels[channelID], "AT+CEMODE=1", NULL);
+            int cemode = 0;
+            char cemodeProp[PROPERTY_VALUE_MAX] = {0};
+            property_get(CEMODE_PROP, cemodeProp, "1");
+            cemode = atoi(cemodeProp);
+            memset(cmd, 0, sizeof(cmd));
+            snprintf(cmd, sizeof(cmd), "AT+CEMODE=%d", cemode);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
             if (s_presentSIMCount == 1) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
@@ -1191,19 +1239,6 @@ error:
     at_response_free(p_response);
 }
 
-static bool plmnFiltration(char *plmn) {
-    int i;
-    // Array of unwanted plmns; "46003","46005","46011","45502" are CTCC
-    char *unwantedPlmns[] = {"46003", "46005", "46011", "45502"};
-    int length = sizeof(unwantedPlmns) / sizeof(char *);
-    for (i = 0; i < length; i++) {
-        if (strcmp(unwantedPlmns[i], plmn) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static void requestNetworkList(int channelID, void *data, size_t datalen,
                                    RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -1299,10 +1334,6 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
 
         err = at_tok_nextstr(&line, &(cur[2]));
         if (err < 0) continue;
-        if (plmnFiltration(cur[2])) {
-            unwantedPlmnCount++;
-            continue;
-        }
 
         err = at_tok_nextint(&line, &act);
         if (err < 0) continue;
@@ -1326,7 +1357,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, responses,
-            (count - unwantedPlmnCount) * 4 * sizeof(char *));
+            count * 4 * sizeof(char *));
     at_response_free(p_response);
     free(startTmp);
     return;
@@ -1562,7 +1593,14 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
             errType = RIL_E_SUCCESS;
             goto done;
         }
+    } else if (s_modemConfig == LWG_WG) {
+        if (s_multiModeSim != socket_id && isPrimaryCardWorkMode(type)) {
+            RLOGE("SetLTEPreferredNetType: not data card");
+            errType = RIL_E_SUCCESS;
+            goto done;
+        }
     }
+
     if (type == workMode) {
         RLOGD("SetLTEPreferredNetType: has send the request before");
         errType = RIL_E_SUCCESS;
@@ -2389,13 +2427,13 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
         }
 #endif
     }
-    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
-    property_set(PRIMARY_SIM_PROP, numToStr);
-    RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
     if (SIM_COUNT <= 2) {
         snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1", s_multiModeSim);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
+    snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+    property_set(PRIMARY_SIM_PROP, numToStr);
+    RLOGD("applySetLTERadioCapability: multiModeSim %d", s_multiModeSim);
 
     setWorkMode();
 #if (SIM_COUNT == 2)
@@ -2725,9 +2763,9 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestNetworkRegistration(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
-            cleanUpAllConnections();
+            cleanUpAllConnections(channelID);
             requestNetworkList(channelID, data, datalen, t);
-            activeAllConnections();
+            activeAllConnections(channelID);
             break;
         }
         case RIL_REQUEST_RESET_RADIO:

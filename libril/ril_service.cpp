@@ -9917,6 +9917,40 @@ int radio::simPSRejectInd(int slotId, int indicationType, int token,
 
     return 0;
 }
+
+int radio::simMgrSimStatusChangedInd(int slotId, int indicationType, int token,
+                                     RIL_Errno e, void *response,
+                                     size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+#if VDBG
+        RLOGD("simMgrSimStatusChangedInd");
+#endif
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                simMgrSimStatusChangedInd(convertIntToRadioIndicationType(indicationType));
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("simMgrSimStatusChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::radioCapabilityChangedInd(int slotId, int indicationType, int token,
+                                     RIL_Errno e, void *response,
+                                     size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+#if VDBG
+        RLOGD("radioCapabilityChangedInd");
+#endif
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                radioCapabilityChangedInd(convertIntToRadioIndicationType(indicationType));
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("radioCapabilityChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
 /***************************IMS EXTENSION REQUEST*****************************/
 
 Return<void> RadioImpl::setIMSResponseFunctions(

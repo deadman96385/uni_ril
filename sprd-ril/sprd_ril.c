@@ -117,7 +117,7 @@ sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
 bool s_isUserdebug = false;
 int s_modemConfig = 0;
-
+int s_isSimPresent[SIM_COUNT];
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
@@ -307,10 +307,13 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_GET_IMEI ||
           request == RIL_REQUEST_GET_IMEISV ||
           request == RIL_REQUEST_OEM_HOOK_STRINGS ||
-          request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
           request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
           request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
+          request == RIL_REQUEST_SIM_AUTHENTICATION ||
+          request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
+          request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
           request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
+          request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC ||
           request == RIL_REQUEST_SHUTDOWN ||
           request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
           request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY ||
@@ -353,7 +356,6 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_QUERY_FACILITY_LOCK ||
                  request == RIL_REQUEST_SET_FACILITY_LOCK ||
                  request == RIL_REQUEST_OEM_HOOK_STRINGS ||
-                 request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
                  request == RIL_REQUEST_SET_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_ALLOW_DATA ||
                  request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
@@ -362,7 +364,9 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SHUTDOWN ||
                  request == RIL_REQUEST_SIM_AUTHENTICATION ||
                  request == RIL_REQUEST_SIM_CLOSE_CHANNEL ||
+                 request == RIL_REQUEST_SIM_OPEN_CHANNEL ||
                  request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
+                 request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
@@ -1084,6 +1088,10 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_modemConfig = getModemConfig();
 
     requestThreadsInit();
+
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        s_isSimPresent[simId] = SIM_UNKNOWN;
+    }
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
 
