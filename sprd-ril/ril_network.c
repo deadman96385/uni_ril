@@ -116,6 +116,8 @@ bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
 
+void setWorkMode();
+
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
     pthread_mutex_lock(&s_simPresentMutex);
@@ -952,8 +954,6 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(datalen);
 
     int err, i;
-    char sim_prop[PROPERTY_VALUE_MAX];
-    char data_prop[PROPERTY_VALUE_MAX];
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
@@ -1000,7 +1000,30 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         }
 #endif
 
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            if (p_response != NULL &&
+                    strcmp(p_response->finalResponse, "+CME ERROR: 15") == 0) {
+                RLOGE("set wrong workmode in cmcc version");
+            #if (SIM_COUNT == 2)
+                if (s_multiModeSim == RIL_SOCKET_1) {
+                    s_multiModeSim = RIL_SOCKET_2;
+                } else if (s_multiModeSim == RIL_SOCKET_2) {
+                    s_multiModeSim = RIL_SOCKET_1;
+                }
+                char numToStr[ARRAY_SIZE] = {0};
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            #endif
+                setWorkMode();
+                buildWorkModeCmd(cmd, sizeof(cmd));
+                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                RIL_onUnsolicitedResponse(
+                        RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED,
+                        NULL, 0, socket_id);
+            }
+        }
+        AT_RESPONSE_FREE(p_response);
 
         if (s_isLTE) {
             int cemode = 0;
