@@ -8,6 +8,7 @@
 #include "sprd_ril.h"
 #include "ril_utils.h"
 #include "ril_ss.h"
+#include "ril_sim.h"
 
 #define MO_CALL 0
 #define MT_CALL 1
@@ -872,6 +873,13 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             int response[2] = {1, 1};
             char *line = NULL;
 
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("GET_CLIR: card is absent");
+                RIL_onRequestComplete(t, RIL_E_MODEM_ERR, NULL, 0);
+                break;
+            }
+
             p_response = NULL;
             err = at_send_command_singleline(s_ATChannels[channelID],
                                             "AT+CLIR?", "+CLIR: ", &p_response);
@@ -1049,9 +1057,16 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_CHANGE_BARRING_PASSWORD:
             requestChangeFacilityLock(channelID, data, datalen, t);
             break;
-        case  RIL_REQUEST_QUERY_CLIP: {
+        case RIL_REQUEST_QUERY_CLIP: {
             p_response = NULL;
             int response[2] = {0, 0};
+
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("QUERY_CLIP: card is absent");
+                RIL_onRequestComplete(t, RIL_E_MODEM_ERR, NULL, 0);
+                break;
+            }
 
             err = at_send_command_singleline(s_ATChannels[channelID],
                     "AT+CLIP?", "+CLIP: ", &p_response);

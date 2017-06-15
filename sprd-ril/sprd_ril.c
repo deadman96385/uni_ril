@@ -981,6 +981,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         }
     }
 
+    signal(SIGPIPE, SIG_IGN);
+
     char mtbfProp[PROPERTY_VALUE_MAX];
     property_get(BUILD_TYPE_PROP, prop, "user");
     property_get(MTBF_ENABLE_PROP, mtbfProp, "0");

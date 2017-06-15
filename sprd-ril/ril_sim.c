@@ -781,24 +781,27 @@ int getNetLockRemainTimes(int channelID, int type) {
 }
 
 int getRemainTimes(int channelID, char *type) {
-  if (0 == strcmp(type, "PS")) {
-     return getNetLockRemainTimes(channelID, 1);
-  } else if (0 == strcmp(type, "PN")) {
-      return getNetLockRemainTimes(channelID, 2);
-  } else if (0 == strcmp(type, "PU")) {
-      return getNetLockRemainTimes(channelID, 3);
-  } else if (0 == strcmp(type, "PP")) {
-      return getNetLockRemainTimes(channelID, 4);
-  } else if (0 == strcmp(type, "PC")) {
-      return getNetLockRemainTimes(channelID, 5);
-  } else if (0 == strcmp(type, "SC")) {
-      return getSimlockRemainTimes(channelID, 0);
-  } else if (0 == strcmp(type, "FD")) {
-      return getSimlockRemainTimes(channelID, 1);
-  } else {
-      RLOGD("wrong type %s, return -1", type);
-      return -1;
-  }
+    if (type == NULL) {
+        RLOGE("type is null, return -1");
+        return -1;
+    } else if (0 == strcmp(type, "PS")) {
+        return getNetLockRemainTimes(channelID, 1);
+    } else if (0 == strcmp(type, "PN")) {
+        return getNetLockRemainTimes(channelID, 2);
+    } else if (0 == strcmp(type, "PU")) {
+        return getNetLockRemainTimes(channelID, 3);
+    } else if (0 == strcmp(type, "PP")) {
+        return getNetLockRemainTimes(channelID, 4);
+    } else if (0 == strcmp(type, "PC")) {
+        return getNetLockRemainTimes(channelID, 5);
+    } else if (0 == strcmp(type, "SC")) {
+        return getSimlockRemainTimes(channelID, 0);
+    } else if (0 == strcmp(type, "FD")) {
+        return getSimlockRemainTimes(channelID, 1);
+    } else {
+        RLOGE("wrong type %s, return -1", type);
+        return -1;
+    }
 }
 
 unsigned char *convertUsimToSim(unsigned char const *byteUSIM, int len,

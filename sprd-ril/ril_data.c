@@ -13,6 +13,7 @@
 #include "ril_data.h"
 #include "ril_network.h"
 #include "ril_call.h"
+#include "ril_sim.h"
 #include "channel_controller.h"
 #include "ril_stk.h"
 
@@ -1561,6 +1562,12 @@ static void deactivateDataConnection(int channelID, void *data,
     ATResponse *p_response = NULL;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("deactivateDataConnection: card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_CALL_ID, NULL, 0);
+        return;
+    }
 
     p_cid = ((const char **)data)[0];
     cid = atoi(p_cid);
