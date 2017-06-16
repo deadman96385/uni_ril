@@ -889,9 +889,7 @@ static int getRadioFeatures(int socket_id, int isUnsolHandling) {
         rat = RAF_LTE | WCDMA | GSM;
     } else {
         if (isUnsolHandling == 1) {  // UNSOL_RADIO_CAPABILITY
-            char prop[PROPERTY_VALUE_MAX] = {0};
-            getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
-            workMode = atoi(prop);
+            workMode =  s_workMode[socket_id];
         } else {  // GET_RADIO_CAPABILITY
             workMode = getWorkMode(socket_id);
         }
