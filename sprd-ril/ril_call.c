@@ -2259,6 +2259,23 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_requestTimedCallback(onSSCallCSFallBackAccept, (void *)cbPara,
                                      NULL);
         }
+    } else if (strStartsWith(s, "+EARLYMEDIA:")) {
+        char *tmp = NULL;
+        int response = 0;
+        RLOGD("UNSOL EARLY MEDIA is : %s", s);
+
+        /* +EARLYMEDIA:<value> */
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_EARLY_MEDIA,
+                &response, sizeof(response), socket_id);
     } else {
         ret = 0;
     }
