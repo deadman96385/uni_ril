@@ -6022,7 +6022,8 @@ typedef enum {
 #define RIL_EXT_UNSOL_SETUP_DATA_FOR_CP             (RIL_EXT_UNSOL_RESPONSE_BASE + 17)
 #define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 18)
 #define RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED      (RIL_EXT_UNSOL_RESPONSE_BASE + 19)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED
+#define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 20)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
 
 /*****************************************************************************/
 
