@@ -296,7 +296,7 @@ addRequestToList(int serial, int slotId, int request) {
         pRI->pCI = &(s_commands[request]);
     } else if (request > RIL_IMS_REQUEST_BASE && request <= RIL_IMS_REQUEST_LAST) {
         request = request - RIL_IMS_REQUEST_BASE;
-//        pRI->pCI = &(s_imsCommands[request]);
+        pRI->pCI = &(s_imsCommands[request]);
     } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
         request = request - RIL_EXT_REQUEST_BASE;
         pRI->pCI = &(s_oemCommands[request]);

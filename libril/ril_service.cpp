@@ -10815,7 +10815,7 @@ int radio::setInitialAttachSOSApnResponse(int slotId, int responseType, int seri
     return 0;
 }
 
-int IMSHandoverResponse(int slotId, int responseType, int serial,
+int radio::IMSHandoverResponse(int slotId, int responseType, int serial,
                         RIL_Errno e, void *response, size_t responseLen) {
 #if VDBG
     RLOGD("IMSHandoverResponse: serial %d", serial);

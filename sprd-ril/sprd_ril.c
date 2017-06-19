@@ -306,6 +306,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
         !(request == RIL_REQUEST_GET_SIM_STATUS ||
           request == RIL_REQUEST_GET_IMEI ||
           request == RIL_REQUEST_GET_IMEISV ||
+          request == RIL_REQUEST_DEVICE_IDENTITY ||
           request == RIL_REQUEST_OEM_HOOK_STRINGS ||
           request == RIL_REQUEST_GET_RADIO_CAPABILITY ||
           request == RIL_REQUEST_SET_RADIO_CAPABILITY ||
@@ -350,6 +351,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_BASEBAND_VERSION ||
                  request == RIL_REQUEST_GET_IMEI ||
                  request == RIL_REQUEST_GET_IMEISV ||
+                 request == RIL_REQUEST_DEVICE_IDENTITY ||
                  request == RIL_REQUEST_SCREEN_STATE ||
                  request == RIL_REQUEST_DELETE_SMS_ON_SIM ||
                  request == RIL_REQUEST_GET_IMSI ||

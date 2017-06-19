@@ -118,6 +118,64 @@ error:
     at_response_free(p_response);
 }
 
+static void requestDeviceIdentify(int channelID, void *data, size_t datalen,
+                                  RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int err = 0;
+    int sv;
+    char *line;
+    char *response[4] = {NULL, NULL, NULL, NULL};
+    char buf[4][ARRAY_SIZE];
+    ATResponse *p_response = NULL;
+
+    memset(buf, 0, 4 * ARRAY_SIZE);
+
+    // get IMEI
+    err = at_send_command_numeric(s_ATChannels[channelID], "AT+CGSN",
+                                  &p_response);
+
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    snprintf(buf[0], ARRAY_SIZE, "%s", p_response->p_intermediates->line);
+    response[0] = buf[0];
+
+    AT_RESPONSE_FREE(p_response);
+
+    // get IMEISV
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SGMR=0,0,2",
+                                     "+SGMR:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto done;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto done;
+
+    err = at_tok_nextint(&line, &sv);
+    if (err < 0) goto done;
+
+    if (sv >= 0 && sv < 10) {
+        snprintf(response[1], ARRAY_SIZE, "0%d", sv);
+    } else {
+        snprintf(response[1], ARRAY_SIZE, "%d", sv);
+    }
+
+done:
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, 4 * sizeof(char *));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
 static void onQuerySignalStrengthLTE(void *param) {
     int err;
     int skip;
@@ -480,6 +538,9 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_GET_IMEISV:
             requestGetIMEISV(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_DEVICE_IDENTITY:
+            requestDeviceIdentify(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SET_MUTE: {
             char cmd[AT_COMMAND_LEN] = {0};
