@@ -44,21 +44,6 @@
 #define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
 #define VOLTE_MODE_PROP         "persist.sys.volte.mode"
 
-enum ChannelState {
-    CHANNEL_IDLE,
-    CHANNEL_BUSY,
-};
-
-struct ChannelInfo {
-    int channelID;
-    int fd;
-    char name[ARRAY_SIZE];
-    char ttyName[ARRAY_SIZE];
-    enum ChannelState state;
-    pthread_mutex_t mutex;
-};
-
-struct ChannelInfo s_channelInfo[MAX_AT_CHANNELS];
 struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
 RIL_RadioState s_radioState[SIM_COUNT] = {
@@ -128,7 +113,6 @@ static int s_deviceSocket = 0;
 static const char *s_devicePath = NULL;
 /* trigger change to this with s_radioStateCond */
 static int s_closed[SIM_COUNT];
-static int s_channelOpen[SIM_COUNT];
 static const struct timeval TIMEVAL_0 = {0, 0};
 
 #if defined (ANDROID_MULTI_SIM)
@@ -179,86 +163,6 @@ static void usage(char *s) {
     fprintf(stderr, "usage: %s [-p <tcp port>] [-d /dev/tty_device]\n", s);
     exit(-1);
 #endif
-}
-
-/* release Channel */
-void putChannel(int channelID) {
-    if (channelID < 1 || channelID >= MAX_AT_CHANNELS) {
-        return;
-    }
-
-    struct ChannelInfo *p_channelInfo = s_channelInfo;
-
-    pthread_mutex_lock(&p_channelInfo[channelID].mutex);
-    if (p_channelInfo[channelID].state != CHANNEL_BUSY) {
-        goto done;
-    }
-    p_channelInfo[channelID].state = CHANNEL_IDLE;
-
-done:
-    RLOGD("put Channel%d", p_channelInfo[channelID].channelID);
-    pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
-}
-
-/* Return channel ID */
-int getChannel(RIL_SOCKET_ID socket_id) {
-    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
-        RLOGE("getChannel: invalid socket_id %d", socket_id);
-        return -1;
-    }
-
-    int ret = 0;
-    int channelID;
-    int firstChannel, lastChannel;
-    struct ChannelInfo *p_channelInfo = s_channelInfo;
-
-#if defined (ANDROID_MULTI_SIM)
-    firstChannel = socket_id * AT_CHANNEL_OFFSET + AT_CHANNEL_1;
-    lastChannel = (socket_id + 1) * AT_CHANNEL_OFFSET;
-#else
-    firstChannel = AT_CHANNEL_1;
-    lastChannel = MAX_AT_CHANNELS;
-#endif
-
-    for (;;) {
-        if (!s_channelOpen[socket_id]) {
-            sleep(1);
-            continue;
-        }
-        for (channelID = firstChannel; channelID < lastChannel; channelID++) {
-            pthread_mutex_lock(&p_channelInfo[channelID].mutex);
-            if (p_channelInfo[channelID].state == CHANNEL_IDLE) {
-                p_channelInfo[channelID].state = CHANNEL_BUSY;
-                RLOGD("get Channel%d", p_channelInfo[channelID].channelID);
-                pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
-                return channelID;
-            }
-            pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
-        }
-        usleep(5000);
-    }
-
-    return -1;  // should never be here
-}
-
-RIL_SOCKET_ID getSocketIdByChannelID(int channelID) {
-    RIL_SOCKET_ID socket_id = RIL_SOCKET_1;
-#if (SIM_COUNT >= 2)
-    if (channelID >= AT_URC2 && channelID <= AT_CHANNEL2_2) {
-        socket_id = RIL_SOCKET_2;
-    }
-#if (SIM_COUNT >= 3)
-    else if (channelID >= AT_URC3 && channelID <= AT_CHANNEL3_2) {
-        socket_id = RIL_SOCKET_3;
-    }
-#if (SIM_COUNT >= 4)
-    else if (channelID >= AT_URC4 && channelID <= AT_CHANNEL4_2) {
-        socket_id = RIL_SOCKET_4;
-    }
-#endif
-#endif
-#endif
-    return socket_id;
 }
 
 /**
@@ -921,7 +825,8 @@ static void *mainLoop(void *param) {
     int firstChannel, lastChannel;
     char muxDevice[ARRAY_SIZE] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
-    struct ChannelInfo *p_channelInfo = s_channelInfo;
+    char ttyName[ARRAY_SIZE] = {0};
+    char channelName[ARRAY_SIZE] = {0};
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
 
 #if defined (ANDROID_MULTI_SIM)
@@ -946,20 +851,9 @@ static void *mainLoop(void *param) {
 
  again:
         for (channelID = firstChannel; channelID < lastChannel; channelID++) {
-            p_channelInfo[channelID].fd = -1;
-            p_channelInfo[channelID].state = CHANNEL_IDLE;
+            snprintf(ttyName, sizeof(ttyName), "%s%d", prop, channelID);
 
-            snprintf(p_channelInfo[channelID].ttyName,
-                    sizeof(p_channelInfo[channelID].ttyName), "%s%d",
-                    prop, channelID);
-
-            /* open TTY device, and attach it to channel */
-            p_channelInfo[channelID].channelID = channelID;
-            snprintf(p_channelInfo[channelID].name,
-                    sizeof(p_channelInfo[channelID].name), "Channel%d",
-                    channelID);
-
-            fd = open(p_channelInfo[channelID].ttyName, O_RDWR | O_NONBLOCK);
+            fd = open(ttyName, O_RDWR | O_NONBLOCK);
 
             if (fd >= 0) {
                 /* disable echo on serial ports */
@@ -967,16 +861,18 @@ static void *mainLoop(void *param) {
                 tcgetattr(fd, &ios);
                 ios.c_lflag = 0;  /* disable ECHO, ICANON, etc... */
                 tcsetattr(fd, TCSANOW, &ios);
-                p_channelInfo[channelID].fd = fd;
                 RLOGI("AT channel [%d] open successfully, ttyName:%s",
-                        channelID, p_channelInfo[channelID].ttyName);
+                        channelID, ttyName);
             } else {
                 RLOGE("Opening AT interface. retrying...");
                 sleep(1);
                 goto again;
             }
-            s_ATChannels[channelID] = at_open(fd, channelID,
-                    p_channelInfo[channelID].name, onUnsolicited);
+
+            setChannelInfo(fd, channelID);
+            snprintf(channelName, sizeof(channelName), "Channel%d", channelID);
+            s_ATChannels[channelID] = at_open(fd, channelID, channelName,
+                    onUnsolicited);
 
             if (s_ATChannels[channelID] == NULL) {
                 RLOGE("AT error on at_open\n");
@@ -987,7 +883,7 @@ static void *mainLoop(void *param) {
             }
         }
 
-        s_channelOpen[socket_id] = 1;
+        setChannelOpened(socket_id);
 
         start_reader(socket_id);
         RIL_requestTimedCallback(initializeCallback,
@@ -1091,7 +987,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
 
-    requestThreadsInit();
+    requestThreadsInit(SIM_COUNT, THREAD_NUMBER);
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         s_isSimPresent[simId] = SIM_UNKNOWN;

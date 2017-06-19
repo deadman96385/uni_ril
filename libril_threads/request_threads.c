@@ -1,51 +1,133 @@
+/**
+ * request_threads.c --- ril multi threads process implementation
+ *
+ * Copyright (C) 2017 Spreadtrum Communications Inc.
+ */
 
-#define LOG_TAG "REQ_THREADS"
+#define LOG_TAG "REQ_THDS"
 
-#include "sprd_ril.h"
+#include <stdio.h>
+#include <string.h>
+#include <alloca.h>
+#include <semaphore.h>
+#include <utils/Log.h>
 
-typedef struct {
-    sem_t semLock;
-    pthread_mutex_t semLockMutex;
-} SemLockInfo;
+#include "telephony/ril.h"
+#include "request_threads.h"
 
-typedef enum {
-    AT_CMD_TYPE_UNKOWN = -1,
-    AT_CMD_TYPE_SLOW,
-    AT_CMD_TYPE_NORMAL_SLOW,
-    AT_CMD_TYPE_NORMAL_FAST,
-    AT_CMD_TYPE_DATA,
-    AT_CMD_TYPE_OTHER,
-} ATCmdType;
+int s_simCount = 1;
+int s_threadNumber = 0;
+int s_maxChannelNum = 0;
+int s_channelOpen[4];
 
-typedef struct {
-    ATCmdType cmdType;
-    int semLockID;
-} WaitArrayParam;
+pthread_mutex_t s_waitArrayMutex = PTHREAD_MUTEX_INITIALIZER;
+SemLockInfo *s_semLockArray = NULL;
+ChannelInfo *s_channelInfo = NULL;
+WaitArrayParam *s_dataWaitArray = NULL;
+WaitArrayParam **s_slowWaitArray = NULL;
+WaitArrayParam **s_normalWaitArray = NULL;
 
-WaitArrayParam s_slowWaitArray[SIM_COUNT][THREAD_NUMBER];
-WaitArrayParam s_normalWaitArray[SIM_COUNT][THREAD_NUMBER];
-WaitArrayParam s_dataWaitArray[THREAD_NUMBER];
+// ChannelInfo s_channelInfo[MAX_AT_CHANNELS];
+// WaitArrayParam s_slowWaitArray[SIM_COUNT][THREAD_NUMBER];
+// WaitArrayParam s_normalWaitArray[SIM_COUNT][THREAD_NUMBER];
+// WaitArrayParam s_dataWaitArray[THREAD_NUMBER];
 
-pthread_mutex_t s_waitArrayMutex;
-SemLockInfo s_semLockArray[THREAD_NUMBER];
+void setChannelInfo(int fd, int channelID) {
+    s_channelInfo[channelID].fd = fd;
+    s_channelInfo[channelID].state = CHANNEL_IDLE;
+    s_channelInfo[channelID].channelID = channelID;
+    snprintf(s_channelInfo[channelID].name,
+            sizeof(s_channelInfo[channelID].name), "Channel%d", channelID);
+}
+
+void setChannelOpened(RIL_SOCKET_ID socket_id) {
+    s_channelOpen[socket_id] = 1;
+}
+
+/* release Channel */
+void putChannel(int channelID) {
+    if (channelID < 1 || channelID >= s_maxChannelNum) {
+        return;
+    }
+
+    ChannelInfo *p_channelInfo = s_channelInfo;
+
+    pthread_mutex_lock(&p_channelInfo[channelID].mutex);
+    if (p_channelInfo[channelID].state != CHANNEL_BUSY) {
+        goto done;
+    }
+    p_channelInfo[channelID].state = CHANNEL_IDLE;
+
+done:
+    RLOGD("put Channel%d", p_channelInfo[channelID].channelID);
+    pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
+}
+
+/* Return channel ID */
+int getChannel(RIL_SOCKET_ID socket_id) {
+    if ((int)socket_id < 0 || (int)socket_id >= s_simCount) {
+        RLOGE("getChannel: invalid socket_id %d", socket_id);
+        return -1;
+    }
+
+    int ret = 0;
+    int channelID = -1;
+    int firstChannel = -1;
+    int lastChannel = -1;
+    ChannelInfo *p_channelInfo = s_channelInfo;
+
+    if (s_simCount >= 2) {
+        firstChannel = socket_id * D_AT_CHANNEL_OFFSET + D_AT_CHANNEL_1;
+        lastChannel = (socket_id + 1) * D_AT_CHANNEL_OFFSET;
+    } else {
+        firstChannel = S_AT_CHANNEL_1;
+        lastChannel = S_MAX_AT_CHANNELS;
+    }
+
+    for (;;) {
+        if (!s_channelOpen[socket_id]) {
+            sleep(1);
+            continue;
+        }
+        for (channelID = firstChannel; channelID < lastChannel; channelID++) {
+            pthread_mutex_lock(&p_channelInfo[channelID].mutex);
+            if (p_channelInfo[channelID].state == CHANNEL_IDLE) {
+                p_channelInfo[channelID].state = CHANNEL_BUSY;
+                RLOGD("get Channel%d", p_channelInfo[channelID].channelID);
+                pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
+                return channelID;
+            }
+            pthread_mutex_unlock(&p_channelInfo[channelID].mutex);
+        }
+        usleep(5000);
+    }
+}
+
+RIL_SOCKET_ID getSocketIdByChannelID(int channelID) {
+    RIL_SOCKET_ID socket_id = RIL_SOCKET_1;
+    if (s_simCount >= 2) {
+        if (channelID >= D_AT_URC2 && channelID <= D_AT_CHANNEL2_2) {
+            socket_id = 1;  // RIL_SOCKET_2
+        }
+    }
+    return socket_id;
+}
 
 int acquireSemLock() {
     int semLockID = 0;
 
     for (;;) {
-        for (semLockID = 0; semLockID < THREAD_NUMBER; semLockID++) {
+        for (semLockID = 0; semLockID < s_threadNumber; semLockID++) {
             if (pthread_mutex_trylock(&s_semLockArray[semLockID].semLockMutex) == 0) {
                 return semLockID;
             }
         }
         usleep(5000);
     }
-
-    return semLockID;
 }
 
 void releaseSemLock(int semLockID) {
-    if (semLockID < 0 || semLockID >= THREAD_NUMBER) {
+    if (semLockID < 0 || semLockID >= s_threadNumber) {
         RLOGE("Invalid semLockID to release");
         return;
     }
@@ -85,11 +167,11 @@ int addWaitArray(int semLockId, ATCmdType cmdType, WaitArrayParam *pWaitArray) {
 
     int i = 0;
     if (cmdType == AT_CMD_TYPE_NORMAL_FAST) {
-        for (i = 0; i < THREAD_NUMBER; i++) {
+        for (i = 0; i < s_threadNumber; i++) {
             if (-1 == pWaitArray[i].semLockID ||
                (i != 0 && pWaitArray[i].cmdType == AT_CMD_TYPE_NORMAL_SLOW)) {
                 int j = 0;
-                for (j = i; j < THREAD_NUMBER - 1, pWaitArray[j].semLockID != -1; j++) {
+                for (j = i; j < s_threadNumber - 1, pWaitArray[j].semLockID != -1; j++) {
                     pWaitArray[j + 1] = pWaitArray[j];
                 }
                 pWaitArray[i].semLockID = semLockId;
@@ -99,7 +181,7 @@ int addWaitArray(int semLockId, ATCmdType cmdType, WaitArrayParam *pWaitArray) {
             }
         }
     } else {
-        for (i = 0; i < THREAD_NUMBER; i++) {
+        for (i = 0; i < s_threadNumber; i++) {
             if (-1 == pWaitArray[i].semLockID) {
                 pWaitArray[i].semLockID = semLockId;
                 pWaitArray[i].cmdType = cmdType;
@@ -113,12 +195,12 @@ int addWaitArray(int semLockId, ATCmdType cmdType, WaitArrayParam *pWaitArray) {
 }
 
 void removeWaitArray(WaitArrayParam *pWaitArray) {
-    int i;
-    for (i = 0; i < (THREAD_NUMBER - 1); i++) {
+    int i = 0;
+    for (i = 0; i < (s_threadNumber - 1); i++) {
         pWaitArray[i] = pWaitArray[i + 1];
     }
-    pWaitArray[THREAD_NUMBER - 1].semLockID = -1;
-    pWaitArray[THREAD_NUMBER - 1].cmdType = AT_CMD_TYPE_UNKOWN;
+    pWaitArray[s_threadNumber - 1].semLockID = -1;
+    pWaitArray[s_threadNumber - 1].cmdType = AT_CMD_TYPE_UNKOWN;
 }
 
 ATCmdType getCmdType(int request) {
@@ -135,10 +217,6 @@ ATCmdType getCmdType(int request) {
         || request == RIL_REQUEST_QUERY_CALL_WAITING
         || request == RIL_REQUEST_SET_CALL_WAITING
         || request == RIL_REQUEST_QUERY_CLIP
-#if (SIM_COUNT == 1)
-        || request == RIL_REQUEST_ALLOW_DATA
-        || request == RIL_REQUEST_SETUP_DATA_CALL
-#endif
         || request == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
         cmdType = AT_CMD_TYPE_SLOW;
     } else if (request == RIL_REQUEST_RADIO_POWER
@@ -177,13 +255,14 @@ ATCmdType getCmdType(int request) {
             || request == RIL_REQUEST_DELETE_SMS_ON_SIM
             || request == RIL_REQUEST_GET_SMSC_ADDRESS) {
         cmdType = AT_CMD_TYPE_NORMAL_SLOW;
+    } else if (request == RIL_REQUEST_ALLOW_DATA
+            || request == RIL_REQUEST_SETUP_DATA_CALL) {
+        if (s_simCount == 1) {
+            cmdType = AT_CMD_TYPE_SLOW;
+        } else {
+            cmdType = AT_CMD_TYPE_DATA;
+        }
     }
-#if defined (ANDROID_MULTI_SIM)
-    else if (request == RIL_REQUEST_ALLOW_DATA
-          || request == RIL_REQUEST_SETUP_DATA_CALL) {
-        cmdType = AT_CMD_TYPE_DATA;
-    }
-#endif
     return cmdType;
 }
 
@@ -200,10 +279,11 @@ const char *typeToString(ATCmdType cmdType) {
 }
 
 void printWaitArray(WaitArrayParam *pWaitArray, RIL_SOCKET_ID socket_id) {
-    int i;
-    for (i = 0; i < THREAD_NUMBER; i++) {
+    int i = 0;
+    for (i = 0; i < s_threadNumber; i++) {
         if (pWaitArray[i].semLockID != -1) {
-            if (pWaitArray == s_slowWaitArray[socket_id] || pWaitArray == s_normalWaitArray[socket_id]) {
+            if (pWaitArray == s_slowWaitArray[socket_id]
+             || pWaitArray == s_normalWaitArray[socket_id]) {
             RLOGD("%sWaitArray[%d][%d].semLockID = %d, type = %s ",
                     pWaitArray == s_slowWaitArray[socket_id] ? "slow": "normal",
                     socket_id, i, pWaitArray[i].semLockID, typeToString(pWaitArray[i].cmdType));
@@ -221,7 +301,8 @@ int getRequestChannel(RIL_SOCKET_ID socket_id, int request) {
     ATCmdType cmdType = AT_CMD_TYPE_OTHER;
 
     cmdType = getCmdType(request);
-    RLOGD("getRequestChannel: socket_id = %d, request = %s, type = %s", socket_id, requestToString(request), typeToString(cmdType));
+    RLOGD("getRequestChannel-sim%d: request = %s, type = %s",
+            socket_id, requestToString(request), typeToString(cmdType));
     if (cmdType == AT_CMD_TYPE_OTHER) {  // no blocking
         channelID = getChannel(socket_id);
     } else {  // blocking
@@ -240,7 +321,7 @@ int getRequestChannel(RIL_SOCKET_ID socket_id, int request) {
         RLOGD("getRequestChannel: index in waitArray = %d", index);
         if (index == 0) {
             channelID = getChannel(socket_id);
-        } else if (index > 0 || index < THREAD_NUMBER) {
+        } else if (index > 0 || index < s_threadNumber) {
             RLOGD("getRequestChannel:before sem_wait semLockId = %d", semLockID);
             sem_wait(&s_semLockArray[semLockID].semLock);
             RLOGD("getRequestChannel:after sem_wait semLockId = %d", semLockID);
@@ -261,7 +342,8 @@ void putRequestChannel(RIL_SOCKET_ID socket_id, int request, int channelID) {
     putChannel(channelID);
 
     cmdType = getCmdType(request);
-    RLOGD("putRequestChannel: socket_id = %d, request = %s, type = %s", socket_id, requestToString(request), typeToString(cmdType));
+    RLOGD("putRequestChannel-sim%d: request = %s, type = %s",
+            socket_id, requestToString(request), typeToString(cmdType));
 
     if (cmdType != AT_CMD_TYPE_OTHER) {
         pthread_mutex_lock(&s_waitArrayMutex);
@@ -283,16 +365,39 @@ void putRequestChannel(RIL_SOCKET_ID socket_id, int request, int channelID) {
     }
 }
 
-void requestThreadsInit() {
+void requestThreadsInit(int simCount, int threadNumber) {
     int i = 0;
 
-    memset(s_slowWaitArray, -1, sizeof(WaitArrayParam) * SIM_COUNT * THREAD_NUMBER);
-    memset(s_normalWaitArray, -1, sizeof(WaitArrayParam) * SIM_COUNT * THREAD_NUMBER);
-    memset(s_dataWaitArray, -1, sizeof(WaitArrayParam) * THREAD_NUMBER);
+    s_simCount = simCount;
+    s_threadNumber = threadNumber;
+    s_maxChannelNum = (simCount == 1 ? S_MAX_AT_CHANNELS : D_MAX_AT_CHANNELS);
 
-    for (i = 0; i< THREAD_NUMBER; i++) {
+    RLOGD("requestThreadsInit: simCount = %d, threadNumber = %d, maxChannelNum = %d",
+            s_simCount, s_threadNumber, s_maxChannelNum);
+
+    s_slowWaitArray = (WaitArrayParam **)calloc(simCount, sizeof(WaitArrayParam *));
+    for (i = 0; i < simCount; i++) {
+        s_slowWaitArray[i] = (WaitArrayParam *)calloc(s_threadNumber, sizeof(WaitArrayParam));
+        memset(s_slowWaitArray[i], -1, sizeof(WaitArrayParam) *  s_threadNumber);
+    }
+
+    s_normalWaitArray = (WaitArrayParam **)calloc(simCount, sizeof(WaitArrayParam *));
+    for (i = 0; i < simCount; i++) {
+        s_normalWaitArray[i] = (WaitArrayParam *)calloc(s_threadNumber, sizeof(WaitArrayParam));
+        memset(s_normalWaitArray[i], -1, sizeof(WaitArrayParam) *  s_threadNumber);
+    }
+
+    s_dataWaitArray = (WaitArrayParam *)calloc(s_threadNumber, sizeof(WaitArrayParam));
+    memset(s_dataWaitArray, -1, sizeof(WaitArrayParam) * s_threadNumber);
+
+
+    s_semLockArray = (SemLockInfo *)calloc(s_threadNumber, sizeof(SemLockInfo));
+    for (i = 0; i< s_threadNumber; i++) {
         sem_init(&s_semLockArray[i].semLock, 0, 0);
     }
+
+    s_channelInfo = (ChannelInfo *)calloc(s_maxChannelNum, sizeof(ChannelInfo));
+    for (i = 0; i < s_maxChannelNum; i++) {
+        s_channelInfo[i].fd = -1;
+    }
 }
-
-

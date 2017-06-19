@@ -14,5 +14,5 @@
 # limitations under the License.
 #
 
-common_ril_dirs := libril_tele libril sprd-ril rild
+common_ril_dirs := libril_tele libril sprd-ril rild libril_threads
 include $(call all-named-subdir-makefiles,$(common_ril_dirs))
