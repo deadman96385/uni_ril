@@ -300,8 +300,12 @@ static void requestChangeFacilityLock(int channelID, char **data,
     char *cmd, *line;
     ATResponse *p_response = NULL;
 
-    if (datalen != 3 * sizeof(char *)) {
-        goto error;
+    if (datalen != 3 * sizeof(char *) || data[0] == NULL || data[1] == NULL ||
+        data[2] == NULL || strlen(data[0]) == 0 ||  strlen(data[1]) == 0 ||
+        strlen(data[2]) == 0) {
+        RLOGE("CHANGE_BARRING_PASSWORD invalid arguments");
+        RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+        return;
     }
 
     err = asprintf(&cmd, "AT+CPWD=\"%s\",\"%s\",\"%s\"", data[0], data[1],
