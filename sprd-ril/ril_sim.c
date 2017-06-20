@@ -1629,15 +1629,19 @@ static void requestCloseLogicalChannel(int channelID, void *data,
 
     session_id = ((int *)data)[0];
 
-    snprintf(cmd, sizeof(cmd), "AT+CCHC=%d", session_id);
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-
-    if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (session_id == 0) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
     } else {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        snprintf(cmd, sizeof(cmd), "AT+CCHC=%d", session_id);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+
+        if (err < 0 || p_response->success == 0) {
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        }
+        at_response_free(p_response);
     }
-    at_response_free(p_response);
 }
 
 static void requestTransmitApdu(int channelID, void *data, size_t datalen,
