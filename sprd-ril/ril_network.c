@@ -752,7 +752,10 @@ static void requestRegistrationState(int channelID, int request,
     } else if (request == RIL_REQUEST_IMS_REGISTRATION_STATE) {
         s_imsRegistered[socket_id] = response[1];
         RLOGD("imsRegistered[%d] = %d", socket_id, s_imsRegistered[socket_id]);
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
+        int imsResp[2] = {0, 0};
+        imsResp[0] = response[1];
+        imsResp[1] = response[2];
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, imsResp, sizeof(imsResp));
     }
     at_response_free(p_response);
     return;
