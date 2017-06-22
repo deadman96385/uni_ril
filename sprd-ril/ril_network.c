@@ -1622,6 +1622,9 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
     s_workMode[socket_id] = type;
 
     const char *respCmd = "+SPTESTMODE:";
+    int retryTimes = 0;
+
+again:
     /* timeout is in seconds
      * Due to AT+SPTESTMODE's response maybe be later than URC response,
      * so addAsyncCmdList before at_send_command
@@ -1629,9 +1632,19 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
     addAsyncCmdList(socket_id, t, respCmd, NULL, 120);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
-        errType = RIL_E_GENERIC_FAILURE;
-        removeAsyncCmdList(t, respCmd);
-        goto done;
+        if (retryTimes < 3 && p_response != NULL &&
+                strcmp(p_response->finalResponse, "+CME ERROR: 3") == 0) {
+            RLOGE("AT+SPTESTMODE return +CME ERROR: 3, try again");
+            retryTimes++;
+            AT_RESPONSE_FREE(p_response);
+            removeAsyncCmdList(t, respCmd);
+            sleep(3);
+            goto again;
+        } else {
+            errType = RIL_E_GENERIC_FAILURE;
+            removeAsyncCmdList(t, respCmd);
+            goto done;
+        }
     }
 
     at_response_free(p_response);
@@ -2405,6 +2418,7 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
                                    RIL_Token t) {
     int err = -1, channel[SIM_COUNT];
     int simId = 0;
+    int retryTimes = 0;
     char cmd[AT_COMMAND_LEN] = {0};
     char numToStr[ARRAY_SIZE];
     ATResponse *p_response = NULL;
@@ -2445,11 +2459,23 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
     RIL_RadioCapability *responseRc = (RIL_RadioCapability *)malloc(
             sizeof(RIL_RadioCapability));
     memcpy(responseRc, rc, sizeof(RIL_RadioCapability));
+
+again:
     addAsyncCmdList(socket_id, t, respCmd, responseRc, 120);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
-        removeAsyncCmdList(t, respCmd);
-        goto error;
+        if (retryTimes < 3 && p_response != NULL &&
+                strcmp(p_response->finalResponse, "+CME ERROR: 3") == 0) {
+            RLOGE("AT+SPTESTMODE return +CME ERROR: 3, try again");
+            retryTimes++;
+            AT_RESPONSE_FREE(p_response);
+            removeAsyncCmdList(t, respCmd);
+            sleep(3);
+            goto again;
+        } else {
+            removeAsyncCmdList(t, respCmd);
+            goto error;
+        }
     }
     return 1;
 
