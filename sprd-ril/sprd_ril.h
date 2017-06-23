@@ -49,6 +49,7 @@
 #define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
 #define MODEM_CONFIG_PROP   "persist.radio.modem.config"
 #define PRIMARY_SIM_PROP    "persist.radio.primary.sim"
+#define SIM_PIN_PROP        "persist.radio.sim.pin"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \
@@ -85,6 +86,7 @@ typedef struct {
 } CallbackPara;
 
 extern bool s_isLTE;
+extern bool s_isBootAbnormal[SIM_COUNT];
 extern int s_modemConfig;
 extern int s_multiModeSim;
 extern int s_simEnabled[SIM_COUNT];

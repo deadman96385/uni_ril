@@ -111,6 +111,7 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 
 sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
+bool s_isBootAbnormal[SIM_COUNT];
 int s_modemConfig = 0;
 
 const char *s_modem = NULL;
@@ -947,31 +948,65 @@ int getModemConfig() {
     return modemConfig;
 }
 
-void setHwVerPorp() {
+void readCmdline() {
+    size_t index = 0;
     int ret = -1;
     int fd = -1;
     char cmdline[1024];
-    char *pKeyWord = "hardware.version=";
-    char *pHwVer = NULL;
+    char modemAssertProp[PROPERTY_VALUE_MAX];
+    char *pValue = NULL;
     char *token = NULL;
+    char *pHwKeyWord = "hardware.version=";
+    char *pBootKeyWord = "androidboot.mode=";
+    char *pBootMode[] ={"panic","wdgreboot", "apwdgreboot",
+                        "special​", "unknowreboot"};
 
     memset(cmdline, 0, 1024);
     fd = open("/proc/cmdline", O_RDONLY);
     if (fd > 0) {
         ret = read(fd, cmdline, sizeof(cmdline));
         if (ret > 0) {
-            pHwVer = strstr(cmdline, pKeyWord);
-            if (pHwVer != NULL) {
-                pHwVer += strlen(pKeyWord);
-                token = strchr(pHwVer, ' ');
+            // read hardware version
+            pValue = strstr(cmdline, pHwKeyWord);
+            if (pValue != NULL) {
+                pValue += strlen(pHwKeyWord);
+                token = strchr(pValue, ' ');
                 if (token) {
                     *token = '\0';
                 }
-                RLOGD("Hardware.version = %s", pHwVer);
-                property_set(HARDWARE_VERSION_PROP, pHwVer);
+                RLOGD("Hardware.version = %s", pValue);
+                property_set(HARDWARE_VERSION_PROP, pValue);
+            }
+
+            // read android boot mode
+            pValue = NULL;
+            token = NULL;
+            pValue = strstr(cmdline, pBootKeyWord);
+            if (pValue != NULL) {
+                pValue += strlen(pBootKeyWord);
+                token = strchr(pValue, ' ');
+                if (token) {
+                    *token = '\0';
+                }
+                RLOGD("Android boot mode = %s", pValue);
+                for (index = 0; index < NUM_ELEMS(pBootMode); index++) {
+                    if (strcmp(pValue, pBootMode[index]) == 0) {
+                        RLOGD("Android reboot abnormal");
+                        for (index = 0; index < SIM_COUNT; index++) {
+                            s_isBootAbnormal[index] = true;
+                        }
+                        break;
+                    }
+                }
             }
         }
         close(fd);
+    }
+
+    getProperty(RIL_SOCKET_1, MODEM_ASSERT_PROP, modemAssertProp, "0");
+    if (s_isBootAbnormal[RIL_SOCKET_1] == false &&
+            strcmp(modemAssertProp, "1") != 0) {
+        property_set(SIM_PIN_PROP, "");
     }
 }
 
@@ -1034,7 +1069,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
 
-    setHwVerPorp();
+    readCmdline();
     initOperatorInfoList(&s_operatorInfoList);
     return &s_callbacks;
 }
