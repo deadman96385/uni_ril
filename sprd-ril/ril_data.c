@@ -2129,6 +2129,10 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
+            if (s_isSimPresent[socket_id] == SIM_ABSENT) {
+                RIL_onRequestComplete(t, RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW, NULL, 0);
+                break;
+            }
             if (s_defaultDataId >= 0) {
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);

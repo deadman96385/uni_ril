@@ -678,9 +678,9 @@ static int getCardStatus(int request, int channelID,
     RIL_CardStatus_v6 *p_card_status = malloc(sizeof(RIL_CardStatus_v6));
     p_card_status->card_state = card_state;
     p_card_status->universal_pin_state = RIL_PINSTATE_UNKNOWN;
-    p_card_status->gsm_umts_subscription_app_index = RIL_CARD_MAX_APPS;
-    p_card_status->cdma_subscription_app_index = RIL_CARD_MAX_APPS;
-    p_card_status->ims_subscription_app_index = RIL_CARD_MAX_APPS;
+    p_card_status->gsm_umts_subscription_app_index = -1;
+    p_card_status->cdma_subscription_app_index = -1;
+    p_card_status->ims_subscription_app_index = -1;
     p_card_status->num_applications = num_apps;
 
     s_appType[socket_id] = getSimType(channelID);
@@ -2854,8 +2854,15 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_CHANGE_SIM_PIN2 :
             requestChangeSimPin2(channelID, data, datalen, t);
             break;
-        // case RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION :
-        //    break;
+        case RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION : {
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] == SIM_ABSENT) {
+                RIL_onRequestComplete(t, RIL_E_INVALID_SIM_STATE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
+            }
+            break;
+        }
         case RIL_REQUEST_GET_IMSI: {
             p_response = NULL;
             err = at_send_command_numeric(s_ATChannels[channelID], "AT+CIMI",
@@ -2915,7 +2922,8 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             } else if (sim_auth->authContext == AUTH_CONTEXT_EAP_SIM) {
                 requestSimAuthentication(channelID, sim_auth->authData, t);
             } else {
-                RLOGD("invalid authContext");
+                RLOGE("invalid authContext");
+                RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
             }
             break;
         }
