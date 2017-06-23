@@ -659,7 +659,8 @@ static int getCardStatus(int request, int channelID,
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
 
     getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
-    if (request == RIL_REQUEST_GET_SIM_STATUS && strcmp(simEnabledProp, "0") == 0) {
+    if (request != RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS &&
+            strcmp(simEnabledProp, "0") == 0) {
         sim_status = SIM_ABSENT;
     } else {
         sim_status = getSIMStatus(request, channelID);
@@ -2803,6 +2804,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
 
     switch (request) {
         case RIL_REQUEST_GET_SIM_STATUS:
+        case RIL_EXT_REQUEST_GET_SIM_STATUS:
         case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: {
             RIL_CardStatus_v6 *p_card_status;
             char *p_buffer;

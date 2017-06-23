@@ -547,6 +547,8 @@ struct RadioImpl : public IExtRadio {
     Return<void> sendCmdAsync(int32_t serial,
             const ::android::hardware::hidl_string& cmd);
 
+    Return<void> getIccCardStatusExt(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -8658,6 +8660,14 @@ Return<void> RadioImpl::sendCmdAsync(int32_t serial,
     return Void();
 }
 
+Return<void> RadioImpl::getIccCardStatusExt(int32_t serial) {
+#if VDBG
+    RLOGD("getIccCardStatusExt: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_SIM_STATUS);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -9544,6 +9554,53 @@ int radio::sendCmdAsyncResponse(int slotId, int responseType, int serial,
     } else {
         RLOGE("sendCmdAsyncResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
+    }
+
+    return 0;
+}
+
+int radio::getIccCardStatusExtResponse(int slotId, int responseType, int serial,
+                                       RIL_Errno e, void *response,
+                                       size_t responseLen) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        CardStatus cardStatus = {};
+        if (response == NULL || responseLen != sizeof(RIL_CardStatus_v6)) {
+            RLOGE("getIccCardStatusExtResponse: Invalid response");
+            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            RIL_CardStatus_v6 *p_cur = ((RIL_CardStatus_v6 *) response);
+            cardStatus.cardState = (CardState) p_cur->card_state;
+            cardStatus.universalPinState = (PinState) p_cur->universal_pin_state;
+            cardStatus.gsmUmtsSubscriptionAppIndex = p_cur->gsm_umts_subscription_app_index;
+            cardStatus.cdmaSubscriptionAppIndex = p_cur->cdma_subscription_app_index;
+            cardStatus.imsSubscriptionAppIndex = p_cur->ims_subscription_app_index;
+
+            RIL_AppStatus *rilAppStatus = p_cur->applications;
+            cardStatus.applications.resize(p_cur->num_applications);
+            AppStatus *appStatus = cardStatus.applications.data();
+#if VDBG
+            RLOGD("getIccCardStatusExtResponse: num_applications %d", p_cur->num_applications);
+#endif
+            for (int i = 0; i < p_cur->num_applications; i++) {
+                appStatus[i].appType = (AppType) rilAppStatus[i].app_type;
+                appStatus[i].appState = (AppState) rilAppStatus[i].app_state;
+                appStatus[i].persoSubstate = (PersoSubstate) rilAppStatus[i].perso_substate;
+                appStatus[i].aidPtr = convertCharPtrToHidlString(rilAppStatus[i].aid_ptr);
+                appStatus[i].appLabelPtr = convertCharPtrToHidlString(
+                        rilAppStatus[i].app_label_ptr);
+                appStatus[i].pin1Replaced = rilAppStatus[i].pin1_replaced;
+                appStatus[i].pin1 = (PinState) rilAppStatus[i].pin1;
+                appStatus[i].pin2 = (PinState) rilAppStatus[i].pin2;
+            }
+        }
+
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getIccCardStatusExtResponse(responseInfo, cardStatus);
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("getIccCardStatusExtResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
     }
 
     return 0;

@@ -324,7 +324,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
           request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
           request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
-          request == RIL_EXT_REQUEST_SEND_CMD)) {
+          request == RIL_EXT_REQUEST_SEND_CMD ||
+          request == RIL_EXT_REQUEST_GET_SIM_STATUS)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -410,7 +411,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE ||
                  request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP ||
                  request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
-                 request == RIL_EXT_REQUEST_SEND_CMD)) {
+                 request == RIL_EXT_REQUEST_SEND_CMD ||
+                 request == RIL_EXT_REQUEST_GET_SIM_STATUS)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
