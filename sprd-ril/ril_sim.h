@@ -8,7 +8,8 @@
 #ifndef RIL_SIM_H_
 #define RIL_SIM_H_
 
-#define PRIMARY_SIM_PROP  "persist.radio.primary.sim"
+#define PRIMARY_SIM_PROP            "persist.radio.primary.sim"
+#define MODEM_ASSERT_PROP           "ril.modem.assert"
 
 typedef enum {
     UNLOCK_PIN   = 0,

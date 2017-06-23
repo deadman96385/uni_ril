@@ -15,8 +15,6 @@
 #include "ril_async_cmd_handler.h"
 
 /* Property to save pin for modem assert */
-#define SIM_PIN_PROP                            "ril.sim.pin"
-#define MODEM_ASSERT_PROP                       "ril.modem.assert"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -393,7 +391,9 @@ SimStatus getSIMStatus(int channelID) {
         char modemAssertProp[PROPERTY_VALUE_MAX];
 
         getProperty(socket_id, MODEM_ASSERT_PROP, modemAssertProp, "0");
-        if (strcmp(modemAssertProp, "1") == 0) {
+        if (s_isBootAbnormal[socket_id] == true ||
+            strcmp(modemAssertProp, "1") == 0) {
+            s_isBootAbnormal[socket_id] = false;
             setProperty(socket_id, MODEM_ASSERT_PROP, "0");
 
             char cmd[AT_COMMAND_LEN];
@@ -403,6 +403,9 @@ SimStatus getSIMStatus(int channelID) {
 
             memset(pin, 0, sizeof(pin));
             getProperty(socket_id, SIM_PIN_PROP, encryptedPin, "");
+            if (strcmp(encryptedPin, "") == 0) {
+                goto out;
+            }
             decryptPin(pin, (unsigned char *)encryptedPin);
 
             if (strlen(pin) != 4) {
@@ -2999,12 +3002,14 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     if (err < 0) goto out;
                     if (cause == 2) {
                         s_simState[socket_id] = SIM_DROP;
+                        setProperty(socket_id, SIM_PIN_PROP, "");
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 34) {  // sim removed
                         s_simState[socket_id] = SIM_REMOVE;
+                        setProperty(socket_id, SIM_PIN_PROP, "");
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
@@ -3023,6 +3028,8 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                 if (value == 4) {
                     RIL_requestTimedCallback(onSimlockLocked,
                             (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
+                } else if (value == 100) {
+                    setProperty(socket_id, SIM_PIN_PROP, "");
                 }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,
