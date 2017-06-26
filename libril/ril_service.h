@@ -834,6 +834,9 @@ int sendCmdAsyncResponse(int slotId, int responseType, int serial,
 int getIccCardStatusExtResponse(int slotId, int responseType, int token,
                                 RIL_Errno e, void *response, size_t responseLen);
 
+int reAttachResponse(int slotId, int responseType, int token,
+                     RIL_Errno e, void *response, size_t responseLen);
+
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int videoPhoneCodecInd(int slotId, int indicationType, int token,

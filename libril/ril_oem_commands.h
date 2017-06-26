@@ -43,3 +43,4 @@
     {RIL_EXT_REQUEST_SET_XCAP_IP_ADDR, radio::setXcapIPAddressResponse},
     {RIL_EXT_REQUEST_SEND_CMD, radio::sendCmdAsyncResponse},
     {RIL_EXT_REQUEST_GET_SIM_STATUS, radio::getIccCardStatusExtResponse},
+    {RIL_EXT_REQUEST_REATTACH, radio::reAttachResponse},

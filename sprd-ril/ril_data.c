@@ -2391,6 +2391,11 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
+        case RIL_EXT_REQUEST_REATTACH: {
+            at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
         default :
             ret = 0;
             break;

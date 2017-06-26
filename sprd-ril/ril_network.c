@@ -23,9 +23,10 @@
 #define COPS_MODE_PROP          "persist.sys.cops.mode"
 /* set network type for engineer mode */
 #define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
-
-/* set the comb-register flag*/
+/* set the comb-register flag */
 #define CEMODE_PROP             "persist.radio.cemode"
+/* reset modem for recovery */
+#define RADIO_RESET_PROP        "gsm.radioreset"
 
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_UNKNOWN
@@ -1003,8 +1004,16 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     int err, i;
     char cmd[AT_COMMAND_LEN] = {0};
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
+    char radioResetProp[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    property_get(RADIO_RESET_PROP, radioResetProp, "false");
+    RLOGD("gsm.radioreset: %s", radioResetProp);
+    if (strcmp(radioResetProp, "true") == 0) {
+        at_send_command(s_ATChannels[channelID], "AT+RESET=1", NULL);
+        property_set(RADIO_RESET_PROP, "false");
+    }
 
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
