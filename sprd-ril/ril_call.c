@@ -402,7 +402,7 @@ static inline void speaker_mute(void) {
     system("alsa_amixer cset -c phone name=\"Speaker Playback Switch\" 0");
 }
 
-static inline int all_calls(int channelID, int do_mute) {
+int all_calls(int channelID, int do_mute) {
     ATResponse *p_response = NULL;
     ATLine *p_cur;
     int countCalls;

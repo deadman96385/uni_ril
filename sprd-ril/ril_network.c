@@ -13,6 +13,7 @@
 #include "TelephonyEx.h"
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
+#include "ril_call.h"
 
 /* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
@@ -2334,6 +2335,10 @@ static void requestShutdown(int channelID,
     int err;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    if (all_calls(channelID, 1)) {
+        at_send_command(s_ATChannels[channelID], "ATH", NULL);
+    }
 
     if (s_radioState[socket_id] != RADIO_STATE_OFF) {
         err = at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
