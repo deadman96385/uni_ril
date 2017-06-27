@@ -1133,7 +1133,7 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
     int ret = -1;
     int errNum = -1;
     int remainTimes = 10;
-    int response[2] = {0};
+    int response = -1;
     char *cmd, *line;
     ATLine *p_cur;
     ATResponse *p_response = NULL;
@@ -1183,12 +1183,11 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
                 err = at_tok_nextint(&line, &serviceClass);
                 if (err < 0) goto error;
             }
-            response[0] = status;
-            response[1] |= serviceClass;
+            response = status;
         }
         if (0 == strcmp(data[0], "FD")) {
             if (queryFDNServiceAvailable(channelID) == 2) {
-                response[0] = 2;
+                response = 2;
             }
         }
 
@@ -1211,7 +1210,6 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
             getSimlockRemainTimes(channelID, UNLOCK_PIN);
         } else if (!strcmp(data[0], "FD")) {
             getSimlockRemainTimes(channelID, UNLOCK_PIN2);
-
             int *mode = (int *)malloc(sizeof(int));
             *mode = atoi(data[1]);
             const char *cmd = "+CLCK:";
