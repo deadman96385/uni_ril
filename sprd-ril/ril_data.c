@@ -1597,21 +1597,31 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
     if (isStrEmpty(new->username) || isStrEmpty(new->password) ||
         new->authtype <= 0) {
         new->authtype = AUTH_NONE;
-        memset(new->username, 0, strlen(new->username));
-        memset(new->password, 0, strlen(new->password));
+        if (new->username != NULL) {
+             memset(new->username, 0, strlen(new->username));
+        }
+        if (new->password != NULL) {
+             memset(new->password, 0, strlen(new->password));
+        }
     }
     if (isStrEmpty(old->username) || isStrEmpty(old->password) ||
         old->authtype <= 0) {
         RLOGD("old profile is empty");
         old->authtype = AUTH_NONE;
-        memset(old->username, 0, strlen(old->username));
-        memset(old->password, 0, strlen(old->password));
+        if (old->username != NULL) {
+             memset(old->username, 0, strlen(old->username));
+        }
+        if (old->password != NULL) {
+            memset(old->password, 0, strlen(old->password));
+        }
     }
-    if (isApnEqual(new->apn, old->apn) &&
+
+    if ((isStrEmpty(new->apn) && isStrEmpty(new->protocol)) ||
+            (isApnEqual(new->apn, old->apn) &&
         isStrEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
-        new->authtype == old->authtype) {
+        new->authtype == old->authtype)) {
         ret = 1;
     }
     return ret;
@@ -1892,31 +1902,43 @@ int getDefaultDataCardId() {
     return ret;
 }
 
-void cleanUpAllConnections() {
+void cleanUpAllConnections(int channelID) {
     int i;
     char cmd[AT_COMMAND_LEN];
-
+    int deactiveChannelID = channelID;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_defaultDataId = getDefaultDataCardId();
-    if (s_defaultDataId < 0) {
+    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
         RLOGD("there is no active data connections!");
         return;
     }
-    int dataChannelID = getChannel(s_defaultDataId);
+    if (socket_id != s_defaultDataId) {
+         deactiveChannelID = getChannel(s_defaultDataId);
+     }
     for (i = 0; i < MAX_PDP; i++) {
         if (getPDPCid(i) > 0) {
             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
-            at_send_command(s_ATChannels[dataChannelID], cmd, NULL);
+            at_send_command(s_ATChannels[deactiveChannelID], cmd, NULL);
         }
     }
-    putChannel(dataChannelID);
+    if (socket_id != s_defaultDataId) {
+        putChannel(deactiveChannelID);
+    }
 }
 
-void activeAllConnections() {
-    int i;
-    int dataChannelID = getChannel(s_defaultDataId);
+void activeAllConnections(int channelID) {
+    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
+        return;
+    }
 
-    s_defaultDataId = -1;
-    property_set(APN_DELAY_PROP, "1");
+    int i;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    int dataChannelID = channelID;
+    if (socket_id != s_defaultDataId) {
+        dataChannelID = getChannel(s_defaultDataId);
+    }
+
+    //property_set(APN_DELAY_PROP, "1");
     for (i = 0; i < MAX_PDP; i++) {
         if (getPDPCid(i) > 0) {
             RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
@@ -1927,7 +1949,10 @@ void activeAllConnections() {
             }
         }
     }
-    putChannel(dataChannelID);
+    if (socket_id != s_defaultDataId) {
+        putChannel(dataChannelID);
+    }
+    s_defaultDataId = -1;
 }
 
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
