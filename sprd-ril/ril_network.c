@@ -2669,9 +2669,9 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestNetworkRegistration(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
-            cleanUpAllConnections();
+            cleanUpAllConnections(channelID);
             requestNetworkList(channelID, data, datalen, t);
-            activeAllConnections();
+            activeAllConnections(channelID);
             break;
         }
         case RIL_REQUEST_RESET_RADIO:
