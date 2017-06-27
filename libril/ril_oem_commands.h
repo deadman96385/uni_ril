@@ -41,3 +41,5 @@
     {RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME, dispatchString, responseVoid},
     {RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS, dispatchVoid, responseSimStatus},
     {RIL_EXT_REQUEST_SET_XCAP_IP_ADDR, dispatchStrings, responseVoid},
+    {RIL_EXT_REQUEST_REATTACH, dispatchVoid, responseVoid},
+    {RIL_EXT_REQUEST_SET_VOICE_DOMAIN, dispatchInts, responseVoid},
