@@ -2489,14 +2489,9 @@ static void requestGetSimLockStatus(int channelID, void *data, size_t datalen,
     char *cmd, *line;
     int ret = -1;
 
-    if (datalen != 2 * sizeof(int)) {
-        goto error;
-    }
-
     int fac = ((int *)data)[0];
-    int ck_type = ((int *)data)[1];
 
-    ret = asprintf(&cmd, "AT+SPSMPN=%d,%d", fac, ck_type);
+    ret = asprintf(&cmd, "AT+SPSMPN=%d,1", fac);
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
         cmd = NULL;
