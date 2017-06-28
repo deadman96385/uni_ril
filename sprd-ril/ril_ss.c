@@ -1185,19 +1185,17 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (strcmp(response[0], "2") == 0) {
                 response[0] = "0";
             }
-            RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, &response,
-                                      3 * sizeof(char *), socket_id);
         } else {
             if (s_ussdError[socket_id] == 1) {  /* for ussd */
                 RLOGD("+CUSD ussdError");
                 // 4: network does not support the current operation
                 response[0] = "4";
+                response[1] = "";
                 s_ussdError[socket_id] = 0;
             }
-
-            RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, &response[0],
-                                      1 * sizeof(char *), socket_id);
         }
+        RIL_onUnsolicitedResponse(RIL_UNSOL_ON_USSD, response,
+                                  2 * sizeof(char *), socket_id);
     } else if (strStartsWith(s, "+CSSI:")) {
         RIL_SuppSvcNotification *response = NULL;
         int code = 0;
