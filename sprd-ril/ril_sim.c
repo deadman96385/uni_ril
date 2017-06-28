@@ -2484,9 +2484,11 @@ error1:
 
 static void requestGetSimLockStatus(int channelID, void *data, size_t datalen,
                                         RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
     ATResponse *p_response = NULL;
-    int err, skip, status;
     char *cmd, *line;
+    int err, skip, status;
     int ret = -1;
 
     int fac = ((int *)data)[0];

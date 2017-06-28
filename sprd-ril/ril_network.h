@@ -34,6 +34,7 @@ typedef enum {
     NETWORK_MODE_LTE_CDMA_EVDO_GSM_WCDMA = 10,  /* LTE, CDMA, EvDo, GSM/WCDMA */
     NETWORK_MODE_LTE_ONLY       = 11,  /* LTE Only mode. */
     NETWORK_MODE_LTE_WCDMA      = 12,  /* LTE/WCDMA */
+    NETWORK_MODE_LTE_GSM        = 23,  /* LTE/GSM */
 
     NETWORK_MODE_BASE = 50,
     NT_TD_LTE = NETWORK_MODE_BASE + 1,
@@ -51,6 +52,7 @@ typedef enum {
     NT_TDSCDMA_GSM = NETWORK_MODE_BASE + 13,
     NT_WCDMA_GSM = NETWORK_MODE_BASE + 14,
     NT_WCDMA_TDSCDMA_GSM = NETWORK_MODE_BASE + 15,
+    NT_LTE_FDD_TD_LTE_GSM = NETWORK_MODE_BASE + 16,
 } NetworkMode;
 
 typedef struct {
@@ -64,6 +66,7 @@ typedef enum {
     LWG_WG = 1,
     W_G = 2,
     LWG_LWG = 3,
+    LG_G = 4,
 } ModemConfig;
 
 typedef struct OperatorInfoList {
