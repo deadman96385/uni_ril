@@ -20,12 +20,12 @@ typedef enum {
     TD_LTE = 1,
     LTE_FDD = 2,
     TD_LTE_AND_LTE_FDD = 3,
-    LTE_FDD_AND_W_AND_GSM_CSFB = 4,
-    TD_LTE_AND_W_AND_GSM_CSFB = 5,
-    TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB = 6,
-    TD_LTE_AND_TD_AND_GSM_CSFB = 7,
-    TD_LTE_AND_LTE_FDD_AND_TD_AND_GSM_CSFB = 8,
-    TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB = 9,
+    LTE_FDD_AND_W_AND_GSM = 4,
+    TD_LTE_AND_W_AND_GSM = 5,
+    TD_LTE_AND_LTE_FDD_AND_W_AND_GSM = 6,
+    TD_LTE_AND_TD_AND_GSM = 7,
+    TD_LTE_AND_LTE_FDD_AND_TD_AND_GSM = 8,
+    TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM = 9,
     GSM_ONLY = 10,
     WCDMA_ONLY = 11,
     TD_ONLY = 12,
@@ -35,6 +35,7 @@ typedef enum {
     PRIMARY_WCDMA_ONLY = 18,
     PRIMARY_TD_ONLY = 19,
     PRIMARY_TD_AND_WCDMA = 20,
+    TD_LTE_AND_LTE_FDD_AND_GSM = 21,
     PRIMARY_WCDMA_AND_GSM = 22,
     NONE = 254,
     TD_AND_WCDMA = 255,
@@ -57,6 +58,7 @@ typedef enum {
     NETWORK_MODE_LTE_CDMA_EVDO_GSM_WCDMA = 10,  /* LTE, CDMA, EvDo, GSM/WCDMA */
     NETWORK_MODE_LTE_ONLY       = 11,  /* LTE Only mode. */
     NETWORK_MODE_LTE_WCDMA      = 12,  /* LTE/WCDMA */
+    NETWORK_MODE_LTE_GSM        = 23,  /* LTE/GSM */
 
     NETWORK_MODE_BASE = 50,
     NT_TD_LTE = NETWORK_MODE_BASE + 1,
@@ -74,6 +76,7 @@ typedef enum {
     NT_TDSCDMA_GSM = NETWORK_MODE_BASE + 13,
     NT_WCDMA_GSM = NETWORK_MODE_BASE + 14,
     NT_WCDMA_TDSCDMA_GSM = NETWORK_MODE_BASE + 15,
+    NT_LTE_FDD_TD_LTE_GSM = NETWORK_MODE_BASE + 16,
 } NetworkMode;
 
 typedef struct {
@@ -106,6 +109,7 @@ typedef enum {
     LWG_WG = 1,
     W_G = 2,
     LWG_LWG = 3,
+    LG_G = 4,
 } ModemConfig;
 
 typedef struct OperatorInfoList {
