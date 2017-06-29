@@ -2531,6 +2531,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int cid;
         int state;
         int qci;
+        int isVideoCall = 1;
 
         line = strdup(s);
         tmp = line;
@@ -2551,8 +2552,16 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
 
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &isVideoCall);
+            if (err < 0) {
+                RLOGE("get isVideoCall fail");
+                goto out;
+            }
+        }
+
         // state = 0: deactive, qci = 2: video
-        if (state == 0 && qci == 2) {
+        if (state == 0 && qci == 2 && isVideoCall == 1) {
             RIL_requestTimedCallback(onDowngradeToVoice,
                     (void *)&s_socketId[socket_id], NULL);
         }
