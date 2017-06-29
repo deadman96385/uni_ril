@@ -32,6 +32,7 @@ typedef enum {
     TD_AND_GSM = 13,
     WCDMA_AND_GSM = 14,
     PRIMARY_GSM_ONLY = 15,
+    WCDMA_OR_TD_ONLY = 17,
     PRIMARY_WCDMA_ONLY = 18,
     PRIMARY_TD_ONLY = 19,
     PRIMARY_TD_AND_WCDMA = 20,

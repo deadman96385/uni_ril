@@ -1459,7 +1459,7 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                         type = WCDMA_ONLY;
                     }
                 } else {
-                    type = WCDMA_ONLY;
+                    type = WCDMA_OR_TD_ONLY;
                 }
                 break;
             default:
