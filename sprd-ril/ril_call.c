@@ -1287,6 +1287,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestSeparateConnection(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_EXPLICIT_CALL_TRANSFER:
+        case RIL_EXT_REQUEST_EXPLICIT_CALL_TRANSFER:
             requestExplicitCallTransfer(channelID, data, datalen, t);
             break;
         // case RIL_REQUEST_SET_TTY_MODE:

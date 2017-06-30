@@ -6435,7 +6435,8 @@ typedef enum {
 #define RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY             (RIL_IMS_REQUEST_BASE + 32)
 #define RIL_REQUEST_GET_IMS_PCSCF_ADDR                  (RIL_IMS_REQUEST_BASE + 33)
 #define RIL_REQUEST_SET_IMS_PCSCF_ADDR                  (RIL_IMS_REQUEST_BASE + 34)
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_SET_IMS_PCSCF_ADDR
+#define RIL_REQUEST_EXT_QUERY_FACILITY_LOCK             (RIL_IMS_REQUEST_BASE + 35)
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_EXT_QUERY_FACILITY_LOCK
 
 #define RIL_IMS_UNSOL_RESPONSE_BASE                     3000
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
@@ -6470,41 +6471,8 @@ typedef enum {
 #define RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY           (RIL_EXT_REQUEST_BASE + 15)
 #define RIL_EXT_REQUEST_SET_COLP                    (RIL_EXT_REQUEST_BASE + 16)
 #define RIL_EXT_REQUEST_GET_DEFAULT_NAN             (RIL_EXT_REQUEST_BASE + 17)
-/**
- * RIL_EXT_REQUEST_SIM_GET_ATR
- *
- * Retrieves the ATR from the UICC.
- *
- * "data" is null
- * "response" is const char * to the ATR.
- *
- * Valid errors:
- *  SUCCESS
- *  GENERIC_FAILURE
- */
 #define RIL_EXT_REQUEST_SIM_GET_ATR                 (RIL_EXT_REQUEST_BASE + 18)
-
-/**
- * RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2
- *
- * Open a new logical channel and select the given application.
- *
- * "data" is const char * and set to AID value, See ETSI 102.221 and 101.220.
- * "p2" is the p2 byte to set
- *
- * "response" is int *
- * ((int *)data)[0] contains the session id of the logical channel.
- * ((int *)data)[1] onwards may optionally contain the select response for the
- *     open channel command with one byte per integer.
- *
- * Valid errors:
- *  SUCCESS
- *  RADIO_NOT_AVAILABLE
- *  GENERIC_FAILURE
- *  MISSING_RESOURCE
- *  NO_SUCH_ELEMENT
- */
-#define RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2    (RIL_EXT_REQUEST_BASE + 19)
+#define RIL_EXT_REQUEST_EXPLICIT_CALL_TRANSFER      (RIL_EXT_REQUEST_BASE + 19)
 #define RIL_EXT_REQUEST_GET_SIM_CAPACITY            (RIL_EXT_REQUEST_BASE + 20)
 #define RIL_EXT_REQUEST_STORE_SMS_TO_SIM            (RIL_EXT_REQUEST_BASE + 21)
 #define RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE      (RIL_EXT_REQUEST_BASE + 22)
@@ -6527,7 +6495,9 @@ typedef enum {
 #define RIL_EXT_REQUEST_SEND_CMD                    (RIL_EXT_REQUEST_BASE + 39)
 #define RIL_EXT_REQUEST_GET_SIM_STATUS              (RIL_EXT_REQUEST_BASE + 40)
 #define RIL_EXT_REQUEST_REATTACH                    (RIL_EXT_REQUEST_BASE + 41)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_REATTACH
+#define RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE  (RIL_EXT_REQUEST_BASE + 42)
+#define RIL_EXT_REQUEST_SHUTDOWN                    (RIL_EXT_REQUEST_BASE + 43)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SHUTDOWN
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)

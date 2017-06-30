@@ -229,7 +229,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
           request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
           request == RIL_EXT_REQUEST_SEND_CMD ||
-          request == RIL_EXT_REQUEST_GET_SIM_STATUS)) {
+          request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
+          request == RIL_EXT_REQUEST_SHUTDOWN)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }
@@ -296,6 +297,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO ||
                  request == RIL_REQUEST_GET_IMS_PCSCF_ADDR ||
                  request == RIL_REQUEST_SET_IMS_PCSCF_ADDR ||
+                 request == RIL_REQUEST_EXT_QUERY_FACILITY_LOCK ||
                  /* }@ */
                  request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
                  request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER ||
@@ -307,7 +309,6 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST ||
                  request == RIL_EXT_REQUEST_SET_COLP ||
                  request == RIL_EXT_REQUEST_SIM_GET_ATR ||
-                 request == RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2 ||
                  request == RIL_EXT_REQUEST_STORE_SMS_TO_SIM ||
                  request == RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE ||
                  request == RIL_EXT_REQUEST_UPDATE_ECCLIST ||
@@ -316,7 +317,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP ||
                  request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
                  request == RIL_EXT_REQUEST_SEND_CMD ||
-                 request == RIL_EXT_REQUEST_GET_SIM_STATUS)) {
+                 request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
+                 request == RIL_EXT_REQUEST_SHUTDOWN)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
     }

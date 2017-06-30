@@ -768,8 +768,8 @@ int getDefaultNANResponse(int slotId, int responseType, int serial,
 int simGetAtrResponse(int slotId, int responseType, int serial,
                       RIL_Errno e, void *response, size_t responseLen);
 
-int simOpenChannelWithP2Response(int slotId, int responseType, int serial,
-                                 RIL_Errno e, void *response, size_t responseLen);
+int explicitCallTransferExtResponse(int slotId, int responseType, int serial,
+                                    RIL_Errno e, void *response, size_t responseLen);
 
 int getSimCapacityResponse(int slotId, int responseType, int serial,
                            RIL_Errno e, void *response, size_t responseLen);
@@ -836,6 +836,13 @@ int getIccCardStatusExtResponse(int slotId, int responseType, int token,
 
 int reAttachResponse(int slotId, int responseType, int token,
                      RIL_Errno e, void *response, size_t responseLen);
+
+int setPreferredNetworkTypeExtResponse(int slotId, int responseType, int serial,
+                                       RIL_Errno e, void *response, size_t responseLen);
+
+int requestShutdownExtResponse(int slotId, int responseType, int serial,
+                               RIL_Errno e, void *response, size_t responseLen);
+
 
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
@@ -998,6 +1005,9 @@ int getIMSPcscfAddressResponse(int slotId, int responseType, int serial,
 
 int setIMSPcscfAddressResponse(int slotId, int responseType, int serial,
                                RIL_Errno e, void *response, size_t responseLen);
+
+int getFacilityLockForAppExtResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen);
 
 /****************IMS EXTENSION UNSOL RESPONSEs' responseFunction**************/
 

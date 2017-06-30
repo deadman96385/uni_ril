@@ -497,9 +497,7 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> simGetAtr(int32_t serial);
 
-    Return<void> simOpenChannelWithP2(int32_t serial,
-            const ::android::hardware::hidl_string& aid,
-            const ::android::hardware::hidl_string& p2);
+    Return<void> explicitCallTransferExt(int32_t serial);
 
     Return<void> getSimCapacity(int32_t serial);
 
@@ -550,6 +548,10 @@ struct RadioImpl : public IExtRadio {
     Return<void> getIccCardStatusExt(int32_t serial);
 
     Return<void> reAttach(int32_t serial);
+
+    Return<void> setPreferredNetworkTypeExt(int32_t serial, PreferredNetworkType nwType);
+
+    Return<void> requestShutdownExt(int32_t serial);
 
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
@@ -626,6 +628,12 @@ struct RadioImpl : public IExtRadio {
             const ::android::hardware::hidl_string& addr);
 
     Return<void> getIMSPcscfAddress(int32_t serial);
+
+    Return<void> getFacilityLockForAppExt(int32_t serial,
+            const ::android::hardware::hidl_string& facility,
+            const ::android::hardware::hidl_string& password,
+            int32_t serviceClass,
+            const ::android::hardware::hidl_string& appId);
 
 };
 
@@ -2293,26 +2301,26 @@ Return<void> RadioImpl::iccOpenLogicalChannel(int32_t serial, const hidl_string&
 #if VDBG
     RLOGD("iccOpenLogicalChannel: serial %d", serial);
 #endif
-    if (s_vendorFunctions->version < 15) {
-        dispatchString(serial, mSlotId, RIL_REQUEST_SIM_OPEN_CHANNEL, aid.c_str());
-    } else {
-        RequestInfo *pRI = android::addRequestToList(serial, mSlotId, RIL_REQUEST_SIM_OPEN_CHANNEL);
-        if (pRI == NULL) {
-            return Void();
-        }
-
-        RIL_OpenChannelParams params = {};
-
-        params.p2 = p2;
-
-        if (!copyHidlStringToRil(&params.aidPtr, aid, pRI)) {
-            return Void();
-        }
-
-        CALL_ONREQUEST(pRI->pCI->requestNumber, &params, sizeof(params), pRI, pRI->socket_id);
-
-        memsetAndFreeStrings(1, params.aidPtr);
+//    if (s_vendorFunctions->version < 15) {
+//        dispatchString(serial, mSlotId, RIL_REQUEST_SIM_OPEN_CHANNEL, aid.c_str());
+//    } else {
+    RequestInfo *pRI = android::addRequestToList(serial, mSlotId, RIL_REQUEST_SIM_OPEN_CHANNEL);
+    if (pRI == NULL) {
+        return Void();
     }
+
+    RIL_OpenChannelParams params = {};
+
+    params.p2 = p2;
+
+    if (!copyHidlStringToRil(&params.aidPtr, aid, pRI)) {
+        return Void();
+    }
+
+    CALL_ONREQUEST(pRI->pCI->requestNumber, &params, sizeof(params), pRI, pRI->socket_id);
+
+    memsetAndFreeStrings(1, params.aidPtr);
+//    }
     return Void();
 }
 
@@ -8530,14 +8538,11 @@ Return<void> RadioImpl::simGetAtr(int32_t serial) {
     return Void();
 }
 
-Return<void> RadioImpl::simOpenChannelWithP2(int32_t serial,
-        const ::android::hardware::hidl_string& aid,
-        const ::android::hardware::hidl_string& p2) {
+Return<void> RadioImpl::explicitCallTransferExt(int32_t serial) {
 #if VDBG
-    RLOGD("simOpenChannelWithP2: serial %d", serial);
+    RLOGD("explicitCallTransferExt: serial %d", serial);
 #endif
-    dispatchStrings(serial, mSlotId, RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2,
-            2, aid.c_str(), p2.c_str());
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_EXPLICIT_CALL_TRANSFER);
     return Void();
 }
 
@@ -8731,6 +8736,22 @@ Return<void> RadioImpl::reAttach(int32_t serial) {
     RLOGD("reAttach: serial %d", serial);
 #endif
     dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_REATTACH);
+    return Void();
+}
+
+Return<void> RadioImpl::setPreferredNetworkTypeExt(int32_t serial, PreferredNetworkType nwType) {
+#if VDBG
+    RLOGD("setPreferredNetworkTypeExt: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE, 1, nwType);
+    return Void();
+}
+
+Return<void> RadioImpl::requestShutdownExt(int32_t serial) {
+#if VDBG
+    RLOGD("requestShutdownExt: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_SHUTDOWN);
     return Void();
 }
 
@@ -9115,35 +9136,21 @@ int radio::simGetAtrResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
-int radio::simOpenChannelWithP2Response(int slotId, int responseType,
-                                        int serial, RIL_Errno e, void *response,
-                                        size_t responseLen) {
+int radio::explicitCallTransferExtResponse(int slotId, int responseType,
+                                           int serial, RIL_Errno e,
+                                           void *response, size_t responseLen) {
 #if VDBG
-    RLOGD("simOpenChannelWithP2Response: serial %d", serial);
+    RLOGD("explicitCallTransferExtResponse: serial %d", serial);
 #endif
 
     if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        int channelId = -1;
-        hidl_vec<int8_t> selectResponse;
-        int numInts = responseLen / sizeof(int);
-        if (response == NULL || responseLen % sizeof(int) != 0) {
-            RLOGE("simOpenChannelWithP2Response Invalid response: NULL");
-            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
-        } else {
-            int *pInt = (int *) response;
-            channelId = pInt[0];
-            selectResponse.resize(numInts - 1);
-            for (int i = 1; i < numInts; i++) {
-                selectResponse[i - 1] = (int8_t)pInt[i];
-            }
-        }
-        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
-                simOpenChannelWithP2Response(responseInfo,  channelId, selectResponse);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->explicitCallTransferExtResponse(responseInfo);
         radioService[slotId]->checkReturnStatus(retStatus);
     } else {
-        RLOGE("simOpenChannelWithP2Response: radioService[%d]->mExtRadioResponse == NULL",
+        RLOGE("explicitCallTransferExtResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -9692,6 +9699,49 @@ int radio::reAttachResponse(int slotId, int responseType, int serial,
 
     return 0;
 }
+
+int radio::setPreferredNetworkTypeExtResponse(int slotId, int responseType,
+                                              int serial, RIL_Errno e,
+                                              void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setPreferredNetworkTypeExtResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->setPreferredNetworkTypeExtResponse(
+                responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("setPreferredNetworkTypeExtResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::requestShutdownExtResponse(int slotId, int responseType, int serial,
+                                      RIL_Errno e, void *response,
+                                      size_t responseLen) {
+#if VDBG
+    RLOGD("requestShutdownExtResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->requestShutdownExtResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("requestShutdownExtResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+}
+
 
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
@@ -10533,6 +10583,18 @@ Return<void> RadioImpl::setIMSPcscfAddress(int32_t serial,
     return Void();
 }
 
+Return<void> RadioImpl::getFacilityLockForAppExt(int32_t serial, const hidl_string& facility,
+                                                 const hidl_string& password, int32_t serviceClass,
+                                                 const hidl_string& appId) {
+#if VDBG
+    RLOGD("getFacilityLockForAppExt: serial %d", serial);
+#endif
+    dispatchStrings(serial, mSlotId, RIL_REQUEST_EXT_QUERY_FACILITY_LOCK,
+            4, facility.c_str(), password.c_str(),
+            (std::to_string(serviceClass)).c_str(), appId.c_str());
+    return Void();
+}
+
 /*******************IMS EXTENSION REQUESTs' responseFunction******************/
 
 int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
@@ -11309,6 +11371,39 @@ int radio::setIMSPcscfAddressResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus);
     } else {
         RLOGE("setIMSPcscfAddressResponse: radioService[%d]->mIMSRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getFacilityLockForAppExtResponse(int slotId, int responseType,
+                                            int serial, RIL_Errno e,
+                                            void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getFacilityLockForAppExtResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int status = 0;
+        int serviceClass = 0;
+
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        if (response == NULL || responseLen != 2 * sizeof(int)) {
+            RLOGE("responseInt: Invalid response");
+            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            int *p_int = (int *)response;
+            status = p_int[0];
+            serviceClass = p_int[1];
+        }
+
+        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+                getFacilityLockForAppExtResponse(responseInfo, status, serviceClass);
+        radioService[slotId]->checkReturnStatus(retStatus);
+    } else {
+        RLOGE("getFacilityLockForAppExtResponse: radioService[%d]->mIMSRadioResponse == NULL",
                 slotId);
     }
 

@@ -2811,7 +2811,8 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         //    break;
         // case RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE:
         //    break;
-        case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE: {
+        case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
+        case RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE: {
             if (s_isLTE) {
 #if (SIM_COUNT == 2)
                 pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
@@ -2851,6 +2852,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             break;
         case RIL_REQUEST_SHUTDOWN:
+        case RIL_EXT_REQUEST_SHUTDOWN:
             requestShutdown(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_GET_RADIO_CAPABILITY:

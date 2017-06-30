@@ -36,4 +36,5 @@
     {RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO, radio::notifyHandoverCallInfoResponse},
     {RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, radio::getSrvccCapbilityResponse},
     {RIL_REQUEST_GET_IMS_PCSCF_ADDR, radio::setIMSPcscfAddressResponse},
-    {RIL_REQUEST_SET_IMS_PCSCF_ADDR, radio::getIMSPcscfAddressResponse}
+    {RIL_REQUEST_SET_IMS_PCSCF_ADDR, radio::getIMSPcscfAddressResponse},
+    {RIL_REQUEST_EXT_QUERY_FACILITY_LOCK, radio::getFacilityLockForAppExtResponse},

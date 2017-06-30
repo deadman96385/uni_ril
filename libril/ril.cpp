@@ -1281,6 +1281,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "GET_IMS_SRVCC_CAPBILITY";
         case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
         case RIL_REQUEST_SET_IMS_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
+        case RIL_REQUEST_EXT_QUERY_FACILITY_LOCK: return "EXT_QUERY_FACILITY_LOCK";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
@@ -1303,7 +1304,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SET_COLP: return "SET_COLP";
         case RIL_EXT_REQUEST_GET_DEFAULT_NAN: return "GET_DEFAULT_NAN";
         case RIL_EXT_REQUEST_SIM_GET_ATR: return "SIM_GET_ATR";
-        case RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2: return "OPEN_CHANNEL_WITH_P2";
+        case RIL_EXT_REQUEST_EXPLICIT_CALL_TRANSFER: return "EXT_EXPLICIT_CALL_TRANSFER";
         case RIL_EXT_REQUEST_GET_SIM_CAPACITY: return "GET_SIM_CAPACITY";
         case RIL_EXT_REQUEST_STORE_SMS_TO_SIM: return "STORE_SMS_TO_SIM";
         case RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE: return "QUERY_SMS_STORAGE_MODE";
@@ -1326,6 +1327,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SEND_CMD: return "SEND_CMD";
         case RIL_EXT_REQUEST_GET_SIM_STATUS: return "EXT_GET_SIM_STATUS";
         case RIL_EXT_REQUEST_REATTACH: return "REATTACH";
+        case RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE: return "EXT_SET_PREFERRED_NETWORK_TYPE";
+        case RIL_EXT_REQUEST_SHUTDOWN: return "EXT_SHUTDOWN";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";

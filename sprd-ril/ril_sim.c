@@ -1126,14 +1126,14 @@ error:
     at_response_free(p_response);
 }
 
-static void requestFacilityLock(int channelID, char **data, size_t datalen,
-                                    RIL_Token t) {
+static void requestFacilityLock(int request, int channelID, char **data,
+                                size_t datalen, RIL_Token t) {
     int err, result, status;
     int serviceClass = 0;
     int ret = -1;
     int errNum = -1;
     int remainTimes = 10;
-    int response = -1;
+    int response[2] = {0};
     char *cmd, *line;
     ATLine *p_cur;
     ATResponse *p_response = NULL;
@@ -1183,15 +1183,21 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
                 err = at_tok_nextint(&line, &serviceClass);
                 if (err < 0) goto error;
             }
-            response = status;
+            response[0] = status;
+            response[1] |= serviceClass;
         }
         if (0 == strcmp(data[0], "FD")) {
             if (queryFDNServiceAvailable(channelID) == 2) {
-                response = 2;
+                response[0] = 2;
             }
         }
 
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+        if (request == RIL_REQUEST_EXT_QUERY_FACILITY_LOCK) {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, &response[0], sizeof(int));
+        }
+
     } else {  // unlock/lock this facility
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         free(cmd);
@@ -1554,7 +1560,9 @@ static void requestOpenLogicalChannel(int channelID, void *data,
     char *responseData = NULL;
     ATResponse *p_response = NULL;
 
-    asprintf(&cmd, "AT+SPCCHO=\"%s\"", (char *)data);
+    RIL_OpenChannelParams *params = (RIL_OpenChannelParams *)data;
+
+    asprintf(&cmd, "AT+SPCCHO=\"%s\"", params->aidPtr);
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
                                      &p_response);
     if (err < 0) goto error;
@@ -1614,6 +1622,83 @@ error:
     RIL_onRequestComplete(t, err_no, NULL, 0);
     at_response_free(p_response);
     free(cmd);
+}
+
+static void  requestSIMOpenChannelWithP2(int channelID, void *data,
+                                         size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err;
+    int rspLen = 1;
+    int response[260];
+
+    char *cmd = NULL;
+    char *line = NULL;
+    char *rspType = "0xFF";
+    char *statusWord = NULL;
+    char *responseData = NULL;
+    RIL_OpenChannelParams *params = (RIL_OpenChannelParams *)data;
+
+    ATResponse *p_response = NULL;
+    RIL_Errno errType = RIL_E_GENERIC_FAILURE;
+
+    asprintf(&cmd, "AT+SPCCHO=\"%s,%s, %d\"", params->aidPtr, rspType, params->p2);
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
+                                     &p_response);
+    free(cmd);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
+            errType = RIL_E_MISSING_RESOURCE;
+        } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+            errType = RIL_E_NO_SUCH_ELEMENT;
+        }
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    // Read channel number
+    err = at_tok_nextint(&line, &response[0]);
+    if (err < 0) goto error;
+
+    // Read select response (if available)
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextstr(&line, &statusWord);
+        if (err < 0) goto error;
+
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextstr(&line, &responseData);
+            if (err < 0) goto error;
+
+            int length = strlen(responseData) / 2;
+            while (rspLen <= length) {
+                sscanf(responseData, "%02x", &(response[rspLen]));
+                rspLen++;
+                responseData += 2;
+            }
+            sscanf(statusWord, "%02x%02x", &(response[rspLen]),
+                   &(response[rspLen + 1]));
+            rspLen = rspLen + 2;
+        } else {
+            goto error;
+        }
+    } else {
+        // no select response, set status word
+        response[rspLen] = 0x90;
+        response[rspLen + 1] = 0x00;
+        rspLen = rspLen + 2;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, rspLen * sizeof(int));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, errType, NULL, 0);
+    at_response_free(p_response);
 }
 
 static void requestCloseLogicalChannel(int channelID, void *data,
@@ -2302,83 +2387,6 @@ error:
     at_response_free(p_response);
 }
 
-static void  requestSIMOpenChannelWITHP2(int channelID, void *data,
-                                         size_t datalen, RIL_Token t) {
-    RIL_UNUSED_PARM(datalen);
-
-    int err;
-    int rspLen = 1;
-    int response[260];
-
-    char *cmd = NULL;
-    char *line = NULL;
-    char *rspType = "0xFF";
-    char *statusWord = NULL;
-    char *responseData = NULL;
-    const char **strings = (const char **)data;
-
-    ATResponse *p_response = NULL;
-    RIL_Errno errType = RIL_E_GENERIC_FAILURE;
-
-    asprintf(&cmd, "AT+SPCCHO=\"%s,%s, %s\"", strings[0], rspType, strings[1]);
-    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
-                                     &p_response);
-    free(cmd);
-    if (err < 0) goto error;
-    if (p_response != NULL && p_response->success == 0) {
-        if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
-            errType = RIL_E_MISSING_RESOURCE;
-        } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
-            errType = RIL_E_NO_SUCH_ELEMENT;
-        }
-        goto error;
-    }
-
-    line = p_response->p_intermediates->line;
-    err = at_tok_start(&line);
-    if (err < 0) goto error;
-
-    // Read channel number
-    err = at_tok_nextint(&line, &response[0]);
-    if (err < 0) goto error;
-
-    // Read select response (if available)
-    if (at_tok_hasmore(&line)) {
-        err = at_tok_nextstr(&line, &statusWord);
-        if (err < 0) goto error;
-
-        if (at_tok_hasmore(&line)) {
-            err = at_tok_nextstr(&line, &responseData);
-            if (err < 0) goto error;
-
-            int length = strlen(responseData) / 2;
-            while (rspLen <= length) {
-                sscanf(responseData, "%02x", &(response[rspLen]));
-                rspLen++;
-                responseData += 2;
-            }
-            sscanf(statusWord, "%02x%02x", &(response[rspLen]),
-                   &(response[rspLen + 1]));
-            rspLen = rspLen + 2;
-        } else {
-            goto error;
-        }
-    } else {
-        // no select response, set status word
-        response[rspLen] = 0x90;
-        response[rspLen + 1] = 0x00;
-        rspLen = rspLen + 2;
-    }
-
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, rspLen * sizeof(int));
-    at_response_free(p_response);
-    return;
-
-error:
-    RIL_onRequestComplete(t, errType, NULL, 0);
-    at_response_free(p_response);
-}
-
 static void getIMEIPassword(int channelID, char imeiPwd[]) {
     ATResponse *p_response = NULL;
     char password[15];
@@ -2855,25 +2863,32 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SIM_IO:
             requestSIM_IO(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_QUERY_FACILITY_LOCK: {
+        case RIL_REQUEST_QUERY_FACILITY_LOCK:
+        case RIL_REQUEST_EXT_QUERY_FACILITY_LOCK: {
             char *lockData[4];
             lockData[0] = ((char **)data)[0];
             lockData[1] = FACILITY_LOCK_REQUEST;
             lockData[2] = ((char **)data)[1];
             lockData[3] = ((char **)data)[2];
-            requestFacilityLock(channelID, lockData, datalen + sizeof(char *),
+            requestFacilityLock(request, channelID, lockData, datalen + sizeof(char *),
                                 t);
             break;
         }
         case RIL_REQUEST_SET_FACILITY_LOCK:
-            requestFacilityLock(channelID, data, datalen, t);
+            requestFacilityLock(request, channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC:
             requestTransmitApduBasic(channelID, data, datalen, t);
             break;
-        case RIL_REQUEST_SIM_OPEN_CHANNEL:
-            requestOpenLogicalChannel(channelID, data, datalen, t);
+        case RIL_REQUEST_SIM_OPEN_CHANNEL: {
+            RIL_OpenChannelParams *params = (RIL_OpenChannelParams *)data;
+            if (params->p2 < 0) {
+                requestOpenLogicalChannel(channelID, data, datalen, t);
+            } else {
+                requestSIMOpenChannelWithP2(channelID, data, datalen, t);
+            }
             break;
+        }
         case RIL_REQUEST_SIM_CLOSE_CHANNEL:
             requestCloseLogicalChannel(channelID, data, datalen, t);
             break;
@@ -2940,9 +2955,6 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         /* }@ */
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
-            break;
-        case RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2:
-            requestSIMOpenChannelWITHP2(channelID, data, datalen, t);
             break;
         default:
             return 0;
