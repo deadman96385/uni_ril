@@ -37,6 +37,7 @@ pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_extDataFd = -1;
 static char s_SavedDns[IP_ADDR_SIZE] = {0};
 static char s_SavedDns_IPV6[IP_ADDR_SIZE * 4] ={0};
+static int s_swapCard = 0;
 
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
@@ -1841,7 +1842,10 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
+    if (s_swapCard != 0) {
+        RLOGD("swapcard in processing, return!!");
+        goto error;
+    }
 #if (SIM_COUNT == 2)
     if (s_autoDetach == 1) {
         doDetachGPRS(1 - socket_id, data, datalen, NULL);
@@ -2074,7 +2078,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
-            if (s_defaultDataId >= 0) {
+            if (s_defaultDataId >= 0 || s_swapCard != 0) {
+                RLOGD("defaultDataId = %d, swapcard = %d", s_defaultDataId, s_swapCard);
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
@@ -2737,6 +2742,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         err = at_tok_nextint(&tmp, &id);
         if (err < 0) {
             RLOGD("%s fail", s);
+        }
+        if (id == 1) {
+            s_swapCard = id;
+        } else {
+            s_swapCard = 0;
         }
         RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD, (void *)&id, sizeof(int), socket_id);
     }  else if (strStartsWith(s, "+SPEXPIREPDP:")) {
