@@ -156,3 +156,13 @@ Next:
         gsm7bits += 1;
     }
 }
+
+void convertUcsToUtf8(unsigned char *ucs2, int len, unsigned char *buf) {
+    int n;
+    int result = 0;
+
+    for (n = 0; n < len; ucs2++, n++) {
+        int c = ucs2[0];
+        result += utf8Package(buf, result, c);
+    }
+}

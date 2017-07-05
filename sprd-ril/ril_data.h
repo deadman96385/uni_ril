@@ -68,6 +68,12 @@ typedef enum {
     IPV4V6  = 3
 } IPType;
 
+enum States{
+    OPEN,
+    REUSE,
+    CLOSE,
+};
+
 enum PDPState {
     PDP_IDLE,
     PDP_BUSY,
@@ -80,6 +86,12 @@ struct PDPInfo {
     bool isPrimary;
     enum PDPState state;
     pthread_mutex_t mutex;
+};
+
+struct OpenchannelInfo {
+    int cid;
+    enum States state;
+    bool pdpState;
 };
 
 typedef struct {
@@ -187,6 +199,9 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
 int processDataUnsolicited(RIL_SOCKET_ID socket_ID, const char *s);
 
 void ps_service_init();
+
+int requestSetupDataConnection(int channelID, void *data, size_t datalen);
+void requestDeactiveDataConnection(int channelID, void *data, size_t datalen);
 
 /* for AT+CGACT=0 set command response process */
 void cgact_deact_cmd_rsp(int cid);

@@ -22,6 +22,8 @@ LOCAL_SRC_FILES := \
     custom/ril_custom.c \
     ril_async_cmd_handler.c \
     channel_controller.c \
+    ril_stk_bip.c \
+    ril_stk_parser.c \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog libcutils libutils librilsprd librilutils libril_tele libnetutils libril_threads

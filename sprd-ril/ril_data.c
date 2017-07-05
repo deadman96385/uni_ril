@@ -14,6 +14,7 @@
 #include "ril_network.h"
 #include "ril_call.h"
 #include "channel_controller.h"
+#include "ril_stk.h"
 
 #define APN_DELAY_PROP          "persist.radio.apn_delay"
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
@@ -37,6 +38,18 @@ pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_extDataFd = -1;
 static char s_SavedDns[IP_ADDR_SIZE] = {0};
 static char s_SavedDns_IPV6[IP_ADDR_SIZE * 4] ={0};
+pthread_mutex_t s_signalBipPdpMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_signalBipPdpCond = PTHREAD_COND_INITIALIZER;
+
+struct OpenchannelInfo s_openchannelInfo[6] = {
+    {-1, CLOSE, false},
+    {-1, CLOSE, false},
+    {-1, CLOSE, false},
+    {-1, CLOSE, false},
+    {-1, CLOSE, false},
+    {-1, CLOSE, false}
+};
+static int s_openchannelCid = -1;
 
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
@@ -100,6 +113,7 @@ static PDNInfo s_PDN[MAX_PDP_CP] = {
 static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
 static bool isApnEqual(char *new, char *old);
 static bool isProtocolEqual(char *new, char *old);
+static bool isBipProtocolEqual(char *new, char *old);
 static int getMaxPDPNum(void) {
     return isLte() ? MAX_PDP : MAX_PDP / 2;
 }
@@ -817,6 +831,9 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
         putPDP(cid - 1);
         return ret;
     }
+    s_openchannelCid = cid;
+    s_openchannelInfo[cid - 1].cid = cid;
+    s_openchannelInfo[cid - 1].state = OPEN;
     if (primaryCid > 0) {
         /* Check ip type after fall back  */
         char ethPropName[ARRAY_SIZE] = {0};
@@ -1345,6 +1362,9 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                                 p_response, err, cid);
                         AT_RESPONSE_FREE(p_response);
                         if (cgdata_err == DATA_ACTIVE_SUCCESS) {
+                            s_openchannelCid = cid;
+                            s_openchannelInfo[cid - 1].cid = cid;
+                            s_openchannelInfo[cid - 1].state = OPEN;
                             updatePDPCid(i + 1, 1);
                             updatePDPSocketId(cid, socket_id);
                             requestOrSendDataCallList(channelID, cid, &t);
@@ -1463,6 +1483,10 @@ RETRY:
 done:
     putUnusablePDPCid();
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
+    pthread_mutex_lock(&s_signalBipPdpMutex);
+    s_openchannelInfo[primaryindex].pdpState = true;
+    pthread_cond_signal(&s_signalBipPdpCond);
+    pthread_mutex_unlock(&s_signalBipPdpMutex);
     return;
 
 error:
@@ -1470,6 +1494,10 @@ error:
         putPDP(getFallbackCid(primaryindex) - 1);
         putPDP(primaryindex);
     }
+    pthread_mutex_lock(&s_signalBipPdpMutex);
+    s_openchannelInfo[primaryindex].pdpState = true;
+    pthread_cond_signal(&s_signalBipPdpCond);
+    pthread_mutex_unlock(&s_signalBipPdpMutex);
     putUnusablePDPCid();
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
@@ -1542,6 +1570,9 @@ static void deactivateDataConnection(int channelID, void *data,
     if (getPDPSocketId(cid - 1) != socket_id) {
         goto done;
     }
+    if (s_openchannelInfo[cid - 1].cid != -1) {
+        goto error;
+    }
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
     secondaryCid = getFallbackCid(cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
@@ -1568,10 +1599,14 @@ static void deactivateDataConnection(int channelID, void *data,
         }
     }
 done:
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
     return;
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
     return;
 }
 
@@ -1679,6 +1714,16 @@ static bool isApnEqual(char *new, char *old) {
 static bool isProtocolEqual(char *new, char *old) {
     bool ret = false;
     if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(new, old) == 0) {
+        ret = true;
+    }
+    return ret;
+}
+
+static bool isBipProtocolEqual(char *new, char *old) {
+    bool ret = false;
+    if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(old, "IPV4V6") == 0 ||
         strcasecmp(new, old) == 0) {
         ret = true;
     }
@@ -2645,6 +2690,15 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                             *((int *)(cbPara->para)) = cid;
                             cbPara->socket_id = socket_id;
                         }
+                        if (s_openchannelInfo[cid - 1].state != CLOSE) {
+                            RLOGD("sendEvenLoopThread cid:%d", cid);
+                            s_openchannelInfo[cid - 1].cid = -1;
+                            s_openchannelInfo[cid - 1].state = CLOSE;
+                            int secondaryCid = getFallbackCid(cid - 1);
+                            putPDP(secondaryCid - 1);
+                            putPDP(cid - 1);
+                            RIL_requestTimedCallback(sendEvenLoopThread, cbPara, NULL);
+                        }
                         RIL_requestTimedCallback(onDataCallListChanged, cbPara,
                                                  NULL);
                     }
@@ -3323,6 +3377,11 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     int isAutoTest = 0;
     int err = -1;
 
+    char ip[IP_ADDR_MAX], ip2[IP_ADDR_MAX], dns1[IP_ADDR_MAX], dns2[IP_ADDR_MAX];
+    memset(ip, 0, sizeof(ip));
+    memset(ip2, 0, sizeof(ip2));
+    memset(dns1, 0, sizeof(dns1));
+    memset(dns2, 0, sizeof(dns2));
     snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
     property_get(ETH_SP, prop, "veth");
 
@@ -3396,6 +3455,44 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         }
     } while (ipType == IPV4V6);
 
+    if (s_openchannelInfo[cidIndex].state == OPEN) {
+        if (actIPType == IPV4) {
+            snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
+            property_get(cmd, ip, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.dns1", linker);
+            property_get(cmd, dns1, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.dns2", linker);
+            property_get(cmd, dns2, "");
+        } else if (actIPType == IPV6) {
+            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
+            property_get(cmd, ip2, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
+            property_get(cmd, dns1, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns2", linker);
+            property_get(cmd, dns2, "");
+        } else {
+            snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
+            property_get(cmd, ip, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
+            property_get(cmd, ip2, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.dns1", linker);
+            property_get(cmd, dns1, "");
+            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
+            property_get(cmd, dns2, "");
+        }
+        ifc_init();
+        RLOGD("ifc_create_default_route ip = %s", ip);
+        in_addr_t address = inet_addr(ip);
+        err = ifc_create_default_route(linker, address);
+        RLOGD("ifc_create_default_route address = %d, error = %d", address, err);
+        ifc_close();
+        //snprintf(cmd, sizeof(cmd), "ip route add default via %s %s dev %s", ip, ip2, linker);
+        //RLOGD("cmd = %s", cmd);
+        //system(cmd);
+        snprintf(cmd, sizeof(cmd), "ndc resolver setnetdns %s \"\" %s %s", linker, dns1, dns2);
+        RLOGD("cmd = %s", cmd);
+        system(cmd);
+    }
     property_set(GSPS_ETH_UP_PROP, "0");
 
     return 1;
@@ -3730,5 +3827,59 @@ void cgact_deact_cmd_rsp(int cid) {
     system(cmd);
 
     pthread_mutex_unlock(&s_psServiceMutex);
+}
+
+int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
+    int i, cid;
+    const char *pdpType = "IP";
+    const char *apn = NULL;
+    apn = ((const char **)data)[2];
+    if (datalen > 6 * sizeof(char *)) {
+        pdpType = ((const char **)data)[6];
+    } else {
+        pdpType = "IP";
+    }
+    s_openchannelCid = -1;
+    queryAllActivePDNInfos(channelID);
+    if (s_activePDN > 0) {
+        for (i = 0; i < MAX_PDP; i++) {
+            cid = getPDNCid(i);
+            if (cid == (i + 1)) {
+                RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
+                if (getPDPState(i) == PDP_BUSY &&
+                    isApnEqual((char *)apn, getPDNAPN(i)) &&
+                    isBipProtocolEqual((char *)pdpType, getPDNIPType(i))) {
+                    if (!(s_openchannelInfo[i].pdpState)) {
+                        pthread_mutex_lock(&s_signalBipPdpMutex);
+                        pthread_cond_wait(&s_signalBipPdpCond, &s_signalBipPdpMutex);
+                        pthread_mutex_unlock(&s_signalBipPdpMutex);
+                    }
+                    s_openchannelInfo[i].cid = cid;
+                    s_openchannelInfo[i].state = REUSE;
+                    return s_openchannelInfo[i].cid;
+                }
+            }
+        }
+    }
+
+    requestSetupDataCall(channelID, data, datalen, NULL);
+    RLOGD("open channel cid = %d", s_openchannelCid);
+    return s_openchannelCid;
+}
+
+void requestDeactiveDataConnection(int channelID, void *data, size_t datalen) {
+    const char *p_cid = NULL;
+    int cid;
+    p_cid = ((const char **)data)[0];
+    cid = atoi(p_cid);
+    RLOGD("close channel cid = %d", cid);
+
+    if (cid > 0) {
+        RLOGD("close channel state = %d", s_openchannelInfo[cid - 1].state);
+        s_openchannelInfo[cid - 1].cid = -1;
+        s_openchannelInfo[cid - 1].state = CLOSE;
+        s_openchannelInfo[cid - 1].pdpState = false;
+        deactivateDataConnection(channelID, data, datalen, NULL);
+    }
 }
 
