@@ -1219,7 +1219,10 @@ static void requestNetworkRegistration(int channelID, void *data,
     int err;
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
-    RIL_NetworkList *network = (RIL_NetworkList *)data;
+
+    RIL_NetworkList *network =
+            (RIL_NetworkList *)calloc(1, sizeof(RIL_NetworkList));
+    network->operatorNumeric = (char *)data;
 
     char prop[PROPERTY_VALUE_MAX];
     int copsMode = 1;
@@ -1252,11 +1255,13 @@ static void requestNetworkRegistration(int channelID, void *data,
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     at_response_free(p_response);
+    free(network);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
+    free(network);
 }
 
 static void requestNetworkList(int channelID, void *data, size_t datalen,
