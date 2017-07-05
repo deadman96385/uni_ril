@@ -46,3 +46,4 @@
     {RIL_EXT_REQUEST_REATTACH, radio::reAttachResponse},
     {RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE, radio::setPreferredNetworkTypeExtResponse},
     {RIL_EXT_REQUEST_SHUTDOWN, radio::requestShutdownExtResponse},
+    {RIL_EXT_REQUEST_SET_SMS_BEARER, radio::setSmsBearerResponse},

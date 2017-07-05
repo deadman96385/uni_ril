@@ -562,6 +562,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> requestShutdownExt(int32_t serial);
 
+    Return<void> setSmsBearer(int32_t serial, int32_t type);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -8781,6 +8783,13 @@ Return<void> RadioImpl::requestShutdownExt(int32_t serial) {
     return Void();
 }
 
+Return<void> RadioImpl::setSmsBearer(int32_t serial, int32_t type) {
+#if VDBG
+    RLOGD("setSmsBearer: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_SMS_BEARER, 1, type);
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -9768,6 +9777,25 @@ int radio::requestShutdownExtResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::setSmsBearerResponse(int slotId, int responseType, int serial,
+                                      RIL_Errno e, void *response,
+                                      size_t responseLen) {
+#if VDBG
+    RLOGD("setSmsBearerResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->setSmsBearerResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setSmsBearerResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+}
 
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 

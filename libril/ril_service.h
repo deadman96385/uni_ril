@@ -843,6 +843,8 @@ int setPreferredNetworkTypeExtResponse(int slotId, int responseType, int serial,
 int requestShutdownExtResponse(int slotId, int responseType, int serial,
                                RIL_Errno e, void *response, size_t responseLen);
 
+int setSmsBearerResponse(int slotId, int responseType, int serial,
+                         RIL_Errno e, void *response, size_t responseLen);
 
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
