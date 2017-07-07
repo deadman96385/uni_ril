@@ -6,9 +6,6 @@
 
 #define LOG_TAG "RIL_STK_PARSER"
 
-#include <string.h>
-#include <stdlib.h>
-#include <utils/Log.h>
 #include "ril_stk_parser.h"
 #include "ril_stk_bip.h"
 #include "ril_utils.h"
@@ -84,7 +81,7 @@ int decode(char *data, ComprehensionTlv *pTlv) {
     }
 
     char *pBytData = NULL;
-    pBytData = (char *)malloc(length);
+    pBytData = (char *)calloc(length, sizeof(char));
 
     memcpy(pBytData, pByt, length);
 
@@ -112,7 +109,7 @@ int parseProCommand(const char * const rawData, const int length, BerTlv *berTlv
         return REQUIRED_VALUES_MISSING;
     }
 
-    pProCmd = (char *)malloc((sizeof(char) * length) / 2);
+    pProCmd = (char *)calloc(length / 2, sizeof(char));
     RLOGD("parseProCommand length: %d", length);
     RLOGD("parseProCommand rawData: %s", rawData);
     if (RESULT_EXCEPTION == convertHexToBin(rawData, length, pProCmd)) {
@@ -418,8 +415,10 @@ void processOpenChannel(ComprehensionTlv *comprehensionTlv,
                                 }
                                 snprintf(temp, sizeof(temp), "%d.%d.%d.%d",
                                         net[0], net[1], net[2],net[3]);
-                                memcpy(openChannelData->OtherAddress, temp, strlen((const char *)temp) + 1);
-                                memcpy(openChannelData->DataDstAddress, temp, strlen((const char *)temp) + 1);
+                                memcpy(openChannelData->OtherAddress, temp,
+                                        strlen((const char *)temp) + 1);
+                                memcpy(openChannelData->DataDstAddress, temp,
+                                        strlen((const char *)temp) + 1);
                                 RLOGD("OtherAddress: %s", openChannelData->OtherAddress);
                                 RLOGD("DataDstAddress: %s", openChannelData->DataDstAddress);
                                 RLOGD("OpenChannel Network Access Name done");

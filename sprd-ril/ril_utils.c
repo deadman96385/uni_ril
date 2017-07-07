@@ -166,3 +166,7 @@ void convertUcsToUtf8(unsigned char *ucs2, int len, unsigned char *buf) {
         result += utf8Package(buf, result, c);
     }
 }
+
+int emNStrlen(char *str) {
+    return str ? strlen(str) : 0;
+}

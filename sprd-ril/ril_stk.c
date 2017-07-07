@@ -33,11 +33,11 @@ void freeStkContextList(StkContextList *stkContextList) {
 
     if (pstkcontext != NULL) {
         if (pstkcontext->recevieData != NULL) {
-            free (pstkcontext->recevieData);
+            free(pstkcontext->recevieData);
             pstkcontext->recevieData = NULL;
         }
         if (pstkcontext->pOCData != NULL) {
-            if(pstkcontext->pOCData->channelData.text != NULL) {
+            if (pstkcontext->pOCData->channelData.text != NULL) {
                 free(pstkcontext->pOCData->channelData.text);
                 pstkcontext->pOCData->channelData.text = NULL;
             }
@@ -49,7 +49,7 @@ void freeStkContextList(StkContextList *stkContextList) {
             pstkcontext->pCStatus = NULL;
         }
         if (pstkcontext->pSCData != NULL) {
-            if(pstkcontext->pSCData->channelData.text != NULL) {
+            if (pstkcontext->pSCData->channelData.text != NULL) {
                 free(pstkcontext->pSCData->channelData.text);
                 pstkcontext->pSCData->channelData.text = NULL;
             }
@@ -57,7 +57,7 @@ void freeStkContextList(StkContextList *stkContextList) {
             pstkcontext->pSCData = NULL;
         }
         if (pstkcontext->pRCData != NULL) {
-            if(pstkcontext->pRCData->channelData.text != NULL) {
+            if (pstkcontext->pRCData->channelData.text != NULL) {
                 free(pstkcontext->pRCData->channelData.text);
                 pstkcontext->pRCData->channelData.text = NULL;
             }
@@ -65,7 +65,7 @@ void freeStkContextList(StkContextList *stkContextList) {
             pstkcontext->pRCData = NULL;
         }
         if (pstkcontext->pCCData != NULL) {
-            if(pstkcontext->pCCData->channelData.text != NULL) {
+            if (pstkcontext->pCCData->channelData.text != NULL) {
                 free(pstkcontext->pCCData->channelData.text);
                 pstkcontext->pCCData->channelData.text = NULL;
             }
@@ -174,7 +174,7 @@ int addToStkContextList(StkContext *pstkcontext) {
     if (pstkcontext != NULL) {
         if (s_stkContextList == NULL) {
             RLOGD("init s_stkContextList");
-            s_stkContextList = (StkContextList*)malloc(sizeof(StkContextList));
+            s_stkContextList = (StkContextList *)calloc(1, sizeof(StkContextList));
             if (s_stkContextList == NULL) {
                 RLOGE("s_stkContextList malloc error");
                 return 0;
@@ -185,7 +185,7 @@ int addToStkContextList(StkContext *pstkcontext) {
         } else {
             RLOGD("add s_stkContextList");
             StkContextList *tmpList = NULL;
-            tmpList = (StkContextList*)malloc(sizeof(StkContextList));
+            tmpList = (StkContextList *)calloc(1, sizeof(StkContextList));
             if (tmpList == NULL) {
                 RLOGE("tmpList malloc error");
                 return 0;
@@ -241,7 +241,7 @@ int removeFromStkContextList(StkContext *pstkcontext) {
     return 1;
 }
 
-StkContext* getStkContext(int channel_id) {
+StkContext *getStkContext(int channel_id) {
     RLOGD("getStkContext");
     StkContextList *tmp = NULL;
     tmp = s_stkContextList;
@@ -259,12 +259,12 @@ StkContext* getStkContext(int channel_id) {
         } else {
             tmp = tmp->next;
         }
-    }while(tmp != s_stkContextList);
+    } while (tmp != s_stkContextList);
 
     return NULL;
  }
 
-StkContext* getStkContextUseCid(int openchannelCid) {
+StkContext *getStkContextUseCid(int openchannelCid) {
     StkContextList *tmp = NULL;
     tmp = s_stkContextList;
     if (openchannelCid < 0) {
@@ -422,18 +422,18 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
 
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
             RLOGD("STK_SEND_TERMINAL_RESPONSE s_lunchOpenChannelDialog:%d", (int)s_lunchOpenChannelDialog);
-            if(s_lunchOpenChannelDialog[socket_id]){
+            if (s_lunchOpenChannelDialog[socket_id]) {
                 int dataLen = strlen(data);
                 int channelId = s_curBipChannelID;
                 RLOGD("dataLen:%d",dataLen);
-                if(((char *)data)[dataLen - 2] == '0'){
+                if (((char *)data)[dataLen - 2] == '0') {
                     RLOGD("accept lunchOpenChannel");
                     lunchOpenChannel(channelId);
-                } else if(((char *)data)[dataLen - 2] == '1') {
+                } else if (((char *)data)[dataLen - 2] == '1') {
                     RLOGD("cancel send TR");
                     StkContext *pstkContext = NULL;
                     pstkContext = getStkContext(channelId);
-                    SendChannelResponse(pstkContext, USER_NOT_ACCEPT, socket_id);
+                    sendChannelResponse(pstkContext, USER_NOT_ACCEPT, socket_id);
 
                     removeFromStkContextList(pstkContext);
                     putBipChannel(channelId);
@@ -442,7 +442,7 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
                     RLOGD("timeout send TR");
                     StkContext *pstkContext = NULL;
                     pstkContext = getStkContext(channelId);
-                    SendChannelResponse(pstkContext, NO_RESPONSE_FROM_USER, socket_id);
+                    sendChannelResponse(pstkContext, NO_RESPONSE_FROM_USER, socket_id);
 
                     removeFromStkContextList(pstkContext);
                     putBipChannel(channelId);
@@ -608,24 +608,24 @@ static void *processBipClient(void *param) {
         case OPEN_CHANNEL: {
             openChannelData = (OpenChannelData *)calloc(1, sizeof(OpenChannelData));
             processOpenChannel(comprehensionTlv, openChannelData, rilMessage);
-            if(rilMessage->resCode == OK){
+            if (rilMessage->resCode == OK) {
                 RLOGD("processOpenChannel resCode == OK");
                 int err = -1;
                 StkContext *pstkcontext = NULL;
                 pstkcontext = (StkContext*)calloc(1, sizeof(StkContext));
                 memset(pstkcontext, 0 ,sizeof(StkContext));
                 err = initStkContext(pstkcontext, socket_id, openChannelData, cmdDet);
-                if(err == 0) {
+                if (err == 0) {
                     free(pstkcontext);
                     goto EXIT;
                 }
                 err = addToStkContextList(pstkcontext);
-                if(err == 0) {
+                if (err == 0) {
                     free(pstkcontext);
                     goto EXIT;
                 }
 
-                if(openChannelData->channelData.text == NULL){
+                if (openChannelData->channelData.text == NULL) {
                     int channelId = s_curBipChannelID;
                     RLOGD("direct lunchOpenChannel");
                     lunchOpenChannel(channelId);
@@ -667,7 +667,7 @@ static void *processBipClient(void *param) {
                             length = comprehensionTlv->tTlv.length;
                             pStr = comprehensionTlv->tTlv.value;
                             if (pStr != NULL) {
-                                while(length > 0){
+                                while (length > 0) {
                                    buf[bufCount++] = *pStr++;
                                     length--;
                                 }
@@ -691,7 +691,7 @@ static void *processBipClient(void *param) {
         case SEND_DATA: {
             sendData = (SendChannelData *)calloc(1, sizeof(SendChannelData));
             processSendData(comprehensionTlv, sendData, rilMessage);
-            if(rilMessage->resCode != OK){
+            if (rilMessage->resCode != OK) {
                 RLOGD("processSendData resCode == OK");
                 int channelId = sendData->channelId;
                 StkContext *pstkContext = NULL;
@@ -724,7 +724,7 @@ static void *processBipClient(void *param) {
             RLOGD("CLOSE_CHANNEL processCloseChannel enter");
             processCloseChannel(comprehensionTlv, closeChannelData, rilMessage);
             RLOGD("CLOSE_CHANNEL processCloseChannel EXIT");
-            if(rilMessage->resCode != OK){
+            if (rilMessage->resCode != OK) {
                 RLOGD("processCloseChannel resCode == OK");
                 int channelId = closeChannelData->channelId;
                 StkContext *pstkContext = NULL;
@@ -769,7 +769,7 @@ static void *processBipClient(void *param) {
         case RECEIVE_DATA: {
             receiveData = (ReceiveChannelData *)calloc(1, sizeof(ReceiveChannelData));
             processReceiveData(comprehensionTlv, receiveData, rilMessage);
-            if(rilMessage->resCode != OK){
+            if (rilMessage->resCode != OK) {
                 RLOGD("processReceiveData resCode == OK");
                 int channelId = receiveData->channelId;
                 StkContext *pstkContext = NULL;
@@ -853,11 +853,20 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int ret = -1;
         int typePos = 0;
         int channelId = -1;
-        char *tmp;
+        char *tmp = NULL;;
         char *response = NULL;
         BipClient *pBipClient = NULL;
         pthread_attr_t attr;
         pthread_t bipClientTid;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        err = at_tok_nextstr(&tmp, &response);
+        if (err < 0) {
+            RLOGE("%s fail", s);
+            goto out;
+        }
 
         if (response[2] <= '7') {
            typePos = 10;
@@ -865,7 +874,6 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
            typePos = 12;
         }
 
-        RLOGD("checkStkProCmdType");
         switch (checkStkProCmdType(&(response[typePos]))) {
            case OPEN_CHANNEL: {
                property_get(STK_BIP_MODE_PROP, bipMode, "single");
@@ -899,14 +907,6 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 goto out;
            default:
                 break;
-        }
-        line = strdup(s);
-        tmp = line;
-        at_tok_start(&tmp);
-        err = at_tok_nextstr(&tmp, &response);
-        if (err < 0) {
-            RLOGD("%s fail", s);
-            goto out;
         }
 
         if (false == s_stkServiceRunning[socket_id]) {

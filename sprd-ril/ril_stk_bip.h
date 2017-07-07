@@ -98,7 +98,7 @@ int lunchSendData(int channel_id);
 int lunchReceiveData(int channel_id);
 int lunchCloseChannel(int channel_id);
 
-int SendChannelResponse(StkContext *pstkContext, int resCode, int socket_id);
+int sendChannelResponse(StkContext *pstkContext, int resCode, int socket_id);
 void sendEventChannelStatus(StkContext *pstkContext, int socket_id);
 void sendTerminalResponse(CommandDetails *pCmdDet, CatResponseMessageSprd *pResMsg,
         int socket_id, int respId, ResponseDataSprd *pResp);

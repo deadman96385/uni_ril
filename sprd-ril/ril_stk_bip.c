@@ -5,36 +5,22 @@
  */
 #define LOG_TAG "RIL_STK_BIP"
 
+#include <arpa/inet.h>
 #include "ril_utils.h"
 #include "sprd_ril.h"
-#include <string.h>
-#include <stdlib.h>
-#include "ril_stk_bip.h"
 #include "ril_utils.h"
 #include "ril_data.h"
+#include "ril_stk_bip.h"
 #include "ril_stk_parser.h"
-#include <utils/Log.h>
-
-#include <pthread.h>
-#include <errno.h>
-
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <telephony/record_stream.h>
 
 extern StkContextList *s_stkContextList;
 
-int emNStrlen(char *str) {
-    return str ? strlen(str) : 0;
-}
-
 int sendTRData(int socket_id, char *data) {
-    char *cmd;
-    int ret;
-    int err;
-    ATResponse *p_response = NULL;
+    int ret = -1;
+    int err = -1;
     int sendTRChannelID = getChannel(socket_id);
+    char *cmd = NULL;
+    ATResponse *p_response = NULL;
 
     ret = asprintf(&cmd, "AT+SPUSATTERMINAL=\"%s\"", data);
     if (ret < 0) {
@@ -59,11 +45,11 @@ error:
 }
 
 int sendELData(int socket_id, char *data) {
-    char *cmd;
-    int ret;
-    int err;
-    ATResponse *p_response = NULL;
+    int ret = -1;
+    int err = -1;
     int sendELChannelID = getChannel(socket_id);
+    char *cmd = NULL;
+    ATResponse *p_response = NULL;
 
     ret = asprintf(&cmd, "AT+SPUSATENVECMD=\"%s\"", data);
     if (ret < 0) {
@@ -87,12 +73,12 @@ error:
     return 0;
 }
 
-static char* getDefaultBearerNetAccessName(int channelID) {
+static char *getDefaultBearerNetAccessName(int channelID) {
+    int err = -1;
+    char *apn = NULL;
+    ATLine *p_cur = NULL;
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    ATLine *p_cur;
-    int err;
-    char *apn = NULL;
 
     err = at_send_command_multiline(s_ATChannels[channelID],
                 "AT+SPIPCONTEXT?", "+SPIPCONTEXT:", &p_response);
@@ -104,8 +90,8 @@ static char* getDefaultBearerNetAccessName(int channelID) {
     for (p_cur = p_newResponse->p_intermediates; p_cur != NULL;
             p_cur = p_cur->p_next) {
         char *line = p_cur->line;
-        int ncid;
-        int active;
+        int ncid = -1;
+        int active = -1;
 
         err = at_tok_start(&line);
         if (err < 0) goto error;
@@ -115,6 +101,7 @@ static char* getDefaultBearerNetAccessName(int channelID) {
 
         err = at_tok_nextint(&line, &active);
         if (err < 0) goto error;
+
         if (ncid == 1) {
             err = at_tok_nextstr(&line, &apn);
             if (err < 0 || emNStrlen(apn) == 0) goto error;
@@ -125,6 +112,7 @@ static char* getDefaultBearerNetAccessName(int channelID) {
     AT_RESPONSE_FREE(p_response);
     AT_RESPONSE_FREE(p_newResponse);
     return apn;
+
 error:
     AT_RESPONSE_FREE(p_response);
     AT_RESPONSE_FREE(p_newResponse);
@@ -132,21 +120,20 @@ error:
 }
 
 int endConnectivity(StkContext *pstkContext, int socket_id) {
-    char **pStrings = NULL;
     int countStrings = 1;
-    char cmd[10] = {0};
+    char **pStrings = NULL;
+    char cmd[AT_COMMAND_LEN] = {0};
+
     pStrings = (char **)calloc(countStrings, sizeof(char *));
     if (pStrings == NULL) {
         RLOGE("Memory allocation failed for request");
         return -1;
     }
 
-    RLOGD("construct pStrings in endConnectivity");
-
     snprintf(cmd, sizeof(cmd), "%d", pstkContext->openchannelCid);
     pStrings[0] = cmd;
 
-    RLOGD("endConnectivity pstkContext->openchannelCid:%s",pStrings[0]);
+    RLOGD("endConnectivity pstkContext->openchannelCid: %s",pStrings[0]);
 
     int sendChannelID = getChannel(socket_id);
     requestDeactiveDataConnection(sendChannelID, pStrings, countStrings);
@@ -160,8 +147,9 @@ int endConnectivity(StkContext *pstkContext, int socket_id) {
 
 int SetupStkConnect(StkContext *pstkContext, int socket_id) {
     RLOGD("[stk] SetupStkConnect");
-    char **pStrings = NULL;
     int countStrings = 7;
+    char **pStrings = NULL;
+
     pStrings = (char **)calloc(countStrings, sizeof(char *));
     if (pStrings == NULL) {
         RLOGE("Memory allocation failed for request");
@@ -177,7 +165,6 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
     }
     // user
     pStrings[3] = (char *)pstkContext->pOCData->LoginStr;
-
     // password
     pStrings[4] = (char *)pstkContext->pOCData->PwdStr;
     // authType
@@ -191,8 +178,11 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
     // protocol
     char protocol[NAME_SIZE] = {0};
     if (emNStrlen(pstkContext->pOCData->BearerParam) != 0) {
-        RLOGD("pstkContext->pOCData->BearerParam length:%d", emNStrlen(pstkContext->pOCData->BearerParam));
-        if (strStartsWith(pstkContext->pOCData->BearerParam+emNStrlen(pstkContext->pOCData->BearerParam)-2, TYPE_PACKAGE_DATA_PROTOCOL_IP)) {
+        RLOGD("pstkContext->pOCData->BearerParam length: %d",
+                emNStrlen(pstkContext->pOCData->BearerParam));
+        if (strStartsWith(pstkContext->pOCData->BearerParam +
+                emNStrlen(pstkContext->pOCData->BearerParam) - 2,
+                TYPE_PACKAGE_DATA_PROTOCOL_IP)) {
             memcpy(protocol, "IP", 2);
         } else {
             memcpy(protocol, "IPV4V6", 6);
@@ -203,8 +193,10 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
     pStrings[6] = protocol;
 
     int sendChannelID = getChannel(socket_id);
-    pstkContext->openchannelCid = requestSetupDataConnection(sendChannelID, pStrings, countStrings);
-    RLOGD("SetupStkConnect pstkContext->openchannelCid:%d",pstkContext->openchannelCid);
+    pstkContext->openchannelCid =
+            requestSetupDataConnection(sendChannelID, pStrings, countStrings);
+    RLOGD("SetupStkConnect pstkContext->openchannelCid: %d",
+            pstkContext->openchannelCid);
     putChannel(sendChannelID);
 
     free(pStrings);
@@ -213,7 +205,7 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
 
 void sendEventLoop(CatResponseMessageSprd *pResMsg, int event, int socket_id) {
     int bufCount = 0;
-    unsigned char buf[MAX_BUFFER_BYTES/2];
+    unsigned char buf[MAX_BUFFER_BYTES / 2];
     unsigned char hexString[MAX_BUFFER_BYTES];
     memset(buf, 0, sizeof(buf));
     memset(hexString, 0, sizeof(hexString));
@@ -224,6 +216,7 @@ void sendEventLoop(CatResponseMessageSprd *pResMsg, int event, int socket_id) {
 
     buf[bufCount++] = 0x80 | EVENT_LIST;
     buf[bufCount++] = 0x01;
+
     switch(event) {
         case CHANNEL_STATUS_EVENT:
             buf[bufCount++] = CHANNEL_STATUS_EVENT;
@@ -263,17 +256,18 @@ void sendEventLoop(CatResponseMessageSprd *pResMsg, int event, int socket_id) {
 
     buf[1] = bufCount - 2;
 
-    convertBinToHex((char *)buf,bufCount,hexString);
+    convertBinToHex((char *)buf, bufCount, hexString);
 
-    RLOGD("ENVELOPE COMMAND:: %s", hexString);
+    RLOGD("ENVELOPE COMMAND: %s", hexString);
 
     sendELData(socket_id, (char *)hexString);
 }
 
 void sendTerminalResponse(CommandDetails *pCmdDet,
-        CatResponseMessageSprd *pResMsg, int socket_id, int respId, ResponseDataSprd *pResp) {
+                          CatResponseMessageSprd *pResMsg, int socket_id,
+                          int respId, ResponseDataSprd *pResp) {
     RLOGD("sendTerminalResponse");
-    int iRDCount =0;
+    int iRDCount = 0;
     int bufCount = 0;
     int tag = COMMAND_DETAILS;
     int sendTRChannelID = -1;
@@ -287,7 +281,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
     memset(buf, 0, sizeof(buf));
     memset(hexString, 0, sizeof(hexString));
     if (pCmdDet == NULL) {
-        RLOGD("pCmdDet is NULL");
+        RLOGE("pCmdDet is NULL");
         return;
     }
 
@@ -326,7 +320,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
     }
 
     switch (respId){
-        case OCRD_SPRD:
+        case OCRD_SPRD: {
             RLOGD("[stk] OpenChannelResponseData linkStatus = %d", pResp->linkStatus);
             if (pResp->linkStatus) {
                 tag = CHANNEL_STATUS;
@@ -341,25 +335,28 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             if (emNStrlen(pResp->bearerParam) != 0) {
                 RLOGD("pResp->bearerParam length:%d", emNStrlen(pResp->bearerParam));
                 if (strStartsWith(pResp->bearerParam, "09")) {
-                    char strTmp[5] = {0};
-                    snprintf(strTmp ,sizeof(strTmp), "09%s", pResp->bearerParam+emNStrlen(pResp->bearerParam)-2);
-                    pStr = (char*)malloc(emNStrlen(strTmp)/2);
+                    char strTmp[ARRAY_SIZE] = {0};
+                    snprintf(strTmp ,sizeof(strTmp), "09%s",
+                            pResp->bearerParam + emNStrlen(pResp->bearerParam) - 2);
+                    pStr = (char *)calloc(emNStrlen(strTmp) / 2, sizeof(char));
                     convertHexToBin(strTmp, emNStrlen(strTmp), pStr);
+
                     char *pStrTmp = pStr;
                     buf[bufCount++] = 0x03;
                     buf[bufCount++] = pResp->bearerType;
                     buf[bufCount++] = *(pStrTmp++) & 0xff;
                     buf[bufCount++] = *(pStrTmp++) & 0xff;
                 } else {
-                    pStr = (char*)malloc(emNStrlen(pResp->bearerParam)/2);
+                    pStr = (char *)calloc(emNStrlen(pResp->bearerParam) / 2, sizeof(char));
                     int iw = 1;
                     int lenBP = emNStrlen(pResp->bearerParam);
                     convertHexToBin(pResp->bearerParam, lenBP, pStr);
+
                     char *pStrTmp = pStr;
                     lenBP = lenBP / 2;
                     buf[bufCount++] = lenBP + 1;
                     buf[bufCount++] = pResp->bearerType;
-                    for (iw = 1; iw <=lenBP; iw++) {
+                    for (iw = 1; iw <= lenBP; iw++) {
                         buf[bufCount++] = *(pStrTmp++) & 0xff;
                     }
                 }
@@ -374,7 +371,8 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             buf[bufCount++] = (pResp->bufferSize & 0xff00) >> 8;
             buf[bufCount++] = pResp->bufferSize & 0x00ff;
             break;
-        case CSRD_SPRD:
+        }
+        case CSRD_SPRD: {
             if (pResp != NULL) {
                 RLOGD("[stk] ChannelStatusResponseData linkStatus = %d", pResp->linkStatus);
             } else {
@@ -392,7 +390,9 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
                     RLOGD("s_stkContextList is NULL");
                     buf[bufCount++] = 0x00;
                 } else {
-                    buf[bufCount++] = (pResp->linkStatus ? pResp->channelId : 0) | (pResp->linkStatus ? 0x80 : 0);
+                    buf[bufCount++] =
+                            (pResp->linkStatus ? pResp->channelId : 0) |
+                            (pResp->linkStatus ? 0x80 : 0);
                     while (tmpList->next != s_stkContextList) {
                         RLOGD("multi bip");
                         tmpList = tmpList->next;
@@ -406,22 +406,25 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             }
             buf[bufCount++] = 0x00;
             break;
-        case SDRD_SPRD:
+        }
+        case SDRD_SPRD: {
             RLOGD("[stk] SendDataResponseData channelLen = %d", pResp->channelLen);
             tag = 0x80 | CHANNEL_DATA_LENGTH;
             buf[bufCount++] = tag;
             buf[bufCount++] = 0x01;
             buf[bufCount++] = pResp->channelLen;
             break;
-        case RDRD_SPRD:
-            RLOGD("[stk] ReceiveDataResponseData dataLen = %d, dataStr = %s", pResp->dataLen, pResp->dataStr);
+        }
+        case RDRD_SPRD: {
+            RLOGD("[stk] ReceiveDataResponseData dataLen = %d, dataStr = %s",
+                    pResp->dataLen, pResp->dataStr);
             tag = 0x80 | CHANNEL_DATA;
             buf[bufCount++] = tag;
 
             int nHexStringLen = emNStrlen(pResp->dataStr);
             int nRawDataLen = (nHexStringLen >> 1);
             if (nHexStringLen > 0) {
-                pStr = (char*)malloc(nRawDataLen);
+                pStr = (char *)calloc(nRawDataLen, sizeof(char));
                 convertHexToBin(pResp->dataStr, nHexStringLen, pStr);
                 if (nRawDataLen < 0x80) {
                     buf[bufCount++] = nRawDataLen;
@@ -441,6 +444,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             buf[bufCount++] = 0x01;
             buf[bufCount++] = pResp->dataLen;
             break;
+        }
         case CCRD_SPRD:
             break;
         case OTSRD_SPRD:
@@ -449,7 +453,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             break;
     }
 
-    convertBinToHex((char *)buf,bufCount,hexString);
+    convertBinToHex((char *)buf, bufCount, hexString);
 
     RLOGD("TERMINAL RESPONSE: %s", hexString);
 
@@ -464,128 +468,132 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
 void onCmdResponse(StkContext *pstkContext, CatResponseMessageSprd *pResMsg, int type, int socket_id) {
     int resCode = pResMsg->resCode;
     int respId = OTSRD_SPRD;
-    ResponseDataSprd *pResp;
-    pResp = (ResponseDataSprd*)malloc(sizeof(ResponseDataSprd));
+    ResponseDataSprd *pResp = NULL;
+    pResp = (ResponseDataSprd *)calloc(1, sizeof(ResponseDataSprd));
 
     switch(resCode) {
-    case HELP_INFO_REQUIRED:
-    case OK:
-    case PRFRMD_WITH_PARTIAL_COMPREHENSION:
-    case PRFRMD_WITH_MISSING_INFO:
-    case PRFRMD_WITH_ADDITIONAL_EFS_READ:
-    case PRFRMD_ICON_NOT_DISPLAYED:
-    case PRFRMD_MODIFIED_BY_NAA:
-    case PRFRMD_LIMITED_SERVICE:
-    case PRFRMD_WITH_MODIFICATION:
-    case PRFRMD_NAA_NOT_ACTIVE:
-    case PRFRMD_TONE_NOT_PLAYED:
-    case LAUNCH_BROWSER_ERROR:
-    case TERMINAL_CRNTLY_UNABLE_TO_PROCESS:
-        switch (type) {
-        case OPEN_CHANNEL:
-            if (resCode == TERMINAL_CRNTLY_UNABLE_TO_PROCESS) {
-                RLOGD("< %d > OPEN_CHANNEL RES TERMINAL_CRNTLY_UNABLE_TO_PROCESS", socket_id);
-                pResMsg->includeAdditionalInfo = true;
-                pResMsg->additionalInfo = BUSY_ON_CALL;
-            } else {
-                RLOGD("< %d > OPEN_CHANNEL RES OK", socket_id);
+        case HELP_INFO_REQUIRED:
+        case OK:
+        case PRFRMD_WITH_PARTIAL_COMPREHENSION:
+        case PRFRMD_WITH_MISSING_INFO:
+        case PRFRMD_WITH_ADDITIONAL_EFS_READ:
+        case PRFRMD_ICON_NOT_DISPLAYED:
+        case PRFRMD_MODIFIED_BY_NAA:
+        case PRFRMD_LIMITED_SERVICE:
+        case PRFRMD_WITH_MODIFICATION:
+        case PRFRMD_NAA_NOT_ACTIVE:
+        case PRFRMD_TONE_NOT_PLAYED:
+        case LAUNCH_BROWSER_ERROR:
+        case TERMINAL_CRNTLY_UNABLE_TO_PROCESS: {
+            switch (type) {
+                case OPEN_CHANNEL:
+                    if (resCode == TERMINAL_CRNTLY_UNABLE_TO_PROCESS) {
+                        RLOGD("< %d > OPEN_CHANNEL RES TERMINAL_CRNTLY_UNABLE_TO_PROCESS", socket_id);
+                        pResMsg->includeAdditionalInfo = true;
+                        pResMsg->additionalInfo = BUSY_ON_CALL;
+                    } else {
+                        RLOGD("< %d > OPEN_CHANNEL RES OK", socket_id);
+                    }
+                    respId = OCRD_SPRD;
+                    pResp->bearerType = pResMsg->BearerType;
+                    pResp->bearerParam = pResMsg->BearerParam;
+                    pResp->bufferSize = pResMsg->bufferSize;
+                    pResp->channelId = pResMsg->ChannelId;
+                    pResp->linkStatus = pResMsg->LinkStatus;
+                    break;
+                case SEND_DATA:
+                    RLOGD("< %d > SEND_DATA RES OK", socket_id);
+                    respId = SDRD_SPRD;
+                    pResp->channelLen = pResMsg->channelDataLen;
+                    break;
+                case RECEIVE_DATA:
+                    RLOGD("< %d > RECEIVE_DATA RES OK", socket_id);
+                    respId = RDRD_SPRD;
+                    pResp->dataLen = pResMsg->channelDataLen;
+                    pResp->dataStr = pResMsg->channelData;
+                    break;
+                case GET_CHANNEL_STATUS:
+                    RLOGD("< %d > GET_CHANNEL_STATUS RES OK", socket_id);
+                    respId = CSRD_SPRD;
+                    pResp->channelId = pResMsg->ChannelId;
+                    pResp->linkStatus = pResMsg->LinkStatus;
+                    break;
+                default:
+                    break;
             }
-            respId = OCRD_SPRD;
-            pResp->bearerType = pResMsg->BearerType;
-            pResp->bearerParam = pResMsg->BearerParam;
-            pResp->bufferSize = pResMsg->bufferSize;
-            pResp->channelId = pResMsg->ChannelId;
-            pResp->linkStatus = pResMsg->LinkStatus;
             break;
-        case SEND_DATA:
-            RLOGD("< %d > SEND_DATA RES OK", socket_id);
-            respId = SDRD_SPRD;
-            pResp->channelLen = pResMsg->channelDataLen;
+        }
+        case BACKWARD_MOVE_BY_USER:
+        case USER_NOT_ACCEPT: {
+            switch (type) {
+                case OPEN_CHANNEL:
+                    RLOGD("< %d > OPEN_CHANNEL USER_NOT_ACCEPT", socket_id);
+                    respId = OCRD_SPRD;
+                    pResp->bearerType = pResMsg->BearerType;
+                    pResp->bearerParam = pResMsg->BearerParam;
+                    pResp->bufferSize = pResMsg->bufferSize;
+                    pResp->channelId = pResMsg->ChannelId;
+                    pResp->linkStatus = pResMsg->LinkStatus;
+                    break;
+                default:
+                    break;
+            }
             break;
-        case RECEIVE_DATA:
-            RLOGD("< %d > RECEIVE_DATA RES OK", socket_id);
-            respId = RDRD_SPRD;
-            pResp->dataLen = pResMsg->channelDataLen;
-            pResp->dataStr = pResMsg->channelData;
+        }
+        case NO_RESPONSE_FROM_USER:
+        case UICC_SESSION_TERM_BY_USER:
             break;
-        case GET_CHANNEL_STATUS:
-            RLOGD("< %d > GET_CHANNEL_STATUS RES OK", socket_id);
-            respId = CSRD_SPRD;
-            pResp->channelId = pResMsg->ChannelId;
-            pResp->linkStatus = pResMsg->LinkStatus;
+        case BEYOND_TERMINAL_CAPABILITY: {
+            switch (type) {
+                case OPEN_CHANNEL:
+                    RLOGD("< %d > OPEN_CHANNEL BEYOND_TERMINAL_CAPABILITY", socket_id);
+                    respId = OCRD_SPRD;
+                    pResp->bearerType = pResMsg->BearerType;
+                    pResp->bearerParam = pResMsg->BearerParam;
+                    pResp->bufferSize = pResMsg->bufferSize;
+                    pResp->channelId = pResMsg->ChannelId;
+                    pResp->linkStatus = pResMsg->LinkStatus;
+                    break;
+                case SEND_DATA:
+                    RLOGD("< %d > SEND_DATA BEYOND_TERMINAL_CAPABILITY", socket_id);
+                    respId = SDRD_SPRD;
+                    pResMsg->additionalInfo = TRANSPORT_LEVEL_NOT_AVAILABLE;
+                    break;
+                case RECEIVE_DATA:
+                    RLOGD("< %d > RECEIVE_DATA BEYOND_TERMINAL_CAPABILITY", socket_id);
+                    respId = RDRD_SPRD;
+                    pResMsg->additionalInfo = NO_SPECIFIC_CAUSE;
+                    break;
+            }
             break;
+        }
+        case BIP_ERROR: {
+            switch (type) {
+                case SEND_DATA:
+                    RLOGD("< %d > SEND_DATA BIP_ERROR", socket_id);
+                    respId = SDRD_SPRD;
+                    pResMsg->additionalInfo = CHANNEL_ID_INVALID;
+                    break;
+                case CLOSE_CHANNEL:
+                    RLOGD("< %d > CLOSE_CHANNEL BIP_ERROR", socket_id);
+                    respId = CCRD_SPRD;
+                    pResMsg->additionalInfo = CHANNEL_CLOSED;
+                    break;
+            }
+            break;
+        }
         default:
-            break;
-        }
-        break;
-    case BACKWARD_MOVE_BY_USER:
-    case USER_NOT_ACCEPT:
-        switch (type) {
-        case OPEN_CHANNEL:
-            RLOGD("< %d > OPEN_CHANNEL USER_NOT_ACCEPT", socket_id);
-            respId = OCRD_SPRD;
-            pResp->bearerType = pResMsg->BearerType;
-            pResp->bearerParam = pResMsg->BearerParam;
-            pResp->bufferSize = pResMsg->bufferSize;
-            pResp->channelId = pResMsg->ChannelId;
-            pResp->linkStatus = pResMsg->LinkStatus;
-            break;
-        default:
-            break;
-        }
-        break;
-    case NO_RESPONSE_FROM_USER:
-    case UICC_SESSION_TERM_BY_USER:
-        break;
-    case BEYOND_TERMINAL_CAPABILITY:
-        switch (type) {
-        case OPEN_CHANNEL:
-            RLOGD("< %d > OPEN_CHANNEL BEYOND_TERMINAL_CAPABILITY", socket_id);
-            respId = OCRD_SPRD;
-            pResp->bearerType = pResMsg->BearerType;
-            pResp->bearerParam = pResMsg->BearerParam;
-            pResp->bufferSize = pResMsg->bufferSize;
-            pResp->channelId = pResMsg->ChannelId;
-            pResp->linkStatus = pResMsg->LinkStatus;
-            break;
-        case SEND_DATA:
-            RLOGD("< %d > SEND_DATA BEYOND_TERMINAL_CAPABILITY", socket_id);
-            respId = SDRD_SPRD;
-            pResMsg->additionalInfo = TRANSPORT_LEVEL_NOT_AVAILABLE;
-            break;
-        case RECEIVE_DATA:
-            RLOGD("< %d > RECEIVE_DATA BEYOND_TERMINAL_CAPABILITY", socket_id);
-            respId = RDRD_SPRD;
-            pResMsg->additionalInfo = NO_SPECIFIC_CAUSE;
-            break;
-        }
-        break;
-    case BIP_ERROR:
-        switch (type) {
-        case SEND_DATA:
-            RLOGD("< %d > SEND_DATA BIP_ERROR", socket_id);
-            respId = SDRD_SPRD;
-            pResMsg->additionalInfo = CHANNEL_ID_INVALID;
-            break;
-        case CLOSE_CHANNEL:
-            RLOGD("< %d > CLOSE_CHANNEL BIP_ERROR", socket_id);
-            respId = CCRD_SPRD;
-            pResMsg->additionalInfo = CHANNEL_CLOSED;
-            break;
-        }
-        break;
-    default:
-        return;
+            return;
     }
 
     sendTerminalResponse(pstkContext->pCmdDet, pResMsg, socket_id, respId, pResp);
     free(pResp);
 }
 
-int SendChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
-    RLOGD("SendChannelResponse");
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+int sendChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
+    RLOGD("sendChannelResponse");
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd *)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
@@ -599,7 +607,7 @@ int SendChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
         }
     }
 
-    RLOGD("SendChannelResponse LinkStatus = %d" ,pstkContext->channelStatus.linkStatus);
+    RLOGD("sendChannelResponse LinkStatus = %d" ,pstkContext->channelStatus.linkStatus);
     pResMsg->resCode = resCode;
     pResMsg->BearerType = pstkContext->pOCData->BearerType;
     pResMsg->BearerParam = pstkContext->pOCData->BearerParam;
@@ -619,16 +627,16 @@ int SendChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
     return 1;
 }
 
-int SendChannelStatusResponse(StkContext *pstkContext, int resCode, int socket_id) {
-    RLOGD("SendChannelStatusResponse");
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+int sendChannelStatusResponse(StkContext *pstkContext, int resCode, int socket_id) {
+    RLOGD("sendChannelStatusResponse");
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd*)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
     pstkContext->cmdInProgress = false;
 
-    RLOGD("SendChannelResponse LinkStatus = %d" ,pstkContext->channelStatus.linkStatus);
+    RLOGD("SendChannelResponse LinkStatus = %d", pstkContext->channelStatus.linkStatus);
     pResMsg->resCode = resCode;
     pResMsg->ChannelId = pstkContext->channelStatus.channelId;
     pResMsg->LinkStatus = pstkContext->channelStatus.linkStatus;
@@ -642,8 +650,8 @@ int SendChannelStatusResponse(StkContext *pstkContext, int resCode, int socket_i
 
 int SendDataResponse(StkContext *pstkContext, int len, int resCode, int socket_id) {
     RLOGD("SendDataResponse len = %d", len);
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd*)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
@@ -660,8 +668,8 @@ int SendDataResponse(StkContext *pstkContext, int len, int resCode, int socket_i
 
 int ReceiveDataResponse(StkContext *pstkContext, char *dataStr, int len, int resCode, int socket_id) {
     RLOGD("ReceiveDataResponse len = %d, data = %s", len, dataStr);
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd*)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
@@ -680,8 +688,8 @@ int ReceiveDataResponse(StkContext *pstkContext, char *dataStr, int len, int res
 
 int SendCloseChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
     RLOGD("SendCloseChannelResponse");
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd*)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
@@ -695,9 +703,9 @@ int SendCloseChannelResponse(StkContext *pstkContext, int resCode, int socket_id
 }
 
 int sendSetUpEventResponse(StkContext *pstkContext, int event, unsigned char *addedInfo, int socket_id) {
-    RLOGD("sendSetUpEventResponse: event=%d, socket_id=%d", event, socket_id);
-    CatResponseMessageSprd *pResMsg;
-    pResMsg = (CatResponseMessageSprd*)malloc(sizeof(CatResponseMessageSprd));
+    RLOGD("sendSetUpEventResponse: event = %d, socket_id = %d", event, socket_id);
+    CatResponseMessageSprd *pResMsg = NULL;
+    pResMsg = (CatResponseMessageSprd*)calloc(1, sizeof(CatResponseMessageSprd));
     pResMsg->includeAdditionalInfo = false;
     pResMsg->channelData = NULL;
 
@@ -735,7 +743,8 @@ void sendEventDataAvailable(StkContext *pstkContext, int socket_id) {
 
 void sendEventChannelStatus(StkContext *pstkContext, int socket_id) {
     RLOGD("sendEventChannelStatus");
-    RLOGD("handleDataState disconnected mChannelEstablished=%d", pstkContext->channelEstablished);
+    RLOGD("handleDataState disconnected mChannelEstablished = %d",
+            pstkContext->channelEstablished);
     if (!(pstkContext->channelEstablished)) {
         pstkContext->channelStatus.channelId = DEFAULT_CHANNELID;
         pstkContext->channelStatus.linkStatus = false;
@@ -769,8 +778,8 @@ int createSocket(StkContext *pstkContext) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
 
-    RLOGD("createSocket ifName:%s", ifName);
-    RLOGD("createSocket address:%s", address);
+    RLOGD("createSocket ifName: %s", ifName);
+    RLOGD("createSocket address: %s", address);
 
     if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_TCP) {
         RLOGD("[stk] create tcp socket");
@@ -778,14 +787,15 @@ int createSocket(StkContext *pstkContext) {
             RLOGE("socket create error");
             return -1;
         }
-        RLOGD("createSocket pstkContext->tcpSocket:%d", pstkContext->tcpSocket);
-        if (setsockopt(pstkContext->tcpSocket, SOL_SOCKET, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
+        RLOGD("createSocket pstkContext->tcpSocket: %d", pstkContext->tcpSocket);
+        if (setsockopt(pstkContext->tcpSocket, SOL_SOCKET, SO_BINDTODEVICE,
+                ifName, strlen(ifName)) < 0){
             RLOGE("setsockopt error errno = %s", strerror(errno));
             close(pstkContext->tcpSocket);
             pstkContext->tcpSocket = -1;
         }
         fdSocketId = pstkContext->tcpSocket;
-        RLOGD("createSocket fdSocketId:%d", fdSocketId);
+        RLOGD("createSocket fdSocketId: %d", fdSocketId);
     } else if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_UDP) {
         RLOGD("[stk] create udp socket");
         if ((pstkContext->udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -808,7 +818,8 @@ int createSocket(StkContext *pstkContext) {
         RLOGE("socket inet_pton error errno = %s", strerror(errno));
         return -1;
     }
-    if (connect(fdSocketId, (const struct sockaddr*)&addr, sizeof(struct sockaddr_in)) < 0) {
+    if (connect(fdSocketId, (const struct sockaddr *)&addr,
+            sizeof(struct sockaddr_in)) < 0) {
         RLOGE("socket connect error errno = %s", strerror(errno));
         return -1;
     }
@@ -824,7 +835,7 @@ static void *createSocketThread(void *param) {
     StkContext *pstkContext = NULL;
 
     if (param) {
-        pstkContext = (StkContext*)param;
+        pstkContext = (StkContext *)param;
     }
     if (pstkContext == NULL) {
         RLOGE("createSocketThread pstkContext is NULL");
@@ -848,10 +859,10 @@ static void *createSocketThread(void *param) {
         RLOGD("[stk] openchannel success buf size = %d", pstkContext->pOCData->bufferSize);
         if (pstkContext->pOCData->bufferSize > DEFAULT_BUFFER_SIZE) {
             pstkContext->pOCData->bufferSize = DEFAULT_BUFFER_SIZE;
-            SendChannelResponse(pstkContext, PRFRMD_WITH_MODIFICATION, socket_id);
+            sendChannelResponse(pstkContext, PRFRMD_WITH_MODIFICATION, socket_id);
         } else {
-            RLOGD("[stk] SendChannelResponse OK");
-            SendChannelResponse(pstkContext, OK, socket_id);
+            RLOGD("[stk] sendChannelResponse OK");
+            sendChannelResponse(pstkContext, OK, socket_id);
         }
         pstkContext->channelEstablished = true;
     } else {
@@ -859,7 +870,7 @@ static void *createSocketThread(void *param) {
         pstkContext->channelStatus.channelId = 0;
         pstkContext->channelStatus.linkStatus = false;
         pstkContext->channelStatus.mode_info = CHANNEL_MODE_NO_FURTHER_INFO;
-        SendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
+        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
         pstkContext->channelEstablished = false;
     }
 
@@ -894,13 +905,13 @@ static void *openChannelThread(void *param) {
             && (pstkContext->pOCData->BearerType != BEARER_TYPE_DEFAULT)
             && (pstkContext->pOCData->BearerType != BEARER_TYPE_UTRAN_PACKET_SERVICE)) {
         RLOGD("openchannel BearerType error");
-        SendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
+        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
         return NULL;
     }
 
     if (pstkContext->pOCData->DataDstAddressType != ADDRESS_TYPE_IPV4) {
         RLOGD("DataDstAddressType not ipv4");
-        SendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
+        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
         return NULL;
     }
 
@@ -913,7 +924,8 @@ static void *openChannelThread(void *param) {
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
         RLOGD("[stk] CreateSocket run....");
-        ret = pthread_create(&pstkContext->openChannelTid, &attr, createSocketThread, (void *)pstkContext);
+        ret = pthread_create(&pstkContext->openChannelTid, &attr,
+                createSocketThread, (void *)pstkContext);
         if (ret < 0) {
             RLOGE("Failed to create createSocketThread errno: %d", errno);
         }
@@ -945,10 +957,10 @@ static void *receiveDataThread(void *param) {
 
     if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_TCP) {
         while (pstkContext->needRuning && (pstkContext->tcpSocket != -1)) {
-            RLOGD("[stk] TCP receiveDataThread try to read data from tcpSocket:%d", pstkContext->tcpSocket);
+            RLOGD("[stk] TCP receiveDataThread try to read data from tcpSocket: %d", pstkContext->tcpSocket);
             int count = -1;
             char *p_read = NULL;
-            p_read = (char*)calloc(MAX_BUFFER_BYTES, sizeof(char));
+            p_read = (char *)calloc(MAX_BUFFER_BYTES, sizeof(char));
 
             if (!pstkContext->threadInLoop) {
                 pstkContext->threadInLoop = true;
@@ -967,21 +979,22 @@ static void *receiveDataThread(void *param) {
                 unsigned char *checkHexStr = (unsigned char *)
                     calloc(count * 2 + 1, sizeof(unsigned char));
                 convertBinToHex(p_read, count, checkHexStr);
-                RLOGD("lunchReceiveData checkHexStr:%s", checkHexStr);
+                RLOGD("lunchReceiveData checkHexStr: %s", checkHexStr);
                 free(checkHexStr);
 
                 if (pstkContext->recevieData != NULL) {
-                    free (pstkContext->recevieData);
+                    free(pstkContext->recevieData);
                     pstkContext->recevieData = NULL;
                 }
-                pstkContext->recevieData =(char*)calloc(count+1, sizeof(char));
+                pstkContext->recevieData =(char *)calloc(count + 1, sizeof(char));
                 memcpy(pstkContext->recevieData, p_read, count);
                 pstkContext->receiveDataLen = count;
                 pstkContext->receiveDataOffset = 0;
                 pthread_mutex_unlock(&pstkContext->receiveDataMutex);
                 sendEventDataAvailable(pstkContext, socket_id);
 
-                while (pstkContext->needRuning && pstkContext->receiveDataLen > 0 && pstkContext->recevieData != NULL) {
+                while (pstkContext->needRuning && pstkContext->receiveDataLen > 0
+                        && pstkContext->recevieData != NULL) {
                     RLOGD("[stk] TCP receiveDataThread mRecevieData != null , need wait...");
                     usleep(500 * 1000);
                 }
@@ -993,10 +1006,11 @@ static void *receiveDataThread(void *param) {
         }
     } else if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_UDP) {
         while (pstkContext->needRuning && (pstkContext->udpSocket != -1)) {
-            RLOGD("[stk] UDP receiveDataThread try to read data from udpSocket:%d", pstkContext->udpSocket);
+            RLOGD("[stk] UDP receiveDataThread try to read data from udpSocket: %d",
+                    pstkContext->udpSocket);
             int count = -1;
             char *p_read = NULL;
-            p_read = (char*)calloc(MAX_BUFFER_BYTES, sizeof(char));
+            p_read = (char *)calloc(MAX_BUFFER_BYTES, sizeof(char));
 
             if (!pstkContext->threadInLoop) {
                 pstkContext->threadInLoop = true;
@@ -1015,21 +1029,22 @@ static void *receiveDataThread(void *param) {
                 unsigned char *checkHexStr = (unsigned char *)
                     calloc(count * 2 + 1, sizeof(unsigned char));
                 convertBinToHex(p_read, count, checkHexStr);
-                RLOGD("lunchReceiveData checkHexStr:%s", checkHexStr);
+                RLOGD("lunchReceiveData checkHexStr: %s", checkHexStr);
                 free(checkHexStr);
 
                 if (pstkContext->recevieData != NULL) {
-                    free (pstkContext->recevieData);
+                    free(pstkContext->recevieData);
                     pstkContext->recevieData = NULL;
                 }
-                pstkContext->recevieData =(char*)calloc(count+1, sizeof(char));
+                pstkContext->recevieData =(char *)calloc(count+1, sizeof(char));
                 memcpy(pstkContext->recevieData, p_read, count);
                 pstkContext->receiveDataLen = count;
                 pstkContext->receiveDataOffset = 0;
                 pthread_mutex_unlock(&pstkContext->receiveDataMutex);
                 sendEventDataAvailable(pstkContext, socket_id);
 
-                while (pstkContext->needRuning && pstkContext->receiveDataLen > 0 && pstkContext->recevieData != NULL) {
+                while (pstkContext->needRuning && pstkContext->receiveDataLen > 0
+                        && pstkContext->recevieData != NULL) {
                     RLOGD("[stk] UDP receiveDataThread mRecevieData != null , need wait...");
                     usleep(500 * 1000);
                 }
@@ -1054,14 +1069,15 @@ static void *receiveDataThread(void *param) {
 static int blockingWrite(int fd, const void *buffer, size_t len) {
     RLOGD("blockingWrite");
     size_t writeOffset = 0;
-    const uint8_t *toWrite;
+    const uint8_t *toWrite = NULL;
     toWrite = (const uint8_t *)buffer;
     while (writeOffset < len) {
-        ssize_t written;
+        ssize_t written = -1;
         do {
             written = write(fd, toWrite + writeOffset,
                                 len - writeOffset);
-            RLOGD("send to:%d %d byte :%s", fd, (int)(len - writeOffset), toWrite + writeOffset);
+            RLOGD("send to:%d %d byte :%s", fd, (int)(len - writeOffset),
+                    toWrite + writeOffset);
         } while (written < 0 && ((errno == EINTR) || (errno == EAGAIN)));
         if (written >= 0) {
             writeOffset += written;
@@ -1077,8 +1093,8 @@ static int blockingWrite(int fd, const void *buffer, size_t len) {
 
 static int sendStrData(StkContext *pstkContext, int fd, const void *data, size_t dataSize) {
     RLOGD("sendStrData");
-    int ret;
-    uint32_t header;
+    int ret = -1;
+    uint32_t header = 0;
 
     if (fd < 0) {
         return -1;
@@ -1157,15 +1173,18 @@ int lunchOpenChannel(int channel_id) {
             putChannel(sendTRChannelID);
             if (netAccessName != NULL) {
                 RLOGD("netAccessName is %s", netAccessName);
-                memcpy(pstkContext->pOCData->NetAccessName, netAccessName, emNStrlen(netAccessName)+1);
+                memcpy(pstkContext->pOCData->NetAccessName, netAccessName,
+                        emNStrlen(netAccessName) + 1);
             }
         }
-        RLOGD("[%d]stkContext->pOCData->NetAccessName is %s", socket_id, pstkContext->pOCData->NetAccessName);
+        RLOGD("[%d]stkContext->pOCData->NetAccessName is %s", socket_id,
+                pstkContext->pOCData->NetAccessName);
     }
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    ret = pthread_create(&pstkContext->openChannelTid, &attr, openChannelThread, (void *)pstkContext);
+    ret = pthread_create(&pstkContext->openChannelTid, &attr, openChannelThread,
+            (void *)pstkContext);
     if (ret < 0) {
         RLOGE("Failed to create openChannelThread errno: %d", errno);
         return -1;
@@ -1201,7 +1220,7 @@ int lunchGetChannelStatus(int channel_id) {
         pstkContext->pCStatus->linkStatus = false;
     }
     pstkContext->pCStatus->mode_info = CHANNEL_MODE_NO_FURTHER_INFO;
-    SendChannelStatusResponse(pstkContext, OK, socket_id);
+    sendChannelStatusResponse(pstkContext, OK, socket_id);
 
     return 1;
 }
@@ -1235,7 +1254,8 @@ int lunchSendData(int channel_id) {
         return -1;
     }
 
-    RLOGD("lunchSendData send mode:%d, send data:%s", pstkContext->pCmdDet->commandQualifier, pstkContext->pSCData->sendDataStr);
+    RLOGD("lunchSendData send mode:%d, send data: %s",
+            pstkContext->pCmdDet->commandQualifier, pstkContext->pSCData->sendDataStr);
     type = pstkContext->pOCData->transportType;
     port = pstkContext->pOCData->portNumber;
     address = pstkContext->pOCData->DataDstAddress;
@@ -1265,18 +1285,20 @@ int lunchSendData(int channel_id) {
     }
     if (pstkContext->pCmdDet->commandQualifier == SEND_DATA_STORE) {
         RLOGD("[stk] lunchSendData SEND_DATA_STORE");
-        strlcat(pstkContext->sendDataStorer, (char *)pstkContext->pSCData->sendDataStr, sizeof(pstkContext->sendDataStorer));
+        strlcat(pstkContext->sendDataStorer, (char *)pstkContext->pSCData->sendDataStr,
+                sizeof(pstkContext->sendDataStorer));
         channellen = CalcChannelDataLen(pstkContext->pCmdDet->commandQualifier, sendlen, pstkContext);
         SendDataResponse(pstkContext, channellen, OK, socket_id);
     } else {
         RLOGD("[stk] lunchSendData SEND_DATA_IMMEDIATELY");
-        strlcat(pstkContext->sendDataStorer, (char *)pstkContext->pSCData->sendDataStr, sizeof(pstkContext->sendDataStorer));
+        strlcat(pstkContext->sendDataStorer, (char *)pstkContext->pSCData->sendDataStr,
+                sizeof(pstkContext->sendDataStorer));
         RLOGD("[stk] pstkContext->pSCData->sendDataStr = %s", pstkContext->pSCData->sendDataStr);
         RLOGD("[stk] pstkContext->sendDataStorer = %s", pstkContext->sendDataStorer);
 
-        pStr = (char*)malloc(emNStrlen(pstkContext->sendDataStorer)/2 + 1);
+        pStr = (char *)calloc(emNStrlen(pstkContext->sendDataStorer) / 2 + 1, sizeof(char));
         convertHexToBin(pstkContext->sendDataStorer, emNStrlen(pstkContext->sendDataStorer), pStr);
-        sendStrData(pstkContext, fdSocketId, pStr, emNStrlen(pstkContext->sendDataStorer)/2);
+        sendStrData(pstkContext, fdSocketId, pStr, emNStrlen(pstkContext->sendDataStorer) / 2);
         channellen = CalcChannelDataLen(pstkContext->pCmdDet->commandQualifier, sendlen, pstkContext);
         SendDataResponse(pstkContext, channellen, OK, socket_id);
         free(pStr);
@@ -1285,7 +1307,8 @@ int lunchSendData(int channel_id) {
             pthread_attr_init(&attr);
             pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
             RLOGD("[stk] fdSocketId receive thread start");
-            ret = pthread_create(&pstkContext->sendDataTid, &attr, receiveDataThread, (void *)pstkContext);
+            ret = pthread_create(&pstkContext->sendDataTid, &attr,
+                    receiveDataThread, (void *)pstkContext);
             if (ret < 0) {
                 RLOGE("Failed to create openChannelThread errno: %d", errno);
             }
@@ -1332,14 +1355,14 @@ int lunchReceiveData(int channel_id) {
             if (pstkContext->receiveDataLen - RECEIVE_DATA_MAX_TR_LEN > RECEIVE_DATA_MAX_TR_LEN) {
                 remainLen = 0xff;
             } else {
-                remainLen =pstkContext->receiveDataLen - RECEIVE_DATA_MAX_TR_LEN;
+                remainLen = pstkContext->receiveDataLen - RECEIVE_DATA_MAX_TR_LEN;
             }
-            dataTmp = (char*)malloc(RECEIVE_DATA_MAX_TR_LEN);
+            dataTmp = (char *)calloc(RECEIVE_DATA_MAX_TR_LEN, sizeof(char));
             from = pstkContext->recevieData;
             to = dataTmp;
             from += pstkContext->receiveDataOffset;
             count = RECEIVE_DATA_MAX_TR_LEN;
-            while(count-- > 0) {
+            while (count-- > 0) {
                 *to++ = *from++;
             }
             hexString = (unsigned char *)
@@ -1362,13 +1385,13 @@ int lunchReceiveData(int channel_id) {
                 channelDataLength = pstkContext->receiveDataLen;
             }
 
-            dataTmp = (char*)malloc(RECEIVE_DATA_MAX_TR_LEN + 1);
+            dataTmp = (char *)calloc(RECEIVE_DATA_MAX_TR_LEN + 1, sizeof(char));
             from = pstkContext->recevieData;
             to = dataTmp;
             from += pstkContext->receiveDataOffset;
             count = channelDataLength;
             RLOGD("lunchReceiveData count:%d", count);
-            while(count-- > 0) {
+            while (count-- > 0) {
                 *to++ = *from++;
             }
             hexString = (unsigned char *)
