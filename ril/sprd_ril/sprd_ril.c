@@ -4989,6 +4989,8 @@ static int mapRegState(int in_response)
             out_response = RIL_REG_STATE_NOT_REG;
             break;
         case 1:
+        case 6:
+        case 9:
             out_response = RIL_REG_STATE_HOME;
             break;
         case 2:
@@ -5001,10 +5003,11 @@ static int mapRegState(int in_response)
             out_response = RIL_REG_STATE_UNKNOWN;
             break;
         case 5:
+        case 7:
+        case 10:
             out_response = RIL_REG_STATE_ROAMING;
             break;
         case 8:
-        case 10:
             out_response = RIL_REG_STATE_NOT_REG_EMERGENCY_CALL_ENABLED;
             break;
         case 12:
@@ -5167,10 +5170,7 @@ static void requestRegistrationState(int channelID, int request, void *data,
         psRegState = regState;
     }
 
-    if(8 == response[0])
-    {
-        response[0] = 10; // 10 meas "RIL_REG_STATE_NOT_REG_EMERGENCY_CALL_ENABLED"
-    }
+    response[0] = regState;
     sprintf(res[0], "%d", response[0]);
     responseStr[0] = res[0];
 
