@@ -1357,15 +1357,15 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                             ret = cid;
                         }
                     }
-                } else if (i < MAX_PDP) {
+                } /*else if (i < MAX_PDP) {//for bug704303
                     putPDP(i);
                 }
-            }
-        } else {
+*/            }
+        } /*else {
             for (i = 0; i < MAX_PDP; i++) {
                 putPDP(i);
             }
-        }
+        }*/
     }
     return ret;
 }
