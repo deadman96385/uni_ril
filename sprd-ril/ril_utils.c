@@ -3,9 +3,10 @@
  *
  * Copyright (C) 2015 Spreadtrum Communications Inc.
  */
+#define LOG_TAG "RIL"
 
 #include "ril_utils.h"
-#include <string.h>
+#include "sprd_ril.h"
 
 const unsigned short gsm7ToUnicodeTable[128] = {
   '@', 0xa3,  '$', 0xa5, 0xe8, 0xe9, 0xf9, 0xec, 0xf2, 0xc7, '\n', 0xd8, 0xf8, '\r', 0xc5, 0xe5,
@@ -169,4 +170,88 @@ void convertUcsToUtf8(unsigned char *ucs2, int len, unsigned char *buf) {
 
 int emNStrlen(char *str) {
     return str ? strlen(str) : 0;
+}
+
+
+void getProperty(RIL_SOCKET_ID socket_id, const char *property, char *value,
+                   const char *defaultVal) {
+    int simId = 0;
+    char prop[PROPERTY_VALUE_MAX];
+    int len = property_get(property, prop, "");
+    char *p[RIL_SOCKET_NUM];
+    char *buf = prop;
+    char *ptr = NULL;
+    RLOGD("get sim%d [%s] property: %s", socket_id, property, prop);
+
+    if (value == NULL) {
+        RLOGE("The memory to save prop is NULL!");
+        return;
+    }
+
+    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
+    if (len > 0) {
+        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
+            ptr = strsep(&buf, ",");
+            p[simId] = ptr;
+        }
+
+        if (socket_id >= RIL_SOCKET_1 && socket_id < RIL_SOCKET_NUM &&
+                (p[socket_id] != NULL) && strcmp(p[socket_id], "")) {
+            memcpy(value, p[socket_id], strlen(p[socket_id]) + 1);
+            return;
+        }
+    }
+
+    if (defaultVal != NULL) {
+        len = strlen(defaultVal);
+        memcpy(value, defaultVal, len);
+        value[len] = '\0';
+    }
+}
+
+void setProperty(RIL_SOCKET_ID socket_id, const char *property,
+                   const char *value) {
+    char prop[PROPERTY_VALUE_MAX];
+    char propVal[PROPERTY_VALUE_MAX];
+    int len = property_get(property, prop, "");
+    int i, simId = 0;
+    char *p[RIL_SOCKET_NUM];
+    char *buf = prop;
+    char *ptr = NULL;
+
+    if (socket_id < RIL_SOCKET_1 || socket_id >= RIL_SOCKET_NUM) {
+        RLOGE("setProperty: invalid socket id = %d, property = %s",
+                socket_id, property);
+        return;
+    }
+
+    RLOGD("set sim%d [%s] property: %s", socket_id, property, value);
+    memset(p, 0, RIL_SOCKET_NUM * sizeof(char *));
+    if (len > 0) {
+        for (simId = 0; simId < RIL_SOCKET_NUM; simId++) {
+            ptr = strsep(&buf, ",");
+            p[simId] = ptr;
+        }
+    }
+
+    memset(propVal, 0, sizeof(propVal));
+    for (i = 0; i < (int)socket_id; i++) {
+        if (p[i] != NULL) {
+            strncat(propVal, p[i], strlen(p[i]));
+        }
+        strncat(propVal, ",", 1);
+    }
+
+    if (value != NULL) {
+        strncat(propVal, value, strlen(value));
+    }
+
+    for (i = socket_id + 1; i < RIL_SOCKET_NUM; i++) {
+        strncat(propVal, ",", 1);
+        if (p[i] != NULL) {
+            strncat(propVal, p[i], strlen(p[i]));
+        }
+    }
+
+    property_set(property, propVal);
 }

@@ -504,7 +504,6 @@ error:
     }
 }
 
-
 void sendCmdSync(int phoneId, char *cmd, char *response, int responseLen) {
     RLOGD("sendCmdSync: simId = %d, cmd = %s", phoneId, cmd);
 

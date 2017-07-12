@@ -31,6 +31,7 @@
 #include "ril_misc.h"
 #include "ril_call.h"
 #include "ril_data.h"
+#include "ril_utils.h"
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
 #include "request_threads.h"
@@ -128,6 +129,7 @@ static int onSupports(int requestCode);
 static void onCancel(RIL_Token t);
 static const char *getVersion();
 static void onSIMReady(int channelID);
+static void initVaribales(RIL_SOCKET_ID socket_id);
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -137,7 +139,8 @@ static const RIL_RadioFunctions s_callbacks = {
     onSupports,
     onCancel,
     getVersion,
-    sendCmdSync
+    sendCmdSync,
+    initVaribales
 };
 
 void *noopRemoveWarning(void *a) {
@@ -376,6 +379,12 @@ void onCancel(RIL_Token t) {
 
 const char *getVersion(void) {
     return "android reference-ril 1.0";
+}
+
+void initVaribales(RIL_SOCKET_ID socket_id) {
+    RIL_UNUSED_PARM(socket_id);
+
+    initPrimarySim();
 }
 
 /**

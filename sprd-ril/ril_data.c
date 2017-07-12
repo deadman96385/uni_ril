@@ -16,6 +16,7 @@
 #include "ril_sim.h"
 #include "channel_controller.h"
 #include "ril_stk.h"
+#include "ril_utils.h"
 
 #define APN_DELAY_PROP          "persist.radio.apn_delay"
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"

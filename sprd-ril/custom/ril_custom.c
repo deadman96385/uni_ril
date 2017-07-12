@@ -8,6 +8,7 @@
 
 #include "sprd_ril.h"
 #include "ril_custom.h"
+#include "ril_utils.h"
 
 static char s_simUnlockType[4][5] = {"pin", "pin2", "puk", "puk2"};
 

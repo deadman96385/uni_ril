@@ -10,6 +10,8 @@
 
 #define SIG_POOL_SIZE           10
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
+#define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
+#define MODEM_CONFIG_PROP       "persist.radio.modem.config"
 
 /*  LTE PS registration state */
 typedef enum {
@@ -124,6 +126,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim);
 int isSimPresent(RIL_SOCKET_ID socket_id);
 uint64_t ril_nano_time();
+void initPrimarySim();
 
 void dispatchSPTESTMODE(RIL_Token t, void *data, void *resp);
 

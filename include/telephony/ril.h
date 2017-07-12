@@ -6618,6 +6618,8 @@ typedef const char * (*RIL_GetVersion) (void);
 
 typedef void (*RIL_SendCmdSync)(int phoneId, char *cmd, char *response, int responseLen);
 
+typedef void (*RIL_InitVariables)(RIL_SOCKET_ID socket_id);
+
 typedef struct {
     int version;        /* set to RIL_VERSION */
     RIL_RequestFunc onRequest;
@@ -6626,6 +6628,7 @@ typedef struct {
     RIL_Cancel onCancel;
     RIL_GetVersion getVersion;
     RIL_SendCmdSync sendCmdSync;
+    RIL_InitVariables initVaribales;
 } RIL_RadioFunctions;
 
 typedef struct {

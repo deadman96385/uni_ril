@@ -14,6 +14,7 @@
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
 #include "ril_call.h"
+#include "ril_utils.h"
 
 /* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
@@ -109,6 +110,7 @@ pthread_mutex_t s_operatorInfoListMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t s_signalProcessMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_signalProcessCond = PTHREAD_COND_INITIALIZER;
 
+int s_multiModeSim = 0;
 int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 int s_imsBearerEstablished[SIM_COUNT];
 int s_in4G[SIM_COUNT];
@@ -126,6 +128,52 @@ int ecno[SIM_COUNT], rsrq[SIM_COUNT], rsrp[SIM_COUNT];
 int rssi[SIM_COUNT], berr[SIM_COUNT];
 
 void setWorkMode();
+void initWorkMode();
+
+// for L+W product
+bool isPrimaryCardWorkMode(int workMode) {
+    if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
+        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
+        workMode == NONE) {
+        return false;
+    }
+    return true;
+}
+
+void initPrimarySim() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char numToStr[ARRAY_SIZE] = {0};
+    RIL_SOCKET_ID simId = RIL_SOCKET_1;
+
+    property_get(PRIMARY_SIM_PROP, prop, "0");
+    s_multiModeSim = atoi(prop);
+    RLOGD("before initPrimarySim: s_multiModeSim = %d", s_multiModeSim);
+
+    initWorkMode();
+
+#if (SIM_COUNT == 2)
+    property_get(MODEM_CONFIG_PROP, prop, "");
+    if (s_modemConfig == LWG_G || s_modemConfig == W_G ||
+        s_modemConfig == LG_G) {
+        for (simId = RIL_SOCKET_1; simId < RIL_SOCKET_NUM; simId++) {
+            if (s_workMode[simId] == 10 && s_multiModeSim == simId) {
+                s_multiModeSim = 1 - simId;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
+        }
+    } else if (s_modemConfig == LWG_WG) {
+        for (simId = RIL_SOCKET_1; simId < RIL_SOCKET_NUM; simId++) {
+            if (!isPrimaryCardWorkMode(s_workMode[simId]) && s_multiModeSim == simId) {
+                s_multiModeSim = 1 - simId;
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            }
+        }
+    }
+#endif
+    RLOGD("after initPrimarySim : s_multiModeSim = %d", s_multiModeSim);
+}
 
 void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
@@ -185,62 +233,70 @@ int getMultiMode() {
     return workMode;
 }
 
-int getWorkMode(RIL_SOCKET_ID socket_id) {
-    int workMode = 0;
-    int newWorkMode = 0;
+void initWorkMode() {
+    int workMode[SIM_COUNT];
     char prop[PROPERTY_VALUE_MAX] = {0};
-    char numToStr[ARRAY_SIZE];
-    pthread_mutex_lock(&s_workModeMutex);
-    getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
+    char numToStr[ARRAY_SIZE] = {0};
+    RIL_SOCKET_ID simId = RIL_SOCKET_1;
 
-    workMode = atoi(prop);
-    newWorkMode = workMode;
-    if (!strcmp(s_modem, "tl") || !strcmp(s_modem, "lf")) {
-        if ((newWorkMode == TD_AND_GSM) || (newWorkMode == WCDMA_AND_GSM)) {
-            newWorkMode = TD_AND_WCDMA;
+    pthread_mutex_lock(&s_workModeMutex);
+
+    for (simId = RIL_SOCKET_1; simId < SIM_COUNT; simId++) {
+        memset(prop, 0, sizeof(prop));
+        getProperty(simId, MODEM_WORKMODE_PROP, prop, "10");
+        s_workMode[simId] = atoi(prop);
+        workMode[simId] = s_workMode[simId];
+        if (!strcmp(s_modem, "tl") || !strcmp(s_modem, "lf")) {
+            if ((workMode[simId] == TD_AND_GSM) ||
+                    (workMode[simId] == WCDMA_AND_GSM)) {
+                workMode[simId] = TD_AND_WCDMA;
+            }
         }
     }
 
-#if (SIM_COUNT == 2)
+#if (SIM_COUNT >= 2)
     if (s_modemConfig == LWG_G || s_modemConfig == W_G ||
         s_modemConfig == LG_G) {
-        if (newWorkMode != GSM_ONLY) {
-            getProperty(1 - socket_id, MODEM_WORKMODE_PROP, prop, "10");
-            if (atoi(prop) != GSM_ONLY) {
-                if (socket_id == s_multiModeSim) {
-                    setProperty(1 - s_multiModeSim, MODEM_WORKMODE_PROP, "10");
-                    s_workMode[1 - s_multiModeSim] = GSM_ONLY;
-                } else {
-                    newWorkMode = GSM_ONLY;
-                }
+        if (workMode[RIL_SOCKET_1] != GSM_ONLY &&
+            workMode[RIL_SOCKET_2] != GSM_ONLY) {
+            RLOGD("initWorkMode: change the work mode to 10");
+            if (RIL_SOCKET_1 == s_multiModeSim) {
+                workMode[RIL_SOCKET_2] = GSM_ONLY;
+            } else {
+                workMode[RIL_SOCKET_1] = GSM_ONLY;
             }
         }
-    } else if (s_modemConfig == LWG_WG){
-        if (isPrimaryCardWorkMode(newWorkMode)) {
-           getProperty(1 - socket_id, MODEM_WORKMODE_PROP, prop, "10");
-           if (isPrimaryCardWorkMode(atoi(prop))) {
-               RLOGD("getWorkMode change the work mode to 255");
-               if (socket_id == s_multiModeSim) {
-                   setProperty(1 - s_multiModeSim, MODEM_WORKMODE_PROP, "255");
-                   s_workMode[1 - s_multiModeSim] = TD_AND_WCDMA;
-               } else {
-                   newWorkMode = TD_AND_WCDMA;
-               }
+    } else if (s_modemConfig == LWG_WG) {
+        if (isPrimaryCardWorkMode(workMode[RIL_SOCKET_1]) &&
+            isPrimaryCardWorkMode(workMode[RIL_SOCKET_2])) {
+           RLOGD("initWorkMode: change the work mode to 255");
+           if (RIL_SOCKET_1 == s_multiModeSim) {
+               workMode[RIL_SOCKET_2] = TD_AND_WCDMA;
+           } else {
+               workMode[RIL_SOCKET_1] = TD_AND_WCDMA;
            }
+
        }
+    }
+    if (workMode[RIL_SOCKET_1] != s_workMode[RIL_SOCKET_1] ||
+        workMode[RIL_SOCKET_2] != s_workMode[RIL_SOCKET_2]) {
+        snprintf(numToStr, sizeof(numToStr), "%d,%d", workMode[RIL_SOCKET_1],
+                 workMode[RIL_SOCKET_2]);
+        RLOGD("initWorkMode: %s", numToStr);
+        s_workMode[RIL_SOCKET_1] = workMode[RIL_SOCKET_1];
+        s_workMode[RIL_SOCKET_2] = workMode[RIL_SOCKET_2];
+        property_set(MODEM_WORKMODE_PROP, numToStr);
+    }
+#else
+    if (workMode[RIL_SOCKET_1] != s_workMode[RIL_SOCKET_1]) {
+        snprintf(numToStr, sizeof(numToStr), "%d,10", workMode[RIL_SOCKET_1]);
+        RLOGD("initWorkMode: %s", numToStr);
+        s_workMode[RIL_SOCKET_1] = workMode[RIL_SOCKET_1];
+        property_set(MODEM_WORKMODE_PROP, numToStr);
     }
 #endif
 
-exit:
-    if (newWorkMode != workMode) {
-        memset(numToStr, 0, sizeof(numToStr));
-        snprintf(numToStr, sizeof(numToStr), "%d", newWorkMode);
-        setProperty(socket_id, MODEM_WORKMODE_PROP, numToStr);
-    }
-    s_workMode[socket_id] = newWorkMode;
     pthread_mutex_unlock(&s_workModeMutex);
-    RLOGD("getWorkMode socket_id = %d, workMode = %d", socket_id, newWorkMode);
-    return newWorkMode;
 }
 
 void buildWorkModeCmd(char *cmd, size_t size) {
@@ -250,7 +306,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         if (simId == 0) {
-            snprintf(cmd, size, "AT+SPTESTMODEM=%d", getWorkMode(simId));
+            snprintf(cmd, size, "AT+SPTESTMODEM=%d", s_workMode[simId]);
             if (SIM_COUNT == 1) {
                 strncpy(strFormatter, cmd, size);
                 strncat(strFormatter, ",%d", strlen(",%d"));
@@ -259,7 +315,7 @@ void buildWorkModeCmd(char *cmd, size_t size) {
         } else {
             strncpy(strFormatter, cmd, size);
             strncat(strFormatter, ",%d", strlen(",%d"));
-            snprintf(cmd, size, strFormatter, getWorkMode(simId));
+            snprintf(cmd, size, strFormatter, s_workMode[simId]);
         }
     }
 }
@@ -930,7 +986,7 @@ error:
     at_response_free(p_response);
 }
 
-static int getRadioFeatures(int socket_id, int isUnsolHandling) {
+static int getRadioFeatures(int socket_id) {
     int rat = 0;
     const int WCDMA = RAF_HSDPA | RAF_HSUPA | RAF_HSPA | RAF_HSPAP | RAF_UMTS;
     const int GSM = RAF_GSM | RAF_GPRS | RAF_EDGE;
@@ -945,13 +1001,7 @@ static int getRadioFeatures(int socket_id, int isUnsolHandling) {
     } else if (s_modemConfig == LWG_LWG) {
         rat = RAF_LTE | WCDMA | GSM;
     } else {
-        if (isUnsolHandling == 1) {  // UNSOL_RADIO_CAPABILITY
-            char prop[PROPERTY_VALUE_MAX] = {0};
-            getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
-            workMode = atoi(prop);
-        } else {  // GET_RADIO_CAPABILITY
-            workMode = getWorkMode(socket_id);
-        }
+        workMode = s_workMode[socket_id];
         if (workMode == GSM_ONLY) {
             rat = GSM;
         } else if (workMode == NONE) {
@@ -980,7 +1030,7 @@ static void sendUnsolRadioCapability() {
     responseRc->version = RIL_RADIO_CAPABILITY_VERSION;
     responseRc->session = s_sessionId[s_multiModeSim];
     responseRc->phase = RC_PHASE_UNSOL_RSP;
-    responseRc->rat = getRadioFeatures(s_multiModeSim, 1);
+    responseRc->rat = getRadioFeatures(s_multiModeSim);
     responseRc->status = RC_STATUS_SUCCESS;
     strncpy(responseRc->logicalModemUuid, "com.sprd.modem_multiMode",
             sizeof("com.sprd.modem_multiMode"));
@@ -995,7 +1045,7 @@ static void sendUnsolRadioCapability() {
         singleModeSim = RIL_SOCKET_1;
     }
     responseRc->session = s_sessionId[singleModeSim];
-    responseRc->rat = getRadioFeatures(singleModeSim, 1);
+    responseRc->rat = getRadioFeatures(singleModeSim);
     strncpy(responseRc->logicalModemUuid, "com.sprd.modem_singleMode",
             sizeof("com.sprd.modem_singleMode"));
     RIL_onUnsolicitedResponse(RIL_UNSOL_RADIO_CAPABILITY, responseRc,
@@ -2386,7 +2436,7 @@ static void requestGetRadioCapability(int channelID, void *data,
     rc->version = RIL_RADIO_CAPABILITY_VERSION;
     rc->session = 0;
     rc->phase = RC_PHASE_CONFIGURED;
-    rc->rat = getRadioFeatures(socket_id, 0);
+    rc->rat = getRadioFeatures(socket_id);
     rc->status = RC_STATUS_NONE;
     if (socket_id == s_multiModeSim) {
         strncpy(rc->logicalModemUuid, "com.sprd.modem_multiMode",
@@ -2415,16 +2465,13 @@ void setWorkMode() {
         singleModeSim = RIL_SOCKET_1;
     }
 #endif
-    pthread_mutex_lock(&s_workModeMutex);
-    getProperty(s_multiModeSim, MODEM_WORKMODE_PROP, prop, "10");
-    workMode = atoi(prop);
-    s_workMode[singleModeSim] = workMode;
 
-    getProperty(singleModeSim, MODEM_WORKMODE_PROP, prop, "10");
-    workMode = atoi(prop);
+    pthread_mutex_lock(&s_workModeMutex);
+
+    workMode = s_workMode[singleModeSim];
+    s_workMode[singleModeSim] = s_workMode[s_multiModeSim];
     s_workMode[s_multiModeSim] = workMode;
 
-    memset(numToStr, 0, sizeof(numToStr));
 #if defined (ANDROID_MULTI_SIM)
 #if (SIM_COUNT == 2)
     snprintf(numToStr, sizeof(numToStr), "%d,%d", s_workMode[RIL_SOCKET_1],
