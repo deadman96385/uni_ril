@@ -2819,6 +2819,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen, RIL_Tok
             }
         }
         setRadioState(channelID, RADIO_STATE_SIM_NOT_READY);
+        at_send_command(ATch_type[channelID], "AT+SPPOWERBFCOM=0,0,1", NULL);
     }
 
     at_response_free(p_response);
