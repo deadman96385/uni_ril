@@ -1401,6 +1401,7 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
     int isFallback = 0;
     const char *pdpType;
     const char *apn = NULL;
+    RIL_Data_Call_Response_v11 response;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1501,7 +1502,16 @@ error:
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
     putUnusablePDPCid();
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+
+    response.status = s_lastPDPFailCause[socket_id];
+    response.type = "";
+    response.ifname = "";
+    response.addresses = "";
+    response.dnses = "";
+    response.gateways = "";
+    response.pcscf = "";
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, &response,
+            sizeof(RIL_Data_Call_Response_v11));
 }
 
 static void updateAdditionBusinessCid(int channelID) {
