@@ -7013,6 +7013,8 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
         // Inform oem socket that modem maybe assert or reset
         RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
                            p_info->socket_id);
+        RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
+                           NULL, 0, p_info->socket_id);
     }
 }
 
