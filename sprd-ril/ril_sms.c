@@ -510,18 +510,73 @@ static void requestGetSmsBroadcastConfig(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
 
     ATResponse *p_response = NULL;
-    int err;
-    char *response;
+    int err = -1, mode, commas = 0, i = 0, j = 0;
+    char *line = NULL;
+    char *serviceIds = NULL, *codeSchemes = NULL, *p = NULL;
+    char *serviceId = NULL, *codeScheme = NULL;
 
-    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSCB=?",
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSCB?",
                                      "+CSCB:", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
-        response = p_response->p_intermediates->line;
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response) + 1);
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &mode);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&line, &serviceIds);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&line, &codeSchemes);
+        if (err < 0) goto error;
+
+        for (p = serviceIds; *p != '\0'; p++) {
+            if (*p == ',') {
+                commas++;
+            }
+        }
+        RIL_GSM_BroadcastSmsConfigInfo **gsmBciPtrs =
+                (RIL_GSM_BroadcastSmsConfigInfo **)alloca((commas + 1) *
+                        sizeof(RIL_GSM_BroadcastSmsConfigInfo *));
+        memset(gsmBciPtrs, 0, (commas + 1) *
+                sizeof(RIL_GSM_BroadcastSmsConfigInfo *));
+        for (i = 0; i < commas + 1; i++) {
+            gsmBciPtrs[i] = (RIL_GSM_BroadcastSmsConfigInfo *)alloca(
+                    sizeof(RIL_GSM_BroadcastSmsConfigInfo));
+            memset(gsmBciPtrs[i], 0, sizeof(RIL_GSM_BroadcastSmsConfigInfo));
+
+            err = at_tok_nextstr(&serviceIds, &serviceId);
+            p = NULL;
+            p = strsep(&serviceId, "-");
+            RLOGD("requestGetSmsBroadcastConfig p %s,serviceId=%s",p,serviceId);
+            gsmBciPtrs[i]->fromServiceId = p != NULL ? atoi(p) : 0;
+
+            gsmBciPtrs[i]->toServiceId =
+                    serviceId != NULL ?
+                            atoi(serviceId) : gsmBciPtrs[i]->fromServiceId;
+
+            err = at_tok_nextstr(&codeSchemes, &codeScheme);
+            p = NULL;
+            p = strsep(&codeScheme, "-");
+            RLOGD("GetSmsBroadcastConfig p %s,codeScheme=%s",p,codeScheme);
+            gsmBciPtrs[i]->fromCodeScheme = p != NULL ? atoi(p) : 0;
+
+            gsmBciPtrs[i]->toCodeScheme =
+                    codeScheme != NULL ?
+                            atoi(codeScheme) : gsmBciPtrs[i]->fromCodeScheme;
+            gsmBciPtrs[i]->selected = mode == 0 ? false : true;
+        }
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, gsmBciPtrs, (commas + 1) *
+                sizeof(RIL_GSM_BroadcastSmsConfigInfo *));
+        at_response_free(p_response);
+        return;
     }
+error:
     at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 static void requestSmsBroadcastActivation(int channelID, void *data,
