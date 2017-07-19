@@ -1148,9 +1148,10 @@ static void requestFacilityLock(int request, int channelID, char **data,
     if (datalen != 5 * sizeof(char *)) {
         goto error1;
     }
-    if (data[0] == NULL || data[1] == NULL || data[2] == NULL ||
+    if (data[0] == NULL || data[1] == NULL ||
+       (data[2] == NULL && request == RIL_REQUEST_SET_FACILITY_LOCK) ||
         strlen(data[0]) == 0 || strlen(data[1]) == 0 ||
-        strlen(data[2]) == 0 ) {
+       (request == RIL_REQUEST_SET_FACILITY_LOCK && strlen(data[2]) == 0 )) {
         errnoType = RIL_E_INVALID_ARGUMENTS;
         RLOGE("FacilityLock invalid arguments");
         goto error1;
