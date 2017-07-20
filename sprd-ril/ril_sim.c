@@ -68,7 +68,7 @@
 #define IMSI_TOTAL_LEN                          (16 + 1)
 #define SMALL_IMSI_LEN                          (2 + 1)
 
-#define PROP_RELIANCE_SIMLOCK_ENABLE "persist.sys.reliance.simlock"
+#define SIMLOCK_ATTEMPT_TIMES_PROP              "gsm.attempttimes.%s"
 
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -731,6 +731,23 @@ static void freeCardStatus(RIL_CardStatus_v6 *p_card_status) {
     free(p_card_status);
 }
 
+
+void setSimLockAttemptTimes(int type, int attemptTimes,
+                            RIL_SOCKET_ID socketId) {
+    char num[ARRAY_SIZE] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    static char s_simlockType [5][4] = {"PS", "PN", "PU", "PP", "PC"};
+    if (type > 0 && type <= 5) {
+        snprintf(prop, sizeof(prop), SIMLOCK_ATTEMPT_TIMES_PROP, s_simlockType[type-1]);
+        RLOGD("set %s, attemptTimes = %d for SIM%d", prop, attemptTimes, socketId);
+        snprintf(num, sizeof(num), "%d", attemptTimes);
+        setProperty(socketId, prop, num);
+    } else {
+        RLOGE("invalid type: %d", type);
+    }
+}
+
+
 int getNetLockRemainTimes(int channelID, int type) {
     int err;
     int ret = -1;
@@ -763,15 +780,10 @@ int getNetLockRemainTimes(int channelID, int type) {
 
         if (err == 0) {
             ret = result[0] - result[1];
-            /* SPRD: Add for Reliance simlock @{ */
-            property_get(PROP_RELIANCE_SIMLOCK_ENABLE, prop, "false");
-            if (!strcmp(prop, "true")) {
-                if (fac == 2) {  // NETWORK LOCK
-                    RLOGD("For Reliance simlock, just return retrial times %d", result[1]);
-                    ret = result[1];
-                }
-            }
-            /* @} */
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            pthread_mutex_lock(&s_remainTimesMutex);
+            setSimLockAttemptTimes(type, result[1], socket_id);
+            pthread_mutex_unlock(&s_remainTimesMutex);
         } else {
             ret = -1;
         }
