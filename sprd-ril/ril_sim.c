@@ -2619,7 +2619,7 @@ static void requestGetSimLockWhiteList(int channelID, void *data,
         cmd = NULL;
         goto error;
     }
-    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+spsmnw:",
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPSMNW:",
                                          &p_response);
     free(cmd);
 
