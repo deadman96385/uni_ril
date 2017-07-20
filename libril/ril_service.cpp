@@ -564,6 +564,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setSmsBearer(int32_t serial, int32_t type);
 
+    Return<void> setVoiceDomain(int32_t serial, int32_t type);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -8790,6 +8792,14 @@ Return<void> RadioImpl::setSmsBearer(int32_t serial, int32_t type) {
     dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_SMS_BEARER, 1, type);
     return Void();
 }
+
+Return<void> RadioImpl::setVoiceDomain(int32_t serial, int32_t type) {
+#if VDBG
+    RLOGD("setVoiceDomain: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_VOICE_DOMAIN, 1, type);
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -9778,8 +9788,8 @@ int radio::requestShutdownExtResponse(int slotId, int responseType, int serial,
 }
 
 int radio::setSmsBearerResponse(int slotId, int responseType, int serial,
-                                      RIL_Errno e, void *response,
-                                      size_t responseLen) {
+                                RIL_Errno e, void *response,
+                                size_t responseLen) {
 #if VDBG
     RLOGD("setSmsBearerResponse: serial %d", serial);
 #endif
@@ -9792,6 +9802,26 @@ int radio::setSmsBearerResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("setSmsBearerResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::setVoiceDomainResponse(int slotId, int responseType, int serial,
+                                  RIL_Errno e, void *response,
+                                  size_t responseLen) {
+#if VDBG
+    RLOGD("setVoiceDomainResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->setVoiceDomainResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setVoiceDomainResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
     }
 
     return 0;

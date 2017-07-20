@@ -846,6 +846,9 @@ int requestShutdownExtResponse(int slotId, int responseType, int serial,
 int setSmsBearerResponse(int slotId, int responseType, int serial,
                          RIL_Errno e, void *response, size_t responseLen);
 
+int setVoiceDomainResponse(int slotId, int responseType, int serial,
+                           RIL_Errno e, void *response, size_t responseLen);
+
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int videoPhoneCodecInd(int slotId, int indicationType, int token,

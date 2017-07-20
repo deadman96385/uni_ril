@@ -47,3 +47,4 @@
     {RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE, radio::setPreferredNetworkTypeExtResponse},
     {RIL_EXT_REQUEST_SHUTDOWN, radio::requestShutdownExtResponse},
     {RIL_EXT_REQUEST_SET_SMS_BEARER, radio::setSmsBearerResponse},
+    {RIL_EXT_REQUEST_SET_VOICE_DOMAIN, radio::setVoiceDomainResponse},
