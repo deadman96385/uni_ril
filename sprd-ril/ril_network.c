@@ -2202,22 +2202,23 @@ static void requestGetCellInfoList(int channelID, void *data,
 
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    RIL_CellInfo **response = NULL;
+    RIL_CellInfo_v12 **response = NULL;
 
     if (!s_screenState) {
         RLOGD("GetCellInfo ScreenState %d", s_screenState);
         goto error;
     }
-    response = (RIL_CellInfo **)malloc(count * sizeof(RIL_CellInfo *));
+    response = (RIL_CellInfo_v12 **)malloc(count * sizeof(RIL_CellInfo_v12 *));
     if (response == NULL) {
         goto error;
     }
-    memset(response, 0, count * sizeof(RIL_CellInfo *));
+    memset(response, 0, count * sizeof(RIL_CellInfo_v12 *));
 
     for (i = 0; i < count; i++) {
-        response[i] = malloc(sizeof(RIL_CellInfo));
-        memset(response[i], 0, sizeof(RIL_CellInfo));
+        response[i] = malloc(sizeof(RIL_CellInfo_v12));
+        memset(response[i], 0, sizeof(RIL_CellInfo_v12));
     }
+
     // for mcc & mnc
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+COPS?",
                                      "+COPS:", &p_response);
@@ -2243,9 +2244,9 @@ static void requestGetCellInfoList(int channelID, void *data,
     mcc = atoi(plmn) / 100;
     mnc = atoi(plmn) - mcc * 100;
 
-    if (netType == 7) {
+    if (netType == 7 || netType == 16) {
         cellType = RIL_CELL_INFO_TYPE_LTE;
-    } else if (netType == 1 || netType == 0) {
+    } else if (netType == 0 || netType == 1 || netType == 3) {
         cellType = RIL_CELL_INFO_TYPE_GSM;
     } else {
         cellType = RIL_CELL_INFO_TYPE_WCDMA;
@@ -2366,6 +2367,8 @@ static void requestGetCellInfoList(int channelID, void *data,
         response[0]->CellInfo.lte.cellIdentityLte.ci  = cid;
         response[0]->CellInfo.lte.cellIdentityLte.pci = pscPci;
         response[0]->CellInfo.lte.cellIdentityLte.tac = lac;
+        response[0]->CellInfo.lte.cellIdentityLte.earfcn = INT_MAX;
+
         response[0]->CellInfo.lte.signalStrengthLte.cqi = 100;
         response[0]->CellInfo.lte.signalStrengthLte.rsrp = rsrp;
         response[0]->CellInfo.lte.signalStrengthLte.rsrq = rsrq;
@@ -2377,20 +2380,26 @@ static void requestGetCellInfoList(int channelID, void *data,
         response[0]->CellInfo.gsm.cellIdentityGsm.mnc = mnc;
         response[0]->CellInfo.gsm.cellIdentityGsm.lac = lac;
         response[0]->CellInfo.gsm.cellIdentityGsm.cid = cid;
+        response[0]->CellInfo.gsm.cellIdentityGsm.arfcn = INT_MAX;
+        response[0]->CellInfo.gsm.cellIdentityGsm.bsic = 0xFF;
+
         response[0]->CellInfo.gsm.signalStrengthGsm.bitErrorRate = biterr2G;
         response[0]->CellInfo.gsm.signalStrengthGsm.signalStrength = sig2G;
+        response[0]->CellInfo.gsm.signalStrengthGsm.timingAdvance = INT_MAX;
     } else {  // 3G, Don't support CDMA
         response[0]->CellInfo.wcdma.cellIdentityWcdma.mcc = mcc;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.mnc = mnc;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.lac = lac;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.cid = cid;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.psc = pscPci;
+        response[0]->CellInfo.wcdma.cellIdentityWcdma.uarfcn = INT_MAX;
+
         response[0]->CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = biterr3G;
         response[0]->CellInfo.wcdma.signalStrengthWcdma.signalStrength = sig3G;
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, (*response),
-                          count * sizeof(RIL_CellInfo));
+                          count * sizeof(RIL_CellInfo_v12));
     at_response_free(p_response);
     at_response_free(p_newResponse);
     if (response != NULL) {
