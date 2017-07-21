@@ -1347,39 +1347,51 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                 cid = getPDNCid(i);
                 if (cid == (i + 1)) {
                     RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-                    if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
+                    if (i < MAX_PDP &&
                         (useDefaultPDN ||
                         (isApnEqual((char *)apn, getPDNAPN(i)) &&
                         isProtocolEqual((char *)type, getPDNIPType(i))) ||
                         s_singlePDNAllowed[socket_id] == 1)) {
-                        RLOGD("Using default PDN");
-                        getPDPByIndex(i);
-                        cgact_deact_cmd_rsp(cid);
-                        AT_RESPONSE_FREE(p_response);
-                        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
-                                  cid);
-                        cgdata_set_cmd_req(cmd);
-                        err = at_send_command(s_ATChannels[channelID], cmd,
-                                              &p_response);
-                        cgdata_set_cmd_rsp(p_response, cid - 1, 0, channelID);
-                        cgdata_err = errorHandlingForCGDATA(channelID,
-                                p_response, err, cid);
-                        AT_RESPONSE_FREE(p_response);
-                        if (cgdata_err == DATA_ACTIVE_SUCCESS) {
-                            s_openchannelCid = cid;
-                            s_openchannelInfo[cid - 1].cid = cid;
-                            s_openchannelInfo[cid - 1].state = OPEN;
-                            s_openchannelInfo[cid - 1].count++;
-                            updatePDPCid(i + 1, 1);
-                            updatePDPSocketId(cid, socket_id);
-                            requestOrSendDataCallList(channelID, cid, &t);
-                            ret = 0;
-                        } else if (cgdata_err ==
-                                DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
-                            updatePDPCid(i + 1, -1);
-                            putPDPByIndex(i);
+                        if (getPDPState(i) == PDP_IDLE) {
+                            RLOGD("Using default PDN");
+                            getPDPByIndex(i);
+                            cgact_deact_cmd_rsp(cid);
+                            AT_RESPONSE_FREE(p_response);
+                            snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
+                                      cid);
+                            cgdata_set_cmd_req(cmd);
+                            err = at_send_command(s_ATChannels[channelID], cmd,
+                                                  &p_response);
+                            cgdata_set_cmd_rsp(p_response, cid - 1, 0, channelID);
+                            cgdata_err = errorHandlingForCGDATA(channelID,
+                                    p_response, err, cid);
+                            AT_RESPONSE_FREE(p_response);
+                            if (cgdata_err == DATA_ACTIVE_SUCCESS) {
+                                updatePDPCid(i + 1, 1);
+                                updatePDPSocketId(cid, socket_id);
+                                requestOrSendDataCallList(channelID, cid, &t);
+                                s_openchannelCid = cid;
+                                pthread_mutex_lock(&s_signalBipPdpMutex);
+                                s_openchannelInfo[i].count++;
+                                s_openchannelInfo[i].pdpState = true;
+                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
+                                pthread_mutex_unlock(&s_signalBipPdpMutex);
+                                ret = 0;
+                            } else if (cgdata_err ==
+                                    DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
+                                updatePDPCid(i + 1, -1);
+                                putPDPByIndex(i);
+                            } else {
+                                ret = cid;
+                            }
                         } else {
-                            ret = cid;
+                            if (s_openchannelInfo[i].state != CLOSE) {
+                                s_openchannelCid = cid;
+                                s_openchannelInfo[i].count++;
+                                requestOrSendDataCallList(channelID, cid, &t);
+                                RLOGD("reuse count = %d", s_openchannelInfo[cid - 1].count);
+                                ret = 0;
+                            }
                         }
                     }
                 } /*else if (i < MAX_PDP) {//for bug704303
@@ -1491,8 +1503,6 @@ done:
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     pthread_mutex_lock(&s_signalBipPdpMutex);
     s_openchannelCid = primaryindex + 1;
-    s_openchannelInfo[primaryindex].cid = s_openchannelCid;
-    s_openchannelInfo[primaryindex].state = OPEN;
     s_openchannelInfo[primaryindex].count++;
     s_openchannelInfo[primaryindex].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
@@ -3855,7 +3865,8 @@ void cgact_deact_cmd_rsp(int cid) {
 }
 
 int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
-    int i, cid;
+    int i;
+    int cid = 0;
     const char *pdpType = "IP";
     const char *apn = NULL;
     apn = ((const char **)data)[2];
@@ -3890,6 +3901,11 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
 
     requestSetupDataCall(channelID, data, datalen, NULL);
     RLOGD("open channel cid = %d", s_openchannelCid);
+    if (s_openchannelCid > 0) {
+        i = s_openchannelCid -1;
+        s_openchannelInfo[i].cid = s_openchannelCid;
+        s_openchannelInfo[i].state = OPEN;
+    }
     return s_openchannelCid;
 }
 
@@ -3904,7 +3920,6 @@ void requestDeactiveDataConnection(int channelID, void *data, size_t datalen) {
         RLOGD("close channel state = %d", s_openchannelInfo[cid - 1].state);
         s_openchannelInfo[cid - 1].cid = -1;
         s_openchannelInfo[cid - 1].state = CLOSE;
-        s_openchannelInfo[cid - 1].pdpState = false;
         deactivateDataConnection(channelID, data, datalen, NULL);
     }
 }
