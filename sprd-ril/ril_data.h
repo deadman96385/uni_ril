@@ -92,6 +92,7 @@ struct OpenchannelInfo {
     int cid;
     enum States state;
     bool pdpState;
+    int count;
 };
 
 typedef struct {

@@ -44,12 +44,12 @@ pthread_mutex_t s_signalBipPdpMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_signalBipPdpCond = PTHREAD_COND_INITIALIZER;
 
 struct OpenchannelInfo s_openchannelInfo[6] = {
-    {-1, CLOSE, false},
-    {-1, CLOSE, false},
-    {-1, CLOSE, false},
-    {-1, CLOSE, false},
-    {-1, CLOSE, false},
-    {-1, CLOSE, false}
+    {-1, CLOSE, false, 0},
+    {-1, CLOSE, false, 0},
+    {-1, CLOSE, false, 0},
+    {-1, CLOSE, false, 0},
+    {-1, CLOSE, false, 0},
+    {-1, CLOSE, false, 0}
 };
 static int s_openchannelCid = -1;
 
@@ -833,9 +833,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
         putPDP(cid - 1);
         return ret;
     }
-    s_openchannelCid = cid;
-    s_openchannelInfo[cid - 1].cid = cid;
-    s_openchannelInfo[cid - 1].state = OPEN;
+
     if (primaryCid > 0) {
         /* Check ip type after fall back  */
         char ethPropName[ARRAY_SIZE] = {0};
@@ -1367,6 +1365,7 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                             s_openchannelCid = cid;
                             s_openchannelInfo[cid - 1].cid = cid;
                             s_openchannelInfo[cid - 1].state = OPEN;
+                            s_openchannelInfo[cid - 1].count++;
                             updatePDPCid(i + 1, 1);
                             updatePDPSocketId(cid, socket_id);
                             requestOrSendDataCallList(channelID, cid, &t);
@@ -1487,6 +1486,10 @@ done:
     putUnusablePDPCid();
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     pthread_mutex_lock(&s_signalBipPdpMutex);
+    s_openchannelCid = primaryindex + 1;
+    s_openchannelInfo[primaryindex].cid = s_openchannelCid;
+    s_openchannelInfo[primaryindex].state = OPEN;
+    s_openchannelInfo[primaryindex].count++;
     s_openchannelInfo[primaryindex].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
@@ -1588,10 +1591,16 @@ static void deactivateDataConnection(int channelID, void *data,
     if (getPDPSocketId(cid - 1) != socket_id) {
         goto done;
     }
-    if (s_openchannelInfo[cid - 1].cid != -1) {
+    RLOGD("deactivateDC s_in4G[%d]=%d, count = %d", socket_id, s_in4G[socket_id],
+                s_openchannelInfo[cid - 1].count);
+    if (s_openchannelInfo[cid - 1].count > 0) {
+        s_openchannelInfo[cid - 1].count--;
+    }
+    if (s_openchannelInfo[cid - 1].count != 0){
         goto error;
     }
-    RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
+    s_openchannelInfo[cid - 1].pdpState = false;
+
     secondaryCid = getFallbackCid(cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
@@ -2721,6 +2730,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                             putPDP(cid - 1);
                             RIL_requestTimedCallback(sendEvenLoopThread, cbPara, NULL);
                         }
+                        s_openchannelInfo[cid - 1].count = 0;
                         RIL_requestTimedCallback(onDataCallListChanged, cbPara,
                                                  NULL);
                     }
@@ -3511,8 +3521,8 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         //snprintf(cmd, sizeof(cmd), "ip route add default via %s %s dev %s", ip, ip2, linker);
         //RLOGD("cmd = %s", cmd);
         //system(cmd);
-        snprintf(cmd, sizeof(cmd), "ndc resolver setnetdns %s \"\" %s %s", linker, dns1, dns2);
-        RLOGD("cmd = %s", cmd);
+        //snprintf(cmd, sizeof(cmd), "ndc resolver setnetdns %s \"\" %s %s", linker, dns1, dns2);
+        //RLOGD("cmd = %s", cmd);
         system(cmd);
     }
     property_set(GSPS_ETH_UP_PROP, "0");
@@ -3878,6 +3888,7 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
                     }
                     s_openchannelInfo[i].cid = cid;
                     s_openchannelInfo[i].state = REUSE;
+                    s_openchannelInfo[i].count++;
                     return s_openchannelInfo[i].cid;
                 }
             }
