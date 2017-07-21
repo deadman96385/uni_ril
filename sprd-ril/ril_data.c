@@ -1200,7 +1200,6 @@ static void requestOrSendDataCallList(int channelID, int cid,
                 RLOGE("Unknown IP type!");
             }
         }
-        responses[i].mtu = DEFAULT_MTU;
         if ((cid != -1) && (t == NULL)) {
              if (responses[i].active > 0) {
                  RLOGE("i = %d", i);
@@ -1378,15 +1377,15 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                             ret = cid;
                         }
                     }
-                } else if (i < MAX_PDP) {
+                } /*else if (i < MAX_PDP) {//for bug704303
                     putPDP(i);
                 }
-            }
-        } else {
+*/            }
+        } /*else {
             for (i = 0; i < MAX_PDP; i++) {
                 putPDP(i);
             }
-        }
+        }*/
     }
     return ret;
 }
