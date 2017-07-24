@@ -496,12 +496,18 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
     return;
 
 error:
-    at_response_free(p_response);
     if (t != NULL) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        memset(buf, 0 ,sizeof(buf));
+        strlcat(buf, "ERROR", sizeof(buf));
+        strlcat(buf, "\r\n", sizeof(buf));
+        response[0] = buf;
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                              sizeof(char *));
     } else if (atResp != NULL) {
         snprintf(atResp, responseLen, "ERROR");
     }
+    at_response_free(p_response);
+
 }
 
 void sendCmdSync(int phoneId, char *cmd, char *response, int responseLen) {
