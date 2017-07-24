@@ -378,8 +378,13 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
     return;
 
 error:
+    memset(buf, 0 ,sizeof(buf));
+    strlcat(buf, "ERROR", sizeof(buf));
+    strlcat(buf, "\r\n", sizeof(buf));
+    response[0] = buf;
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                          sizeof(char *));
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 void requestQueryCOLP(int channelID, RIL_Token t) {
