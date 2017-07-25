@@ -8354,11 +8354,10 @@ Return<void> RadioImpl::setExtResponseFunctions(
 
     // client is connected. Send initial indications.
 //    android::onNewCommandConnect((RIL_SOCKET_ID)mSlotId);
-#if defined(ANDROID_MULTI_SIM)
-    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0, (RIL_SOCKET_ID)mSlotId);
-#else
-    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0);
-#endif
+
+    RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0, (RIL_SOCKET_ID)mSlotId);
+    RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
+                       NULL, 0, (RIL_SOCKET_ID)mSlotId);
     return Void();
 }
 
