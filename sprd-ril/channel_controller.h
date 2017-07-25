@@ -31,7 +31,6 @@ void *signal_process();
 void reWriteIntermediate(ATResponse *sp_response, char *newLine);
 void reverseNewIntermediates(ATResponse *sp_response);
 int getATResponseType(char *str);
-int at_tok_flag_start(char **p_cur, char start_flag);
 int findInBuf(char *buf, int len, char *needle);
 
 #endif  // CHANNEL_CONTROLLER_H_

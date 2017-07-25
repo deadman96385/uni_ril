@@ -847,6 +847,24 @@ error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
+static void requestSetSuppServiceNotifications (int channelID,
+        void *data, size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = 0;
+    ATResponse *p_response = NULL;
+    int mode = ((int *)data)[0];
+    char cmd[AT_COMMAND_LEN] = {0};
+    snprintf(cmd, sizeof(cmd), "AT+CSSN=%d,%d", mode, mode);
+    at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+    at_response_free(p_response);
+}
+
 int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                          int channelID) {
     int err;
@@ -1093,8 +1111,9 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
-        // case RIL_REQUEST_SET_SUPP_SVC_NOTIFICATION:
-        //    break;
+        case RIL_REQUEST_SET_SUPP_SVC_NOTIFICATION:
+            requestSetSuppServiceNotifications(channelID, data, datalen, t);
+            break;
         /* IMS request @{ */
         case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI:
             requestCallForwardUri(channelID, data, datalen, t);

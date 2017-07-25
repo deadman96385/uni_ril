@@ -279,6 +279,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL ||
                  request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC ||
                  request == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE ||
+                 request == RIL_REQUEST_NV_RESET_CONFIG ||
+                 request == RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||

@@ -124,20 +124,6 @@ int findInBuf(char *buf, int len, char *needle) {
     return 0;
 }
 
-int at_tok_flag_start(char **p_cur, char start_flag) {
-    if (*p_cur == NULL) {
-        return -1;
-    }
-    // skip prefix
-    // consume "^[^:]:"
-    *p_cur = strchr(*p_cur, start_flag);
-    if (*p_cur == NULL) {
-        return -1;
-    }
-    (*p_cur)++;
-    return 0;
-}
-
 /* add an intermediate response to sp_response */
 void reWriteIntermediate(ATResponse *sp_response, char *newLine) {
     ATLine *p_new;

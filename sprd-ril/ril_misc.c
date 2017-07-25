@@ -593,6 +593,10 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestSendAT(channelID, *cur, datalen, t, NULL, 0);
             break;
         }
+        case RIL_REQUEST_NV_RESET_CONFIG: {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
         case RIL_EXT_REQUEST_GET_BAND_INFO: {
             p_response = NULL;
             char *line = NULL;

@@ -176,3 +176,17 @@ int at_tok_nextstr(char **p_cur, char **p_out) {
 int at_tok_hasmore(char **p_cur) {
     return !(*p_cur == NULL || **p_cur == '\0');
 }
+
+int at_tok_flag_start(char **p_cur, char start_flag) {
+    if (*p_cur == NULL) {
+        return -1;
+    }
+    // skip prefix
+    // consume "^[^:]:"
+    *p_cur = strchr(*p_cur, start_flag);
+    if (*p_cur == NULL) {
+        return -1;
+    }
+    (*p_cur)++;
+    return 0;
+}

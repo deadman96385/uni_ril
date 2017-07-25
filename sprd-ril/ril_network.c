@@ -2936,7 +2936,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestGetCellInfoList(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE:
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         case RIL_REQUEST_SHUTDOWN:
         case RIL_EXT_REQUEST_SHUTDOWN:
