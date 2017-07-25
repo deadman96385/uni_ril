@@ -2361,9 +2361,9 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_EXT_REQUEST_SET_XCAP_IP_ADDR: {
-            char* index = ((char **)data)[0];
-            char* ipv4 = ((char **)data)[1];
-            char* ipv6 = ((char **)data)[2];
+            char *index = ((char **)data)[0];
+            char *ipv4 = ((char **)data)[1];
+            char *ipv6 = ((char **)data)[2];
             RLOGD("index = %s", index);
             /* send IP for volte addtional business */
             if (s_isLTE && index != NULL) {
@@ -2452,10 +2452,10 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SET_IMS_PCSCF_ADDR: {
             int err;
             char cmd[AT_COMMAND_LEN] = {0};
-            const char **strings = (const char **)data;
+            const char *strings = (const char *)data;
 
-            if (datalen > 0 && strings[0] != NULL && strlen(strings[0]) > 0) {
-                snprintf(cmd, sizeof(cmd), "AT+VOWIFIPCSCF=%s", strings[0]);
+            if (datalen > 0 && strings != NULL && strlen(strings) > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+VOWIFIPCSCF=%s", strings);
                 err = at_send_command(s_ATChannels[channelID], cmd , NULL);
                 if (err != 0) {
                     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);

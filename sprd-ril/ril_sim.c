@@ -738,7 +738,8 @@ void setSimLockAttemptTimes(int type, int attemptTimes,
     char prop[PROPERTY_VALUE_MAX] = {0};
     static char s_simlockType [5][4] = {"PS", "PN", "PU", "PP", "PC"};
     if (type > 0 && type <= 5) {
-        snprintf(prop, sizeof(prop), SIMLOCK_ATTEMPT_TIMES_PROP, s_simlockType[type-1]);
+        snprintf(prop, sizeof(prop), SIMLOCK_ATTEMPT_TIMES_PROP,
+                 s_simlockType[type - 1]);
         RLOGD("set %s, attemptTimes = %d for SIM%d", prop, attemptTimes, socketId);
         snprintf(num, sizeof(num), "%d", attemptTimes);
         setProperty(socketId, prop, num);
