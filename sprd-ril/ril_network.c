@@ -358,34 +358,34 @@ static int mapCgregResponse(int in_response) {
 
     switch (in_response) {
         case 0:
-            out_response = 1;    /* GPRS */
+            out_response = RADIO_TECH_GPRS;    /* GPRS */
             break;
         case 3:
-            out_response = 2;    /* EDGE */
+            out_response = RADIO_TECH_EDGE;    /* EDGE */
             break;
         case 2:
-            out_response = 3;    /* TD */
+            out_response = RADIO_TECH_UMTS;    /* TD */
             break;
         case 4:
-            out_response = 9;    /* HSDPA */
+            out_response = RADIO_TECH_HSDPA;    /* HSDPA */
             break;
         case 5:
-            out_response = 10;   /* HSUPA */
+            out_response = RADIO_TECH_HSUPA;   /* HSUPA */
             break;
         case 6:
-            out_response = 11;   /* HSPA */
+            out_response = RADIO_TECH_HSPA;   /* HSPA */
             break;
         case 15:
-            out_response = 15;   /* HSPA+ */
+            out_response = RADIO_TECH_HSPAP;   /* HSPA+ */
             break;
         case 7:
-            out_response = 14;   /* LTE */
+            out_response = RADIO_TECH_LTE;   /* LTE */
             break;
         case 16:
-            out_response = 19;   /* LTE_CA */
+            out_response = RADIO_TECH_LTE_CA;   /* LTE_CA */
             break;
         default:
-            out_response = 0;    /* UNKNOWN */
+            out_response = RADIO_TECH_UNKNOWN;    /* UNKNOWN */
             break;
     }
     return out_response;
@@ -603,8 +603,8 @@ error:
     at_response_free(p_response);
 }
 static void requestRegistrationState(int channelID, int request,
-                                          void *data, size_t datalen,
-                                          RIL_Token t) {
+                                     void *data, size_t datalen,
+                                     RIL_Token t) {
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
@@ -621,7 +621,8 @@ static void requestRegistrationState(int channelID, int request,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     bool islte = s_isLTE;
 
-    if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
+    if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE ||
+        request == RIL_REQUEST_VOICE_RADIO_TECH) {
         cmd = "AT+CREG?";
         prefix = "+CREG:";
     } else if (request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
@@ -817,6 +818,12 @@ static void requestRegistrationState(int channelID, int request,
         imsResp[0] = response[1];
         imsResp[1] = response[2];
         RIL_onRequestComplete(t, RIL_E_SUCCESS, imsResp, sizeof(imsResp));
+    } else if (request == RIL_REQUEST_VOICE_RADIO_TECH) {
+        RIL_RadioAccessFamily rAFamliy = RAF_UNKNOWN;
+        if (response[3] != -1) {
+            rAFamliy = 1 << response[3];
+        }
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &rAFamliy, sizeof(int));
     }
     at_response_free(p_response);
     return;
@@ -2907,6 +2914,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_VOICE_REGISTRATION_STATE:
         case RIL_REQUEST_DATA_REGISTRATION_STATE:
         case RIL_REQUEST_IMS_REGISTRATION_STATE:
+        case RIL_REQUEST_VOICE_RADIO_TECH:
             requestRegistrationState(channelID, request, data, datalen, t);
             break;
         case RIL_REQUEST_OPERATOR:
