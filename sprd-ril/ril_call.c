@@ -1290,9 +1290,21 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_EXPLICIT_CALL_TRANSFER:
             requestExplicitCallTransfer(channelID, data, datalen, t);
             break;
-        // case RIL_REQUEST_SET_TTY_MODE:
-        // case RIL_REQUEST_QUERY_TTY_MODE:
-        //     break;
+        case RIL_REQUEST_SET_TTY_MODE:
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+           /* "response" is int *
+            * ((int *)response)[0] is == 0 for TTY off
+            * ((int *)response)[0] is == 1 for TTY Full
+            * ((int *)response)[0] is == 2 for TTY HCO (hearing carryover)
+            * ((int *)response)[0] is == 3 for TTY VCO (voice carryover)
+            */
+        case RIL_REQUEST_QUERY_TTY_MODE: {
+            int response = 0;
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, &response,
+                                  sizeof(response));
+            break;
+        }
         case RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE:
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;

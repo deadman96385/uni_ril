@@ -2896,6 +2896,19 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
     }
 }
 
+void requestSetLocationUpdates(int channelID, void *data, size_t datalen,
+        RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int enable = ((int *)data)[0];
+    if (enable == 0) {
+        at_send_command(s_ATChannels[channelID], "AT+CREG=1", NULL);
+    } else {
+        at_send_command(s_ATChannels[channelID], "AT+CREG=2", NULL);
+    }
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+}
+
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID) {
     int err;
@@ -2994,10 +3007,9 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_GET_NEIGHBORING_CELL_IDS:
             requestNeighboaringCellIds(channelID, data, datalen, t);
             break;
-        // case RIL_REQUEST_SET_LOCATION_UPDATES:
-        //    break;
-        // case RIL_REQUEST_VOICE_RADIO_TECH:
-        //    break;
+        case RIL_REQUEST_SET_LOCATION_UPDATES:
+            requestSetLocationUpdates(channelID, data, datalen, t);
+            break;
         case RIL_REQUEST_GET_CELL_INFO_LIST:
             requestGetCellInfoList(channelID, data, datalen, t);
             break;

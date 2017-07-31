@@ -285,6 +285,11 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE ||
                  request == RIL_REQUEST_SET_BAND_MODE ||
                  request == RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE ||
+                 request == RIL_REQUEST_SET_LOCATION_UPDATES ||
+                 request == RIL_REQUEST_SET_SUPP_SVC_NOTIFICATION ||
+                 request == RIL_REQUEST_SET_TTY_MODE ||
+                 request == RIL_REQUEST_QUERY_TTY_MODE ||
+                 request == RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
