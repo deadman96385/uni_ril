@@ -1479,6 +1479,62 @@ error:
     return;
 }
 
+static void requestSetBandMode(int channelID, void *data, size_t datalen,
+                                   RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    switch (((int *)data)[0]) {
+        case BAND_MODE_UNSPECIFIED:
+            at_send_command(s_ATChannels[channelID], "AT+SBAND=1,13,14", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,1,1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,2,1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,5,1", NULL);
+            break;
+        case BAND_MODE_EURO:
+            at_send_command(s_ATChannels[channelID], "AT+SBAND=1,13,4", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,1,1", NULL);
+            break;
+        case BAND_MODE_USA:
+            at_send_command(s_ATChannels[channelID], "AT+SBAND=1,13,7", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,2,1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,5,1", NULL);
+            break;
+        case BAND_MODE_JPN:
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,2,1", NULL);
+            break;
+        case BAND_MODE_AUS:
+            at_send_command(s_ATChannels[channelID], "AT+SBAND=1,13,4", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,2,1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,5,1", NULL);
+            break;
+        case BAND_MODE_AUS_2:
+            at_send_command(s_ATChannels[channelID], "AT+SBAND=1,13,4", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPFDDBAND=1,5,1", NULL);
+            break;
+        default:
+            break;
+    }
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+}
+
+static void requestGetBandMode(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    RIL_UNUSED_PARM(channelID);
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int i, size = 5;
+    int response[20] = {0};
+
+    response[0] = size;
+    for (i = 1; i <= size; i++) {
+        response[i] = i;
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS,
+            response, (size + 1) * sizeof(int));
+}
+
 static int requestSetLTEPreferredNetType(int channelID, void *data,
                                             size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -2894,10 +2950,12 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         case RIL_REQUEST_RESET_RADIO:
             requestResetRadio(channelID, data, datalen, t);
             break;
-        // case RIL_REQUEST_SET_BAND_MODE:
-        //    break;
-        // case RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE:
-        //    break;
+        case RIL_REQUEST_SET_BAND_MODE:
+            requestSetBandMode(channelID, data, datalen, t);
+            break;
+        case RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE:
+            requestGetBandMode(channelID, data, datalen, t);
+            break;
         case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
         case RIL_EXT_REQUEST_SET_PREFERRED_NETWORK_TYPE: {
             if (s_isLTE) {

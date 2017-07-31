@@ -225,6 +225,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_REQUEST_SHUTDOWN ||
           request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
           request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY ||
+          request == RIL_REQUEST_SET_BAND_MODE ||
+          request == RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE ||
           request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_STATUS ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
@@ -281,6 +283,8 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE ||
                  request == RIL_REQUEST_NV_RESET_CONFIG ||
                  request == RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE ||
+                 request == RIL_REQUEST_SET_BAND_MODE ||
+                 request == RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
