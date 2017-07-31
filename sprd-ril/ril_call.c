@@ -1294,7 +1294,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         // case RIL_REQUEST_QUERY_TTY_MODE:
         //     break;
         case RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE:
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         /* IMS request @{ */
         case RIL_REQUEST_GET_IMS_CURRENT_CALLS:
