@@ -1330,13 +1330,21 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         RLOGI("Reference-ril. requestSIM_IO pin2");
     }
     if (p_args->data == NULL) {
-        if(isISIMfile) {
+        if (isISIMfile) {
+            if (s_sim_sessionId[socket_id] == -1) {
+                RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                goto error;
+            }
             err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"",
                     s_sim_sessionId[getSocketIdByChannelID(channelID)],
                     p_args->command, p_args->fileid,
                     p_args->p1, p_args->p2, p_args->p3,pad_data,p_args->path);
         }  else {
-            if(isISIMfile) {
+            if (isISIMfile) {
+                if (s_sim_sessionId[socket_id] == -1) {
+                    RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                    goto error;
+                }
                 err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"",
                         s_sim_sessionId[getSocketIdByChannelID(channelID)],
                         p_args->command, p_args->fileid,
