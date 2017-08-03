@@ -1868,6 +1868,8 @@ static void requestNeighboaringCellIds(int channelID,
 
         if (at_tok_hasmore(&line)) {  // only in 3G
             char *sskip = NULL;
+            char *arfcn = NULL;
+            char *bsic = NULL;
             int skip;
 
             err = at_tok_nextstr(&line, &sskip);
@@ -1886,13 +1888,25 @@ static void requestNeighboaringCellIds(int channelID,
             NeighboringCell = (RIL_NeighboringCell *)
                     alloca(cellIdNumber * sizeof(RIL_NeighboringCell));
 
+            char **wcdmaCid = (char **)alloca(cellIdNumber * sizeof(char *));
+            int i = 0;
+            for (i = 0; i < cellIdNumber; i++) {
+                wcdmaCid[i] = (char *)alloca(ARRAY_SIZE * sizeof(char));
+            }
+
             for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
                     current++) {
-                err = at_tok_nextstr(&line, &(NeighboringCell[current].cid));
+                err = at_tok_nextstr(&line, &(arfcn));
+                if (err < 0) goto error;
+
+                err = at_tok_nextstr(&line, &(bsic));
                 if (err < 0) goto error;
 
                 err = at_tok_nextint(&line, &(NeighboringCell[current].rssi));
                 if (err < 0) goto error;
+
+                snprintf(wcdmaCid[current], ARRAY_SIZE, "%s,%s", arfcn, bsic);
+                NeighboringCell[current].cid = wcdmaCid[current];
 
                 RLOGD("Neighbor cell_id %s = %d", NeighboringCell[current].cid,
                       NeighboringCell[current].rssi);
