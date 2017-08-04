@@ -21,6 +21,9 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <termios.h>
+#include <hardware/ril/librilutils/proto/sap-api.pb.h>
+#include "pb_decode.h"
+#include "pb_encode.h"
 
 #include "sprd_ril.h"
 #include "ril_sim.h"
@@ -118,10 +121,13 @@ static const struct timeval TIMEVAL_0 = {0, 0};
 
 #if defined (ANDROID_MULTI_SIM)
 static void onRequest(int request, void *data, size_t datalen,
-                       RIL_Token t, RIL_SOCKET_ID socket_id);
+                      RIL_Token t, RIL_SOCKET_ID socket_id);
+static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t,
+                         RIL_SOCKET_ID socket_id);
 RIL_RadioState currentState(RIL_SOCKET_ID socket_id);
 #else
 static void onRequest(int request, void *data, size_t datalen, RIL_Token t);
+static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t);
 RIL_RadioState currentState();
 #endif
 
@@ -135,6 +141,18 @@ static void initVaribales(RIL_SOCKET_ID socket_id);
 static const RIL_RadioFunctions s_callbacks = {
     RIL_VERSION,
     onRequest,
+    currentState,
+    onSupports,
+    onCancel,
+    getVersion,
+    sendCmdSync,
+    initVaribales
+};
+
+const struct RIL_Env *s_rilSapEnv;
+static const RIL_RadioFunctions s_sapCallbacks = {
+    RIL_VERSION,
+    onSapRequest,
     currentState,
     onSupports,
     onCancel,
@@ -357,6 +375,101 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
     }
     putRequestChannel(soc_id, request, channelID);
+}
+
+/*
+ * sap
+ */
+void OnSapRequestComplete(RIL_Token t, RIL_Errno e, MsgId msgId, void *data) {
+    bool success = false;
+    int i = 0;
+    size_t encoded_size = 0;
+    size_t buffer_size = 0;
+    ssize_t written_bytes;
+    uint32_t written_size = 0;
+    pb_ostream_t ostream;
+    const pb_field_t *fields = NULL;
+
+    RLOGD("OnSapRequestComplete, msgId (%d)", msgId);
+
+    switch (msgId) {
+        case MsgId_RIL_SIM_SAP_CONNECT:
+            fields = RIL_SIM_SAP_CONNECT_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_DISCONNECT:
+            fields = RIL_SIM_SAP_DISCONNECT_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_APDU:
+            fields = RIL_SIM_SAP_APDU_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_TRANSFER_ATR:
+            fields = RIL_SIM_SAP_TRANSFER_ATR_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_POWER:
+            fields = RIL_SIM_SAP_POWER_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_RESET_SIM:
+            fields = RIL_SIM_SAP_RESET_SIM_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_SET_TRANSFER_PROTOCOL:
+            fields = RIL_SIM_SAP_SET_TRANSFER_PROTOCOL_RSP_fields;
+            break;
+        case MsgId_RIL_SIM_SAP_ERROR_RESP:
+            fields = RIL_SIM_SAP_ERROR_RSP_fields;
+            break;
+        default:
+            RLOGE("OnSapRequestComplete, MsgId error!");
+            return;
+    }
+
+    if ((success = pb_get_encoded_size(&encoded_size, fields, data)) &&
+        encoded_size <= INT32_MAX) {
+        buffer_size = encoded_size;
+        uint8_t buffer[buffer_size];
+        ostream = pb_ostream_from_buffer(buffer, buffer_size);
+        success = pb_encode(&ostream, fields, data);
+
+        if (success) {
+            RLOGD("OnSapRequestComplete, Size: %d (0x%x) written size: 0x%x",
+                encoded_size, encoded_size, written_size);
+            s_rilSapEnv->OnRequestComplete(t, e, buffer, buffer_size);
+        } else {
+            RLOGE("OnSapRequestComplete, Encode failed!");
+        }
+    } else {
+        RLOGE("Not sending response msgId %d: encoded_size: %u. result: %d",
+        msgId, encoded_size, success);
+    }
+}
+
+#if defined(ANDROID_MULTI_SIM)
+static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t,
+                         RIL_SOCKET_ID socket_id) {
+    RIL_UNUSED_PARM(socket_id);
+#else
+static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t) {
+#endif
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+
+    RLOGD("onSapRequest: %d", request);
+    if (request < MsgId_RIL_SIM_SAP_CONNECT /* MsgId_UNKNOWN_REQ */ ||
+        request > MsgId_RIL_SIM_SAP_SET_TRANSFER_PROTOCOL) {
+        RLOGE("invalid msgId");
+        RIL_SIM_SAP_ERROR_RSP rsp;
+        rsp.dummy_field = 1;
+        OnSapRequestComplete(t, (RIL_Errno)Error_RIL_E_REQUEST_NOT_SUPPORTED,
+                                MsgId_RIL_SIM_SAP_ERROR_RESP ,&rsp);
+        return;
+    }
+
+    RIL_SIM_SAP_CONNECT_RSP rsp;
+    rsp.response = RIL_SIM_SAP_CONNECT_RSP_Response_RIL_E_SAP_CONNECT_FAILURE;
+    rsp.has_max_message_size = false;
+    rsp.max_message_size = 0;
+    OnSapRequestComplete(t, (RIL_Errno)Error_RIL_E_GENERIC_FAILURE,
+                            MsgId_RIL_SIM_SAP_CONNECT, &rsp);
 }
 
 /**
@@ -1049,6 +1162,16 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     setHwVerPorp();
     initOperatorInfoList(&s_operatorInfoList);
     return &s_callbacks;
+}
+
+const RIL_RadioFunctions *RIL_SAP_Init(const struct RIL_Env *env,
+                                       int argc, char **argv) {
+    RLOGD("RIL_SAP_Init");
+    RIL_UNUSED_PARM(argc);
+    RIL_UNUSED_PARM(argv);
+
+    s_rilSapEnv = env;
+    return &s_sapCallbacks;
 }
 #else  /* RIL_SHLIB */
 int main(int argc, char **argv) {
