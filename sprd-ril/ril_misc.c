@@ -411,7 +411,7 @@ void vsimInit() {
 void* sendVsimReqThread(void *cmd) {
     RLOGD("vsim write cmd = %s", cmd);
     if (s_vsimClientFd >= 0) {
-        int len = strlen((char *)cmd) + 1;
+        int len = strlen((char *)cmd);
         RLOGD("vsim write cmd len= %d", len);
         if (TEMP_FAILURE_RETRY(write(s_vsimClientFd, cmd, len)) !=
                                       len) {
