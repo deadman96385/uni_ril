@@ -57,14 +57,40 @@ typedef enum {
     S_MAX_AT_CHANNELS = S_AT_CHANNEL_OFFSET
 } S_ATChannelId;
 
-void requestThreadsInit(int simCount, int threadNumber);
-void setChannelInfo(int fd, int channelID);
-void setChannelOpened(RIL_SOCKET_ID socket_id);
-RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
-int getChannel(RIL_SOCKET_ID socket_id);
-void putChannel(int channelID);
-int getRequestChannel(RIL_SOCKET_ID socket_id, int request);
-void putRequestChannel(RIL_SOCKET_ID socket_id, int request, int channelID);
+typedef struct {
+    RIL_SOCKET_ID socket_id;
+    int request;
+    void *data;
+    size_t datalen;
+    RIL_Token token;
+} RequestInfo;
+
+typedef struct RequestListNode {
+    RequestInfo *p_reqInfo;
+    struct RequestListNode *next;
+    struct RequestListNode *prev;
+} RequestListNode;
+
+typedef struct {
+    pthread_t slowDispatchTid;
+    pthread_t normalDispatchTid;
+    pthread_t otherDispatchTid;
+
+    threadpool_t *p_threadpool;
+
+    RequestListNode *callReqList;
+    RequestListNode *simReqList;
+    RequestListNode *slowReqList;
+    RequestListNode *otherReqList;
+
+    pthread_mutex_t listMutex;
+    pthread_mutex_t normalDispatchMutex;
+    pthread_mutex_t slowDispatchMutex;
+    pthread_mutex_t otherDispatchMutex;
+    pthread_cond_t slowDispatchCond;
+    pthread_cond_t normalDispatchCond;
+    pthread_cond_t otherDispatchCond;
+} RequestThreadInfo;
 
 extern const char *requestToString(int request);
 

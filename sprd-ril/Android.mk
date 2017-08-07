@@ -24,9 +24,10 @@ LOCAL_SRC_FILES := \
     channel_controller.c \
     ril_stk_bip.c \
     ril_stk_parser.c \
+    ril_mmgr.c \
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog libcutils libutils librilsprd librilutils libril_tele libnetutils libril_threads
+    liblog libcutils libutils librilsprd librilutils libril_tele libnetutils
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE

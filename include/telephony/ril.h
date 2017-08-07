@@ -41,9 +41,6 @@ extern "C" {
 #define SIM_COUNT 2
 #endif
 
-#define MAX_THREADS     SIM_COUNT * 3
-#define THREAD_NUMBER   (MAX_THREADS + 1)
-
 /*
  * RIL version.
  * Value of RIL_VERSION should not be changed in future. Here onwards,
@@ -6631,6 +6628,35 @@ typedef struct {
     RIL_SendCmdSync sendCmdSync;
     RIL_InitVariables initVaribales;
 } RIL_RadioFunctions;
+
+typedef void (*RIL_processRequest)(int request, void *data, size_t datalen,
+                                   RIL_Token t, RIL_SOCKET_ID socket_id);
+
+typedef void (*RIL_setChannelInfo)(int fd, int channelID);
+
+typedef void (*RIL_setChannelOpened)(RIL_SOCKET_ID socket_id);
+
+typedef int (*RIL_getChannel)(RIL_SOCKET_ID socket_id);
+
+typedef void (*RIL_putChannel)(int channelID);
+
+typedef RIL_SOCKET_ID (*RIL_getSocketIdByChannelID)(int channelID);
+
+typedef void (*RIL_enqueueRequest)(int request, void *data, size_t datalen,
+        RIL_Token t, RIL_SOCKET_ID socket_id);
+
+typedef struct {
+    RIL_setChannelInfo setChannelInfo;
+    RIL_setChannelOpened setChannelOpened;
+    RIL_getChannel getChannel;
+    RIL_putChannel putChannel;
+    RIL_getSocketIdByChannelID getSocketIdByChannelID;
+    RIL_enqueueRequest enqueueRequest;
+} RIL_TheadsFunctions;
+
+typedef struct {
+    RIL_processRequest processRequest;
+} RIL_RequestFunctions;
 
 typedef struct {
     char *apn;                  /* the APN to connect to */

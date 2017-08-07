@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <termios.h>
+#include <dlfcn.h>
 #include <hardware/ril/librilutils/proto/sap-api.pb.h>
 #include "pb_decode.h"
 #include "pb_encode.h"
@@ -37,7 +38,7 @@
 #include "ril_utils.h"
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
-#include "request_threads.h"
+#include "ril_mmgr.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
 #define VOLTE_ENABLE_PROP       "persist.sys.volte.enable"
@@ -136,6 +137,12 @@ static void onCancel(RIL_Token t);
 static const char *getVersion();
 static void onSIMReady(int channelID);
 static void initVaribales(RIL_SOCKET_ID socket_id);
+void processRequest(int request, void *data, size_t datalen, RIL_Token t,
+                    RIL_SOCKET_ID socket_id);
+static const RIL_RequestFunctions s_requestFunctions = {
+        processRequest,
+};
+const RIL_TheadsFunctions *s_threadsFunctions = NULL;
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -201,25 +208,30 @@ static void usage(char *s) {
  */
 #if defined (ANDROID_MULTI_SIM)
 static void onRequest(int request, void *data, size_t datalen,
-        RIL_Token t, RIL_SOCKET_ID socket_id)
+                      RIL_Token t, RIL_SOCKET_ID socket_id)
 #else
 static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 #endif
 {
+#if defined(ANDROID_MULTI_SIM)
+    enqueueRequest(request, data, datalen, t, socket_id);
+#else
+    enqueueRequest(request, data, datalen, t, RIL_SOCKET_1);
+#endif
+}
+
+void processRequest(int request, void *data, size_t datalen, RIL_Token t,
+                    RIL_SOCKET_ID socket_id) {
     int err;
     int channelID = -1;
-    RIL_SOCKET_ID soc_id = RIL_SOCKET_1;
+    MemoryManager *pMC = NULL;
 
-#if defined(ANDROID_MULTI_SIM)
-    soc_id = socket_id;
-#endif
-
-    if ((int)soc_id < 0 || (int)soc_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", soc_id);
-        return;
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        goto done;
     }
 
-    RIL_RadioState radioState = s_radioState[soc_id];
+    RIL_RadioState radioState = s_radioState[socket_id];
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
 
@@ -255,7 +267,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
           request == RIL_EXT_REQUEST_SHUTDOWN)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
-        return;
+        goto done;
     }
 
     /**
@@ -354,14 +366,14 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
                  request == RIL_EXT_REQUEST_SHUTDOWN ||
                  request == RIL_EXT_REQUEST_SET_VOICE_DOMAIN)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
-        return;
+        goto done;
     }
 
-    channelID = getRequestChannel(soc_id, request);
+    channelID = getChannel(socket_id);
     if (channelID < 0 || channelID >= MAX_AT_CHANNELS) {
         RLOGE("Invalid request channelID");
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-        return;
+        goto done;
     }
 
     if (!(processSimRequests(request, data, datalen, t, channelID) ||
@@ -374,7 +386,23 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
           processSSRequests(request, data, datalen, t, channelID))) {
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
     }
-    putRequestChannel(soc_id, request, channelID);
+    putChannel(channelID);
+
+done:
+    if (request > 0 && request <= RIL_REQUEST_LAST) {
+        pMC = &(s_memoryManager[request]);
+    } else if (request > RIL_IMS_REQUEST_BASE && request <= RIL_IMS_REQUEST_LAST) {
+        request = request - RIL_IMS_REQUEST_BASE;
+        pMC = &(s_imsMemoryManager[request]);
+    } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
+        request = request - RIL_EXT_REQUEST_BASE;
+        pMC = &(s_oemMemoryManager[request]);
+    }
+    if (pMC != NULL) {
+        pMC->freeFunction(data, datalen);
+    } else {
+        RLOGE("%s hasn't freeFunction, check!", requestToString(request));
+    }
 }
 
 /*
@@ -1092,6 +1120,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_attr_t attr;
     char prop[PROPERTY_VALUE_MAX];
     s_rilEnv = env;
+    void *dlHandle = NULL;
+    const RIL_TheadsFunctions *(*rilThreadsInit)(const RIL_RequestFunctions *, int, int);
 
     while (-1 != (opt = getopt(argc, argv, "m:n:"))) {
         switch (opt) {
@@ -1128,7 +1158,19 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
 
-    requestThreadsInit(SIM_COUNT, THREAD_NUMBER);
+    dlHandle = dlopen("libril_threads.so", RTLD_NOW);
+    if (dlHandle == NULL) {
+        RLOGE("dlopen failed: %s", dlerror());
+        exit(EXIT_FAILURE);
+    }
+    rilThreadsInit = (const RIL_TheadsFunctions *(*)(const RIL_RequestFunctions *, int, int))
+            dlsym(dlHandle, "requestThreadsInit");
+    if (rilThreadsInit == NULL) {
+        RLOGE("requestThreadsInit not defined or exported in libril_threads.so");
+        exit(EXIT_FAILURE);
+    }
+    s_threadsFunctions = rilThreadsInit(&s_requestFunctions, SIM_COUNT, MAX_THR);
+
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         s_isSimPresent[simId] = SIM_UNKNOWN;

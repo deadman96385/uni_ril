@@ -83,6 +83,15 @@ extern const struct RIL_Env *s_rilEnv;
 #endif
 #endif
 
+extern const RIL_TheadsFunctions *s_threadsFunctions;
+#define setChannelInfo(fd, channelID)       s_threadsFunctions->setChannelInfo(fd, channelID)
+#define setChannelOpened(socket_id)         s_threadsFunctions->setChannelOpened(socket_id)
+#define getChannel(socket_id)               s_threadsFunctions->getChannel(socket_id)
+#define putChannel(channleID)               s_threadsFunctions->putChannel(channleID)
+#define getSocketIdByChannelID(channleID)   s_threadsFunctions->getSocketIdByChannelID(channleID)
+#define enqueueRequest(request, data, datalen, t, socket_id) \
+        s_threadsFunctions->enqueueRequest(request, data, datalen, t, socket_id)
+
 /* used as parameter by RIL_requestTimedCallback */
 typedef struct {
     RIL_SOCKET_ID socket_id;
@@ -103,15 +112,11 @@ extern struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
 extern const char *requestToString(int request);
 void *noopRemoveWarning(void *a);
-void putChannel(int channel);
 int isRadioOn(int channelID);
 bool isVoLteEnable();
 bool isLte(void);
-int getChannel(RIL_SOCKET_ID socket_id);
-RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
 RIL_RadioState getRadioState(RIL_SOCKET_ID socket_id);
 void setRadioState(int channelID, RIL_RadioState newState);
-
 extern bool isPrimaryCardWorkMode(int workMode);
 
 #endif  // SPRD_RIL_H_

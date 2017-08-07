@@ -10,9 +10,11 @@
 #include <string.h>
 #include <alloca.h>
 #include <semaphore.h>
+#include <errno.h>
 #include <utils/Log.h>
 
 #include "telephony/ril.h"
+#include "telephony/thread_pool.h"
 #include "request_threads.h"
 
 int s_simCount = 1;
@@ -31,6 +33,76 @@ WaitArrayParam **s_normalWaitArray = NULL;
 // WaitArrayParam s_slowWaitArray[SIM_COUNT][THREAD_NUMBER];
 // WaitArrayParam s_normalWaitArray[SIM_COUNT][THREAD_NUMBER];
 // WaitArrayParam s_dataWaitArray[THREAD_NUMBER];
+
+int s_socketId[4] = {0, 1, 2, 3};
+RequestThreadInfo *s_requestThread = NULL;
+RequestListNode *s_dataReqList = NULL;
+pthread_mutex_t s_dataDispatchMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_dataDispatchCond  = PTHREAD_COND_INITIALIZER;
+
+void setChannelInfo(int fd, int channelID);
+void setChannelOpened(RIL_SOCKET_ID socket_id);
+void putChannel(int channelID);
+void enqueueRequest(int request, void *data, size_t datalen, RIL_Token t,
+                    RIL_SOCKET_ID socket_id);
+void *noopRemoveWarning(void *a);
+int getChannel(RIL_SOCKET_ID socket_id);
+RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
+
+const RIL_RequestFunctions *s_requestFunctions = NULL;
+#define processRequest(request, data, datalen, t, socket_id) \
+        s_requestFunctions->processRequest(request, data, datalen, t, socket_id)
+#define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
+
+static const RIL_TheadsFunctions s_threadsFunctions = {
+    setChannelInfo,
+    setChannelOpened,
+    getChannel,
+    putChannel,
+    getSocketIdByChannelID,
+    enqueueRequest
+};
+
+void *noopRemoveWarning(void *a) {
+    return a;
+}
+
+void request_list_init(RequestListNode **node) {
+    *node = (RequestListNode *)malloc(sizeof(RequestListNode));
+    if (*node == NULL) {
+        RLOGE("Failed malloc memory!");
+    } else {
+        (*node)->next = *node;
+        (*node)->prev = *node;
+    }
+}
+
+void request_list_add_tail(RequestListNode *head, RequestListNode *item,
+                           RIL_SOCKET_ID socket_id) {
+    pthread_mutex_lock(&s_requestThread[socket_id].listMutex);
+    item->next = head;
+    item->prev = head->prev;
+    head->prev->next = item;
+    head->prev = item;
+    pthread_mutex_unlock(&s_requestThread[socket_id].listMutex);
+}
+
+void request_list_add_head(RequestListNode *head, RequestListNode *item,
+                           RIL_SOCKET_ID socket_id) {
+    pthread_mutex_lock(&s_requestThread[socket_id].listMutex);
+    item->next = head->next;
+    item->prev = head;
+    head->next->prev = item;
+    head->next = item;
+    pthread_mutex_unlock(&s_requestThread[socket_id].listMutex);
+}
+
+void request_list_remove(RequestListNode *item, RIL_SOCKET_ID socket_id) {
+    pthread_mutex_lock(&s_requestThread[socket_id].listMutex);
+    item->next->prev = item->prev;
+    item->prev->next = item->next;
+    pthread_mutex_unlock(&s_requestThread[socket_id].listMutex);
+}
 
 void setChannelInfo(int fd, int channelID) {
     s_channelInfo[channelID].fd = fd;
@@ -113,6 +185,7 @@ RIL_SOCKET_ID getSocketIdByChannelID(int channelID) {
     return socket_id;
 }
 
+#if 0
 int acquireSemLock() {
     int semLockID = 0;
 
@@ -171,8 +244,10 @@ int addWaitArray(int semLockId, ATCmdType cmdType, WaitArrayParam *pWaitArray) {
             if (-1 == pWaitArray[i].semLockID ||
                (i != 0 && pWaitArray[i].cmdType == AT_CMD_TYPE_NORMAL_SLOW)) {
                 int j = 0;
-                for (j = i; j < s_threadNumber - 1, pWaitArray[j].semLockID != -1; j++) {
-                    pWaitArray[j + 1] = pWaitArray[j];
+                for (j = s_threadNumber - 2; j >= i; j--) {
+                    if (pWaitArray[j].semLockID != -1) {
+                        pWaitArray[j + 1] = pWaitArray[j];
+                    }
                 }
                 pWaitArray[i].semLockID = semLockId;
                 pWaitArray[i].cmdType = cmdType;
@@ -202,6 +277,105 @@ void removeWaitArray(WaitArrayParam *pWaitArray) {
     pWaitArray[s_threadNumber - 1].semLockID = -1;
     pWaitArray[s_threadNumber - 1].cmdType = AT_CMD_TYPE_UNKOWN;
 }
+
+
+const char *typeToString(ATCmdType cmdType) {
+    switch (cmdType) {
+        case AT_CMD_TYPE_UNKOWN : return "UNKOWN";
+        case AT_CMD_TYPE_SLOW : return "SLOW";
+        case AT_CMD_TYPE_NORMAL_SLOW: return "NORMAL_SLOW";
+        case AT_CMD_TYPE_NORMAL_FAST: return "NORMAL_FAST";
+        case AT_CMD_TYPE_DATA: return "DATA";
+        case AT_CMD_TYPE_OTHER: return "OTHER";
+        default: return "unkown";
+    }
+}
+
+void printWaitArray(WaitArrayParam *pWaitArray, RIL_SOCKET_ID socket_id) {
+    int i = 0;
+    for (i = 0; i < s_threadNumber; i++) {
+        if (pWaitArray[i].semLockID != -1) {
+            if (pWaitArray == s_slowWaitArray[socket_id]
+             || pWaitArray == s_normalWaitArray[socket_id]) {
+            RLOGD("%sWaitArray[%d][%d].semLockID = %d, type = %s ",
+                    pWaitArray == s_slowWaitArray[socket_id] ? "slow": "normal",
+                    socket_id, i, pWaitArray[i].semLockID, typeToString(pWaitArray[i].cmdType));
+            } else {
+                RLOGD("dataWaitArray[%d].semLockID = %d, type = %s ",
+                        i, pWaitArray[i].semLockID, typeToString(pWaitArray[i].cmdType));
+            }
+        }
+    }
+}
+
+int getRequestChannel(RIL_SOCKET_ID socket_id, int request) {
+    int channelID = -1;
+
+    ATCmdType cmdType = AT_CMD_TYPE_OTHER;
+
+    cmdType = getCmdType(request);
+    RLOGD("getRequestChannel-sim%d: request = %s, type = %s",
+            socket_id, requestToString(request), typeToString(cmdType));
+    if (cmdType == AT_CMD_TYPE_OTHER) {  // no blocking
+        channelID = getChannel(socket_id);
+    } else {  // blocking
+        int index = -1;
+        WaitArrayParam *pWaitArray = NULL;
+        int semLockID = acquireSemLock();
+        RLOGD("getRequestChannel: getSemLock %d", semLockID);
+
+        pthread_mutex_lock(&s_waitArrayMutex);
+        pWaitArray = getWaitArray(socket_id, cmdType);
+        printWaitArray(pWaitArray, socket_id);
+        index = addWaitArray(semLockID, cmdType, pWaitArray);
+        RLOGD("after addWaitArray");
+        printWaitArray(pWaitArray, socket_id);
+        pthread_mutex_unlock(&s_waitArrayMutex);
+        if (index == 0) {
+            channelID = getChannel(socket_id);
+        } else if (index > 0 || index < s_threadNumber) {
+            RLOGD("getRequestChannel:before sem_wait semLockId = %d", semLockID);
+            sem_wait(&s_semLockArray[semLockID].semLock);
+            RLOGD("getRequestChannel:after sem_wait semLockId = %d", semLockID);
+            channelID = getChannel(socket_id);
+        } else {
+            RLOGE("Invalid waitArray index");
+        }
+    }
+
+    return channelID;
+}
+
+void putRequestChannel(RIL_SOCKET_ID socket_id, int request, int channelID) {
+    ATCmdType cmdType = AT_CMD_TYPE_OTHER;
+    WaitArrayParam *pWaitArray = NULL;
+    int semLockID = -1;
+
+    putChannel(channelID);
+
+    cmdType = getCmdType(request);
+    RLOGD("putRequestChannel-sim%d: request = %s, type = %s",
+            socket_id, requestToString(request), typeToString(cmdType));
+
+    if (cmdType != AT_CMD_TYPE_OTHER) {
+        pthread_mutex_lock(&s_waitArrayMutex);
+        pWaitArray = getWaitArray(socket_id, cmdType);
+        semLockID = pWaitArray[0].semLockID;
+        releaseSemLock(semLockID);
+        printWaitArray(pWaitArray, socket_id);
+        removeWaitArray(pWaitArray);
+        RLOGD("after removeWaitArray");
+        printWaitArray(pWaitArray, socket_id);
+
+        semLockID = pWaitArray[0].semLockID;
+        RLOGD("putRequestChannel, socket_id = %d, semLockID = %d", socket_id, semLockID);
+        if (semLockID != -1) {
+            sem_post(&s_semLockArray[semLockID].semLock);
+        }
+        pthread_mutex_unlock(&s_waitArrayMutex);
+    }
+}
+#endif
 
 ATCmdType getCmdType(int request) {
     ATCmdType cmdType = AT_CMD_TYPE_OTHER;
@@ -266,108 +440,210 @@ ATCmdType getCmdType(int request) {
     return cmdType;
 }
 
-const char *typeToString(ATCmdType cmdType) {
-    switch (cmdType) {
-        case AT_CMD_TYPE_UNKOWN : return "UNKOWN";
-        case AT_CMD_TYPE_SLOW : return "SLOW";
-        case AT_CMD_TYPE_NORMAL_SLOW: return "NORMAL_SLOW";
-        case AT_CMD_TYPE_NORMAL_FAST: return "NORMAL_FAST";
-        case AT_CMD_TYPE_DATA: return "DATA";
-        case AT_CMD_TYPE_OTHER: return "OTHER";
-        default: return "unkown";
+static void *slowDispatch(void *param) {
+    RequestListNode *cmd_item;
+    pid_t tid = gettid();
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    pthread_mutex_t *slowDispatchMutex =
+            &(s_requestThread[socket_id].slowDispatchMutex);
+    pthread_cond_t *slowDispatchCond =
+            &(s_requestThread[socket_id].slowDispatchCond);
+    RequestListNode *slow_list = s_requestThread[socket_id].slowReqList;
+
+    while (1) {
+        pthread_mutex_lock(slowDispatchMutex);
+        if (slow_list->next == slow_list) {
+            pthread_cond_wait(slowDispatchCond, slowDispatchMutex);
+        }
+        pthread_mutex_unlock(slowDispatchMutex);
+
+        for (cmd_item = slow_list->next; cmd_item != slow_list;
+                cmd_item = slow_list->next) {
+            RequestInfo *p_reqInfo = cmd_item->p_reqInfo;
+            processRequest(p_reqInfo->request, p_reqInfo->data,
+                    p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
+            RLOGI("-->slowDispatch [%d] free one command", tid);
+            request_list_remove(cmd_item, socket_id);  /* remove list node first, then free it */
+            free(cmd_item->p_reqInfo);
+            free(cmd_item);
+        }
     }
 }
 
-void printWaitArray(WaitArrayParam *pWaitArray, RIL_SOCKET_ID socket_id) {
-    int i = 0;
-    for (i = 0; i < s_threadNumber; i++) {
-        if (pWaitArray[i].semLockID != -1) {
-            if (pWaitArray == s_slowWaitArray[socket_id]
-             || pWaitArray == s_normalWaitArray[socket_id]) {
-            RLOGD("%sWaitArray[%d][%d].semLockID = %d, type = %s ",
-                    pWaitArray == s_slowWaitArray[socket_id] ? "slow": "normal",
-                    socket_id, i, pWaitArray[i].semLockID, typeToString(pWaitArray[i].cmdType));
+static void *normalDispatch(void *param) {
+    RequestListNode *cmd_item = NULL;
+    pid_t tid = gettid();
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    pthread_mutex_t *normalDispatchMutex =
+            &(s_requestThread[socket_id].normalDispatchMutex);
+    pthread_cond_t *normalDispatchCond =
+            &(s_requestThread[socket_id].normalDispatchCond);
+    RequestListNode *call_list = s_requestThread[socket_id].callReqList;
+    RequestListNode *sim_list = s_requestThread[socket_id].simReqList;
+
+    while (1) {
+        pthread_mutex_lock(normalDispatchMutex);
+        if ((call_list->next == call_list) && (sim_list->next == sim_list)) {
+            pthread_cond_wait(normalDispatchCond, normalDispatchMutex);
+        }
+        pthread_mutex_unlock(normalDispatchMutex);
+
+        while ((call_list->next != call_list) || (sim_list->next != sim_list)) {
+            if (call_list->next != call_list) {  // call_list has priority
+                cmd_item = call_list->next;
             } else {
-                RLOGD("dataWaitArray[%d].semLockID = %d, type = %s ",
-                        i, pWaitArray[i].semLockID, typeToString(pWaitArray[i].cmdType));
+                cmd_item = sim_list->next;
             }
+            RequestInfo *p_reqInfo = cmd_item->p_reqInfo;
+            processRequest(p_reqInfo->request, p_reqInfo->data,
+                    p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
+            RLOGI("-->normalDispatch [%d] free one command", tid);
+            request_list_remove(cmd_item, socket_id);
+            free(cmd_item->p_reqInfo);
+            free(cmd_item);
         }
     }
 }
 
-int getRequestChannel(RIL_SOCKET_ID socket_id, int request) {
-    int channelID = -1;
+static void *dataDispatch(void *param) {
+    RIL_UNUSED_PARM(param);
 
-    ATCmdType cmdType = AT_CMD_TYPE_OTHER;
+    RequestListNode *cmd_item = NULL;
+    pid_t tid = gettid();
 
-    cmdType = getCmdType(request);
-    RLOGD("getRequestChannel-sim%d: request = %s, type = %s",
-            socket_id, requestToString(request), typeToString(cmdType));
-    if (cmdType == AT_CMD_TYPE_OTHER) {  // no blocking
-        channelID = getChannel(socket_id);
-    } else {  // blocking
-        int index = -1;
-        WaitArrayParam *pWaitArray = NULL;
-        int semLockID = acquireSemLock();
-        RLOGD("getRequestChannel: getSemLock %d", semLockID);
+    pthread_mutex_t *dataDispatchMutex = &s_dataDispatchMutex;
+    pthread_cond_t *dataDispatchCond = &s_dataDispatchCond;
+    RequestListNode *dataList = s_dataReqList;
 
-        pthread_mutex_lock(&s_waitArrayMutex);
-        pWaitArray = getWaitArray(socket_id, cmdType);
-        printWaitArray(pWaitArray, socket_id);
-        index = addWaitArray(semLockID, cmdType, pWaitArray);
-        RLOGD("after addWaitArray");
-        printWaitArray(pWaitArray, socket_id);
-        pthread_mutex_unlock(&s_waitArrayMutex);
-        RLOGD("getRequestChannel: index in waitArray = %d", index);
-        if (index == 0) {
-            channelID = getChannel(socket_id);
-        } else if (index > 0 || index < s_threadNumber) {
-            RLOGD("getRequestChannel:before sem_wait semLockId = %d", semLockID);
-            sem_wait(&s_semLockArray[semLockID].semLock);
-            RLOGD("getRequestChannel:after sem_wait semLockId = %d", semLockID);
-            channelID = getChannel(socket_id);
+    while (1) {
+        pthread_mutex_lock(dataDispatchMutex);
+        if (dataList->next == dataList) {
+            pthread_cond_wait(dataDispatchCond, dataDispatchMutex);
+        }
+        pthread_mutex_unlock(dataDispatchMutex);
+
+        for (cmd_item = dataList->next; cmd_item != dataList;
+                cmd_item = dataList->next) {
+            RequestInfo *p_reqInfo = cmd_item->p_reqInfo;
+            processRequest(p_reqInfo->request, p_reqInfo->data,
+                    p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
+            RLOGI("-->dataDispatch [%d] free one command", tid);
+            request_list_remove(cmd_item, RIL_SOCKET_1);  /* remove list node first, then free it */
+            free(cmd_item->p_reqInfo);
+            free(cmd_item);
+        }
+    }
+}
+
+static void CommandThread(void *arg, void *socket_id) {
+    pid_t tid = gettid();
+    RequestInfo *p_reqInfo = (RequestInfo *)arg;
+    RIL_SOCKET_ID soc_id = *((RIL_SOCKET_ID *)socket_id);
+    processRequest(p_reqInfo->request, p_reqInfo->data,
+            p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
+    RLOGI("-->CommandThread [%d] free one command", tid);
+    free(p_reqInfo);
+}
+
+static void *otherDispatch(void *param) {
+    int ret = -1;
+    pid_t tid = gettid();
+    RequestListNode *cmd_item = NULL;
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    pthread_mutex_t *otherDispatchMutex =
+            &(s_requestThread[socket_id].otherDispatchMutex);
+    pthread_cond_t *otherDispatchCond =
+            &(s_requestThread[socket_id].otherDispatchCond);
+    RequestListNode *other_list = s_requestThread[socket_id].otherReqList;
+    threadpool_t *thrpool = s_requestThread[socket_id].p_threadpool;
+
+    while (1) {
+        pthread_mutex_lock(otherDispatchMutex);
+        if (other_list->next == other_list) {
+            pthread_cond_wait(otherDispatchCond, otherDispatchMutex);
+        }
+        pthread_mutex_unlock(otherDispatchMutex);
+
+        for (cmd_item = other_list->next; cmd_item != other_list;
+                cmd_item = other_list->next) {
+            do {
+                ret = thread_pool_dispatch(thrpool, CommandThread,
+                        cmd_item->p_reqInfo, (void *)&s_socketId[socket_id]);
+                if (!ret) {
+                    RLOGE("dispatch a new thread unsuccess");
+                    sleep(1);
+                }
+            } while (!ret);
+            request_list_remove(cmd_item, socket_id);  /* remove listnode first, then free it */
+            free(cmd_item);
+        }
+    }
+}
+
+void enqueueRequest(int request, void *data, size_t datalen, RIL_Token t,
+                    RIL_SOCKET_ID socket_id) {
+    RequestInfo *p_reqInfo = NULL;
+    RequestListNode *p_reqNode = NULL;
+    RequestThreadInfo *cmdList = &s_requestThread[socket_id];
+
+    p_reqNode = (RequestListNode *)calloc(1, sizeof(RequestListNode));
+    if (p_reqNode == NULL) {
+        RLOGE("Failed to allocate memory for cmd_item");
+        exit(-1);
+    }
+    p_reqInfo =(RequestInfo *)calloc(1, sizeof(RequestInfo));
+    if (p_reqInfo == NULL) {
+        RLOGE("Failed to allocate memory for p_reqData");
+        free(p_reqNode);
+        exit(-1);
+    }
+
+    p_reqInfo->socket_id = socket_id;
+    p_reqInfo->request = request;
+    p_reqInfo->data = data;
+    p_reqInfo->datalen = datalen;
+    p_reqInfo->token = t;
+
+    p_reqNode->p_reqInfo = p_reqInfo;
+
+    ATCmdType cmdType = getCmdType(request);
+    if (cmdType == AT_CMD_TYPE_SLOW) {
+        request_list_add_tail(cmdList->slowReqList, p_reqNode, socket_id);
+        pthread_mutex_lock(&(cmdList->slowDispatchMutex));
+        pthread_cond_signal(&(cmdList->slowDispatchCond));
+        pthread_mutex_unlock(&(cmdList->slowDispatchMutex));
+    } else if (cmdType == AT_CMD_TYPE_NORMAL_SLOW ||
+               cmdType == AT_CMD_TYPE_NORMAL_FAST) {
+        if (cmdType == AT_CMD_TYPE_NORMAL_FAST) {
+            request_list_add_tail(cmdList->callReqList, p_reqNode, socket_id);
         } else {
-            RLOGE("Invalid waitArray index");
+            request_list_add_tail(cmdList->simReqList, p_reqNode, socket_id);
         }
-    }
-
-    return channelID;
-}
-
-void putRequestChannel(RIL_SOCKET_ID socket_id, int request, int channelID) {
-    ATCmdType cmdType = AT_CMD_TYPE_OTHER;
-    WaitArrayParam *pWaitArray = NULL;
-    int semLockID = -1;
-
-    putChannel(channelID);
-
-    cmdType = getCmdType(request);
-    RLOGD("putRequestChannel-sim%d: request = %s, type = %s",
-            socket_id, requestToString(request), typeToString(cmdType));
-
-    if (cmdType != AT_CMD_TYPE_OTHER) {
-        pthread_mutex_lock(&s_waitArrayMutex);
-        pWaitArray = getWaitArray(socket_id, cmdType);
-        semLockID = pWaitArray[0].semLockID;
-        releaseSemLock(semLockID);
-        printWaitArray(pWaitArray, socket_id);
-        removeWaitArray(pWaitArray);
-        RLOGD("after removeWaitArray");
-        printWaitArray(pWaitArray, socket_id);
-
-        semLockID = pWaitArray[0].semLockID;
-        RLOGD("putRequestChannel, socket_id = %d, semLockID = %d", socket_id, semLockID);
-        if (semLockID != -1) {
-            sem_post(&s_semLockArray[semLockID].semLock);
-            RLOGD("putRequestChannel, sem_post semLockId = %d", semLockID);
-        }
-        pthread_mutex_unlock(&s_waitArrayMutex);
+        pthread_mutex_lock(&(cmdList->normalDispatchMutex));
+        pthread_cond_signal(&(cmdList->normalDispatchCond));
+        pthread_mutex_unlock(&(cmdList->normalDispatchMutex));
+    } else if (cmdType == AT_CMD_TYPE_DATA) {
+        request_list_add_tail(s_dataReqList, p_reqNode, RIL_SOCKET_1);
+        pthread_mutex_lock(&s_dataDispatchMutex);
+        pthread_cond_signal(&s_dataDispatchCond);
+        pthread_mutex_unlock(&s_dataDispatchMutex);
+    } else {
+        request_list_add_tail(cmdList->otherReqList, p_reqNode, socket_id);
+        pthread_mutex_lock(&(cmdList->otherDispatchMutex));
+        pthread_cond_signal(&(cmdList->otherDispatchCond));
+        pthread_mutex_unlock(&(cmdList->otherDispatchMutex));
     }
 }
 
-void requestThreadsInit(int simCount, int threadNumber) {
+const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunctions,
+                                              int simCount, int threadNumber) {
     int i = 0;
+    int ret = -1;
 
+    s_requestFunctions = requestFunctions;
     s_simCount = simCount;
     s_threadNumber = threadNumber;
     s_maxChannelNum = (simCount == 1 ? S_MAX_AT_CHANNELS : D_MAX_AT_CHANNELS);
@@ -375,6 +651,72 @@ void requestThreadsInit(int simCount, int threadNumber) {
     RLOGD("requestThreadsInit: simCount = %d, threadNumber = %d, maxChannelNum = %d",
             s_simCount, s_threadNumber, s_maxChannelNum);
 
+    s_channelInfo = (ChannelInfo *)calloc(s_maxChannelNum, sizeof(ChannelInfo));
+    for (i = 0; i < s_maxChannelNum; i++) {
+        s_channelInfo[i].fd = -1;
+    }
+
+    s_requestThread = (RequestThreadInfo *)calloc(simCount, sizeof(RequestThreadInfo));
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    for (int simId = 0; simId < s_simCount; simId++) {
+        RequestThreadInfo *p_requestThread = &s_requestThread[simId];
+
+        pthread_mutex_init(&p_requestThread->listMutex, NULL);
+        pthread_mutex_init(&p_requestThread->normalDispatchMutex, NULL);
+        pthread_mutex_init(&p_requestThread->slowDispatchMutex, NULL);
+        pthread_mutex_init(&p_requestThread->otherDispatchMutex, NULL);
+        pthread_cond_init(&p_requestThread->slowDispatchCond, NULL);
+        pthread_cond_init(&p_requestThread->normalDispatchCond, NULL);
+        pthread_cond_init(&p_requestThread->otherDispatchCond, NULL);
+
+        request_list_init(&(s_requestThread[simId].slowReqList));
+        request_list_init(&(s_requestThread[simId].otherReqList));
+        request_list_init(&(s_requestThread[simId].callReqList));
+        request_list_init(&(s_requestThread[simId].simReqList));
+
+        s_requestThread[simId].p_threadpool = thread_pool_init(threadNumber, 10000);
+        if (s_requestThread[simId].p_threadpool->thr_max == threadNumber) {
+            RLOGI("SIM%d: %d CommandThread create",
+                    simId, s_requestThread[simId].p_threadpool->thr_max);
+        }
+
+        ret = pthread_create(&(s_requestThread[simId].slowDispatchTid),
+        &attr, slowDispatch, (void *)&s_socketId[simId]);
+        if (ret < 0) {
+            RLOGE("Failed to create slow dispatch thread errno: %s", strerror(errno));
+            return NULL;
+        }
+
+        ret = pthread_create(&(s_requestThread[simId].normalDispatchTid),
+        &attr, normalDispatch, (void *)&s_socketId[simId]);
+        if (ret < 0) {
+            RLOGE("Failed to create normal dispatch thread errno: %s", strerror(errno));
+            return NULL;
+        }
+
+        ret = pthread_create(&(s_requestThread[simId].otherDispatchTid),
+         &attr, otherDispatch, (void *)&s_socketId[simId]);
+        if (ret < 0) {
+            RLOGE("Failed to create other dispatch thread errno: %s", strerror(errno));
+            return NULL;
+        }
+    }
+
+    if (simCount >= 2) {
+        request_list_init(&s_dataReqList);
+        pthread_t tid;
+        ret = pthread_create(&tid, &attr, dataDispatch, NULL);
+        if (ret < 0) {
+            RLOGE("Failed to create data dispatch thread errno: %s", strerror(errno));
+            return NULL;
+        }
+    }
+
+#if 0
     s_slowWaitArray = (WaitArrayParam **)calloc(simCount, sizeof(WaitArrayParam *));
     for (i = 0; i < simCount; i++) {
         s_slowWaitArray[i] = (WaitArrayParam *)calloc(s_threadNumber, sizeof(WaitArrayParam));
@@ -390,14 +732,11 @@ void requestThreadsInit(int simCount, int threadNumber) {
     s_dataWaitArray = (WaitArrayParam *)calloc(s_threadNumber, sizeof(WaitArrayParam));
     memset(s_dataWaitArray, -1, sizeof(WaitArrayParam) * s_threadNumber);
 
-
     s_semLockArray = (SemLockInfo *)calloc(s_threadNumber, sizeof(SemLockInfo));
     for (i = 0; i< s_threadNumber; i++) {
         sem_init(&s_semLockArray[i].semLock, 0, 0);
     }
+#endif
 
-    s_channelInfo = (ChannelInfo *)calloc(s_maxChannelNum, sizeof(ChannelInfo));
-    for (i = 0; i < s_maxChannelNum; i++) {
-        s_channelInfo[i].fd = -1;
-    }
+    return &s_threadsFunctions;
 }

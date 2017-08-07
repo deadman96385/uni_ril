@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
     request_threads.c \
+    thread_pool.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog libcutils libutils librilsprd
