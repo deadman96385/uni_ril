@@ -1927,6 +1927,8 @@ static void requestNeighboaringCellIds(int channelID,
             if (at_tok_hasmore(&line)) {  // only in 4G
                 char *sskip = NULL;
                 int skip;
+                char *tac = NULL;
+                char *cid = NULL;
 
                 err = at_tok_nextstr(&line, &sskip);
                 if (err < 0) goto error;
@@ -1944,18 +1946,25 @@ static void requestNeighboaringCellIds(int channelID,
                 NeighboringCell = (RIL_NeighboringCell *)
                         alloca(cellIdNumber * sizeof(RIL_NeighboringCell));
 
+                char **lteCid = (char **)alloca(cellIdNumber * sizeof(char *));
+                int i = 0;
+                for (i = 0; i < cellIdNumber; i++) {
+                    lteCid[i] = (char *)alloca(128 * sizeof(char));
+                }
                 for (current = 0; at_tok_hasmore(&line),
                      current < cellIdNumber; current++) {
-                    err = at_tok_nextstr(&line, &sskip);
+                    err = at_tok_nextstr(&line, &tac);
                     if (err < 0) goto error;
 
-                    err = at_tok_nextstr(&line,
-                            &(NeighboringCell[current].cid));
+                    err = at_tok_nextstr(&line, &cid);
                     if (err < 0) goto error;
 
                     err = at_tok_nextint(&line,
                             &(NeighboringCell[current].rssi));
                     if (err < 0) goto error;
+
+                    snprintf(lteCid[current], 128, "%s,%s", tac, cid);
+                    NeighboringCell[current].cid = lteCid[current];
 
                     RLOGD("Neighbor cell_id %s = %d",
                           NeighboringCell[current].cid,
