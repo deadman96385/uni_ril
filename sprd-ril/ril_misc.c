@@ -516,9 +516,11 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         if (!s_vsimInitFlag[RIL_SOCKET_1])
 #endif
         {
-        //close socket
-            close(s_vsimClientFd);
-            s_vsimClientFd = -1;
+            if (s_vsimClientFd != -1) {
+                close(s_vsimClientFd);
+                s_vsimClientFd = -1;
+            }
+            s_vsimListenLoop = false;
         }
         //send AT
         cmd = ATcmd;
