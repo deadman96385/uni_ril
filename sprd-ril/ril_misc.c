@@ -161,11 +161,11 @@ static void requestDeviceIdentify(int channelID, void *data, size_t datalen,
     if (err < 0) goto done;
 
     if (sv >= 0 && sv < 10) {
-        snprintf(response[1], ARRAY_SIZE, "0%d", sv);
+        snprintf(buf[1], ARRAY_SIZE, "0%d", sv);
     } else {
-        snprintf(response[1], ARRAY_SIZE, "%d", sv);
+        snprintf(buf[1], ARRAY_SIZE, "%d", sv);
     }
-
+    response[1] = buf[1];
 done:
     RIL_onRequestComplete(t, RIL_E_SUCCESS, response, 4 * sizeof(char *));
     at_response_free(p_response);
