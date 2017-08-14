@@ -25,6 +25,7 @@
 int s_maybeAddCall = 0;
 int s_screenState = 1;
 int s_vsimClientFd = -1;
+int s_vsimServerFd = -1;
 bool s_vsimListenLoop = false;
 bool s_vsimInitFlag[SIM_COUNT] = {false, false};
 pthread_mutex_t s_vsimSocketMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -363,19 +364,21 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
 
 void *listenVsimSocketThread() {
     int ret = -1;
-    int vsimServerFd= socket_local_server(SOCKET_NAME_VSIM,
-           ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-    if (vsimServerFd < 0) {
-        RLOGE("Failed to get socket %s", SOCKET_NAME_VSIM);
+    if (s_vsimServerFd < 0) {
+        s_vsimServerFd = socket_local_server(SOCKET_NAME_VSIM,
+               ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+        if (s_vsimServerFd < 0) {
+            RLOGE("Failed to get socket %s", SOCKET_NAME_VSIM);
+        }
+
+        ret = listen(s_vsimServerFd, 1);
+        if (ret < 0) {
+            RLOGE("Failed to listen on control socket '%d': %s",
+                    s_vsimServerFd, strerror(errno));
+        }
     }
 
-    ret = listen(vsimServerFd, 1);
-    if (ret < 0) {
-        RLOGE("Failed to listen on control socket '%d': %s",
-                vsimServerFd, strerror(errno));
-    }
-
-    s_vsimClientFd = accept(vsimServerFd, NULL, NULL);
+    s_vsimClientFd = accept(s_vsimServerFd, NULL, NULL);
     pthread_mutex_lock(&s_vsimSocketMutex);
     pthread_cond_signal(&s_vsimSocketCond);
     s_vsimListenLoop = true;
