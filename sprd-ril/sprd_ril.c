@@ -320,6 +320,9 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_SET_TTY_MODE ||
                  request == RIL_REQUEST_QUERY_TTY_MODE ||
                  request == RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE ||
+                 request == RIL_REQUEST_GSM_GET_BROADCAST_SMS_CONFIG ||
+                 request == RIL_REQUEST_GSM_SET_BROADCAST_SMS_CONFIG ||
+                 request == RIL_REQUEST_GSM_SMS_BROADCAST_ACTIVATION ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
