@@ -734,12 +734,17 @@ bool dispatchString(int serial, int slotId, int request, const char * str) {
         return false;
     }
 
-    char *pString;
+    char *pString = NULL;
     if (!copyHidlStringToRil(&pString, str, pRI)) {
         return false;
     }
 
-    CALL_ONREQUEST(request, pString, strlen(pString) + 1, pRI, pRI->socket_id);
+    size_t dataLen = 0;
+    if (pString != NULL) {
+        dataLen = strlen(pString) + 1;
+    }
+
+    CALL_ONREQUEST(request, pString, dataLen, pRI, pRI->socket_id);
 
 //    memsetAndFreeStrings(1, pString);
     return true;
