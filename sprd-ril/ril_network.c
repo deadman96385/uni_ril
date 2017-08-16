@@ -2102,33 +2102,20 @@ static void requestGetCellInfoList(int channelID, void *data,
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
-    const int count = 1;
     int err, i;
     int mcc, mnc, lac = 0;
     int sig2G = 0, sig3G = 0;
-    int rsrp = 0, rsrq = 0, act = 0, cid = 0, pscPci = 0;
-    int commas = 0, cellNum = 0, sskip = 0, registered = 0;
+    int pci = 0, cid = 0;
+    int arfcn = INT_MAX, bsic = INT_MAX, psc =INT_MAX;
+    int rsrp = 0, rsrq = 0, act = 0;
+    int commas = 0, sskip = 0, registered = 0;
     int netType = 0, cellType = 0, biterr2G = 0, biterr3G = 0;
+    int cellIdNumber = 0, current = 0, signalStrength = 0;
     char *line =  NULL, *p = NULL, *skip = NULL, *plmn = NULL;
 
     ATResponse *p_response = NULL;
     ATResponse *p_newResponse = NULL;
-    RIL_CellInfo_v12 **response = NULL;
-
-    if (!s_screenState) {
-        RLOGD("GetCellInfo ScreenState %d", s_screenState);
-        goto error;
-    }
-    response = (RIL_CellInfo_v12 **)malloc(count * sizeof(RIL_CellInfo_v12 *));
-    if (response == NULL) {
-        goto error;
-    }
-    memset(response, 0, count * sizeof(RIL_CellInfo_v12 *));
-
-    for (i = 0; i < count; i++) {
-        response[i] = malloc(sizeof(RIL_CellInfo_v12));
-        memset(response[i], 0, sizeof(RIL_CellInfo_v12));
-    }
+    RIL_CellInfo_v12 *response = NULL;
 
     // for mcc & mnc
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+COPS?",
@@ -2204,132 +2191,335 @@ static void requestGetCellInfoList(int channelID, void *data,
 
     AT_RESPONSE_FREE(p_response);
 
-    // For cellinfo
-    if (cellType == RIL_CELL_INFO_TYPE_LTE) {
-        err = at_send_command_singleline(s_ATChannels[channelID],
-                "AT+SPQ4GNCELL", "+SPQ4GNCELL", &p_response);
-    } else if (cellType == RIL_CELL_INFO_TYPE_GSM) {
-        err = at_send_command_singleline(s_ATChannels[channelID],
-                "AT+SPQ2GNCELL", "+SPQ2GNCELL", &p_response);
+    if (s_isLTE) {
+        err = at_send_command_singleline(s_ATChannels[channelID], "AT+CESQ",
+                                         "+CESQ:", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        cesq_execute_cmd_rsp(p_response, &p_newResponse);
+        if (p_newResponse == NULL) goto error;
+
+        line = p_newResponse->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &sig2G);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &biterr2G);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &sig3G);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &biterr3G);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrq);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrp);
+        if (err < 0) goto error;
     } else {
-        err = at_send_command_singleline(s_ATChannels[channelID],
-                "AT+SPQ3GNCELL", "+SPQ3GNCELL", &p_response);
+        err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSQ",
+                                         "+CSQ:", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        csq_execute_cmd_rsp(p_response, &p_newResponse);
+        if (p_newResponse == NULL) goto error;
+
+        line = p_newResponse->p_intermediates->line;
+
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &sig3G);
+        if (err < 0) goto error;
+
+        sig2G = sig3G;
+
+        err = at_tok_nextint(&line, &biterr3G);
+        if (err < 0) goto error;
+
+        biterr2G = biterr3G;
     }
-
-    if (err < 0 || p_response->success == 0) {
-        goto error;
-    }
-    line = p_response->p_intermediates->line;
-    err = at_tok_start(&line);
-    if (err < 0) goto error;
-
-    err = at_tok_nextstr(&line, &skip);
-    if (err < 0) goto error;
-
-    char *endptr;
-    pscPci = strtol(skip, &endptr, 16);
-    err = at_tok_nextint(&line, &sskip);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &cellNum);
-    if (err < 0) goto error;
 
     AT_RESPONSE_FREE(p_response);
 
-    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CESQ",
-                                     "+CESQ:", &p_response);
-    if (err < 0 || p_response->success == 0) {
-        goto error;
+    // For cellinfo
+    if (cellType == RIL_CELL_INFO_TYPE_LTE) {
+        err = at_send_command_singleline(s_ATChannels[channelID],
+                "AT+SPQ4GNCELLEX=4,4", "+SPQ4GNCELL", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        // AT> +SPQ4GNCELLEX: 4,4
+        // AT< +SPQ4GNCELL: Serv_Cell_Earfcn, Serv_Cell_Pci, Serv_Cell_Rsrp, Serv_Cell_Rsrq, Ncell_num,
+        // Neighbor_Cell_Earfcn, Neighbor_Cell_Pci, Neighbor_Cell_Rsrp, Neighbor_Cell_Rsrq,
+        // ...
+
+        err = at_tok_nextint(&line, &arfcn);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &pci);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrp);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &rsrq);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &cellIdNumber);
+        if (err < 0) goto error;
+
+        response = (RIL_CellInfo_v12 *)
+                calloc((cellIdNumber + 1), sizeof(RIL_CellInfo_v12));
+        if (response == NULL) {
+            RLOGE("Failed to calloc memory for response");
+            goto error;
+        }
+
+        response[0].CellInfo.lte.cellIdentityLte.mnc = mnc;
+        response[0].CellInfo.lte.cellIdentityLte.mcc = mcc;
+        response[0].CellInfo.lte.cellIdentityLte.ci  = cid;
+        response[0].CellInfo.lte.cellIdentityLte.pci = pci;
+        response[0].CellInfo.lte.cellIdentityLte.tac = lac;
+        response[0].CellInfo.lte.cellIdentityLte.earfcn = arfcn;
+
+        response[0].CellInfo.lte.signalStrengthLte.cqi = INT_MAX;
+        response[0].CellInfo.lte.signalStrengthLte.rsrp = rsrp / (-100);
+        response[0].CellInfo.lte.signalStrengthLte.rsrq = rsrq / (-100);
+        response[0].CellInfo.lte.signalStrengthLte.rssnr = INT_MAX;
+        response[0].CellInfo.lte.signalStrengthLte.signalStrength = rsrp / 100 + 140;
+        response[0].CellInfo.lte.signalStrengthLte.timingAdvance  = INT_MAX;
+
+        for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
+             current++) {
+            err = at_tok_nextint(&line, &arfcn);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &pci);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &rsrp);
+            if (err < 0) goto error;
+
+
+            err = at_tok_nextint(&line, &rsrq);
+            if (err < 0) goto error;
+
+            response[current + 1].CellInfo.lte.cellIdentityLte.mcc = INT_MAX;
+            response[current + 1].CellInfo.lte.cellIdentityLte.mnc = INT_MAX;
+            response[current + 1].CellInfo.lte.cellIdentityLte.ci = INT_MAX;
+            response[current + 1].CellInfo.lte.cellIdentityLte.tac = INT_MAX;
+            response[current + 1].CellInfo.lte.cellIdentityLte.pci = pci;
+            response[current + 1].CellInfo.lte.cellIdentityLte.earfcn = arfcn;
+
+            response[current + 1].CellInfo.lte.signalStrengthLte.cqi = INT_MAX;
+            response[current + 1].CellInfo.lte.signalStrengthLte.rsrp = rsrp / (-100);
+            response[current + 1].CellInfo.lte.signalStrengthLte.rsrq = rsrq / (-100);
+            response[current + 1].CellInfo.lte.signalStrengthLte.rssnr = INT_MAX;
+            response[current + 1].CellInfo.lte.signalStrengthLte.signalStrength = rsrp / 100 + 140;
+            response[current + 1].CellInfo.lte.signalStrengthLte.timingAdvance  = INT_MAX;
+
+            response[current + 1].registered = 0;
+            response[current + 1].cellInfoType = cellType;
+            response[current + 1].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+            response[current + 1].timeStamp = INT_MAX;
+        }
+    } else if (cellType == RIL_CELL_INFO_TYPE_GSM) {
+        err = at_send_command_singleline(s_ATChannels[channelID],
+                "AT+SPQ2GNCELL", "+SPQ2GNCELL", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        // AT+SPQ2GNCELL:
+        // Serv_Cell_Lac+Cid, Serv_Cell_SignalStrength, Serv_Cell_Arfcn, Serv_Cell_Bsic, Ncell_num,
+        // Neighbor_Cell_Lac+Cid, Neighbor_Cell_SignalStrength, Neighbor_Cell_Arfcn, Neighbor_Cell_Bsic,
+        // ...
+
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&line, &skip);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &sskip);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &arfcn);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &bsic);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &cellIdNumber);
+        if (err < 0) goto error;
+
+        response = (RIL_CellInfo_v12 *)
+                calloc((cellIdNumber + 1), sizeof(RIL_CellInfo_v12));
+        if (response == NULL) {
+            RLOGE("Failed to calloc memory for response");
+            goto error;
+        }
+
+        response[0].CellInfo.gsm.cellIdentityGsm.mcc = mcc;
+        response[0].CellInfo.gsm.cellIdentityGsm.mnc = mnc;
+        response[0].CellInfo.gsm.cellIdentityGsm.lac = lac;
+        response[0].CellInfo.gsm.cellIdentityGsm.cid = cid;
+        response[0].CellInfo.gsm.cellIdentityGsm.arfcn = arfcn;
+        response[0].CellInfo.gsm.cellIdentityGsm.bsic = bsic;
+
+        response[0].CellInfo.gsm.signalStrengthGsm.bitErrorRate = biterr2G;
+        response[0].CellInfo.gsm.signalStrengthGsm.signalStrength = sig2G;
+        response[0].CellInfo.gsm.signalStrengthGsm.timingAdvance = INT_MAX;
+
+        for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
+             current++) {
+            err = at_tok_nextstr(&line, &skip);
+            if (err < 0) goto error;
+
+            sscanf(skip, "%04x%04x", &lac, &cid);
+
+            err = at_tok_nextint(&line, &sig2G);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &arfcn);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &bsic);
+            if (err < 0) goto error;
+
+            signalStrength = (sig2G + 3) / 2;
+
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.mcc = INT_MAX;
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.mnc = INT_MAX;
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.lac = lac;
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.cid = cid;
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.arfcn = arfcn;
+            response[current + 1].CellInfo.gsm.cellIdentityGsm.bsic = bsic;
+
+            response[current + 1].CellInfo.gsm.signalStrengthGsm.bitErrorRate = INT_MAX;
+            response[current + 1].CellInfo.gsm.signalStrengthGsm.signalStrength =
+                    signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);
+            response[current + 1].CellInfo.gsm.signalStrengthGsm.timingAdvance = INT_MAX;
+
+            response[current + 1].registered = 0;
+            response[current + 1].cellInfoType = cellType;
+            response[current + 1].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+            response[current + 1].timeStamp = INT_MAX;
+        }
+    } else {
+        err = at_send_command_singleline(s_ATChannels[channelID],
+                "AT+SPQ3GNCELLEX=4,3", "+SPQ3GNCELL", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+
+        // AT> +SPQ3GNCELLEX: 4,3
+        // AT< +Q3GNCELL:
+        // "00000000", Serv_Cell_SignalStrength, Serv_Cell_Uarfcn, Serv_Cell_Psc, Ncell_num,
+        // Neighbor_Cell_Uarfcn, Neighbor_Cell_Psc, Neighbor_Cell_SignalStrength,
+        // ...
+
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&line, &skip);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &sskip);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &arfcn);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &psc);
+        if (err < 0) goto error;
+
+        err = at_tok_nextint(&line, &cellIdNumber);
+        if (err < 0) goto error;
+
+        response = (RIL_CellInfo_v12 *)
+                calloc((cellIdNumber + 1), sizeof(RIL_CellInfo_v12));
+        if (response == NULL) {
+            RLOGE("Failed to calloc memory for response");
+            goto error;
+        }
+
+        response[0].CellInfo.wcdma.cellIdentityWcdma.mcc = mcc;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.mnc = mnc;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.lac = lac;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.cid = cid;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.psc = psc;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.uarfcn = arfcn;
+
+        response[0].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = biterr3G;
+        response[0].CellInfo.wcdma.signalStrengthWcdma.signalStrength = sig3G;
+
+        for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
+             current++) {
+            err = at_tok_nextint(&line, &arfcn);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &psc);
+            if (err < 0) goto error;
+
+            err = at_tok_nextint(&line, &sig3G);
+            if (err < 0) goto error;
+
+            signalStrength = (sig3G - 3) / 2;
+
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mcc = INT_MAX;
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mnc = INT_MAX;
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.lac = INT_MAX;
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.cid = INT_MAX;
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.psc = psc;
+            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.uarfcn = arfcn;
+
+            response[current + 1].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = INT_MAX;
+            response[current + 1].CellInfo.wcdma.signalStrengthWcdma.signalStrength =
+                    signalStrength = signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);;
+
+            response[current + 1].registered = 0;
+            response[current + 1].cellInfoType = cellType;
+            response[current + 1].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+            response[current + 1].timeStamp = INT_MAX;
+        }
     }
-
-    cesq_execute_cmd_rsp(p_response, &p_newResponse);
-    if (p_newResponse == NULL) goto error;
-
-    line = p_newResponse->p_intermediates->line;
-    err = at_tok_start(&line);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &sig2G);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &biterr2G);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &sig3G);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &biterr3G);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &rsrq);
-    if (err < 0) goto error;
-
-    err = at_tok_nextint(&line, &rsrp);
-    if (err < 0) goto error;
 
     uint64_t curTime = ril_nano_time();
-    response[0]->registered = registered;
-    response[0]->cellInfoType = cellType;
-    response[0]->timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
-    response[0]->timeStamp = curTime - 1000;
-    if (cellType == RIL_CELL_INFO_TYPE_LTE) {  // 4G
-        response[0]->CellInfo.lte.cellIdentityLte.mnc = mnc;
-        response[0]->CellInfo.lte.cellIdentityLte.mcc = mcc;
-        response[0]->CellInfo.lte.cellIdentityLte.ci  = cid;
-        response[0]->CellInfo.lte.cellIdentityLte.pci = pscPci;
-        response[0]->CellInfo.lte.cellIdentityLte.tac = lac;
-        response[0]->CellInfo.lte.cellIdentityLte.earfcn = INT_MAX;
+    response[0].registered = registered;
+    response[0].cellInfoType = cellType;
+    response[0].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+    response[0].timeStamp = curTime - 1000;
 
-        response[0]->CellInfo.lte.signalStrengthLte.cqi = 100;
-        response[0]->CellInfo.lte.signalStrengthLte.rsrp = rsrp;
-        response[0]->CellInfo.lte.signalStrengthLte.rsrq = rsrq;
-        response[0]->CellInfo.lte.signalStrengthLte.rssnr = 100;
-        response[0]->CellInfo.lte.signalStrengthLte.signalStrength = rsrp + 140;
-        response[0]->CellInfo.lte.signalStrengthLte.timingAdvance  = 100;
-    } else if (cellType == RIL_CELL_INFO_TYPE_GSM) {  // 2G
-        response[0]->CellInfo.gsm.cellIdentityGsm.mcc = mcc;
-        response[0]->CellInfo.gsm.cellIdentityGsm.mnc = mnc;
-        response[0]->CellInfo.gsm.cellIdentityGsm.lac = lac;
-        response[0]->CellInfo.gsm.cellIdentityGsm.cid = cid;
-        response[0]->CellInfo.gsm.cellIdentityGsm.arfcn = INT_MAX;
-        response[0]->CellInfo.gsm.cellIdentityGsm.bsic = 0xFF;
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response,
+            (cellIdNumber + 1) * sizeof(RIL_CellInfo_v12));
 
-        response[0]->CellInfo.gsm.signalStrengthGsm.bitErrorRate = biterr2G;
-        response[0]->CellInfo.gsm.signalStrengthGsm.signalStrength = sig2G;
-        response[0]->CellInfo.gsm.signalStrengthGsm.timingAdvance = INT_MAX;
-    } else {  // 3G, Don't support CDMA
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.mcc = mcc;
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.mnc = mnc;
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.lac = lac;
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.cid = cid;
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.psc = pscPci;
-        response[0]->CellInfo.wcdma.cellIdentityWcdma.uarfcn = INT_MAX;
-
-        response[0]->CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = biterr3G;
-        response[0]->CellInfo.wcdma.signalStrengthWcdma.signalStrength = sig3G;
-    }
-
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, (*response),
-                          count * sizeof(RIL_CellInfo_v12));
     at_response_free(p_response);
     at_response_free(p_newResponse);
-    if (response != NULL) {
-        for (i = 0; i < count; i++) {
-            free(response[i]);
-        }
-        free(response);
-    }
+    free(response);
     return;
 
 error:
     at_response_free(p_response);
     at_response_free(p_newResponse);
-    if (response != NULL) {
-        for (i = 0; i < count; i++) {
-            free(response[i]);
-        }
-        free(response);
-    }
+    free(response);
+
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
