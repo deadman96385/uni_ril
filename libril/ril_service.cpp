@@ -3471,6 +3471,41 @@ int radio::supplyNetworkDepersonalizationResponse(int slotId,
     return 0;
 }
 
+void stripNumberFromSipAddress(const char *sipAddress, char *number, int len) {
+    if (sipAddress == NULL || strlen(sipAddress) == 0
+            || number == NULL || len <= 0) {
+        return;
+    }
+
+    memset(number, 0, len * sizeof(char));
+
+    char delim[] = ":;@";
+    char *strDupSipAddr = strdup(sipAddress);
+    char *s = strDupSipAddr;
+    char *token = strsep(&s, delim);
+    if (token != NULL) {
+        if (strlen(token) == strlen(sipAddress)) {
+            strncpy(number, sipAddress, len);
+            goto EXIT;
+        }
+        token = strsep(&s, delim);
+        if (token == NULL) {
+            strncpy(number, sipAddress, len);
+            goto EXIT;
+        } else {
+            strncpy(number, token, len);
+            goto EXIT;
+        }
+    }
+    strncpy(number, sipAddress, len);
+
+EXIT:
+    if (s != NULL) {
+        free(strDupSipAddr);
+        strDupSipAddr = NULL;
+    }
+}
+
 int radio::getCurrentCallsResponse(int slotId,
                                   int responseType, int serial, RIL_Errno e,
                                   void *response, size_t responseLen) {
@@ -3502,7 +3537,15 @@ int radio::getCurrentCallsResponse(int slotId,
                 calls[i].als = p_cur->als;
                 calls[i].isVoice = p_cur->isVoice;
                 calls[i].isVoicePrivacy = p_cur->isVoicePrivacy;
-                calls[i].number = convertCharPtrToHidlString(p_cur->number);
+                if (p_cur->number != NULL) {
+                    char *numberTmp = strdup(p_cur->number);
+                    stripNumberFromSipAddress(p_cur->number, numberTmp,
+                            strlen(numberTmp) * sizeof(char));
+                    calls[i].number = convertCharPtrToHidlString(numberTmp);
+                    free(numberTmp);
+                } else {
+                    calls[i].number = convertCharPtrToHidlString(p_cur->number);
+                }
                 calls[i].numberPresentation = (CallPresentation) p_cur->numberPresentation;
                 calls[i].name = convertCharPtrToHidlString(p_cur->name);
                 calls[i].namePresentation = (CallPresentation) p_cur->namePresentation;
@@ -11071,7 +11114,15 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
                 calls[i].mpty = p_cur->mpty;
                 calls[i].numberType = p_cur->numberType;
                 calls[i].toa = p_cur->toa;
-                calls[i].number = convertCharPtrToHidlString(p_cur->number);
+                if (p_cur->number != NULL) {
+                    char *numberTmp = strdup(p_cur->number);
+                    stripNumberFromSipAddress(p_cur->number, numberTmp,
+                            strlen(numberTmp) * sizeof(char));
+                    calls[i].number = convertCharPtrToHidlString(numberTmp);
+                    free(numberTmp);
+                } else {
+                    calls[i].number = convertCharPtrToHidlString(p_cur->number);
+                }
                 calls[i].prioritypresent = p_cur->prioritypresent;
                 calls[i].priority = p_cur->priority;
                 calls[i].cliValidityPresent = p_cur->CliValidityPresent;
