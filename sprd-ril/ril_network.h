@@ -112,6 +112,10 @@ extern int s_sessionId[SIM_COUNT];
 extern int s_desiredRadioState[SIM_COUNT];
 extern int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 extern int s_imsBearerEstablished[SIM_COUNT];
+extern int rxlev[SIM_COUNT];
+extern int rscp[SIM_COUNT];
+extern int rsrp[SIM_COUNT];
+extern int rssi[SIM_COUNT];
 extern LTE_PS_REG_STATE s_PSRegState[SIM_COUNT];
 extern pthread_mutex_t s_LTEAttachMutex[SIM_COUNT];
 extern RIL_RegState s_CSRegStateDetail[SIM_COUNT];
