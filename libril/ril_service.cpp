@@ -3517,6 +3517,7 @@ int radio::getCurrentCallsResponse(int slotId,
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
 
+        char *numberTmp = NULL;
         hidl_vec<Call> calls;
        if ((response == NULL && responseLen != 0)
                 || (responseLen % sizeof(RIL_Call *)) != 0) {
@@ -3538,11 +3539,10 @@ int radio::getCurrentCallsResponse(int slotId,
                 calls[i].isVoice = p_cur->isVoice;
                 calls[i].isVoicePrivacy = p_cur->isVoicePrivacy;
                 if (p_cur->number != NULL) {
-                    char *numberTmp = strdup(p_cur->number);
+                    numberTmp = strdup(p_cur->number);
                     stripNumberFromSipAddress(p_cur->number, numberTmp,
                             strlen(numberTmp) * sizeof(char));
                     calls[i].number = convertCharPtrToHidlString(numberTmp);
-                    free(numberTmp);
                 } else {
                     calls[i].number = convertCharPtrToHidlString(p_cur->number);
                 }
@@ -3564,6 +3564,7 @@ int radio::getCurrentCallsResponse(int slotId,
         Return<void> retStatus = radioService[slotId]->mRadioResponse->
                 getCurrentCallsResponse(responseInfo, calls);
         radioService[slotId]->checkReturnStatus(retStatus);
+        free(numberTmp);
     } else {
         RLOGE("getCurrentCallsResponse: radioService[%d]->mRadioResponse == NULL", slotId);
     }
@@ -11093,6 +11094,7 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
 
+        char *numberTmp = NULL;
         hidl_vec<CallVoLTE> calls;
         if (response == NULL || (responseLen % sizeof(RIL_Call_VoLTE *)) != 0) {
             RLOGE("getIMSCurrentCallsResponse: Invalid response");
@@ -11115,11 +11117,10 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
                 calls[i].numberType = p_cur->numberType;
                 calls[i].toa = p_cur->toa;
                 if (p_cur->number != NULL) {
-                    char *numberTmp = strdup(p_cur->number);
+                    numberTmp = strdup(p_cur->number);
                     stripNumberFromSipAddress(p_cur->number, numberTmp,
                             strlen(numberTmp) * sizeof(char));
                     calls[i].number = convertCharPtrToHidlString(numberTmp);
-                    free(numberTmp);
                 } else {
                     calls[i].number = convertCharPtrToHidlString(p_cur->number);
                 }
@@ -11149,6 +11150,7 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
         Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
                 getIMSCurrentCallsResponse(responseInfo, calls);
         radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        free(numberTmp);
     } else {
         RLOGE("getIMSCurrentCallsResponse: radioService[%d]->mIMSRadioResponse == NULL", slotId);
     }
