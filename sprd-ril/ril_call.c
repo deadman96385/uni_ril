@@ -2110,13 +2110,24 @@ static void onDowngradeToVoice(void *param) {
 
 void onCallCSFallBackAccept(void *param) {
     int channelID;
-    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
+    int index;
+    char cmd[AT_COMMAND_LEN] = {0};
+    CallbackPara *cbPara = (CallbackPara *)param;
+
+    if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+        RLOGE("onCallCSFallBackAccept,Invalid socket_id %d", cbPara->socket_id);
+        FREEMEMORY(cbPara->para);
+        FREEMEMORY(cbPara);
         return;
     }
-    channelID = getChannel(socket_id);
-    at_send_command(s_ATChannels[channelID], "AT+SCSFB=1,1", NULL);
+
+    index = *((int *)(cbPara->para));
+    channelID = getChannel(cbPara->socket_id);
+    FREEMEMORY(cbPara->para);
+    FREEMEMORY(cbPara);
+
+    snprintf(cmd, sizeof(cmd), "AT+SCSFB=%d,1",index);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
     putChannel(channelID);
 }
 
@@ -2615,8 +2626,27 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     (void *)&s_socketId[socket_id], NULL);
         }
     } else if (strStartsWith(s, "+SCSFB")) {
-        RIL_requestTimedCallback(onCallCSFallBackAccept,
-                    (void *)&s_socketId[socket_id], NULL);
+        int index;
+        char *tmp;
+        CallbackPara *cbPara;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &index);
+        if (err < 0) {
+            RLOGE("%s fail", s);
+            goto out;
+        }
+        cbPara = (CallbackPara *)malloc(sizeof(CallbackPara));
+        if (cbPara != NULL) {
+            cbPara->para = (int *)malloc(sizeof(int));
+            *((int *)(cbPara->para)) = index;
+            cbPara->socket_id = socket_id;
+            RIL_requestTimedCallback(onCallCSFallBackAccept,
+                    (void *)cbPara, NULL);
+        }
     } else if (strStartsWith(s, "+CSSSFB")) {
         int index = 0;
         char *tmp = NULL;
