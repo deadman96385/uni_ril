@@ -1805,10 +1805,15 @@ void requestLastDataFailCause(int channelID, void *data, size_t datalen,
                                   RIL_Token t) {
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
+    int responses[2];
 
     int response = PDP_FAIL_ERROR_UNSPECIFIED;
     RIL_SOCKET_ID socekt_id = getSocketIdByChannelID(channelID);
     response = s_lastPDPFailCause[socekt_id];
+    responses[0] = 3;
+    responses[1] = response;
+    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, &response, sizeof(response),
+                             socekt_id);
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
 }
 
@@ -2705,7 +2710,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         char *tmp;
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
-
+        int response[2];
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -2723,16 +2728,20 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if ((type == 5) && (s_ussdRun[socket_id] == 1)) { // 5: for SS
             s_ussdError[socket_id] = 1;
         } else if (type == 10) { // ps business in this sim is rejected by network
-            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
-                    socket_id);
+//            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
+//                    socket_id);
         } else if (type == 1) {
             setProperty(socket_id, "ril.sim.ps.reject", "1");
             if ((errCode == 3) || (errCode == 6) || (errCode == 7)
                     || (errCode == 8) || (errCode == 14)) {
-                RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
-                        socket_id);
+//                RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
+//                        socket_id);
             }
         }
+        response[0] = type;
+        response[1] = errCode;
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, &response, sizeof(response),
+                                socket_id);
     } else if (strStartsWith(s, "+SPSWAPCARD:")) {
         int id = 0;
         char *tmp;
