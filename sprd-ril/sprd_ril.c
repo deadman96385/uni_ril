@@ -540,8 +540,26 @@ const char *getVersion(void) {
     return "android reference-ril 1.0";
 }
 
+int getModemConfig() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    int modemConfig = 0;
+
+    property_get(MODEM_CONFIG_PROP, prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0) {
+        modemConfig = LWG_WG;
+    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+        modemConfig = LWG_LWG;
+    } else if (strcmp(prop, "TL_LF_G,G") == 0) {
+        modemConfig = LG_G;
+    }
+    return modemConfig;
+}
+
 void initVaribales(RIL_SOCKET_ID socket_id) {
     RIL_UNUSED_PARM(socket_id);
+
+    s_modemConfig = getModemConfig();
+    RLOGD("s_modemConfig = %d", s_modemConfig);
 
     initPrimarySim();
 }
@@ -1068,21 +1086,6 @@ static void *mainLoop(void *param) {
     }
 }
 
-int getModemConfig() {
-    char prop[PROPERTY_VALUE_MAX] = {0};
-    int modemConfig = 0;
-
-    property_get(MODEM_CONFIG_PROP, prop, "");
-    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0) {
-        modemConfig = LWG_WG;
-    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
-        modemConfig = LWG_LWG;
-    } else if (strcmp(prop, "TL_LF_G,G") == 0) {
-        modemConfig = LG_G;
-    }
-    return modemConfig;
-}
-
 void setHwVerPorp() {
     int ret = -1;
     int fd = -1;
@@ -1161,7 +1164,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
 
     s_isLTE = isLte();
-    s_modemConfig = getModemConfig();
 
     dlHandle = dlopen("libril_threads.so", RTLD_NOW);
     if (dlHandle == NULL) {
