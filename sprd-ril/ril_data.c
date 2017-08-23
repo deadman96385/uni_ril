@@ -1587,7 +1587,7 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
-    if (getPDPSocketId(cid - 1) != socket_id) {
+    if (getPDPSocketId(cid - 1) != socket_id && getPDPSocketId(cid - 1) != -1) {
         goto done;
     }
     RLOGD("deactivateDC s_in4G[%d]=%d, count = %d", socket_id, s_in4G[socket_id],
@@ -1598,6 +1598,10 @@ static void deactivateDataConnection(int channelID, void *data,
     if (s_openchannelInfo[cid - 1].count != 0){
         goto error;
     }
+    if (getPDPSocketId(cid - 1) == -1) {
+        goto done;
+    }
+
     s_openchannelInfo[cid - 1].pdpState = false;
 
     secondaryCid = getFallbackCid(cid - 1);
