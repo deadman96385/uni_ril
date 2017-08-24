@@ -6721,6 +6721,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "RIL_EXT_REQUEST_SET_SINGLE_PDN";
+        case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
         default: return "<unknown request>";
     }
 }

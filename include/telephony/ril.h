@@ -5931,7 +5931,8 @@ typedef struct {
 #define RIL_EXT_UNSOL_SIMLOCK_STATUS_CHANGED        (RIL_EXT_UNSOL_RESPONSE_BASE + 12)
 #define RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED           (RIL_EXT_UNSOL_RESPONSE_BASE + 13)
 #define RIL_EXT_UNSOL_BAND_INFO                     (RIL_EXT_UNSOL_RESPONSE_BASE + 14)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_BAND_INFO
+#define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 20)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
 /*****************************************************************************/
 
 /*****************************************************************************/
