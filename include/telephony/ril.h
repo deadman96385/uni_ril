@@ -5906,7 +5906,8 @@ typedef enum {
 #define RIL_REQUEST_GET_IMS_PCSCF_ADDR                  (RIL_IMS_REQUEST_BASE + 35)
 #define RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR               (RIL_IMS_REQUEST_BASE + 36)
 #define RIL_REQUEST_IMS_REGADDR                         (RIL_IMS_REQUEST_BASE + 37)
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_REGADDR
+#define RIL_REQUEST_IMS_UPDATE_CLIP                     (RIL_IMS_REQUEST_BASE + 38)
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_UPDATE_CLIP
 
 #define RIL_IMS_UNSOL_RESPONSE_BASE                     3000
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
