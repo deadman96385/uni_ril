@@ -736,7 +736,7 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         tmp = line;
         at_tok_start(&tmp);
         skipWhiteSpace(&tmp);
-        response = (char *)calloc((strlen(tmp) + 1), sizeof(char));
+        response = (char *)calloc((strlen(tmp) + 5), sizeof(char));
         snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
         sendVsimReq(response);
     } else {
