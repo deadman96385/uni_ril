@@ -5876,7 +5876,8 @@ typedef struct {
 #define RIL_REQUEST_GET_IMS_PCSCF_ADDR                  (RIL_IMS_REQUEST_BASE + 31)
 #define RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR               (RIL_IMS_REQUEST_BASE + 32)
 #define RIL_REQUEST_IMS_REGADDR                         (RIL_IMS_REQUEST_BASE + 33)
-#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_REGADDR
+#define RIL_REQUEST_IMS_UPDATE_CLIP                     (RIL_IMS_REQUEST_BASE + 34)
+#define RIL_IMS_REQUEST_LAST                            RIL_REQUEST_IMS_UPDATE_CLIP
 
 #define RIL_IMS_UNSOL_RESPONSE_BASE                     3000
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
