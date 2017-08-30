@@ -1320,6 +1320,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SHUTDOWN: return "EXT_SHUTDOWN";
         case RIL_EXT_REQUEST_SET_SMS_BEARER: return "EXT_SET_SMS_BEARER";
         case RIL_EXT_REQUEST_SET_VOICE_DOMAIN: return "SET_VOICE_DOMAIN";
+        case RIL_EXT_REQUEST_UPDATE_CLIP: return "UPDATE_CLIP";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";

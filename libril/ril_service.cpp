@@ -566,6 +566,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setVoiceDomain(int32_t serial, int32_t type);
 
+    Return<void> updateCLIP(int32_t serial, int32_t enable);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -649,7 +651,6 @@ struct RadioImpl : public IExtRadio {
             const ::android::hardware::hidl_string& appId);
 
     Return<void> getImsRegAddress(int32_t serial);
-
 };
 
 struct OemHookImpl : public IOemHook {
@@ -9151,6 +9152,15 @@ Return<void> RadioImpl::setVoiceDomain(int32_t serial, int32_t type) {
     dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_VOICE_DOMAIN, 1, type);
     return Void();
 }
+
+Return<void> RadioImpl::updateCLIP(int32_t serial, int32_t enable) {
+#if VDBG
+    RLOGD("updateCLIP: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_UPDATE_CLIP, 1, enable);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10173,6 +10183,26 @@ int radio::setVoiceDomainResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("setVoiceDomainResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::updateCLIPResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("updateCLIPResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                updateCLIPResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("updateCLIPResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
     }
 
     return 0;

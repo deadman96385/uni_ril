@@ -48,3 +48,4 @@
     {RIL_EXT_REQUEST_SHUTDOWN, radio::requestShutdownExtResponse},
     {RIL_EXT_REQUEST_SET_SMS_BEARER, radio::setSmsBearerResponse},
     {RIL_EXT_REQUEST_SET_VOICE_DOMAIN, radio::setVoiceDomainResponse},
+    {RIL_EXT_REQUEST_UPDATE_CLIP, radio::updateCLIPResponse},
