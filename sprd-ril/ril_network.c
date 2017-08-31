@@ -1080,12 +1080,17 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
             if (s_presentSIMCount == 1) {
-                err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
-                                      &p_response);
-                if (err < 0 || p_response->success == 0) {
-                    RLOGE("GPRS auto attach failed!");
+                if (s_modemConfig == LWG_LWG) {
+                    snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
+                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                } else {
+                    err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
+                                          &p_response);
+                    if (err < 0 || p_response->success == 0) {
+                        RLOGE("GPRS auto attach failed!");
+                    }
+                    AT_RESPONSE_FREE(p_response);
                 }
-                AT_RESPONSE_FREE(p_response);
             }
 #if defined (ANDROID_MULTI_SIM)
             else {

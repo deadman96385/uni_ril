@@ -1671,7 +1671,7 @@ static bool isApnEqual(char *new, char *old) {
     strncpy(strApnName, old, checkCmpAnchor(old));
     strApnName[strlen(strApnName)] = '\0';
     if (isStrEmpty(new) || isStrEqual(new, old) ||
-        isStrEqual(strApnName, new)) {
+        isStrEqual(strApnName, new) || isStrEmpty(old)) {
         return true;
     }
     return false;
