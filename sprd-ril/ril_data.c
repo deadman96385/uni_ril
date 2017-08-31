@@ -40,6 +40,7 @@ pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_extDataFd = -1;
 static char s_SavedDns[IP_ADDR_SIZE] = {0};
 static char s_SavedDns_IPV6[IP_ADDR_SIZE * 4] ={0};
+static int s_swapCard = 0;
 pthread_mutex_t s_signalBipPdpMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_signalBipPdpCond = PTHREAD_COND_INITIALIZER;
 
@@ -1916,7 +1917,10 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
     bool islte = s_isLTE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
+    if (s_swapCard != 0) {
+        RLOGD("swapcard in processing, return!!");
+        goto error;
+    }
 #if (SIM_COUNT == 2)
     if (s_autoDetach == 1) {
         doDetachGPRS(1 - socket_id, data, datalen, NULL);
@@ -2155,7 +2159,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW, NULL, 0);
                 break;
             }
-            if (s_defaultDataId >= 0) {
+            if (s_defaultDataId >= 0 || s_swapCard != 0) {
+                RLOGD("defaultDataId = %d, swapcard = %d", s_defaultDataId, s_swapCard);
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
@@ -2823,6 +2828,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         tmp = line;
         at_tok_start(&tmp);
         err = at_tok_nextint(&tmp, &id);
+        if (id == 1) {
+            s_swapCard = id;
+        } else {
+            s_swapCard = 0;
+        }
         if (err < 0) {
             RLOGD("%s fail", s);
         }
