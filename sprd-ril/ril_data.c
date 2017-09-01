@@ -2321,6 +2321,37 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
 
         }
+        case RIL_REQUEST_IMS_REGADDR: {
+                    p_response = NULL;
+                    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPIMSREGADDR?",
+                                                     "+SPIMSREGADDR:", &p_response);
+                    if (err < 0 || p_response->success == 0) {
+                        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    } else {
+                        int count = 2;
+                        char *imsAddr[2] = {NULL, NULL};
+                        char *line = p_response->p_intermediates->line;
+                        if (findInBuf(line, strlen(line), "+SPIMSREGADDR")) {
+                            err = at_tok_flag_start(&line, ':');
+                            if (err < 0) break;
+
+                            err = at_tok_nextstr(&line, &imsAddr[0]);
+                            if (err < 0) break;
+
+                            err = at_tok_nextstr(&line, &imsAddr[1]);
+                            if (err < 0) break;
+
+                            if ((imsAddr[0] != NULL) && (imsAddr[1] != NULL)) {
+                                RIL_onRequestComplete(t, RIL_E_SUCCESS, imsAddr, count * sizeof(char*));
+                            } else {
+                                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                            }
+                        } else {
+                            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                        }
+                    }
+                    at_response_free(p_response);}
+                    break;
         default :
             ret = 0;
             break;
