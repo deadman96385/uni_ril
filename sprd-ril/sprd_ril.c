@@ -47,7 +47,7 @@
 #define HARDWARE_VERSION_PROP   "sys.hardware.version"
 #define BUILD_TYPE_PROP         "ro.build.type"
 #define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
-#define VOLTE_MODE_PROP         "persist.sys.volte.mode"
+#define VOLTE_MODE_PROP         "persist.radio.volte.mode"
 
 struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
