@@ -6817,6 +6817,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "GET_IMS_SRVCC_CAPBILITY";
         case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
         case RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
+        case RIL_REQUEST_IMS_REGADDR: return "IMS_REGADDR";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
