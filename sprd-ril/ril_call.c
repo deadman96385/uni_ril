@@ -241,10 +241,10 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
 
         // Some lame implementations return strings
         // like "NOT AVAILABLE" in the CLCC line
-        if (p_call->number != NULL &&
-            0 == strspn(p_call->number, "+0123456789*#abc")) {
-            p_call->number = NULL;
-        }
+//        if (p_call->number != NULL &&
+//            0 == strspn(p_call->number, "+0123456789*#abc")) {
+//            p_call->number = NULL;
+//        }
 
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
@@ -1529,6 +1529,21 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             s_realEccList[socket_id] = (char *)calloc(datalen, sizeof(char));
             snprintf(s_realEccList[socket_id], datalen, "%s", (char *)(data));
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: {
+            p_response = NULL;
+            int mode = ((int*)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCLSTONE=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
             break;
         }
         default:
