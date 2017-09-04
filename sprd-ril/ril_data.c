@@ -1301,8 +1301,7 @@ error:
  *           0: Reuse defaulte bearer success;
  *          >0: Reuse failed, the failed cid;
  */
-static int reuseDefaultBearer(int channelID, const char *apn,
-                               const char *type, RIL_Token t) {
+static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_Token t) {
     bool islte = s_isLTE;
     int err, ret = -1, cgdata_err;
     char strApnName[ARRAY_SIZE] = {0};
@@ -1310,6 +1309,13 @@ static int reuseDefaultBearer(int channelID, const char *apn,
     char prop[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     int useDefaultPDN;
+
+    const char *apn, *username, *password, *authtype;
+
+    apn = ((const char **)data)[2];
+    username = ((const char **)data)[3];
+    password = ((const char **)data)[4];
+    authtype = ((const char **)data)[5];
 
     property_get(REUSE_DEFAULT_PDN, prop, "0");
     useDefaultPDN = atoi(prop);
@@ -1335,6 +1341,26 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                         getPDPByIndex(i);
                         cgact_deact_cmd_rsp(cid);
                         AT_RESPONSE_FREE(p_response);
+                        char newCmd[AT_COMMAND_LEN] = {0};
+                        char qosState[PROPERTY_VALUE_MAX] = {0};
+                        snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
+                                  cid, type, apn);
+                        err = cgdcont_set_cmd_req(cmd, newCmd);
+                        if (err == 0) {
+                            err = at_send_command(s_ATChannels[channelID], newCmd, NULL);
+                        }
+
+                        snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username,
+                                  password, cid, atoi(authtype));
+                        at_send_command(s_ATChannels[channelID], cmd, NULL);
+                        /* Set required QoS params to default */
+                        property_get("persist.sys.qosstate", qosState, "0");
+                        if (!strcmp(qosState, "0")) {
+                            snprintf(cmd, sizeof(cmd),
+                                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                                      cid, s_trafficClass[socket_id]);
+                            at_send_command(s_ATChannels[channelID], cmd, NULL);
+                        }
                         snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
                                   cid);
                         cgdata_set_cmd_req(cmd);
@@ -1377,12 +1403,10 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
     int nRetryTimes = 0;
     int ret;
     int isFallback = 0;
-    const char *pdpType;
-    const char *apn = NULL;
+    const char *pdpType = "IP";
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    apn = ((const char **)data)[2];
 
     if (isVoLteEnable() && !isExistActivePdp()) {  // for ddr, power consumption
         char prop[PROPERTY_VALUE_MAX];
@@ -1402,7 +1426,7 @@ RETRY:
     }
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
-    ret = reuseDefaultBearer(channelID, apn, pdpType, t);
+    ret = reuseDefaultBearer(channelID, data, pdpType, t);
     if (ret == 0) {
         return;
     } else if (ret > 0) {
