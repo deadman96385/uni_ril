@@ -513,6 +513,21 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         int socket_id = getSocketIdByChannelID(channelID);
         s_vsimInitFlag[socket_id] = false;
 
+        //send AT
+        cmd = ATcmd;
+        at_tok_start(&cmd);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            if (p_response != NULL) {
+                strlcat(buf, p_response->finalResponse, sizeof(buf));
+                strlcat(buf, "\r\n", sizeof(buf));
+                response[0] = buf;
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                                      sizeof(char *));
+            } else {
+                goto error;
+            }
+        } else {
 #if (SIM_COUNT >= 2)
         if ((!s_vsimInitFlag[RIL_SOCKET_1]) && (!s_vsimInitFlag[RIL_SOCKET_2]))
 #else
@@ -525,10 +540,13 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             }
             s_vsimListenLoop = false;
         }
-        //send AT
-        cmd = ATcmd;
-        at_tok_start(&cmd);
-        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            strlcat(buf, p_response->finalResponse, sizeof(buf));
+            strlcat(buf, "\r\n", sizeof(buf));
+            response[0] = buf;
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
+        }
+        at_response_free(p_response);
+        return;
     } else {
         err = at_send_command_multiline(s_ATChannels[channelID], ATcmd, "",
                                         &p_response);
