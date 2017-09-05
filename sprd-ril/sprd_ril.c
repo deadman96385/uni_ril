@@ -329,6 +329,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_GSM_SMS_BROADCAST_ACTIVATION ||
                  request == RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE ||
                  request == RIL_REQUEST_VOICE_RADIO_TECH ||
+                 request == RIL_REQUEST_GET_NEIGHBORING_CELL_IDS ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||

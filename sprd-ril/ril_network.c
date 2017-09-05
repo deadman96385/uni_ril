@@ -2092,6 +2092,14 @@ static void requestNeighboaringCellIds(int channelID,
     ATResponse *p_response = NULL;
     RIL_NeighboringCell *NeighboringCell;
     RIL_NeighboringCell **NeighboringCellList;
+    //for vts cases
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_radioState[socket_id] == RADIO_STATE_OFF &&
+            s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("requestNeighboaringCellIds: card is absent");
+        RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+        return;
+    }
 
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+Q2GNCELL",
                                      "+Q2GNCELL:", &p_response);
