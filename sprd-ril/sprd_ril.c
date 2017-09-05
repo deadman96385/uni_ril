@@ -230,11 +230,15 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
         RLOGE("Invalid socket_id %d", socket_id);
         goto done;
     }
-
+    if (request == RIL_REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE ||
+        request == RIL_REQUEST_CDMA_SET_ROAMING_PREFERENCE ||
+        request == RIL_REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE) {
+        RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
+        goto done;
+    }
     RIL_RadioState radioState = s_radioState[socket_id];
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
-
     /**
      * Ignore all requests except !(requests)
      * when RADIO_STATE_UNAVAILABLE.
