@@ -6360,7 +6360,7 @@ static void requestInitISIM(int channelID, void*  data, size_t  datalen, RIL_Tok
 
     if(datalen == 7 * sizeof(char *) && strings[0] != NULL && strlen(strings[0]) > 0)
     {
-        if(response == 0)
+        if(response == 0 || strstr(strings[2], "mnc066.mcc418"))
         {
             memset(cmd, 0, sizeof(cmd));
             RILLOGE("requestInitISIM impu = \"%s\"", strings[2]);
