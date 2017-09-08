@@ -22,9 +22,9 @@
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
+int s_manualSearchNetworkId = -1;
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
-static int s_defaultDataId = -1;
 static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
@@ -2013,62 +2013,6 @@ int getDefaultDataCardId() {
     return ret;
 }
 
-void cleanUpAllConnections(int channelID) {
-    int i;
-    int cid;
-    char cmd[AT_COMMAND_LEN];
-    int deactiveChannelID = channelID;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    s_defaultDataId = getDefaultDataCardId();
-    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
-        RLOGD("there is no active data connections!");
-        return;
-    }
-    if (socket_id != s_defaultDataId) {
-        deactiveChannelID = getChannel(s_defaultDataId);
-    }
-    for (i = 0; i < MAX_PDP; i++) {
-        cid = getPDPCid(i);
-        if (cid > 0) {
-            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-            at_send_command(s_ATChannels[deactiveChannelID], cmd, NULL);
-            cgact_deact_cmd_rsp(cid);
-        }
-    }
-    if (socket_id != s_defaultDataId) {
-        putChannel(deactiveChannelID);
-    }
-}
-
-void activeAllConnections(int channelID) {
-    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
-        return;
-    }
-
-    int i;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    int dataChannelID = channelID;
-    if (socket_id != s_defaultDataId) {
-        dataChannelID = getChannel(s_defaultDataId);
-    }
-
-    //property_set(APN_DELAY_PROP, "1");
-    for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(i) > 0) {
-            RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-            if (s_PDP[i].state == PDP_BUSY) {
-                int cid = getPDPCid(i);
-                putPDP(i);
-                requestOrSendDataCallList(dataChannelID, cid, NULL);
-            }
-        }
-    }
-    if (socket_id != s_defaultDataId) {
-        putChannel(dataChannelID);
-    }
-    s_defaultDataId = -1;
-}
-
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -2077,8 +2021,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
-            if (s_defaultDataId >= 0 || s_swapCard != 0) {
-                RLOGD("defaultDataId = %d, swapcard = %d", s_defaultDataId, s_swapCard);
+            if (s_manualSearchNetworkId >= 0 || s_swapCard != 0) {
+                RLOGD("s_manualSearchNetworkId = %d, swapcard = %d", s_manualSearchNetworkId, s_swapCard);
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
@@ -2127,7 +2071,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestDataCallList(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ALLOW_DATA: {
-            if (s_defaultDataId >= 0) {
+            if (s_manualSearchNetworkId >= 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }

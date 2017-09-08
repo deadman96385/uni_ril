@@ -2796,9 +2796,9 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestNetworkRegistration(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
-            cleanUpAllConnections(channelID);
+            s_manualSearchNetworkId = getSocketIdByChannelID (channelID);
             requestNetworkList(channelID, data, datalen, t);
-            activeAllConnections(channelID);
+            s_manualSearchNetworkId = -1;
             break;
         }
         case RIL_REQUEST_RESET_RADIO:
