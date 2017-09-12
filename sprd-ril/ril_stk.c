@@ -691,7 +691,7 @@ static void *processBipClient(void *param) {
         case SEND_DATA: {
             sendData = (SendChannelData *)calloc(1, sizeof(SendChannelData));
             processSendData(comprehensionTlv, sendData, rilMessage);
-            if (rilMessage->resCode != OK) {
+            if (rilMessage->resCode == OK) {
                 RLOGD("processSendData resCode == OK");
                 int channelId = sendData->channelId;
                 StkContext *pstkContext = NULL;
@@ -724,7 +724,7 @@ static void *processBipClient(void *param) {
             RLOGD("CLOSE_CHANNEL processCloseChannel enter");
             processCloseChannel(comprehensionTlv, closeChannelData, rilMessage);
             RLOGD("CLOSE_CHANNEL processCloseChannel EXIT");
-            if (rilMessage->resCode != OK) {
+            if (rilMessage->resCode == OK) {
                 RLOGD("processCloseChannel resCode == OK");
                 int channelId = closeChannelData->channelId;
                 StkContext *pstkContext = NULL;
@@ -769,7 +769,7 @@ static void *processBipClient(void *param) {
         case RECEIVE_DATA: {
             receiveData = (ReceiveChannelData *)calloc(1, sizeof(ReceiveChannelData));
             processReceiveData(comprehensionTlv, receiveData, rilMessage);
-            if (rilMessage->resCode != OK) {
+            if (rilMessage->resCode == OK) {
                 RLOGD("processReceiveData resCode == OK");
                 int channelId = receiveData->channelId;
                 StkContext *pstkContext = NULL;
