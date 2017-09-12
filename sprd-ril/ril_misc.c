@@ -480,8 +480,7 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         RLOGD("SNVM: cmd %s, pdu %s", cmd, pdu);
         err = at_send_command_snvm(s_ATChannels[channelID], cmd, pdu, "",
                                    &p_response);
-    } else if (strStartsWith(ATcmd, "VSIM_INIT")) {
-        char *cmd = NULL;
+    }  else if (strStartsWith(ATcmd, "VSIM_CREATE")) {
         int socket_id = getSocketIdByChannelID(channelID);
         s_vsimInitFlag[socket_id] = true;
         //create socket
@@ -499,15 +498,17 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 
             RLOGD("vsim socket connected");
         } else {
-            RLOGD("vsim socket has connected");
+            response[0] = "ERROR";
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char *));
         }
+        return;
+    } else if (strStartsWith(ATcmd, "VSIM_INIT")) {
+        char *cmd = NULL;
 
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-        at_response_free(p_response);
-        return;
     } else if (strStartsWith(ATcmd, "VSIM_EXIT")) {
         char *cmd = NULL;
         int socket_id = getSocketIdByChannelID(channelID);
