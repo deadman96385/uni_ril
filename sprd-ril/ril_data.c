@@ -77,13 +77,21 @@ static int s_singlePDNAllowed[SIM_COUNT] = {
 #endif
 #endif
 };
-struct PDPInfo s_PDP[MAX_PDP] = {
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
-    {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER}
+struct PDPInfo s_PDP[SIM_COUNT][MAX_PDP] = {
+    {{-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},}
+#if (SIM_COUNT >= 2)
+   ,{{-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},
+     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER},}
+#endif
 };
 static PDNInfo s_PDN[MAX_PDP_CP] = {
     { -1, "", ""},
@@ -116,199 +124,183 @@ static int getPDP(RIL_SOCKET_ID socket_id) {
             s_activePDN > 0 && s_PDN[i].nCid == (i + 1)) {
             continue;
         }
-        pthread_mutex_lock(&s_PDP[i].mutex);
-        if (s_PDP[i].state == PDP_IDLE && s_PDP[i].cid == -1) {
-            s_PDP[i].state = PDP_BUSY;
+        pthread_mutex_lock(&s_PDP[socket_id][i].mutex);
+        if (s_PDP[socket_id][i].state == PDP_IDLE && s_PDP[socket_id][i].cid == -1) {
+            s_PDP[socket_id][i].state = PDP_BUSY;
             ret = i;
-            pthread_mutex_unlock(&s_PDP[i].mutex);
+            pthread_mutex_unlock(&s_PDP[socket_id][i].mutex);
             RLOGD("get s_PDP[%d]", ret);
             RLOGD("PDP[0].state = %d, PDP[1].state = %d, PDP[2].state = %d",
-                    s_PDP[0].state, s_PDP[1].state, s_PDP[2].state);
+                    s_PDP[socket_id][0].state, s_PDP[socket_id][1].state, s_PDP[socket_id][2].state);
             RLOGD("PDP[3].state = %d, PDP[4].state = %d, PDP[5].state = %d",
-                    s_PDP[3].state, s_PDP[4].state, s_PDP[5].state);
+                    s_PDP[socket_id][3].state, s_PDP[socket_id][4].state, s_PDP[socket_id][5].state);
             return ret;
         }
-        pthread_mutex_unlock(&s_PDP[i].mutex);
+        pthread_mutex_unlock(&s_PDP[socket_id][i].mutex);
     }
     return ret;
 }
 
-void putPDP(int cid) {
-    if (cid < 0 || cid >= MAX_PDP) {
+void putPDP(RIL_SOCKET_ID socket_id, int cid) {
+    if (cid < 0 || cid >= MAX_PDP || socket_id < RIL_SOCKET_1 ||
+        socket_id >= SIM_COUNT) {
         return;
     }
 
-    pthread_mutex_lock(&s_PDP[cid].mutex);
-    if (s_PDP[cid].state != PDP_BUSY) {
+    pthread_mutex_lock(&s_PDP[socket_id][cid].mutex);
+    if (s_PDP[socket_id][cid].state != PDP_BUSY) {
         goto done;
     }
-    s_PDP[cid].state = PDP_IDLE;
+    s_PDP[socket_id][cid].state = PDP_IDLE;
 
 done:
-    if ((s_PDP[cid].secondary_cid > 0) &&
-        (s_PDP[cid].secondary_cid <= MAX_PDP)) {
-        s_PDP[s_PDP[cid].secondary_cid - 1].secondary_cid = -1;
+    if ((s_PDP[socket_id][cid].secondary_cid > 0) &&
+        (s_PDP[socket_id][cid].secondary_cid <= MAX_PDP)) {
+        s_PDP[socket_id][s_PDP[socket_id][cid].secondary_cid - 1].secondary_cid = -1;
     }
-    s_PDP[cid].secondary_cid = -1;
-    s_PDP[cid].cid = -1;
-    s_PDP[cid].isPrimary = false;
+    s_PDP[socket_id][cid].secondary_cid = -1;
+    s_PDP[socket_id][cid].cid = -1;
+    s_PDP[socket_id][cid].isPrimary = false;
     RLOGD("put s_PDP[%d]", cid);
-    pthread_mutex_unlock(&s_PDP[cid].mutex);
+    pthread_mutex_unlock(&s_PDP[socket_id][cid].mutex);
 }
 
-static int getPDPByIndex(int index) {
+static int getPDPByIndex(RIL_SOCKET_ID socket_id, int index) {
     if (index >= 0 && index < MAX_PDP) {  // cid: 1 ~ MAX_PDP
-        pthread_mutex_lock(&s_PDP[index].mutex);
-        if (s_PDP[index].state == PDP_IDLE) {
-            s_PDP[index].state = PDP_BUSY;
-            pthread_mutex_unlock(&s_PDP[index].mutex);
+        pthread_mutex_lock(&s_PDP[socket_id][index].mutex);
+        if (s_PDP[socket_id][index].state == PDP_IDLE) {
+            s_PDP[socket_id][index].state = PDP_BUSY;
+            pthread_mutex_unlock(&s_PDP[socket_id][index].mutex);
             RLOGD("getPDPByIndex[%d]", index);
             RLOGD("PDP[0].state = %d, PDP[1].state = %d, PDP[2].state = %d",
-                   s_PDP[0].state, s_PDP[1].state, s_PDP[2].state);
+                   s_PDP[socket_id][0].state, s_PDP[socket_id][1].state, s_PDP[socket_id][2].state);
             RLOGD("PDP[3].state = %d, PDP[4].state = %d, PDP[5].state = %d",
-                   s_PDP[3].state, s_PDP[4].state, s_PDP[5].state);
+                   s_PDP[socket_id][3].state, s_PDP[socket_id][4].state, s_PDP[socket_id][5].state);
             return index;
         }
-        pthread_mutex_unlock(&s_PDP[index].mutex);
+        pthread_mutex_unlock(&s_PDP[socket_id][index].mutex);
     }
     return -1;
 }
 
-void putPDPByIndex(int index) {
+void putPDPByIndex(RIL_SOCKET_ID socket_id, int index) {
     if (index < 0 || index >= MAX_PDP) {
         return;
     }
-    pthread_mutex_lock(&s_PDP[index].mutex);
-    if (s_PDP[index].state == PDP_BUSY) {
-        s_PDP[index].state = PDP_IDLE;
+    pthread_mutex_lock(&s_PDP[socket_id][index].mutex);
+    if (s_PDP[socket_id][index].state == PDP_BUSY) {
+        s_PDP[socket_id][index].state = PDP_IDLE;
     }
-    pthread_mutex_unlock(&s_PDP[index].mutex);
+    pthread_mutex_unlock(&s_PDP[socket_id][index].mutex);
 }
 
-void putUnusablePDPCid() {
+void putUnusablePDPCid(RIL_SOCKET_ID socket_id) {
     int i = 0;
     for (; i < MAX_PDP; i++) {
-        pthread_mutex_lock(&s_PDP[i].mutex);
-        if (s_PDP[i].cid == UNUSABLE_CID) {
+        pthread_mutex_lock(&s_PDP[socket_id][i].mutex);
+        if (s_PDP[socket_id][i].cid == UNUSABLE_CID) {
             RLOGD("putUnusablePDPCid cid = %d", i + 1);
-            s_PDP[i].cid = -1;
+            s_PDP[socket_id][i].cid = -1;
         }
-        pthread_mutex_unlock(&s_PDP[i].mutex);
+        pthread_mutex_unlock(&s_PDP[socket_id][i].mutex);
     }
-}
-int updatePDPSocketId(int cid, int socketId) {
-    int index = cid - 1;
-    if (cid <= 0 || cid > MAX_PDP) {
-        return 0;
-    }
-    pthread_mutex_lock(&s_PDP[index].mutex);
-    s_PDP[index].socketId = socketId;
-    pthread_mutex_unlock(&s_PDP[index].mutex);
-    return 1;
 }
 
-int getPDPSocketId(int index) {
-    if (index >= MAX_PDP || index < 0) {
-        return -1;
-    } else {
-        return s_PDP[index].socketId;
-    }
-}
-int updatePDPCid(int cid, int state) {
+int updatePDPCid(RIL_SOCKET_ID socket_id, int cid, int state) {
     int index = cid - 1;
     if (cid <= 0 || cid > MAX_PDP) {
         return 0;
     }
-    pthread_mutex_lock(&s_PDP[index].mutex);
+    pthread_mutex_lock(&s_PDP[socket_id][index].mutex);
     if (state == 1) {
-        s_PDP[index].cid = cid;
+        s_PDP[socket_id][index].cid = cid;
     } else if (state == 0) {
-        s_PDP[index].cid = -1;
-    } else if (state == -1 && s_PDP[index].cid == -1) {
-        s_PDP[index].cid = UNUSABLE_CID;
+        s_PDP[socket_id][index].cid = -1;
+    } else if (state == -1 && s_PDP[socket_id][index].cid == -1) {
+        s_PDP[socket_id][index].cid = UNUSABLE_CID;
     }
-    pthread_mutex_unlock(&s_PDP[index].mutex);
+    pthread_mutex_unlock(&s_PDP[socket_id][index].mutex);
     return 1;
 }
 
-int getPDPCid(int index) {
+int getPDPCid(RIL_SOCKET_ID socket_id, int index) {
     if (index >= MAX_PDP || index < 0) {
         return -1;
     } else {
-        return s_PDP[index].cid;
+        return s_PDP[socket_id][index].cid;
     }
 }
 
-int getActivedCid() {
+int getActivedCid(RIL_SOCKET_ID socket_id) {
     int i = 0;
     for (; i < MAX_PDP; i++) {
-        pthread_mutex_lock(&s_PDP[i].mutex);
-        if (s_PDP[i].state == PDP_BUSY && s_PDP[i].cid != -1) {
-            RLOGD("get actived cid = %d", s_PDP[i].cid);
-            pthread_mutex_unlock(&s_PDP[i].mutex);
+        pthread_mutex_lock(&s_PDP[socket_id][i].mutex);
+        if (s_PDP[socket_id][i].state == PDP_BUSY && s_PDP[socket_id][i].cid != -1) {
+            RLOGD("get actived cid = %d", s_PDP[socket_id][i].cid);
+            pthread_mutex_unlock(&s_PDP[socket_id][i].mutex);
             return i;
         }
-        pthread_mutex_unlock(&s_PDP[i].mutex);
+        pthread_mutex_unlock(&s_PDP[socket_id][i].mutex);
     }
     return -1;
 }
 
-enum PDPState getPDPState(int index) {
+enum PDPState getPDPState(RIL_SOCKET_ID socket_id, int index) {
     if (index >= MAX_PDP || index < 0) {
         return PDP_IDLE;
     } else {
-        return s_PDP[index].state;
+        return s_PDP[socket_id][index].state;
     }
 }
 
-int getFallbackCid(int index) {
+int getFallbackCid(RIL_SOCKET_ID socket_id, int index) {
     if (index >= MAX_PDP || index < 0) {
         return -1;
     } else {
-        return s_PDP[index].secondary_cid;
+        return s_PDP[socket_id][index].secondary_cid;
     }
 }
 
-bool isPrimaryCid(int index) {
+bool isPrimaryCid(RIL_SOCKET_ID socket_id, int index) {
     if (index >= MAX_PDP || index < 0) {
         return false;
     } else {
-        return s_PDP[index].isPrimary;
+        return s_PDP[socket_id][index].isPrimary;
     }
 }
 
-int setPDPMapping(int primary, int secondary) {
+int setPDPMapping(RIL_SOCKET_ID socket_id, int primary, int secondary) {
     RLOGD("setPDPMapping primary %d, secondary %d", primary, secondary);
     if (primary < 0 || primary >= MAX_PDP || secondary < 0 ||
         secondary >= MAX_PDP) {
         return 0;
     }
-    pthread_mutex_lock(&s_PDP[primary].mutex);
-    s_PDP[primary].cid = primary + 1;
-    s_PDP[primary].secondary_cid = secondary + 1;
-    s_PDP[primary].isPrimary = true;
-    pthread_mutex_unlock(&s_PDP[primary].mutex);
+    pthread_mutex_lock(&s_PDP[socket_id][primary].mutex);
+    s_PDP[socket_id][primary].cid = primary + 1;
+    s_PDP[socket_id][primary].secondary_cid = secondary + 1;
+    s_PDP[socket_id][primary].isPrimary = true;
+    pthread_mutex_unlock(&s_PDP[socket_id][primary].mutex);
 
-    pthread_mutex_lock(&s_PDP[secondary].mutex);
-    s_PDP[secondary].cid = secondary + 1;
-    s_PDP[secondary].secondary_cid = primary + 1;
-    s_PDP[secondary].isPrimary = false;
-    pthread_mutex_unlock(&s_PDP[secondary].mutex);
+    pthread_mutex_lock(&s_PDP[socket_id][secondary].mutex);
+    s_PDP[socket_id][secondary].cid = secondary + 1;
+    s_PDP[socket_id][secondary].secondary_cid = primary + 1;
+    s_PDP[socket_id][secondary].isPrimary = false;
+    pthread_mutex_unlock(&s_PDP[socket_id][secondary].mutex);
     return 1;
 }
 
-int isExistActivePdp() {
+int isExistActivePdp(RIL_SOCKET_ID socket_id) {
     int cid;
     for (cid = 0; cid < MAX_PDP; cid++) {
-        pthread_mutex_lock(&s_PDP[cid].mutex);
-        if (s_PDP[cid].state == PDP_BUSY) {
-            pthread_mutex_unlock(&s_PDP[cid].mutex);
+        pthread_mutex_lock(&s_PDP[socket_id][cid].mutex);
+        if (s_PDP[socket_id][cid].state == PDP_BUSY) {
+            pthread_mutex_unlock(&s_PDP[socket_id][cid].mutex);
             RLOGD("PDP[0].state = %d, PDP[1].state = %d, PDP[2].state = %d",
-                    s_PDP[0].state, s_PDP[1].state, s_PDP[2].state);
+                    s_PDP[socket_id][0].state, s_PDP[socket_id][1].state, s_PDP[socket_id][2].state);
             RLOGD("PDP[%d] is busy now", cid);
             return 1;
         }
-        pthread_mutex_unlock(&s_PDP[cid].mutex);
+        pthread_mutex_unlock(&s_PDP[socket_id][cid].mutex);
     }
 
     return 0;
@@ -775,7 +767,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
         err = at_send_command(s_ATChannels[channelID], newCmd, &p_response);
         if (err < 0 || p_response->success == 0) {
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-            putPDP(cid - 1);
+            putPDP(socket_id, cid - 1);
             at_response_free(p_response);
             return ret;
         }
@@ -815,7 +807,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
     if (ret != DATA_ACTIVE_SUCCESS) {
-        putPDP(cid - 1);
+        putPDP(socket_id, cid - 1);
         return ret;
     }
     if (primaryCid > 0) {
@@ -833,16 +825,14 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
             at_send_command(s_ATChannels[channelID], cmd, &p_response);
             cgact_deact_cmd_rsp(cid);
             at_response_free(p_response);
-            putPDP(cid - 1);
+            putPDP(socket_id, cid - 1);
             ret = DATA_ACTIVE_FALLBACK_FAILED;
         } else {
-            setPDPMapping(primaryCid - 1, cid - 1);
-            updatePDPSocketId(primaryCid, socket_id);
+            setPDPMapping(socket_id,primaryCid - 1, cid - 1);
             ret = DATA_ACTIVE_SUCCESS;
         }
     } else {
-        updatePDPCid(cid, 1);
-        updatePDPSocketId(cid, socket_id);
+        updatePDPCid(socket_id, cid, 1);
         ret = DATA_ACTIVE_SUCCESS;
     }
     s_trafficClass[socket_id] = TRAFFIC_CLASS_DEFAULT;
@@ -926,12 +916,12 @@ static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
         goto error;
     }
 
-    updatePDPCid(index + 1, 1);
+    updatePDPCid(socket_id, index + 1, 1);
     // active IPV6
     index = getPDP(socket_id);
-    if (index < 0 || getPDPCid(index) >= 0) {
+    if (index < 0 || getPDPCid(socket_id, index) >= 0) {
         s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-        putPDP(index);
+        putPDP(socket_id, index);
     } else {
         activeSpeciedCidProcess(channelID, data, index + 1, "IPV6", 0);
     }
@@ -1046,7 +1036,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         if ((ncid == cid) && (t == NULL)) {  // for bug407591
             RLOGD("No need to get IP, FWK will do deact by check IP");
             responses[cid - 1].status = PDP_FAIL_OPERATOR_BARRED;
-            if (getPDPState(cid - 1) == PDP_IDLE) {
+            if (getPDPState(socket_id, cid - 1) == PDP_IDLE) {
                 responses[cid - 1].active = 0;
             }
             continue;
@@ -1216,7 +1206,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         for (i = 0; i < MAX_PDP; i++) {
             if (responses[i].cid == cid) {
                 if (responses[i].active) {
-                    int fb_cid = getFallbackCid(cid - 1);  // pdp fallback cid
+                    int fb_cid = getFallbackCid(socket_id, cid - 1);  // pdp fallback cid
                     RLOGD("called by SetupDataCall! fallback cid : %d", fb_cid);
                     if (islte && s_LTEDetached[socket_id]) {
                         RLOGD("Lte detached in the past2.");
@@ -1224,8 +1214,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
                         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
                         at_send_command(s_ATChannels[channelID], cmd, NULL);
                         cgact_deact_cmd_rsp(cid);
-                        putPDP(fb_cid -1);
-                        putPDP(cid - 1);
+                        putPDP(socket_id, fb_cid -1);
+                        putPDP(socket_id, cid - 1);
                         s_lastPDPFailCause[socket_id] =
                                 PDP_FAIL_ERROR_UNSPECIFIED;
                         RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL,
@@ -1264,8 +1254,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
                         }
                     }
                 } else {
-                    putPDP(getFallbackCid(cid - 1) - 1);
-                    putPDP(cid - 1);
+                    putPDP(socket_id, getFallbackCid(socket_id, cid - 1) - 1);
+                    putPDP(socket_id, cid - 1);
                     s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                     RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
@@ -1335,14 +1325,14 @@ static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_T
             for (i = 0; i < MAX_PDP; i++) {
                 cid = getPDNCid(i);
                 if (cid == (i + 1)) {
-                    RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-                    if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
+                    RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
+                    if (i < MAX_PDP && (getPDPState(socket_id, i) == PDP_IDLE) &&
                         (useDefaultPDN ||
                         (isApnEqual((char *)apn, getPDNAPN(i)) &&
                         isProtocolEqual((char *)type, getPDNIPType(i))) ||
                         s_singlePDNAllowed[socket_id] == 1)) {
                         RLOGD("Using default PDN");
-                        getPDPByIndex(i);
+                        getPDPByIndex(socket_id, i);
                         cgact_deact_cmd_rsp(cid);
                         AT_RESPONSE_FREE(p_response);
                         char newCmd[AT_COMMAND_LEN] = {0};
@@ -1375,25 +1365,24 @@ static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_T
                                 p_response, err, cid);
                         AT_RESPONSE_FREE(p_response);
                         if (cgdata_err == DATA_ACTIVE_SUCCESS) {
-                            updatePDPCid(i + 1, 1);
-                            updatePDPSocketId(cid, socket_id);
+                            updatePDPCid(socket_id, i + 1, 1);
                             requestOrSendDataCallList(channelID, cid, &t);
                             ret = 0;
                         } else if (cgdata_err ==
                                 DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
-                            updatePDPCid(i + 1, -1);
-                            putPDPByIndex(i);
+                            updatePDPCid(socket_id, i + 1, -1);
+                            putPDPByIndex(socket_id, i);
                         } else {
                             ret = cid;
                         }
                     }
                 } /*else if (i < MAX_PDP) {//for bug704303
-                    putPDP(i);
+                    putPDP(socket_id, i);
                 }
 */            }
         } /*else {
             for (i = 0; i < MAX_PDP; i++) {
-                putPDP(i);
+                putPDP(socket_id, i);
             }
         }*/
     }
@@ -1412,7 +1401,7 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
 
-    if (isVoLteEnable() && !isExistActivePdp()) {  // for ddr, power consumption
+    if (isVoLteEnable() && !isExistActivePdp(socket_id)) {  // for ddr, power consumption
         char prop[PROPERTY_VALUE_MAX];
         property_get(DDR_STATUS_PROP, prop, "0");
         RLOGD("volte ddr power prop = %s", prop);
@@ -1440,7 +1429,7 @@ RETRY:
 
     index = getPDP(socket_id);
 
-    if (index < 0 || getPDPCid(index) >= 0) {
+    if (index < 0 || getPDPCid(socket_id, index) >= 0) {
         s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
         goto error;
     }
@@ -1458,7 +1447,7 @@ RETRY:
             goto done;
         }
     } else if (ret == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
-        updatePDPCid(index + 1, -1);
+        updatePDPCid(socket_id, index + 1, -1);
         goto RETRY;
     } else if (ret == DATA_ACTIVE_SUCCESS &&
             (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) &&
@@ -1475,7 +1464,7 @@ RETRY:
             goto done;
         }
         index = getPDP(socket_id);
-        if (index < 0 || getPDPCid(index) >= 0) {
+        if (index < 0 || getPDPCid(socket_id, index) >= 0) {
             /* just use actived IP */
             goto done;
         }
@@ -1490,16 +1479,16 @@ RETRY:
     }
 
 done:
-    putUnusablePDPCid();
+    putUnusablePDPCid(socket_id);
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     return;
 
 error:
     if (primaryindex >= 0) {
-        putPDP(getFallbackCid(primaryindex) - 1);
-        putPDP(primaryindex);
+        putPDP(socket_id, getFallbackCid(socket_id, primaryindex) - 1);
+        putPDP(socket_id, primaryindex);
     }
-    putUnusablePDPCid();
+    putUnusablePDPCid(socket_id);
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
@@ -1511,7 +1500,9 @@ static void updateAdditionBusinessCid(int channelID) {
     char ipv4[PROPERTY_VALUE_MAX] = {0};
     char ipv6[PROPERTY_VALUE_MAX] = {0};
     int ipType = 0;
-    int cidIndex = getActivedCid();
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    int cidIndex = getActivedCid(socket_id);
 
     if (cidIndex < 0 || cidIndex > MAX_PDP) {
         RLOGD("No actived cid");
@@ -1568,16 +1559,12 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
-    if (getPDPSocketId(cid - 1) != socket_id) {
-        goto done;
-    }
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
-    secondaryCid = getFallbackCid(cid - 1);
+    secondaryCid = getFallbackCid(socket_id, cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
     at_send_command(s_ATChannels[channelID], cmd, &p_response);
     cgact_deact_cmd_rsp(cid);
     AT_RESPONSE_FREE(p_response);
-    updatePDPSocketId(cid, -1);
     if (secondaryCid != -1) {
         RLOGD("dual PDP, do CGACT again, fallback cid = %d", secondaryCid);
         snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondaryCid);
@@ -1585,11 +1572,11 @@ static void deactivateDataConnection(int channelID, void *data,
         cgact_deact_cmd_rsp(secondaryCid);
     }
 
-    putPDP(secondaryCid - 1);
-    putPDP(cid - 1);
+    putPDP(socket_id, secondaryCid - 1);
+    putPDP(socket_id, cid - 1);
     at_response_free(p_response);
     // for ddr, power consumption
-    if (isVoLteEnable() && !isExistActivePdp()) {
+    if (isVoLteEnable() && !isExistActivePdp(socket_id)) {
         property_get(DDR_STATUS_PROP, prop, "0");
         RLOGD("volte ddr power prop = %s", prop);
         if (!strcmp(prop, "1")) {
@@ -1947,15 +1934,14 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
 
     if (islte) {
         for (i = 0; i < MAX_PDP; i++) {
-            cid = getPDPCid(i);
-            if (cid > 0 && getPDPSocketId(i) == socket_id) {
+            cid = getPDPCid(socket_id, i);
+            if (cid > 0) {
                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
                 cgact_deact_cmd_rsp(cid);
-                updatePDPSocketId(cid, -1);
-                RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-                if (s_PDP[i].state == PDP_BUSY) {
-                    putPDP(i);
+                RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
+                if (s_PDP[socket_id][i].state == PDP_BUSY) {
+                    putPDP(socket_id, i);
                     requestOrSendDataCallList(channelID, cid, NULL);
                 }
                 AT_RESPONSE_FREE(p_response);
@@ -2062,7 +2048,7 @@ void cleanUpAllConnections(int channelID) {
         deactiveChannelID = getChannel(s_defaultDataId);
     }
     for (i = 0; i < MAX_PDP; i++) {
-        cid = getPDPCid(i);
+        cid = getPDPCid(socket_id, i);
         if (cid > 0) {
             snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
             at_send_command(s_ATChannels[deactiveChannelID], cmd, NULL);
@@ -2088,11 +2074,11 @@ void activeAllConnections(int channelID) {
 
     //property_set(APN_DELAY_PROP, "1");
     for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(i) > 0) {
-            RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-            if (s_PDP[i].state == PDP_BUSY) {
-                int cid = getPDPCid(i);
-                putPDP(i);
+        if (getPDPCid(socket_id, i) > 0) {
+            RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
+            if (s_PDP[socket_id][i].state == PDP_BUSY) {
+                int cid = getPDPCid(socket_id, i);
+                putPDP(socket_id, i);
                 requestOrSendDataCallList(dataChannelID, cid, NULL);
             }
         }
@@ -2637,7 +2623,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         cid = atoi(tmp);
         if (cid > 0 && cid <= MAX_PDP) {
             RLOGD("update cid %d ", cid);
-            updatePDPCid(cid, pdpState);
+            updatePDPCid(socket_id, cid, pdpState);
         }
     } else if (strStartsWith(s, "^CEND:")) {
         int commas;
@@ -2676,7 +2662,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (endStatus != 29 && endStatus != 21) {
                 if (endStatus == 104) {
                     if (cid > 0 && cid <= MAX_PDP &&
-                        s_PDP[cid - 1].state == PDP_BUSY) {
+                        s_PDP[socket_id][cid - 1].state == PDP_BUSY) {
                         CallbackPara *cbPara =
                                 (CallbackPara *)malloc(sizeof(CallbackPara));
                         if (cbPara != NULL) {
