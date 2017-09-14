@@ -30,6 +30,9 @@
 /* reset modem for recovery */
 #define RADIO_RESET_PROP        "gsm.radioreset"
 
+/* Set DSDA status*/
+#define DSDA_STATUS_PROP        "ril.dsda.status"
+
 RIL_RegState s_PSRegStateDetail[SIM_COUNT] = {
         RIL_UNKNOWN
 #if (SIM_COUNT >= 2)
@@ -3574,6 +3577,22 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         const char *cmd = "+SPTESTMODE:";
         checkAndCompleteRequest(socket_id, cmd, (void *)(&response));
+    } else if (strStartsWith(s, "+SPDSDASTATUS:")) {
+        int response = 0;
+        char *tmp = NULL;
+        char status[AT_COMMAND_LEN] = {0};
+
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        snprintf(status, sizeof(status), "%d", response);
+        setProperty(socket_id, DSDA_STATUS_PROP, status);
     } else {
         return 0;
     }
