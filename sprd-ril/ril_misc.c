@@ -488,15 +488,6 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             vsimInit();
             response[0] = "OK";
             RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
-
-            RLOGD("wait for vsim socket connect");
-            pthread_mutex_lock(&s_vsimSocketMutex);
-            while (s_vsimClientFd < 0) {
-                pthread_cond_wait(&s_vsimSocketCond, &s_vsimSocketMutex);
-            }
-            pthread_mutex_unlock(&s_vsimSocketMutex);
-
-            RLOGD("vsim socket connected");
         } else {
             response[0] = "ERROR";
             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char *));
@@ -504,7 +495,13 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         return;
     } else if (strStartsWith(ATcmd, "VSIM_INIT")) {
         char *cmd = NULL;
-
+        RLOGD("wait for vsim socket connect");
+        pthread_mutex_lock(&s_vsimSocketMutex);
+        while (s_vsimClientFd < 0) {
+            pthread_cond_wait(&s_vsimSocketCond, &s_vsimSocketMutex);
+        }
+        pthread_mutex_unlock(&s_vsimSocketMutex);
+        RLOGD("vsim socket connected");
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);
