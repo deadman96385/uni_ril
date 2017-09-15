@@ -3025,7 +3025,7 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
-                    } else if (cause == 34) {  // sim removed
+                    } else if (cause == 34 || cause == 25) {  // sim removed or turn off
                         s_simState[socket_id] = SIM_REMOVE;
                         RIL_onUnsolicitedResponse(
                                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
