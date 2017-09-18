@@ -1808,7 +1808,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED)) {
-                at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+               // at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
             }
         } else {
             setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
