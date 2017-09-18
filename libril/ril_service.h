@@ -1014,6 +1014,9 @@ int setIMSPcscfAddressResponse(int slotId, int responseType, int serial,
 int getFacilityLockForAppExtResponse(int slotId, int responseType, int serial,
                                      RIL_Errno e, void *response, size_t responseLen);
 
+int getImsRegAddressResponse(int slotId, int responseType, int serial,
+                             RIL_Errno e, void *response, size_t responseLen);
+
 /****************IMS EXTENSION UNSOL RESPONSEs' responseFunction**************/
 
 int IMSCallStateChangedInd(int slotId, int indicationType, int token,

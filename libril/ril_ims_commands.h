@@ -38,3 +38,4 @@
     {RIL_REQUEST_GET_IMS_PCSCF_ADDR, radio::setIMSPcscfAddressResponse},
     {RIL_REQUEST_SET_IMS_PCSCF_ADDR, radio::getIMSPcscfAddressResponse},
     {RIL_REQUEST_EXT_QUERY_FACILITY_LOCK, radio::getFacilityLockForAppExtResponse},
+    {RIL_REQUEST_IMS_REGADDR, radio::getImsRegAddressResponse},

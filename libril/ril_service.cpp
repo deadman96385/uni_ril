@@ -648,6 +648,8 @@ struct RadioImpl : public IExtRadio {
             int32_t serviceClass,
             const ::android::hardware::hidl_string& appId);
 
+    Return<void> getImsRegAddress(int32_t serial);
+
 };
 
 struct OemHookImpl : public IOemHook {
@@ -11081,6 +11083,14 @@ Return<void> RadioImpl::getFacilityLockForAppExt(int32_t serial, const hidl_stri
     return Void();
 }
 
+Return<void> RadioImpl::getImsRegAddress(int32_t serial) {
+#if VDBG
+    RLOGD("getImsRegAddress: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_REQUEST_IMS_REGADDR);
+    return Void();
+}
+
 /*******************IMS EXTENSION REQUESTs' responseFunction******************/
 
 int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
@@ -11905,6 +11915,40 @@ int radio::getFacilityLockForAppExtResponse(int slotId, int responseType,
     return 0;
 }
 
+int radio::getImsRegAddressResponse(int slotId, int responseType, int serial,
+                                    RIL_Errno e, void *response,
+                                    size_t responseLen) {
+#if VDBG
+    RLOGD("getImsRegAddressResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        hidl_vec<hidl_string> data;
+
+        if (response == NULL || responseLen % sizeof(char *) != 0) {
+            RLOGE("getImsRegAddressResponse Invalid response: NULL");
+            if (e == RIL_E_SUCCESS)responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            char **resp = (char **)response;
+            int numStrings = responseLen / sizeof(char *);
+            data.resize(numStrings);
+            for (int i = 0; i < numStrings; i++) {
+                data[i] = convertCharPtrToHidlString(resp[i]);
+            }
+        }
+        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+                getImsRegAddressResponse(responseInfo, data);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getImsRegAddressResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
 /****************IMS EXTENSION UNSOL RESPONSEs' responseFunction**************/
 
 int radio::IMSCallStateChangedInd(int slotId, int indicationType, int token,
@@ -12047,16 +12091,25 @@ int radio::IMSRegisterAddressChangedInd(int slotId, int indicationType, int toke
                                         RIL_Errno e, void *response,
                                         size_t responseLen) {
     if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
-        if (response == NULL || responseLen == 0) {
+        if (response == NULL || responseLen % sizeof(char *) != 0) {
             RLOGE("IMSRegisterAddressChangedInd: invalid response");
             return 0;
         }
 #if VDBG
         RLOGD("IMSRegisterAddressChangedInd");
 #endif
+        hidl_vec<hidl_string> data;
+
+        char **resp = (char **)response;
+        int numStrings = responseLen / sizeof(char *);
+        data.resize(numStrings);
+        for (int i = 0; i < numStrings; i++) {
+           data[i] = convertCharPtrToHidlString(resp[i]);
+        }
+
         Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
                 IMSRegisterAddressChangedInd(convertIntToRadioIndicationType(indicationType),
-                        convertCharPtrToHidlString((char *)response));
+                        data);
         radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
     } else {
         RLOGE("IMSRegisterAddressChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
