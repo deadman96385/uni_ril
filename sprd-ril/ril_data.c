@@ -1220,6 +1220,10 @@ static void requestOrSendDataCallList(int channelID, int cid,
                     RLOGD("called by SetupDataCall! fallback cid : %d", fb_cid);
                     if (islte && s_LTEDetached[socket_id]) {
                         RLOGD("Lte detached in the past2.");
+                        char cmd[AT_COMMAND_LEN];
+                        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+                        at_send_command(s_ATChannels[channelID], cmd, NULL);
+                        cgact_deact_cmd_rsp(cid);
                         putPDP(fb_cid -1);
                         putPDP(cid - 1);
                         s_lastPDPFailCause[socket_id] =
