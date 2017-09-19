@@ -1503,9 +1503,9 @@ error:
     if (primaryindex >= 0) {
         putPDP(getFallbackCid(primaryindex) - 1);
         putPDP(primaryindex);
+        s_openchannelInfo[primaryindex].pdpState = true;
     }
     pthread_mutex_lock(&s_signalBipPdpMutex);
-    s_openchannelInfo[primaryindex].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
     putUnusablePDPCid();
@@ -3449,14 +3449,14 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     } while (ipType == IPV4V6);
 
     if (s_openchannelInfo[cidIndex].state == OPEN) {
-        if (actIPType == IPV4) {
+        if (ipType == IPV4) {
             snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
             property_get(cmd, ip, "");
             snprintf(cmd, sizeof(cmd),"net.%s.dns1", linker);
             property_get(cmd, dns1, "");
             snprintf(cmd, sizeof(cmd),"net.%s.dns2", linker);
             property_get(cmd, dns2, "");
-        } else if (actIPType == IPV6) {
+        } else if (ipType == IPV6) {
             snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
             property_get(cmd, ip2, "");
             snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
