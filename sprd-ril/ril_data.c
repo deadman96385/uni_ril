@@ -2749,7 +2749,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         err = at_tok_nextint(&tmp, &type);
         if (err < 0) goto out;
 
-        err = at_tok_nexthexint(&tmp, &errCode);
+        err = at_tok_nextint(&tmp, &errCode);
         if (err < 0) goto out;
 
         if (errCode == 336) {
