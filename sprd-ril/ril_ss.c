@@ -703,21 +703,9 @@ static void requestQueryCallForwardU(int channelID, RIL_CallForwardInfo *data,
     if (datalen != sizeof(*data)) {
         goto error1;
     }
-    if (data->serviceClass == 0) {
-        ret = asprintf(&cmd, "AT+CCFCU=%d,2,%d,%d,\"%s\",%d",
-            data->reason,
-            2,
-            data->toa,
-            data->number ? data->number : "",
-            data->serviceClass);
-    } else {
-        ret = asprintf(&cmd, "AT+CCFCU=%d,2,%d,%d,\"%s\",%d",
-                data->reason,
-                2,
-                data->toa,
-                data->number ? data->number : "",
-                data->serviceClass);
-    }
+
+    ret = asprintf(&cmd, "AT+CCFCU=%d,2,%d,%d,\"%s\",%d", data->reason, 2,
+            data->toa, data->number ? data->number : "", data->serviceClass);
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
         cmd = NULL;

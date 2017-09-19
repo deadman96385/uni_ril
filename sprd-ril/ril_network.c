@@ -2588,7 +2588,7 @@ static void requestGetCellInfoList(int channelID, void *data,
 
             response[current + 1].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = INT_MAX;
             response[current + 1].CellInfo.wcdma.signalStrengthWcdma.signalStrength =
-                    signalStrength = signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);;
+                    signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);
 
             response[current + 1].registered = 0;
             response[current + 1].cellInfoType = cellType;

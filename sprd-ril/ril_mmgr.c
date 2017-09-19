@@ -156,7 +156,7 @@ static int freeWriteSmsToSim(void *data, size_t datalen) {
     memsetString(pArgs->pdu);
 
     free(pArgs->smsc);
-    free(pArgs->smsc);
+    free(pArgs->pdu);
 
     memset(pArgs, 0, datalen);
     free(pArgs);
