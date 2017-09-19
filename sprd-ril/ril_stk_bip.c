@@ -583,10 +583,12 @@ void onCmdResponse(StkContext *pstkContext, CatResponseMessageSprd *pResMsg, int
             break;
         }
         default:
-            return;
+            goto done;
     }
 
     sendTerminalResponse(pstkContext->pCmdDet, pResMsg, socket_id, respId, pResp);
+
+done:
     free(pResp);
 }
 
