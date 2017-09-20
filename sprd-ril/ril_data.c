@@ -1559,6 +1559,9 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
+    if (getPDPCid(socket_id, cid -1) <= 0) {
+        goto done;
+    }
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
     secondaryCid = getFallbackCid(socket_id, cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
