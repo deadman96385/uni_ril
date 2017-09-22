@@ -1731,12 +1731,11 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: {
             int err;
             char cmd[AT_COMMAND_LEN * 4] = {0};
-            const char **strings = (const char **)data;
+            const char *strings = (const char *)data;
             ATResponse *p_response = NULL;
 
-            if (datalen > 0 && strings[0] != NULL && strlen(strings[0]) > 0) {
-                memset(cmd, 0, sizeof(cmd));
-                snprintf(cmd, sizeof(cmd), "AT+VOWIFCALLINF=%s", strings[0]);
+            if (datalen > 0 && strings != NULL && strlen(strings) > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+VOWIFCALLINF=%s", strings);
                 err = at_send_command(s_ATChannels[channelID], cmd , NULL);
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             } else {
