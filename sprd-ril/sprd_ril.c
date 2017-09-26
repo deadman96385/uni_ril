@@ -43,6 +43,7 @@
 #define BUILD_TYPE_PROP         "ro.build.type"
 #define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
 #define VOLTE_MODE_PROP         "persist.sys.volte.mode"
+#define DSDS_MODE_PROP          "persist.radio.modem.config"
 
 enum ChannelState {
     CHANNEL_IDLE,
@@ -748,10 +749,21 @@ static void initializeCallback(void *param) {
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
         char volteMode[PROPERTY_VALUE_MAX];
+        char dsdsMode[PROPERTY_VALUE_MAX];
         property_get(VOLTE_MODE_PROP, volteMode, "");
+        property_get(DSDS_MODE_PROP, dsdsMode, "");
         if (strcmp(volteMode, "DualVoLTEActive") == 0) {
-            at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,1",
-                            NULL);
+            // AT+SPCAPABILITY=49,1,X(Status word) to enable/disable DSDA
+            // Status word 0 to disable DSDA;
+            // Status word 1 for L+W/G modem to enable DSDA;
+            // Status word 2 for L+L modem to enable DSDA.
+            if(strcmp(dsdsMode, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+                at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,2",
+                                NULL);
+            } else {
+                at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,1",
+                                NULL);
+            }
         }
     }
 
