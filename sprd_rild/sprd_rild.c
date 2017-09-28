@@ -55,9 +55,6 @@ static void usage(const char *argv0)
 
 extern void RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv);
 
-extern void RIL_register_ATCIServer (RIL_RadioFunctions *(*Init)
-        (const struct RIL_Env *, int, char **), RIL_SOCKET_TYPE socketType, int argc, char **argv);
-
 extern void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                            void *response, size_t responselen);
 
@@ -148,7 +145,6 @@ int main(int argc, char **argv)
     char **rilArgv;
     void *dlHandle;
     const RIL_RadioFunctions *(*rilInit)(const struct RIL_Env *, int, char **);
-    const RIL_RadioFunctions *(*rilATCIInit)(const struct RIL_Env *, int, char **);
     char *err_str = NULL;
     const RIL_RadioFunctions *funcs;
     unsigned char hasLibArgs = 0;
@@ -236,26 +232,12 @@ OpenLib:
     }
 
     dlerror(); // Clear any previous dlerror
-    rilATCIInit =
-        (const RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **))
-        dlsym(dlHandle, "RIL_ATCI_Init");
-
-    err_str = dlerror();
-    if (err_str) {
-        RLOGW("RIL_ATCI_Init not defined or exported in %s: %s\n", rilLibPath, err_str);
-    } else if (!rilATCIInit) {
-        RLOGW("RIL_ATCI_Init defined as null in %s. AT Channel Not usable\n", rilLibPath);
-    }
 
     RILLOGD("Rild: rilArgv[1]=%s,rilArgv[2]=%s,ModemType=%s",rilArgv[1],rilArgv[2],rilModem);
     funcs = rilInit(&s_rilEnv, argc, rilArgv);
     RIL_register(funcs, argc, rilArgv);
 
-    if (rilATCIInit) {
-        RLOGD("RIL_register_ATCIServer started");
-        RIL_register_ATCIServer(rilATCIInit, RIL_ATCI_SOCKET, argc, rilArgv);
-    }
-    RLOGD("RIL_register_socket completed");
+    RLOGD("RIL_register completed");
 
 done:
 

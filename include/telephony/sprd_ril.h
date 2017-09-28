@@ -6856,9 +6856,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 
 void RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv);
 
-void RIL_register_ATCIServer (RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),
-        RIL_SOCKET_TYPE socketType, int argc, char **argv);
-
 /**
  *
  * RIL_onRequestComplete will return as soon as possible

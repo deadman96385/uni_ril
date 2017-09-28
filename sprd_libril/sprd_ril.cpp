@@ -49,7 +49,8 @@
 #include <assert.h>
 #include <netinet/in.h>
 #include <cutils/properties.h>
-#include <RilATCISocket.h>
+#include "ril_event.h"
+#include "ril_ex.h"
 
 namespace android {
 
@@ -187,6 +188,16 @@ static struct ril_event s_oemListenEvent;
 static struct ril_event s_oemCommandsEvent;
 static SocketListenParam s_oemSocketParam;
 static pthread_mutex_t s_oemWriteMutex;
+/* }@ */
+
+/* ATCI @{ */
+#define SOCKET_NAME_ATCI "atci_socket1"
+#define SOCKET2_NAME_ATCI "atci_socket2"
+
+static struct ril_event s_atciListenEvent;
+static struct ril_event s_atciCommandsEvent;
+static SocketListenParam s_atciSocketParam;
+static pthread_mutex_t s_atciWriteMutex;
 /* }@ */
 
 struct listnode
@@ -2656,6 +2667,9 @@ sendResponseRaw (const void *data, size_t dataSize, RIL_SOCKET_TYPE socket_type)
     if (socket_type == RIL_OEM_SOCKET) {
         fd = s_oemSocketParam.fdCommand;
         writeMutex = &s_oemWriteMutex;
+    } else if (socket_type == RIL_ATCI_SOCKET) {
+        fd = s_atciSocketParam.fdCommand;
+        writeMutex = &s_atciWriteMutex;
     }
     if (fd < 0) {
         return -1;
@@ -4937,9 +4951,16 @@ static void processCommandsCallback(int fd, short flags, void *param) {
         /* loop until EAGAIN/EINTR, end of stream, or other error */
         ret = record_stream_get_next(p_rs, &p_record, &recordlen);
         if (ret == 0 && p_record == NULL) {
-            record_stream_free(p_rs);
-            RILLOGE("PCC end of stream");
-            exit(0);
+            if (p_info->type != RIL_ATCI_SOCKET) {
+                record_stream_free(p_rs);
+                RILLOGE("PCC end of stream");
+                exit(0);
+            } else {
+                if (fd != -1) {
+                    close(fd);
+                }
+                p_info->fdCommand = -1;
+            }
             /* end-of-stream
              * restart rild
              * */
@@ -5384,52 +5405,6 @@ static void listenCallback (int fd, short flags, void *param) {
     onNewCommandConnect();
 }
 
-static void listenCallback_ATCI (int fd, short flags, void *param) {
-    int ret;
-    int err;
-
-    char* processName;
-    RecordStream *p_rs;
-    MySocketListenParam* listenParam;
-    RilSocket *atciSocket = NULL;
-    socketClient *sClient = NULL;
-    int fdCommand = -1;
-
-    SocketListenParam *p_info = (SocketListenParam *)param;
-
-    if(RIL_ATCI_SOCKET == p_info->type) {
-        listenParam = (MySocketListenParam *)param;
-        atciSocket = listenParam->socket;
-    }
-    struct sockaddr_un peeraddr;
-    socklen_t socklen = sizeof (peeraddr);
-
-    struct ucred creds;
-    socklen_t szCreds = sizeof(creds);
-
-    struct passwd *pwd = NULL;
-
-    fdCommand = accept(fd, (sockaddr *) &peeraddr, &socklen);
-
-    if (fdCommand < 0 ) {
-        RILLOGE("Error on accept() errno:%s", strerror(errno));
-        /* start listening for new connections again */
-        rilEventAddWakeup(atciSocket->getListenEvent());
-        return;
-    }
-
-    RILLOGD("libril: new ATCI socket connection");
-
-    atciSocket->setCommandFd(fdCommand);
-    p_rs = record_stream_new(atciSocket->getCommandFd(), MAX_COMMAND_BYTES);
-    sClient = new socketClient(atciSocket, p_rs);
-    ril_event_set (atciSocket->getCallbackEvent(), atciSocket->getCommandFd(), 1,
-    atciSocket->getCommandCb(), sClient);
-
-    rilEventAddWakeup(atciSocket->getCallbackEvent());
-    atciSocket->onNewCommandConnect();
-}
-
 static void freeDebugCallbackArgs(int number, char **args) {
     for (int i = 0; i < number; i++) {
         if (args[i] != NULL) {
@@ -5672,14 +5647,14 @@ static void listenCallbackOEM(int fd, short flags, void *param) {
     fdCommand = accept(fd, (sockaddr *)&peeraddr, &socklen);
 
     if (fdCommand < 0) {
-        RILLOGE("[ATCI] Error on accept() errno:%d", errno);
+        RILLOGE("[OEM] Error on accept() errno:%d", errno);
         return;
     }
 
     ret = fcntl(fdCommand, F_SETFL, O_NONBLOCK);
 
     if (ret < 0) {
-        RILLOGE("[ATCI] Error setting O_NONBLOCK errno:%d", errno);
+        RILLOGE("[OEM] Error setting O_NONBLOCK errno:%d", errno);
     }
 
     RILLOGD("libril: new connection to oem_socket");
@@ -5696,6 +5671,40 @@ static void listenCallbackOEM(int fd, short flags, void *param) {
     // Inform oem socket that modem maybe assert or reset
     RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0);
 #endif
+}
+
+static void listenCallbackATCI(int fd, short flags, void *param) {
+    int ret;
+    int fdCommand;
+    RecordStream *p_rs;
+    SocketListenParam *p_info = (SocketListenParam *)param;
+
+    assert(fd == p_info->fdListen);
+
+    struct sockaddr_un peeraddr;
+    socklen_t socklen = sizeof(peeraddr);
+
+    fdCommand = accept(fd, (sockaddr *)&peeraddr, &socklen);
+    if (fdCommand < 0) {
+        RLOGE("[ATCI] Error on accept() errno:%d", errno);
+        return;
+    }
+
+    ret = fcntl(fdCommand, F_SETFL, O_NONBLOCK);
+    if (ret < 0) {
+        RLOGE("[ATCI] Error setting O_NONBLOCK errno:%d", errno);
+    }
+
+    RLOGI("libril: new connection to ATCI");
+
+    p_info->fdCommand = fdCommand;
+    p_rs = record_stream_new(p_info->fdCommand, MAX_COMMAND_BYTES);
+    p_info->p_rs = p_rs;
+
+
+    ril_event_set(p_info->commands_event, p_info->fdCommand, false,
+            p_info->processCommandsCallback, p_info);
+    rilEventAddWakeup(p_info->commands_event);
 }
 
 static void startListenOEM(RIL_SOCKET_ID socket_id, SocketListenParam *socket_listen_p) {
@@ -5728,6 +5737,40 @@ static void startListenOEM(RIL_SOCKET_ID socket_id, SocketListenParam *socket_li
     /* note: non-persistent so we can accept only one connection at a time */
     ril_event_set(socket_listen_p->listen_event, fdListen, false,
                 listenCallbackOEM, socket_listen_p);
+
+    rilEventAddWakeup(socket_listen_p->listen_event);
+}
+
+static void startListenATCI(RIL_SOCKET_ID socket_id, SocketListenParam *socket_listen_p) {
+    int fdListen = -1;
+    int ret;
+    char socket_name[20];
+
+    memset(socket_name, 0, sizeof(char) * 20);
+
+    snprintf(socket_name, sizeof(socket_name), "atci_socket%d", (socket_id + 1));
+
+    RILLOGD("Start to listen %s", socket_name);
+
+    fdListen = socket_local_server(socket_name,
+            ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+    if (fdListen < 0) {
+        RILLOGE("Failed to get socket %s", socket_name);
+        return;
+    }
+
+    ret = listen(fdListen, 1);
+
+    if (ret < 0) {
+        RILLOGE("Failed to listen on control socket '%d': %s",
+             fdListen, strerror(errno));
+        return;
+    }
+    socket_listen_p->fdListen = fdListen;
+
+    /* note: non-persistent so we can accept only one connection at a time */
+    ril_event_set(socket_listen_p->listen_event, fdListen, false,
+                listenCallbackATCI, socket_listen_p);
 
     rilEventAddWakeup(socket_listen_p->listen_event);
 }
@@ -6041,23 +6084,19 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
                      RIL_OEM_SOCKET               /* RIL_SOCKET_TYPE */
                      };
      startListenOEM((RIL_SOCKET_ID)(s_sim_num), &s_oemSocketParam);
-}
 
-extern "C" void
-RIL_register_ATCIServer (RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),RIL_SOCKET_TYPE socketType, int argc, char **argv) {
-
-    RIL_RadioFunctions* atciFuncs = NULL;
-    char s_name_socket[128] = {0};
-
-    if(Init) {
-        atciFuncs = Init(&RilATCISocket::atciRilEnv, argc, argv);
-        snprintf(s_name_socket, sizeof(s_name_socket), "atci_socket%d", s_sim_num+1);
-        switch(socketType) {
-            case RIL_ATCI_SOCKET:
-                RILLOGD("%s created", s_name_socket);
-                RilATCISocket::initATCISocket(s_name_socket, atciFuncs);
-        }
-    }
+     s_atciSocketParam = {
+                     (RIL_SOCKET_ID)s_sim_num,    /* socket_id */
+                     -1,                          /* fdListen */
+                     -1,                          /* fdCommand */
+                     NULL,                        /* processName */
+                     &s_atciCommandsEvent,         /* commands_event */
+                     &s_atciListenEvent,           /* listen_event */
+                     processCommandsCallback,     /* processCommandsCallback */
+                     NULL,                        /* p_rs */
+                     RIL_ATCI_SOCKET               /* RIL_SOCKET_TYPE */
+                     };
+     startListenATCI((RIL_SOCKET_ID)(s_sim_num), &s_atciSocketParam);
 }
 
 static int
@@ -6106,9 +6145,9 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
         fd = s_rilSocketParam.fdCommand;
     } else if (socket_type == RIL_OEM_SOCKET) {
         fd = s_oemSocketParam.fdCommand;
+    } else if (socket_type == RIL_ATCI_SOCKET) {
+        fd = s_atciSocketParam.fdCommand;
     }
-
-
 
     if (pRI->local > 0) {
         // Locally issued command...void only!
@@ -6152,6 +6191,17 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
     }
 
 done:
+    if (socket_type == RIL_ATCI_SOCKET) {
+        if (fd != -1) {
+            close(fd);
+        }
+        s_atciSocketParam.fdCommand = -1;
+        if (s_atciSocketParam.p_rs != NULL) {
+            record_stream_free(s_atciSocketParam.p_rs);
+            s_atciSocketParam.p_rs = NULL;
+        }
+        rilEventAddWakeup(s_atciSocketParam.listen_event);
+    }
     free(pRI);
 }
 
@@ -7017,15 +7067,3 @@ requestToString(int request) {
 }
 
 } /* namespace android */
-
-void rilEventAddWakeup_helper(struct ril_event *ev) {
-    android::rilEventAddWakeup(ev);
-}
-
-void listenCallback_helper(int fd, short flags, void *param) {
-    android::listenCallback_ATCI(fd, flags, param);
-}
-
-int blockingWrite_helper(int fd, const void *buffer, size_t len) {
-    return android::blockingWrite(fd, buffer, len);
-}

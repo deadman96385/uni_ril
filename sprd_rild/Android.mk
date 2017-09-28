@@ -12,7 +12,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \
-	libril_sp \
+	librilsprd \
 	libdl
 
 # temporary hack for broken vendor rils
@@ -21,11 +21,11 @@ LOCAL_WHOLE_STATIC_LIBRARIES := \
 
 LOCAL_CFLAGS := -DRIL_SHLIB
 
-LOCAL_MODULE:= rild_sp
+LOCAL_MODULE:= sprdrild
 LOCAL_MODULE_TAGS := optional
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libril_sp
-LOCAL_MODULE_STEM_32 := rild_sp
-LOCAL_MODULE_STEM_64 := rild_sp64
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/librilsprd
+LOCAL_MODULE_STEM_32 := sprdrild
+LOCAL_MODULE_STEM_64 := sprdrild64
 LOCAL_MULTILIB := both
 include $(BUILD_EXECUTABLE)
 
