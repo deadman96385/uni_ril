@@ -20,4 +20,5 @@
     {RIL_REQUEST_ENABLE_IMS, dispatchVoid, responseVoid},
     {RIL_REQUEST_DISABLE_IMS, dispatchVoid, responseVoid},
     {RIL_REQUEST_GET_IMS_BEARER_STATE, dispatchVoid, responseInts},
-    {RIL_REQUEST_VIDEOPHONE_CODEC, dispatchVideoPhoneCodec, responseVoid}
+    {RIL_REQUEST_VIDEOPHONE_CODEC, dispatchVideoPhoneCodec, responseVoid},
+    {RIL_REQUEST_IMS_UPDATE_CLIP, dispatchInts, responseVoid}
