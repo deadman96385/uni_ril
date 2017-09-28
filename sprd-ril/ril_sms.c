@@ -8,6 +8,7 @@
 #include "sprd_ril.h"
 #include "ril_sms.h"
 #include "ril_utils.h"
+#include "ril_sim.h"
 
 static void requestSendSMS(int channelID, void *data, size_t datalen,
                               RIL_Token t) {
@@ -607,6 +608,12 @@ static void requestGetSmscAddress(int channelID, void *data,
     char *sc_line;
     ATResponse *p_response = NULL;
 
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+        return;
+    }
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+CSCA?",
                                      "+CSCA:", &p_response);
     if (err >= 0 && p_response->success) {
@@ -795,6 +802,12 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestWriteSmsToSim(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_DELETE_SMS_ON_SIM: {
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("card is absent");
+                RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+                break;
+            }
             char cmd[AT_COMMAND_LEN] = {0};
             snprintf(cmd, sizeof(cmd), "AT+CMGD=%d", ((int *)data)[0]);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
@@ -821,7 +834,12 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SET_SMSC_ADDRESS: {
             char *cmd;
             int ret;
-
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("card is absent");
+                RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+                break;
+            }
             int hexLen = strlen(data) * 2 + 1;
             unsigned char *hexData =
                     (unsigned char *)calloc(hexLen, sizeof(unsigned char));

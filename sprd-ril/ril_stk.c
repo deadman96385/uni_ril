@@ -397,7 +397,11 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_STK_SEND_ENVELOPE_COMMAND: {
             char *cmd;
             int ret;
-
+            if ((char *)(data) == NULL || strlen((char *)data) == 0) {
+                RLOGE("data is invalid");
+                RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+                break;
+            }
             ret = asprintf(&cmd, "AT+SPUSATENVECMD=\"%s\"", (char *)(data));
             if (ret < 0) {
                 RLOGE("Failed to allocate memory");
@@ -419,7 +423,11 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_STK_SEND_TERMINAL_RESPONSE: {
             char *cmd;
             int ret;
-
+            if ((char *)(data) == NULL || strlen((char *)data) == 0) {
+                RLOGE("data is invalid");
+                RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+                break;
+            }
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
             RLOGD("STK_SEND_TERMINAL_RESPONSE s_lunchOpenChannelDialog:%d", (int)s_lunchOpenChannelDialog);
             if (s_lunchOpenChannelDialog[socket_id]) {

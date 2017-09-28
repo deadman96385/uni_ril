@@ -232,7 +232,11 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
     }
     if (request == RIL_REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE ||
         request == RIL_REQUEST_CDMA_SET_ROAMING_PREFERENCE ||
-        request == RIL_REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE) {
+        request == RIL_REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE ||
+        request == RIL_REQUEST_GET_ACTIVITY_INFO ||
+        request == RIL_REQUEST_SET_CARRIER_RESTRICTIONS||
+        request == RIL_REQUEST_GET_CARRIER_RESTRICTIONS ||
+        request == RIL_REQUEST_STOP_LCE) {
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
         goto done;
     }
@@ -330,6 +334,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE ||
                  request == RIL_REQUEST_VOICE_RADIO_TECH ||
                  request == RIL_REQUEST_GET_NEIGHBORING_CELL_IDS ||
+                 request == RIL_REQUEST_GET_MUTE ||
+                 request == RIL_REQUEST_GET_CURRENT_CALLS ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
