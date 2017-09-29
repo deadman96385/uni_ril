@@ -19,7 +19,6 @@
 #define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
 #define DDR_STATUS_PROP         "persist.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.sys.pdp.reuse"
-#define RIL_ACT_NIC_NAME        "ril.act.nic.name"
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
@@ -2562,18 +2561,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int pdpState = 1;
         int cid = -1;
         int networkChangeReason = -1;
-        char ifname[AT_COMMAND_LEN] = {0};
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
         if (strstr(tmp, "NW PDN ACT")) {
             tmp += strlen(" NW PDN ACT ");
-            cid = atoi(tmp);
-            if (cid > 0 && cid <= MAX_PDP) {
-                RLOGD("save ifname seth_lte%d ", cid-1);
-                snprintf(ifname, sizeof(ifname), "seth_lte%d", cid - 1);
-                property_set(RIL_ACT_NIC_NAME, ifname);
-            }
         } else if (strstr(tmp, "NW ACT ")) {
             tmp += strlen(" NW ACT ");
             for (pCommaNext = tmp; *pCommaNext != '\0'; pCommaNext++) {

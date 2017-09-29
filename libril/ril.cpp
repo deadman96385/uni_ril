@@ -6940,6 +6940,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
         case RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED: return "UNSOL_SIMMGR_SIM_STATUS_CHANGED";
         case RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED: return "UNSOL_RADIO_CAPABILITY_CHANGED";
+        case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
         default: return "<unknown request>";
     }
 }
@@ -7013,6 +7014,8 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
         // Inform oem socket that modem maybe assert or reset
         RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
                            p_info->socket_id);
+        RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
+                           NULL, 0, p_info->socket_id);
     }
 }
 

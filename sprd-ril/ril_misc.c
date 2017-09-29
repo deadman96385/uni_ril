@@ -179,12 +179,15 @@ static void onQuerySignalStrengthLTE(void *param) {
 
     if (response[0] != -1 && response[0] != 99) {
         response_v6.GW_SignalStrength.signalStrength = response[0];
+        rxlev[socket_id] = response[0];
     }
     if (response[2] != -1 && response[2] != 255) {
         response_v6.GW_SignalStrength.signalStrength = response[2];
+        rscp[socket_id] = response[2];
     }
     if (response[5] != -1 && response[5] != 255 && response[5] != -255) {
         response_v6.LTE_SignalStrength.rsrp = response[5];
+        rsrp[socket_id] = response[5];
     }
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v6,
@@ -237,6 +240,7 @@ static void onQuerySignalStrength(void *param) {
     err =
         at_tok_nextint(&line, &(response_v6.GW_SignalStrength.signalStrength));
     if (err < 0) goto error;
+    rssi[socket_id] = response_v6.GW_SignalStrength.signalStrength;
 
     err = at_tok_nextint(&line, &(response_v6.GW_SignalStrength.bitErrorRate));
     if (err < 0) goto error;
@@ -578,8 +582,13 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
     return;
 
 error:
+    memset(buf, 0 ,sizeof(buf));
+    strlcat(buf, "ERROR", sizeof(buf));
+    strlcat(buf, "\r\n", sizeof(buf));
+    response[0] = buf;
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                          sizeof(char *));
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,

@@ -1344,6 +1344,10 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
     }
     if (p_args->data == NULL) {
         if (isISIMfile) {
+            if (s_simSessionId[socket_id] == -1) {
+                RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                goto error;
+            }
             err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"",
                     s_simSessionId[socket_id],
                     p_args->command, p_args->fileid,
@@ -1355,6 +1359,10 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         }
     } else {
         if (isISIMfile) {
+            if (s_simSessionId[socket_id] == -1) {
+                RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                goto error;
+            }
             err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"",
                     s_simSessionId[socket_id],
                     p_args->command, p_args->fileid,
