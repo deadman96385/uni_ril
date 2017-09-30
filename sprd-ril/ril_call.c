@@ -943,7 +943,6 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
     pthread_mutex_lock(&s_callMutex[socket_id]);
     switch (s_callFailCause[socket_id]) {
         case 1:
-        case 22:
         case 28:
             response = CALL_FAIL_UNOBTAINABLE_NUMBER;
             break;
@@ -976,6 +975,42 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
             break;
         case 241:
             response = CALL_FAIL_FDN_BLOCKED;
+            break;
+        case 31: // NORMAL_UNSPECIFIED
+        case 6: // CHANNEL_UNACCEPTABLE
+        case 18: // CALL_FAIL_NO_USER_RESPONDING
+        case 19: // CALL_FAIL_NO_ANSWER_FROM_USER
+        case 22: // NUMBER_CHANGED
+        case 25: // PREEMPTION
+        case 27: // CALL_FAIL_DESTINATION_OUT_OF_ORDER
+        case 29: // FACILITY_REJECTED
+        case 30: // STATUS_ENQUIRY
+        case 43: // ACCESS_INFORMATION_DISCARDED
+        case 49: // QOS_NOT_AVAIL
+        case 50: // REQUESTED_FACILITY_NOT_SUBSCRIBED
+        case 55: // INCOMING_CALLS_BARRED_WITHIN_CUG
+        case 57: // BEARER_CAPABILITY_NOT_AUTHORIZED
+        case 58: // BEARER_NOT_AVAIL
+        case 63: // SERVICE_OPTION_NOT_AVAILABLE
+        case 65: // BEARER_SERVICE_NOT_IMPLEMENTED
+        case 69: // REQUESTED_FACILITY_NOT_IMPLEMENTED
+        case 70: // ONLY_DIGITAL_INFORMATION_BEARER_AVAILABLE
+        case 79: // SERVICE_OR_OPTION_NOT_IMPLEMENTED
+        case 81: // INVALID_TRANSACTION_IDENTIFIER
+        case 87: // USER_NOT_MEMBER_OF_CUG
+        case 88: // INCOMPATIBLE_DESTINATION
+        case 91: // INVALID_TRANSIT_NW_SELECTION
+        case 95: // SEMANTICALLY_INCORRECT_MESSAGE
+        case 96: // INVALID_MANDATORY_INFORMATION
+        case 97: // MESSAGE_TYPE_NON_IMPLEMENTED
+        case 98: // MESSAGE_TYPE_NOT_COMPATIBLE_WITH_PROTOCOL_STATE
+        case 99: // INFORMATION_ELEMENT_NON_EXISTENT
+        case 100: // CONDITIONAL_IE_ERROR
+        case 101: // MESSAGE_NOT_COMPATIBLE_WITH_PROTOCOL_STATE
+        case 102: // RECOVERY_ON_TIMER_EXPIRED
+        case 111: // PROTOCOL_ERROR_UNSPECIFIED
+        case 127: // INTERWORKING_UNSPECIFIED
+            response = CALL_FAIL_NORMAL_UNSPECIFIED;
             break;
         default:
             response = CALL_FAIL_ERROR_UNSPECIFIED;
