@@ -6719,7 +6719,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
         at_send_command(ATch_type[channelID], "AT+CREG=1", NULL);
         at_send_command(ATch_type[channelID], "AT+CGREG=1", NULL);
         if (isVoLteEnable()) {
-            at_send_command(ATch_type[channelID], "AT+CIREG=0", NULL);
+            at_send_command(ATch_type[channelID], "AT+CIREG=1", NULL);
         }
         if(isExistActivePdp() && !strcmp(prop, "0")){
             at_send_command(ATch_type[channelID], "AT*FDY=1,2", NULL);
@@ -8025,7 +8025,8 @@ static void requestGetPhonebookStorageInfo(int channelID, void *data, size_t dat
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
-
+    at_response_free(p_response);
+    p_response = NULL;
     err = at_send_command_singleline(ATch_type[channelID], "AT+CPBS?", "+CPBS:", &p_response);
     if (err < 0 || p_response->success == 0) {
         goto error;
@@ -8124,7 +8125,8 @@ static void requestGetPhonebookEntry(int channelID, void *data, size_t datalen, 
     if (err < 0 || p_response->success == 0) {
         goto error;
     }
-
+    at_response_free(p_response);
+    p_response = NULL;
     snprintf(cmd, sizeof(cmd), "AT^SCPBR=%d",p_args->index);
     err = at_send_command_singleline(ATch_type[channelID], cmd, "^SCPBR:", &p_response);
     if (err < 0 || p_response->success == 0) {
@@ -8267,6 +8269,8 @@ static void requestAccessPhonebookEntry(int channelID, void *data, size_t datale
         cmd = NULL;
         goto error;
     }
+    at_response_free(p_response);
+    p_response = NULL;
     err = at_send_command_singleline(ATch_type[channelID], cmd, "^SCPBW:", &p_response);
     free(cmd);
     if (err < 0 || p_response->success == 0) {
@@ -12646,6 +12650,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                     }
                 }
+                at_response_free(p_response);
                 break;
             }
 
@@ -13191,6 +13196,7 @@ static void attachGPRS(int channelID, void *data, size_t datalen, RIL_Token t)
             if (err < 0 || p_response->success == 0) {
                 at_send_command(ATch_type[channelID], "AT+SGFD", NULL);
                 at_response_free(p_response);
+                p_response = NULL;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 goto error;
             }
@@ -13635,6 +13641,7 @@ static void onNitzReceived(void *param)
             RIL_UNSOL_NITZ_TIME_RECEIVED,
             nitz_str, strlen(nitz_str)+1);
     free(raw_str);
+    at_response_free(p_response);
     return;
 error:
     free(raw_str);
