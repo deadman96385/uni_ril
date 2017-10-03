@@ -209,6 +209,9 @@ int s_isstkcall = 0;
 static int add_ip_cid = -1;   //for volte addtional business
 static int s_screenState = 1;
 static int s_video_call_id = -1;
+
+pthread_mutex_t s_signalProcessMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_signalProcessCond = PTHREAD_COND_INITIALIZER;
 /*SPRD: add for VoLTE to handle SRVCC */
 typedef struct Srvccpendingrequest{
     char *cmd;
@@ -5004,10 +5007,14 @@ static void requestEccDial(int channelID, void *data, size_t datalen,
 
     /* success or failure is ignored by the upper layer here.
        it will call GET_CURRENT_CALLS and determine success that way */
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
     return;
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
 }
 
 /* SPRD: add for LTE-CSFB to handle CS fall back of MT call @{*/
@@ -7750,7 +7757,7 @@ void requestSendAT(int channelID, char *data, size_t datalen, RIL_Token t)
     char *at_cmd = (char *)data;
     int i, err;
     ATResponse *p_response = NULL;
-    char buf[1024] = {0};
+    char buf[MAX_AT_RESPONSE] = {0};
     ATLine *p_cur = NULL;
     char *cmd;
     char *pdu;
@@ -13726,6 +13733,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
 		RIL_SIGNALSTRENGTH_INIT(response_v6);
         line = strdup(s);
         tmp = line;
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
 
         err = csq_unsol_rsp(tmp, newLine);
         if (err == 0) {
@@ -13752,7 +13762,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         char newLine[AT_COMMAND_LEN];
 
         RILLOGD("[unsl] +CESQ enter");
-        if(!strcmp(s_modem, "t")) {
+        if(!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
             RILLOGD("for +CESQ, current is td ril,do nothing");
             return;
         }
@@ -13760,7 +13770,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RIL_SIGNALSTRENGTH_INIT(response_v6);
         line = strdup(s);
         tmp = line;
-
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
         err = cesq_unsol_rsp(tmp, newLine);
         if (err == 0) {
             RIL_SIGNALSTRENGTH_INIT(response_v6);
@@ -18053,15 +18065,16 @@ void *signal_process(){
     int nosigUpdate, MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
 //    extern int rxlev[], ber[], rscp[], ecno[], rsrq[], rsrp[];
 //    extern int rssi[], berr[];
-
+    int noSigChange = 0;
 //    simNum = s_multiSimMode ? 2 : 1;
     if(!strcmp(s_modem, "t") || !strcmp(s_modem, "w")){
         MAXSigCount = SIG_POOL_SIZE - 1;
     }
-
+    RILLOGD("signal_process");
     while(1){
 //        for (sim_index = 0; sim_index < simNum; sim_index++) {
             // compute the rsrp(4G) rscp(3G) rxlev(2G) or rssi(CSQ)
+            noSigChange = 0;
             if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
                 rsrp_array = NULL;
                 rscp_array = sample_rssi_sim;
@@ -18116,7 +18129,8 @@ void *signal_process(){
                 }
             }
             if (nosigUpdate == MAXSigCount) {
-                continue;
+                noSigChange++;
+                goto sleep;
             }
 
             if (rsrp_array != NULL) { // w/td mode no rsrp
@@ -18203,7 +18217,13 @@ void *signal_process(){
                         &responseV6, sizeof(RIL_SignalStrength_v6));
             }
 //        }
-        sleep(1);
+
+sleep:  sleep(1);
+        if ((noSigChange == 1) || (s_screenState == 0)) {
+            pthread_mutex_lock(&s_signalProcessMutex);
+            pthread_cond_wait(&s_signalProcessCond, &s_signalProcessMutex);
+            pthread_mutex_unlock(&s_signalProcessMutex);
+        }
     }
     return NULL;
 }
@@ -18470,12 +18490,13 @@ void setSockTimeout() {
 
 void *listenExtDataThread(void) {
     RILLOGD("try to connect socket ext_data...");
-
+    int retryTimes = 0;
     do {
         s_extDataFd = socket_local_client(SOCKET_NAME_EXT_DATA,
                 ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
         usleep(10 * 1000);  // wait for 10ms, try again
-    } while (s_extDataFd < 0);
+        retryTimes++;
+    } while (s_extDataFd < 0 && retryTimes < 10);
     RILLOGD("connect to ext_data socket success!");
 
     setSockTimeout();
