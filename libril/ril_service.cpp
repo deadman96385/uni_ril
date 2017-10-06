@@ -615,9 +615,9 @@ struct RadioImpl : public IExtRadio {
     Return<void> initISIM(int32_t serial,
             const ::android::hardware::hidl_vec<::android::hardware::hidl_string>& data);
 
-    Return<void> requestVolteCallMediaChange(int32_t serial, int32_t callID, bool isVideo);
+    Return<void> requestVolteCallMediaChange(int32_t serial, int32_t callID, int32_t mediaRequest);
 
-    Return<void> responseVolteCallMediaChange(int32_t serial, int32_t callID, bool isAccept);
+    Return<void> responseVolteCallMediaChange(int32_t serial, int32_t callID, bool isAccept, int32_t videoCallMediaDirection);
 
     Return<void> setIMSSmscAddress(int32_t serial,
             const ::android::hardware::hidl_string& smsc);
@@ -11437,21 +11437,23 @@ Return<void> RadioImpl::initISIM(int32_t serial, const hidl_vec<hidl_string>& da
     return Void();
 }
 
-Return<void> RadioImpl::requestVolteCallMediaChange(int32_t serial, int32_t callID, bool isVideo) {
+Return<void> RadioImpl::requestVolteCallMediaChange(int32_t serial, int32_t callID, int32_t mediaRequest) {
 #if VDBG
-    RLOGD("requestVolteCallMediaChange: serial %d", serial);
+    RLOGD("requestVolteCallMediaChange: serial %d, callID %d, mediaRequest %d",
+            serial, callID, mediaRequest);
 #endif
     dispatchInts(serial, mSlotId, RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE, 2,
-            callID, BOOL_TO_INT(isVideo));
+            callID, mediaRequest);
     return Void();
 }
 
-Return<void> RadioImpl::responseVolteCallMediaChange(int32_t serial, int32_t callID, bool isAccept) {
+Return<void> RadioImpl::responseVolteCallMediaChange(int32_t serial, int32_t callID, bool isAccept, int32_t videoCallMediaDirection) {
 #if VDBG
-    RLOGD("responseVolteCallMediaChange: serial %d", serial);
+    RLOGD("responseVolteCallMediaChange: serial %d, callID %d,isAccept %d, videoCallMediaDirection %d",
+            serial, callID, isAccept, videoCallMediaDirection);
 #endif
-    dispatchInts(serial, mSlotId, RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE, 2,
-            callID, BOOL_TO_INT(isAccept));
+    dispatchInts(serial, mSlotId, RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE, 3,
+            callID, BOOL_TO_INT(isAccept), videoCallMediaDirection);
     return Void();
 }
 
