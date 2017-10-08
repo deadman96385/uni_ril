@@ -336,6 +336,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_GET_NEIGHBORING_CELL_IDS ||
                  request == RIL_REQUEST_GET_MUTE ||
                  request == RIL_REQUEST_GET_CURRENT_CALLS ||
+                 request == RIL_REQUEST_LAST_CALL_FAIL_CAUSE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
