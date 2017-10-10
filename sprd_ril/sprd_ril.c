@@ -6599,6 +6599,10 @@ static void onQuerySignalStrength(void *param)
 
     err = at_tok_nextint(&line, &(response_v6.GW_SignalStrength.signalStrength));
     if (err < 0) goto error;
+    rssi = response_v6.GW_SignalStrength.signalStrength;
+    pthread_mutex_lock(&s_signalProcessMutex);
+    pthread_cond_signal(&s_signalProcessCond);
+    pthread_mutex_unlock(&s_signalProcessMutex);
 
     err = at_tok_nextint(&line, &(response_v6.GW_SignalStrength.bitErrorRate));
     if (err < 0) goto error;
@@ -6685,13 +6689,19 @@ static void onQuerySignalStrengthLTE(void *param)
 
     if(response[0] != -1 && response[0] != 99){
         response_v6.GW_SignalStrength.signalStrength = response[0];
+        rxlev = response[0];
     }
     if(response[2] != -1 && response[2] != 255){
         response_v6.GW_SignalStrength.signalStrength = response[2];
+        rscp = response[2];
     }
     if(response[5] != -1 && response[5] != 255 && response[5] != -255){
         response_v6.LTE_SignalStrength.rsrp = response[5];
+        rsrp = response[5];
     }
+    pthread_mutex_lock(&s_signalProcessMutex);
+    pthread_cond_signal(&s_signalProcessCond);
+    pthread_mutex_unlock(&s_signalProcessMutex);
 
     RIL_onUnsolicitedResponse(
               RIL_UNSOL_SIGNAL_STRENGTH,
@@ -13733,9 +13743,6 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
 		RIL_SIGNALSTRENGTH_INIT(response_v6);
         line = strdup(s);
         tmp = line;
-        pthread_mutex_lock(&s_signalProcessMutex);
-        pthread_cond_signal(&s_signalProcessCond);
-        pthread_mutex_unlock(&s_signalProcessMutex);
 
         err = csq_unsol_rsp(tmp, newLine);
         if (err == 0) {
@@ -13753,6 +13760,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
                     &response_v6, sizeof(RIL_SignalStrength_v6));
         }
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
     } else
     if (strStartsWith(s, "+CESQ:")) {
         RIL_SignalStrength_v6 response_v6;
@@ -13770,9 +13780,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         RIL_SIGNALSTRENGTH_INIT(response_v6);
         line = strdup(s);
         tmp = line;
-        pthread_mutex_lock(&s_signalProcessMutex);
-        pthread_cond_signal(&s_signalProcessCond);
-        pthread_mutex_unlock(&s_signalProcessMutex);
+
         err = cesq_unsol_rsp(tmp, newLine);
         if (err == 0) {
             RIL_SIGNALSTRENGTH_INIT(response_v6);
@@ -13810,6 +13818,9 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
                     &response_v6, sizeof(RIL_SignalStrength_v6));
         }
+        pthread_mutex_lock(&s_signalProcessMutex);
+        pthread_cond_signal(&s_signalProcessCond);
+        pthread_mutex_unlock(&s_signalProcessMutex);
     } else
 #endif
     if (strStartsWith(s, "+CTZV:")) {
@@ -18054,17 +18065,15 @@ static int least_squares(int y[]){
 void *signal_process(){
 //    int sim_index = 0;
     int i = 0;
-    int sample_rsrp_sim[2][SIG_POOL_SIZE] = { { 0 }, { 0 } },
-        sample_rscp_sim[2][SIG_POOL_SIZE] = { { 0 }, { 0 } },
-        sample_rxlev_sim[2][SIG_POOL_SIZE] = { { 0 }, { 0 } },
-        sample_rssi_sim[2][SIG_POOL_SIZE] = { { 0 }, { 0 } };
-    int* rsrp_array = NULL, *rscp_array = NULL, *rxlev_array, newSig;
+    int sample_rsrp_sim[SIG_POOL_SIZE] = {0},
+        sample_rscp_sim[SIG_POOL_SIZE] = {0},
+        sample_rxlev_sim[SIG_POOL_SIZE] = {0},
+        sample_rssi_sim[SIG_POOL_SIZE] = {0};
+    int *rsrp_array = NULL, *rscp_array = NULL, *rxlev_array, newSig;
     int upValue = -1, lowValue = -1;
 
     int rsrp_value, rscp_value, rxlev_value;
     int nosigUpdate, MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
-//    extern int rxlev[], ber[], rscp[], ecno[], rsrq[], rsrp[];
-//    extern int rssi[], berr[];
     int noSigChange = 0;
 //    simNum = s_multiSimMode ? 2 : 1;
     if(!strcmp(s_modem, "t") || !strcmp(s_modem, "w")){
@@ -18072,7 +18081,6 @@ void *signal_process(){
     }
     RILLOGD("signal_process");
     while(1){
-//        for (sim_index = 0; sim_index < simNum; sim_index++) {
             // compute the rsrp(4G) rscp(3G) rxlev(2G) or rssi(CSQ)
             noSigChange = 0;
             if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
@@ -18216,7 +18224,6 @@ void *signal_process(){
                 RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH,
                         &responseV6, sizeof(RIL_SignalStrength_v6));
             }
-//        }
 
 sleep:  sleep(1);
         if ((noSigChange == 1) || (s_screenState == 0)) {
