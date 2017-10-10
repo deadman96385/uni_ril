@@ -535,13 +535,14 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 #else
         if (!s_vsimInitFlag[RIL_SOCKET_1])
 #endif
-        {
-            if (s_vsimClientFd != -1) {
-                close(s_vsimClientFd);
-                s_vsimClientFd = -1;
+            {
+                if (s_vsimClientFd != -1) {
+                    close(s_vsimClientFd);
+                    s_vsimClientFd = -1;
+                }
+                s_vsimListenLoop = false;
             }
-            s_vsimListenLoop = false;
-        }
+            at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
             strlcat(buf, p_response->finalResponse, sizeof(buf));
             strlcat(buf, "\r\n", sizeof(buf));
             response[0] = buf;

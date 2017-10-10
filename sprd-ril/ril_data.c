@@ -1558,7 +1558,8 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
-    if (getPDPCid(socket_id, cid -1) <= 0) {
+    if (getPDPState(socket_id, cid - 1) == PDP_IDLE) {
+        RLOGD("deactive done!");
         goto done;
     }
     RLOGD("deactivateDC s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
@@ -1931,18 +1932,20 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
     int cid;
     char cmd[AT_COMMAND_LEN];
     bool islte = s_isLTE;
+    int state = PDP_IDLE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     if (islte) {
         for (i = 0; i < MAX_PDP; i++) {
             cid = getPDPCid(socket_id, i);
-            if (cid > 0) {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+            state = getPDPState(socket_id, i);
+            if (state == PDP_BUSY || cid > 0) {
+                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", i + 1);
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
                 cgact_deact_cmd_rsp(cid);
-                RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
-                if (s_PDP[socket_id][i].state == PDP_BUSY) {
+                RLOGD("s_PDP[%d].state = %d", i, state);
+                if (state == PDP_BUSY) {
                     putPDP(socket_id, i);
                     requestOrSendDataCallList(channelID, cid, NULL);
                 }
