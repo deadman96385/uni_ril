@@ -15,6 +15,8 @@
 
 extern StkContextList *s_stkContextList;
 
+#define STK_PHONE_ISIDLE_PROP        "persist.radio.phone.isidle"
+
 int sendTRData(int socket_id, char *data) {
     int ret = -1;
     int err = -1;
@@ -71,6 +73,29 @@ error:
     putChannel(sendELChannelID);
     AT_RESPONSE_FREE(p_response);
     return 0;
+}
+
+int phoneIsIdle(int socket_id) {
+    int err = -1;
+    int countCalls = 0;
+    ATLine *p_cur = NULL;
+    ATResponse *p_response = NULL;
+    int channelID = getChannel(socket_id);
+    err = at_send_command_multiline(s_ATChannels[channelID], "AT+CLCC",
+                                    "+CLCC:", &p_response);
+    if (err != 0 || p_response->success == 0) {
+        at_response_free(p_response);
+        return -1;
+    }
+
+    /* total the calls */
+    for (countCalls = 0, p_cur = p_response->p_intermediates; p_cur != NULL;
+         p_cur = p_cur->p_next) {
+        countCalls++;
+    }
+    at_response_free(p_response);
+
+    return countCalls;
 }
 
 static char *getDefaultBearerNetAccessName(int channelID) {
@@ -971,6 +996,7 @@ static void *openChannelThread(void *param) {
     int socket_id = -1;
     int sendTRChannelID = -1;
     char *data = NULL;
+    char phoneIdle[NAME_SIZE] = {0};
     pthread_attr_t attr;
     StkContext *pstkContext = NULL;
 
@@ -987,6 +1013,16 @@ static void *openChannelThread(void *param) {
     if (socket_id < 0 || socket_id >= SIM_COUNT) {
         RLOGE("Invalid socket_id %d", socket_id);
         return NULL;
+    }
+
+    property_get(STK_PHONE_ISIDLE_PROP, phoneIdle, "true");
+    RLOGD("openChannelThread phoneMode: %s", phoneIdle);
+    if (strcmp(phoneIdle,"true") == 0) {
+        if (phoneIsIdle(socket_id)) {
+            RLOGD("openchannel busy on call");
+            sendChannelResponse(pstkContext, TERMINAL_CRNTLY_UNABLE_TO_PROCESS, socket_id);
+            return NULL;
+         }
     }
 
     if ((pstkContext->pOCData->BearerType != BEARER_TYPE_GPRS)
