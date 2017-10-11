@@ -3109,6 +3109,9 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                         RIL_onUnsolicitedResponse(
                                 RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
                                 socket_id);
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     }
