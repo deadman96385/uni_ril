@@ -1,6 +1,6 @@
 service spril-daemon /vendor/bin/hw/sprdrild
     class core
     disabled
-    user root
+    user radio
     group radio cache inet misc audio log readproc wakelock sdcard_rw shell system
     capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
