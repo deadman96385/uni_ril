@@ -2728,6 +2728,21 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestUpdateOperatorName(channelID, data, datalen, t);
             break;
         }
+        case RIL_EXT_REQUEST_GET_FIRST_PLMN: {
+            int err;
+            p_response = NULL;
+            err = at_send_command(s_ATChannels[channelID], "AT+PRENWINF",
+                                          &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS,
+                        p_response->p_intermediates->line,
+                        strlen(p_response->p_intermediates->line) + 1);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
@@ -2999,7 +3014,20 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         const char *cmd = "+SPTESTMODE:";
         checkAndCompleteRequest(socket_id, cmd, (void *)(&response));
-    } else {
+    } else if (strStartsWith(s, "+PRENWINFU:")) {
+        char *response = NULL;
+        char *tmp = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextstr(&tmp, &response);
+        if (err < 0 || response == NULL) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_FIRST_PLMN, response,
+                                  strlen(response), socket_id);
+     } else {
         return 0;
     }
 

@@ -5918,7 +5918,8 @@ typedef struct {
 #define RIL_EXT_REQUEST_SET_VOICE_DOMAIN            (RIL_EXT_REQUEST_BASE + 40)
 #define RIL_EXT_REQUEST_SET_SMS_BEARER              (RIL_EXT_REQUEST_BASE + 41)
 #define RIL_EXT_REQUEST_SET_LOCAL_TONE              (RIL_EXT_REQUEST_BASE + 42)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SET_LOCAL_TONE
+#define RIL_EXT_REQUEST_GET_FIRST_PLMN              (RIL_EXT_REQUEST_BASE + 43)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_GET_FIRST_PLMN
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -5942,7 +5943,8 @@ typedef struct {
 #define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 18)
 #define RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED      (RIL_EXT_UNSOL_RESPONSE_BASE + 19)
 #define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 20)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
+#define RIL_EXT_UNSOL_FIRST_PLMN                    (RIL_EXT_UNSOL_RESPONSE_BASE + 21)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_FIRST_PLMN
 /*****************************************************************************/
 
 /*****************************************************************************/

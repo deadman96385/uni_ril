@@ -6657,6 +6657,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SET_VOICE_DOMAIN: return "SET_VOICE_DOMAIN";
         case RIL_EXT_REQUEST_SET_SMS_BEARER: return "SET_SMS_BEARER";
         case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
+        case RIL_EXT_REQUEST_GET_FIRST_PLMN: return "GET_FIRST_PLMN";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6732,6 +6733,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED: return "UNSOL_SIMMGR_SIM_STATUS_CHANGED";
         case RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED: return "UNSOL_RADIO_CAPABILITY_CHANGED";
         case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_FIRST_PLMN: return "UNSOL_FIRST_PLMN";
         default: return "<unknown request>";
     }
 }
