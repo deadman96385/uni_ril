@@ -1685,7 +1685,6 @@ static void  requestSIMOpenChannelWithP2(int channelID, void *data,
 
     char *cmd = NULL;
     char *line = NULL;
-    char *rspType = "0xFF";
     char *statusWord = NULL;
     char *responseData = NULL;
     RIL_OpenChannelParams *params = (RIL_OpenChannelParams *)data;
@@ -1693,7 +1692,7 @@ static void  requestSIMOpenChannelWithP2(int channelID, void *data,
     ATResponse *p_response = NULL;
     RIL_Errno errType = RIL_E_GENERIC_FAILURE;
 
-    asprintf(&cmd, "AT+SPCCHO=\"%s,%s, %d\"", params->aidPtr, rspType, params->p2);
+    asprintf(&cmd, "AT+SPCCHO=\"%s\",%d", params->aidPtr, params->p2);
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
                                      &p_response);
     free(cmd);
@@ -2956,9 +2955,11 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             RLOGD("RIL_REQUEST_SIM_AUTHENTICATION authContext = %d,"
                   "rand_autn = %s, aid = %s", sim_auth->authContext,
                   sim_auth->authData, sim_auth->aid);
-            if (sim_auth->authContext == AUTH_CONTEXT_EAP_AKA) {
+            if (sim_auth->authContext == AUTH_CONTEXT_EAP_AKA &&
+                sim_auth->authData != NULL) {
                 requestUSimAuthentication(channelID, sim_auth->authData, t);
-            } else if (sim_auth->authContext == AUTH_CONTEXT_EAP_SIM) {
+            } else if (sim_auth->authContext == AUTH_CONTEXT_EAP_SIM &&
+                       sim_auth->authData != NULL) {
                 requestSimAuthentication(channelID, sim_auth->authData, t);
             } else {
                 RLOGE("invalid authContext");
