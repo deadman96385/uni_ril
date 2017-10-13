@@ -2010,7 +2010,7 @@ static void dialEmergencyWhileCallFailed(void *param) {
     if (param != NULL) {
         char eccNumber[ARRAY_SIZE] = {0};
         char *line = NULL, *mcc = NULL;
-        int channelID, err;
+        int channelID, err, category = -1;
         ATResponse *p_response = NULL;
         CallbackPara *cbPara = (CallbackPara *)param;
         if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
@@ -2027,8 +2027,9 @@ static void dialEmergencyWhileCallFailed(void *param) {
         p_dial->uusInfo = NULL;
         channelID = getChannel(cbPara->socket_id);
 
-        RLOGD("dialEmergencyWhileCallFailed->address = %s",
-              (char *)cbPara->para);
+        isEccNumber(cbPara->socket_id, p_dial->address, &category);
+        RLOGD("dialEmergencyWhileCallFailed->address = %s, category = %d",
+              (char *)cbPara->para, category);
         err = at_send_command_multiline(s_ATChannels[channelID], "AT+CEN?",
                                        "+CEN", &p_response);
         /* AT+CEN? Return:
@@ -2049,11 +2050,11 @@ static void dialEmergencyWhileCallFailed(void *param) {
             RLOGE("%s get mcc fail", p_response->p_intermediates->line);
             goto done;
         }
-        snprintf(eccNumber, sizeof(eccNumber), "%s,%s@%d", mcc, p_dial->address, -1);
+        snprintf(eccNumber, sizeof(eccNumber), "%s,%s@%d", mcc, p_dial->address, category);
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED,
                 eccNumber, strlen(eccNumber) + 1, cbPara->socket_id);
 
-        requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL, -1);
+        requestEccDial(channelID, p_dial, sizeof(*p_dial), NULL, category);
 done:
         putChannel(channelID);
         at_response_free(p_response);
