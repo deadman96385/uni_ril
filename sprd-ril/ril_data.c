@@ -3444,8 +3444,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             property_set(SYS_IPV6_LINKLOCAL, pdp_info[cidIndex].ipv6laddr);
         }
         snprintf(cmd, sizeof(cmd), "<preifup>%s;%s;%d", linker,
-                  (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
-                  "IPV6" : "IPV4V6"), isAutoTest);
+                  actIPType == IPV4 ? "IPV4" : "IPV6", isAutoTest);
         sendCmdToExtData(cmd);
 
         /* config ip addr */
@@ -3470,8 +3469,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         }
 
         snprintf(cmd, sizeof(cmd), "<ifup>%s;%s;%d", linker,
-                  (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
-                  "IPV6" : "IPV4V6"), isAutoTest);
+                  actIPType == IPV4 ? "IPV4" : "IPV6", isAutoTest);
         sendCmdToExtData(cmd);
 
         /* Get IPV6 Header 64bit */
