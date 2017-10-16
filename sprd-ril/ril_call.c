@@ -2898,7 +2898,7 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                                      response, 2 * sizeof(char *), socket_id);
         } else {
             RIL_onUnsolicitedResponse(RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE,
-                                     response[0], 1 * sizeof(char *), socket_id);
+                                     response, 1 * sizeof(char *), socket_id);
         }
     } else if (strStartsWith(s, "+WIFIPARAM:")) {
         char *tmp = NULL;
