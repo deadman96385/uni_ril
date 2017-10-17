@@ -21,7 +21,6 @@
 #include <sys/socket.h>
 #include <cutils/sockets.h>
 #include <sys/system_properties.h>
-#include <system/qemu_pipe.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <telephony/ril.h>
