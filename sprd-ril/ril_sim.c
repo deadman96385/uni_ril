@@ -2977,14 +2977,6 @@ static void onSimAbsent(void *param) {
                               socket_id);
 }
 
-static void onSimDisabled(void *param) {
-    int channelID;
-    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
-    channelID = getChannel(socket_id);
-    setRadioState(channelID, RADIO_STATE_OFF);
-    putChannel(channelID);
-}
-
 static void onSimPresent(void *param) {
     int channelID;
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
@@ -3055,8 +3047,6 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                             RIL_onUnsolicitedResponse(
                                       RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                       NULL, 0, socket_id);
-                            RIL_requestTimedCallback(onSimDisabled,
-                                (void *)&s_socketId[socket_id], NULL);
                         }
                     } else if (cause == 1 || cause == 7) {  // no sim card
                         RIL_onUnsolicitedResponse(

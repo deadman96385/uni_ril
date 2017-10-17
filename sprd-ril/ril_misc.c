@@ -10,6 +10,7 @@
 #include "ril_misc.h"
 #include "ril_data.h"
 #include "ril_network.h"
+#include "ril_sim.h"
 #include "channel_controller.h"
 
 /* Fast Dormancy disable property */
@@ -446,7 +447,12 @@ void sendVsimReq(char *cmd) {
         RLOGE("Failed to create sendVsimReqThread errno: %d", errno);
     }
 }
-
+void onSimDisabled(int channelID) {
+    int sim_status = getSIMStatus(false, channelID);
+    at_send_command(s_ATChannels[channelID],
+                    "AT+SFUN=5", NULL);
+    setRadioState(channelID, RADIO_STATE_OFF);
+}
 void requestSendAT(int channelID, const char *data, size_t datalen,
                    RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -542,7 +548,7 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
                 }
                 s_vsimListenLoop = false;
             }
-            at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
+            onSimDisabled(channelID);
             strlcat(buf, p_response->finalResponse, sizeof(buf));
             strlcat(buf, "\r\n", sizeof(buf));
             response[0] = buf;
