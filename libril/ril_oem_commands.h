@@ -29,7 +29,7 @@
     {RIL_EXT_REQUEST_SET_FACILITY_LOCK_FOR_USER, dispatchStrings, responseVoid},
     {RIL_EXT_REQUEST_GET_SIMLOCK_STATUS, dispatchInts, responseInts},
     {RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS, dispatchVoid, responseInts},
-    {RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST, dispatchInts, responseStrings},
+    {RIL_EXT_REQUEST_GET_SIMLOCK_WHITE_LIST, dispatchInts, responseString},
     {RIL_EXT_REQUEST_UPDATE_ECCLIST, dispatchString, responseVoid},
     {RIL_EXT_REQUEST_GET_BAND_INFO, dispatchVoid, responseString},
     {RIL_EXT_REQUEST_SET_BAND_INFO_MODE, dispatchInts, responseVoid},
