@@ -396,6 +396,7 @@ void *listenVsimSocketThread() {
                 <= 0) {
             RLOGE("read error from vsim! err = %s",strerror(errno));
             close(s_vsimClientFd);
+            s_vsimListenLoop = false;
             s_vsimClientFd = -1;
         }
         RLOGD("vsim read %s",error);
