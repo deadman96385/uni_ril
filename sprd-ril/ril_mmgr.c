@@ -269,18 +269,8 @@ static int freeSetInitialAttachApn(void *data, size_t datalen) {
 static int freeSendImsSms(void *data, size_t datalen) {
     RIL_UNUSED_PARM(datalen);
 
-    RIL_IMS_SMS_Message *rism = (RIL_IMS_SMS_Message *)data;
-    int countStrings = 2;
-
-    for (int i = 0 ; i < countStrings; i++) {
-        memsetString(rism->message.gsmMessage[i]);
-        free(rism->message.gsmMessage[i]);
-    }
-    memset(rism->message.gsmMessage, 0, countStrings * sizeof(char *));
-    free(rism->message.gsmMessage);
-
-    memset(rism, 0, sizeof(RIL_IMS_SMS_Message *));
-    free(rism);
+    ImsCdmaSms *ics = (ImsCdmaSms *)data;
+    free(ics);
 
     return 0;
 }

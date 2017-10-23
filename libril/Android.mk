@@ -19,6 +19,7 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware_legacy \
     librilutils \
     android.hardware.radio@1.0 \
+    android.hardware.radio@1.1 \
     android.hardware.radio.deprecated@1.0 \
     libhidlbase  \
     libhidltransport \
@@ -41,7 +42,6 @@ endif
 LOCAL_C_INCLUDES += external/nanopb-c
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/../include
-LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE:= librilsprd
 LOCAL_CLANG := true
 LOCAL_SANITIZE := integer

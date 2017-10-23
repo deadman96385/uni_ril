@@ -20,7 +20,9 @@
 #include <telephony/ril.h>
 #include <telephony/record_stream.h>
 
-#define NUM_ELEMS_SOCKET(a)     (sizeof(a) / sizeof(a)[0])
+#define NUM_ELEMS_SOCKET(a)     (sizeof (a) / sizeof (a)[0])
+
+struct ril_event;
 
 void rilEventAddWakeup_helper(struct ril_event *ev);
 int blockingWrite_helper(int fd, void *data, size_t len);
