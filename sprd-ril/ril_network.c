@@ -3570,6 +3570,7 @@ void *signal_process() {
     // 3 means count 2G/3G/4G
     int nosigUpdate[SIM_COUNT], MAXSigCount = 3 * (SIG_POOL_SIZE - 1);
     int noSigChange = 0;  // numbers of SIM cards with constant signal value
+    int noSimCard = 0;  // numbers of SIM slot without card
 
     memset(sample_rsrp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
     memset(sample_rscp_sim, 0, sizeof(int) * SIM_COUNT * SIG_POOL_SIZE);
@@ -3582,7 +3583,12 @@ void *signal_process() {
 
     while (1) {
         noSigChange = 0;
+        noSimCard = 0;
         for (sim_index = 0; sim_index < SIM_COUNT; sim_index++) {
+            if (s_isSimPresent[sim_index] != PRESENT) {  // no sim card
+                noSimCard++;
+                continue;
+            }
             // compute the rsrp(4G) rscp(3G) rxlev(2G) or rssi(CSQ)
             if (!s_isLTE) {
                 rsrp_array = NULL;
@@ -3744,7 +3750,7 @@ void *signal_process() {
             }
         }
         sleep(1);
-        if ((noSigChange == SIM_COUNT) || (s_screenState == 0)) {
+        if ((noSigChange + noSimCard == SIM_COUNT) || (s_screenState == 0)) {
             pthread_mutex_lock(&s_signalProcessMutex);
             pthread_cond_wait(&s_signalProcessCond, &s_signalProcessMutex);
             pthread_mutex_unlock(&s_signalProcessMutex);

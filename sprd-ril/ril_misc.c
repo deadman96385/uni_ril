@@ -241,6 +241,9 @@ static void onQuerySignalStrengthLTE(void *param) {
         response_v10.LTE_SignalStrength.rsrp = response[5];
         rsrp[socket_id] = response[5];
     }
+    pthread_mutex_lock(&s_signalProcessMutex);
+    pthread_cond_signal(&s_signalProcessCond);
+    pthread_mutex_unlock(&s_signalProcessMutex);
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &response_v10,
                               sizeof(RIL_SignalStrength_v10), socket_id);
@@ -293,6 +296,9 @@ static void onQuerySignalStrength(void *param) {
         at_tok_nextint(&line, &(response_v10.GW_SignalStrength.signalStrength));
     if (err < 0) goto error;
     rssi[socket_id] = response_v10.GW_SignalStrength.signalStrength;
+    pthread_mutex_lock(&s_signalProcessMutex);
+    pthread_cond_signal(&s_signalProcessCond);
+    pthread_mutex_unlock(&s_signalProcessMutex);
 
     err = at_tok_nextint(&line, &(response_v10.GW_SignalStrength.bitErrorRate));
     if (err < 0) goto error;

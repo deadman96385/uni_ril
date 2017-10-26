@@ -2869,16 +2869,22 @@ void setSockTimeout() {
 }
 
 void *listenExtDataThread(void) {
+    int retryTimes = 0;
     RLOGD("try to connect socket ext_data...");
 
     do {
         s_extDataFd = socket_local_client(SOCKET_NAME_EXT_DATA,
                 ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-        usleep(10 * 1000);  // wait for 10ms, try again
-    } while (s_extDataFd < 0);
-    RLOGD("connect to ext_data socket success!");
+        usleep(10 * 1000);  // wait for 10ms, try 10 times
+        retryTimes++;
+    } while (s_extDataFd < 0 && retryTimes < 10);
 
-    setSockTimeout();
+    if (s_extDataFd >= 0) {
+        RLOGD("connect to ext_data socket success!");
+        setSockTimeout();
+    } else {
+        RLOGE("connect to ext_data socket failed!");
+    }
     return NULL;
 }
 
