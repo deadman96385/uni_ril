@@ -12,6 +12,7 @@
 #include "ril_sim.h"
 
 const struct timeval TIMEVAL_CSCALLSTATEPOLL = {0, 50000};
+const struct timeval TIMEVAL_SRVCC_CALLSTATEPOLL = {0, 500000};
 ListNode s_DTMFList[SIM_COUNT];
 static SrvccPendingRequest *s_srvccPendingRequest[SIM_COUNT];
 char *s_realEccList[SIM_COUNT];
@@ -2588,13 +2589,14 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_SRVCC_STATE_NOTIFY, &status,
                                   sizeof(status), socket_id);
 
+
         if (status == SRVCC_PS_TO_CS_SUCCESS ||
                 status == VSRVCC_PS_TO_CS_SUCCESS) {
             RIL_requestTimedCallback(sendCSCallStateChanged,
-                    (void *)&s_socketId[socket_id], &TIMEVAL_CSCALLSTATEPOLL);
-        } else {
+                    (void *)&s_socketId[socket_id], &TIMEVAL_SRVCC_CALLSTATEPOLL);
+        } else if(status == SRVCC_CS_TO_PS_SUCCESS){
             RIL_requestTimedCallback(sendIMSCallStateChanged,
-                    (void *)&s_socketId[socket_id], &TIMEVAL_CSCALLSTATEPOLL);
+                    (void *)&s_socketId[socket_id], &TIMEVAL_SRVCC_CALLSTATEPOLL);
         }
     } else if (strStartsWith(s, AT_PREFIX"DVTCODECRI:")) {
         int response[4];
