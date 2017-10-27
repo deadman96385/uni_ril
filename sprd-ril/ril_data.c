@@ -1648,11 +1648,28 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     }
 }
 
+/**
+ * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
+ * we can get data connection card id by s_dataAllowed
+ */
+int getDefaultDataCardId() {
+    int i = 0;
+    int ret = -1;
+    for (i = 0; i < SIM_COUNT; i++) {
+        if (s_dataAllowed[i] == 1) {
+            ret = i;
+        }
+    }
+    return ret;
+}
+
 static void requestSetInitialAttachAPN(int channelID, void *data,
                                             size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
     int initialAttachId = 1;
     int ret = -1;
+    bool isSetReattach = false;
+    char prop[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1674,7 +1691,16 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             }
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
-            if (socket_id == s_multiModeSim && (s_in4G[socket_id] == 1 ||
+            /*bug769723 CMCC version reattach on data card*/
+            property_get("ro.radio.spice", prop, "0");
+            if (!strcmp(prop, "1")) {
+                if (socket_id == getDefaultDataCardId()) {
+                    isSetReattach = true;
+                }
+            } else {
+                isSetReattach = socket_id == s_multiModeSim;
+            }
+            if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
@@ -1889,21 +1915,6 @@ void requestAllowData(int channelID, void *data, size_t datalen,
             RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         }
     }
-}
-
-/**
- * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
- * we can get data connection card id by s_dataAllowed
- */
-int getDefaultDataCardId() {
-    int i = 0;
-    int ret = -1;
-    for (i = 0; i < SIM_COUNT; i++) {
-        if (s_dataAllowed[i] == 1) {
-            ret = i;
-        }
-    }
-    return ret;
 }
 
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
