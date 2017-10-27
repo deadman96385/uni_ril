@@ -70,7 +70,6 @@
 
 #define SIMLOCK_ATTEMPT_TIMES_PROP              "gsm.attempttimes.%s"
 
-static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
 static RIL_AppType s_appType[SIM_COUNT];
 static bool s_needQueryPinTimes[SIM_COUNT] = {
@@ -3071,7 +3070,6 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
     int value = 0, cause = -1;
     char *line = NULL;
     char *tmp;
-
     line = strdup(s);
     tmp = line;
     at_tok_start(&tmp);
@@ -3088,7 +3086,6 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     err = at_tok_nextint(&tmp, &cause);
                     if (err < 0) goto out;
                     if (cause == 2) {
-                        s_simState[socket_id] = SIM_DROP;
                         RIL_onUnsolicitedResponse(
                                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
                                 0, socket_id);
@@ -3097,7 +3094,6 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 34) {  // sim removed
-                        s_simState[socket_id] = SIM_REMOVE;
                         RIL_onUnsolicitedResponse(
                                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
                                 0, socket_id);

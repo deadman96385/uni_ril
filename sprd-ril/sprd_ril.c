@@ -113,9 +113,6 @@ const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
 const struct timeval TIMEVAL_SIMPOLL = {1, 0};
 
-static int s_port = -1;
-static int s_deviceSocket = 0;
-static const char *s_devicePath = NULL;
 /* trigger change to this with s_radioStateCond */
 static int s_closed[SIM_COUNT];
 static const struct timeval TIMEVAL_0 = {0, 0};
@@ -1208,7 +1205,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     at_set_on_reader_closed(onATReaderClosed);
-    at_set_on_timeout(onATTimeout);
+    //at_set_on_timeout(onATTimeout);
 
     detectATNoResponse();
     ps_service_init();
@@ -1246,26 +1243,28 @@ int main(int argc, char **argv) {
     int ret;
     int fd = -1;
     int opt;
-
+    int port = -1;
+    int deviceSocket = 0;
+    const char *devicePath = NULL;
     while (-1 != (opt = getopt(argc, argv, "p:d:"))) {
         switch (opt) {
             case 'p':
-                s_port = atoi(optarg);
-                if (s_port == 0) {
+                port = atoi(optarg);
+                if (port == 0) {
                     usage(argv[0]);
                 }
-                RLOGI("Opening loopback port %d\n", s_port);
+                RLOGI("Opening loopback port %d\n", port);
                 break;
 
             case 'd':
-                s_devicePath = optarg;
-                RLOGI("Opening tty device %s\n", s_devicePath);
+                devicePath = optarg;
+                RLOGI("Opening tty device %s\n", devicePath);
                 break;
 
             case 's':
-                s_devicePath   = optarg;
-                s_deviceSocket = 1;
-                RLOGI("Opening socket %s\n", s_devicePath);
+                devicePath   = optarg;
+                deviceSocket = 1;
+                RLOGI("Opening socket %s\n", devicePath);
                 break;
 
             default:
@@ -1273,7 +1272,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (s_port < 0 && s_devicePath == NULL) {
+    if (port < 0 && devicePath == NULL) {
         usage(argv[0]);
     }
 

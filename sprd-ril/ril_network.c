@@ -30,18 +30,6 @@
 /* reset modem for recovery */
 #define RADIO_RESET_PROP        "gsm.radioreset"
 
-RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
-        RIL_UNKNOWN
-#if (SIM_COUNT >= 2)
-        ,RIL_UNKNOWN
-#if (SIM_COUNT >= 3)
-        ,RIL_UNKNOWN
-#if (SIM_COUNT >= 4)
-        ,RIL_UNKNOWN
-#endif
-#endif
-#endif
-        };
 RIL_RegState s_PSRegStateDetail[SIM_COUNT] = {
         RIL_UNKNOWN
 #if (SIM_COUNT >= 2)
@@ -750,9 +738,8 @@ static void requestRegistrationState(int channelID, int request,
     }
 
     int regState = mapRegState(response[0]);
-    if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE) {
-        s_CSRegStateDetail[socket_id] = regState;
-    } else if (request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
+
+    if (request == RIL_REQUEST_DATA_REGISTRATION_STATE) {
         s_PSRegStateDetail[socket_id] = regState;
     }
 

@@ -66,7 +66,7 @@ void  AT_DUMP(const char *prefix, const char *buff, int len) {
 }
 #endif
 
-static void (*s_onTimeout)(RIL_SOCKET_ID socket_id) = NULL;
+//static void (*s_onTimeout)(RIL_SOCKET_ID socket_id) = NULL;
 static void (*s_onReaderClosed)(RIL_SOCKET_ID socket_id) = NULL;
 
 static void onReaderClosed(RIL_SOCKET_ID socket_id);
@@ -1066,9 +1066,9 @@ int at_send_command_multiline(struct ATChannels *ATch,
 
 
 /** This callback is invoked on the command thread */
-void at_set_on_timeout(void (*onTimeout)(RIL_SOCKET_ID socket_id)) {
-    s_onTimeout = onTimeout;
-}
+//void at_set_on_timeout(void (*onTimeout)(RIL_SOCKET_ID socket_id)) {
+//    s_onTimeout = onTimeout;
+//}
 
 /**
  *  This callback is invoked on the reader thread (like ATUnsolHandler)
