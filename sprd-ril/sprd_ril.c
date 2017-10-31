@@ -1143,7 +1143,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     int fd = -1;
     int opt;
     int simId;
-    pthread_attr_t attr;
+    pthread_attr_t attr, at;
     char prop[PROPERTY_VALUE_MAX];
     s_rilEnv = env;
     void *dlHandle = NULL;
@@ -1196,9 +1196,11 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
     s_threadsFunctions = rilThreadsInit(&s_requestFunctions, SIM_COUNT, MAX_THR);
 
-
+    pthread_condattr_init(&at);
+    pthread_condattr_setclock(&at, CLOCK_MONOTONIC);
     for (simId = 0; simId < SIM_COUNT; simId++) {
         s_isSimPresent[simId] = SIM_UNKNOWN;
+        pthread_cond_init(&s_simBusy[simId].s_sim_busy_cond, &at);
     }
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);

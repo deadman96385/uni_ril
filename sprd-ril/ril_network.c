@@ -15,6 +15,7 @@
 #include "channel_controller.h"
 #include "ril_call.h"
 #include "ril_utils.h"
+#include "time.h"
 
 /* Save physical cellID for AGPS */
 #define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
@@ -1051,10 +1052,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                                   RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
 
-    int err, i;
+    int err, i, rc;
     char cmd[AT_COMMAND_LEN] = {0};
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
     char radioResetProp[PROPERTY_VALUE_MAX] = {0};
+    struct timespec timeout;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1086,6 +1088,22 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         setRadioState(channelID, RADIO_STATE_OFF);
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
+        getSIMStatus(false, channelID);
+        if (s_simBusy[socket_id].s_sim_busy) {
+            RLOGD("SIM is busy now, wait for CPIN status!");
+            clock_gettime(CLOCK_MONOTONIC, &timeout);
+            timeout.tv_sec += 8;
+            pthread_mutex_lock(&s_simBusy[socket_id].s_sim_busy_mutex);
+            rc = pthread_cond_timedwait(&s_simBusy[socket_id].s_sim_busy_cond,
+                                &s_simBusy[socket_id].s_sim_busy_mutex,
+                                &timeout);
+            if (rc == ETIMEDOUT) {
+                RLOGD("stop waiting when time is out!");
+            } else {
+                RLOGD("CPIN is OK now, do it!");
+            }
+            pthread_mutex_unlock(&s_simBusy[socket_id].s_sim_busy_mutex);
+        }
         initSIMPresentState();
         getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
         if (strcmp(simEnabledProp, "0") == 0) {
@@ -1187,16 +1205,16 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
              * So, if we get an error, let's check to see if it
              * turned on anyway
              */
-            if (s_simBusy[socket_id].s_sim_busy) {
-                RLOGD("Now SIM is busy, wait for CPIN READY and then"
-                      "set radio on again.");
-                pthread_t tid;
-                pthread_attr_t attr;
-                pthread_attr_init(&attr);
-                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-                pthread_create(&tid, &attr, (void *)setRadioOnWhileSimBusy,
-                                 (void *)&s_socketId[socket_id]);
-            }
+//            if (s_simBusy[socket_id].s_sim_busy) {
+//                RLOGD("Now SIM is busy, wait for CPIN READY and then"
+//                      "set radio on again.");
+//                pthread_t tid;
+//                pthread_attr_t attr;
+//                pthread_attr_init(&attr);
+//                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+//                pthread_create(&tid, &attr, (void *)setRadioOnWhileSimBusy,
+//                                 (void *)&s_socketId[socket_id]);
+//            }
 
             if (isRadioOn(channelID) != 1) {
                 goto error;

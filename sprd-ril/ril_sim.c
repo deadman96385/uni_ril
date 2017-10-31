@@ -486,6 +486,9 @@ done:
 
     if (ret == SIM_ABSENT) {
         setSimPresent(socket_id, ABSENT);
+    } else if (ret == SIM_NOT_READY &&
+           s_simBusy[socket_id].s_sim_busy == true) {
+        setSimPresent(socket_id, SIM_UNKNOWN);
     } else {
         setSimPresent(socket_id, PRESENT);
     }
