@@ -72,7 +72,7 @@
 
 static int s_simState[SIM_COUNT];
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
-static RIL_AppType s_appType[SIM_COUNT];
+RIL_AppType s_appType[SIM_COUNT];
 static bool s_needQueryPinTimes[SIM_COUNT] = {
         true
 #if (SIM_COUNT >= 2)
@@ -153,7 +153,7 @@ static pthread_mutex_t s_simStatusMutex[SIM_COUNT] = {
 
 static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
-static int initISIM(int channelID);
+int initISIM(int channelID);
 
 static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     int err, result;
@@ -2136,7 +2136,7 @@ error:
     at_response_free(p_response);
 }
 
-static int initISIM(int channelID) {
+int initISIM(int channelID) {
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     if (s_imsInitISIM[socket_id] != -1) {
         return s_imsInitISIM[socket_id];
@@ -2165,7 +2165,7 @@ static int initISIM(int channelID) {
 static void requestInitISIM(int channelID, void *data, size_t datalen,
                             RIL_Token t) {
     int err;
-    int response = initISIM(channelID);;
+    int response = initISIM(channelID);
     char cmd[AT_COMMAND_LEN] = {0};
     const char **strings = (const char **)data;
     ATResponse *p_response = NULL;

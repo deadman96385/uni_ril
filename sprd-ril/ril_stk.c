@@ -177,6 +177,18 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
     return 1;
 }
 
+static void initIsimCard(void *param){
+    int channelID;
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
+    }
+    channelID = getChannel(socket_id);
+    int response = initISIM(channelID);
+    putChannel(channelID);
+}
+
 int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     char *line = NULL;
@@ -287,6 +299,10 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         response->aid = "";
         if (SIM_RESET == result || strcmp(response->ef_id, "") != 0) {
             s_imsInitISIM[socket_id] = -1;
+        }
+        if (RIL_APPTYPE_ISIM == s_appType[socket_id] && SIM_INIT == result) {
+            s_imsInitISIM[socket_id] = -1;
+            RIL_requestTimedCallback(initIsimCard, (void *)&s_socketId[socket_id], NULL);
         }
         RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
                 sizeof(RIL_SimRefreshResponse_v7), socket_id);

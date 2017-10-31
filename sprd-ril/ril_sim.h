@@ -51,7 +51,9 @@ typedef enum {
 } SimPresentState;
 
 extern int s_imsInitISIM[SIM_COUNT];
+extern RIL_AppType s_appType[SIM_COUNT];
 
+int initISIM(int channelID);
 int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
