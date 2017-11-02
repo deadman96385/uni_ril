@@ -1000,14 +1000,12 @@ static int getRadioFeatures(int socket_id) {
             rat = GSM;
         } else if (workMode == NONE) {
             rat = RAF_UNKNOWN;
-        } else if (s_isLTE) {
-            if (s_modemConfig == LG_G) {
+        } else if (s_modemConfig == LG_G) {
                 rat = RAF_LTE | GSM;
-            } else {
-                rat = RAF_LTE | WCDMA | GSM;
-            }
-        } else {
+        } else if (s_modemConfig == W_G) {
             rat = WCDMA | GSM;
+        } else {
+            rat = RAF_LTE | WCDMA | GSM;
         }
         if (workMode == NONE && isSimPresent(socket_id)) {
            rat = GSM;
@@ -1668,6 +1666,7 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                     }
                 } else {
                     int mode = getMultiMode();
+                    type = mode;
                     if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM) {
                         type = TD_AND_WCDMA;
                     } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM) {
@@ -1691,6 +1690,7 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             case NETWORK_MODE_LTE_ONLY: {
                 int mode = getMultiMode();
+                type = mode;
                 if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM ||
                     mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM ||
                     mode == TD_LTE_AND_LTE_FDD_AND_GSM) {

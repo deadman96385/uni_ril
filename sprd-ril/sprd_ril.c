@@ -567,6 +567,8 @@ int getModemConfig() {
         modemConfig = LWG_LWG;
     } else if (strcmp(prop, "TL_LF_G,G") == 0) {
         modemConfig = LG_G;
+    } else if (strcmp(prop, "W_G,G") == 0) {
+        modemConfig = W_G;
     }
     return modemConfig;
 }
