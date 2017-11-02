@@ -5088,7 +5088,15 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             close(fd);
         }
         p_info->fdCommand = -1;
-        if (p_info->type != RIL_ATCI_SOCKET) {
+        if (p_info->type == RIL_ATCI_SOCKET) {
+            RLOGE("not receive at cmd, client died");
+            s_atciSocketParam.fdCommand = -1;
+            if (s_atciSocketParam.p_rs != NULL) {
+                record_stream_free(s_atciSocketParam.p_rs);
+                s_atciSocketParam.p_rs = NULL;
+            }
+            rilEventAddWakeup(s_atciSocketParam.listen_event);
+        } else {
             ril_event_del(p_info->commands_event);
 
             record_stream_free(p_rs);
