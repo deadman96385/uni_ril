@@ -39,6 +39,7 @@
 #define MAX_LIB_ARGS        16
 #define MAX_CAP_NUM         (CAP_TO_INDEX(CAP_LAST_CAP) + 1)
 #define RIL_AT_TEST_PROPERTY  "persist.sys.sprd.attest"
+#define CAP_BLOCK_SUSPEND 36
 
 static int modem;
 #define RILLOGI(fmt, args...) ALOGI("[%c] " fmt, modem,  ## args)
