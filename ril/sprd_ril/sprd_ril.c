@@ -8252,7 +8252,7 @@ static void requestGetCellInfoList(void *data, size_t datalen, RIL_Token t,int c
     }else if(cell_type == RIL_CELL_INFO_TYPE_GSM){
         err = at_send_command_singleline(ATch_type[channelID], "AT+SPQ2GNCELL", "+SPQ2GNCELL", &p_response);
     }else {
-        err = at_send_command_singleline(ATch_type[channelID], "AT+SPQ3GNCELLEX=4,3", "+Q3GNCELL", &p_response);
+        err = at_send_command_singleline(ATch_type[channelID], "AT+SPQ3GNCELLEX=4,3", "+SPQ3GNCELL", &p_response);
     }
 
     if (err < 0 || p_response->success == 0) {
