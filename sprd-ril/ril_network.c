@@ -2307,7 +2307,7 @@ static void requestGetCellInfoList(int channelID, void *data,
         }
     } else {
         err = at_send_command_singleline(s_ATChannels[channelID],
-                "AT+SPQ3GNCELLEX=4,3", "+Q3GNCELL", &p_response);
+                "AT+SPQ3GNCELLEX=4,3", "+SPQ3GNCELL", &p_response);
         if (err < 0 || p_response->success == 0) {
             goto error;
         }
