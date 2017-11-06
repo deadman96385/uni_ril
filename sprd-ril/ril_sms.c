@@ -27,6 +27,12 @@ static void requestSendSMS(int channelID, void *data, size_t datalen,
     smsc = ((const char **)data)[0];
     pdu = ((const char **)data)[1];
 
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+        return;
+    }
     tpLayerLength = strlen(pdu) / 2;
 
     /* "NULL for default SMSC" */
@@ -208,6 +214,12 @@ static void requestSMSAcknowledge(int channelID, void *data,
     int ackSuccess;
     int err;
 
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE , NULL, 0);
+        return;
+    }
     ackSuccess = ((int *)data)[0];
 
     if (ackSuccess == 1) {
@@ -239,6 +251,13 @@ static void requestWriteSmsToSim(int channelID, void *data, size_t datalen,
     char *line = NULL;
     ATResponse *p_response = NULL;
     RIL_SMS_WriteArgs *p_args;
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+        return;
+    }
 
     p_args = (RIL_SMS_WriteArgs *)data;
 
@@ -866,6 +885,12 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
         }
         case RIL_REQUEST_REPORT_SMS_MEMORY_STATUS: {
             char cmd[AT_COMMAND_LEN] = {0};
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("card is absent");
+                RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
+                break;
+            }
             snprintf(cmd, sizeof(cmd), "AT+SPSMSFULL=%d", !((int *)data)[0]);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {

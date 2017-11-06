@@ -1316,7 +1316,12 @@ static void requestNetworkRegistration(int channelID, void *data,
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 30")) {
+        RIL_onRequestComplete(t, RIL_E_ILLEGAL_SIM_OR_ME, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
     at_response_free(p_response);
     free(network);
 }
@@ -1445,7 +1450,12 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_OPERATION_NOT_ALLOWED, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
     at_response_free(p_response);
     free(startTmp);
 }
@@ -2094,8 +2104,7 @@ static void requestNeighboaringCellIds(int channelID,
     RIL_NeighboringCell **NeighboringCellList;
     //for vts cases
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    if (s_radioState[socket_id] == RADIO_STATE_OFF &&
-            s_isSimPresent[socket_id] != PRESENT) {
+    if (s_isSimPresent[socket_id] != PRESENT) {
         RLOGE("requestNeighboaringCellIds: card is absent");
         RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
         return;
@@ -2616,7 +2625,7 @@ error:
     at_response_free(p_newResponse);
     free(response);
 
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    RIL_onRequestComplete(t, RIL_E_NO_NETWORK_FOUND, NULL, 0);
 }
 
 static void requestShutdown(int channelID,
@@ -3086,9 +3095,18 @@ int processNetworkRequests(int request, void *data, size_t datalen,
                                       &p_response);
             }
             if (err < 0 || p_response->success == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                goto error;
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                at_response_free(p_response);
+                break;
+            }
+        error:
+            if (p_response != NULL &&
+                    !strcmp(p_response->finalResponse, "+CME ERROR: 30")) {
+                RIL_onRequestComplete(t, RIL_E_ILLEGAL_SIM_OR_ME, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
             at_response_free(p_response);
             break;

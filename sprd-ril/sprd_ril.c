@@ -239,7 +239,14 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
         request == RIL_REQUEST_STOP_LCE) {
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
         goto done;
+    } else if (request == RIL_REQUEST_PULL_LCEDATA) {
+        RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+        goto done;
+    } else if (request == RIL_REQUEST_START_LCE) {
+        RIL_onRequestComplete(t, RIL_E_LCE_NOT_SUPPORTED, NULL, 0);
+        goto done;
     }
+
     RIL_RadioState radioState = s_radioState[socket_id];
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);

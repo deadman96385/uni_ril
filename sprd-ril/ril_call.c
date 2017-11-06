@@ -9,6 +9,7 @@
 #include "ril_call.h"
 #include "ril_misc.h"
 #include "ril_network.h"
+#include "ril_sim.h"
 
 const struct timeval TIMEVAL_CSCALLSTATEPOLL = {0, 50000};
 ListNode s_DTMFList[SIM_COUNT];
@@ -553,9 +554,18 @@ static void requestHangup(int channelID, void *data, size_t datalen,
     all_calls(channelID, 1);
     ret = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (ret < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 21")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -571,6 +581,13 @@ static void requestHangupWaitingOrBackground(int channelID,
    */
     int err;
     ATResponse *p_response = NULL;
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+        return;
+    }
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=0", &p_response);
     if (err < 0 || p_response->success == 0) {
@@ -595,9 +612,18 @@ static void requestHangupForeResumeBack(int channelID,
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=1", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -616,9 +642,18 @@ static void requestSwitchWaitOrHoldAndActive(int channelID,
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=2", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -636,9 +671,19 @@ static void requestConference(int channelID, void *data, size_t datalen,
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=3", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
     /* success or failure is ignored by the upper layer here.
@@ -654,6 +699,13 @@ static void requestUDUB(int channelID, void *data, size_t datalen,
     /* sometimes used: ATH */
     int err;
     ATResponse *p_response = NULL;
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+        return;
+    }
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=0", &p_response);
     if (err < 0 || p_response->success == 0) {
@@ -678,9 +730,18 @@ static void requestDTMF(int channelID, void *data, size_t datalen,
     snprintf(cmd, sizeof(cmd), "AT+VTS=%c", (int)character);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_MODEM_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -695,9 +756,18 @@ static void requestAnswer(int channelID, void *data, size_t datalen,
 
     err = at_send_command(s_ATChannels[channelID], "ATA", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -724,16 +794,26 @@ static void requestDTMFStart(int channelID, void *data, size_t datalen,
     list_add_tail(socket_id, &s_DTMFList[socket_id], cmd_item);
 
     snprintf(cmd, sizeof(cmd), "AT+SDTMF=1,\"%c\",0", (int)character);
-    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-    if (err < 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
     }
+    AT_RESPONSE_FREE(p_response);
     snprintf(cmd, sizeof(cmd), "AT+EVTS=1,%c", (int)character);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_MODEM_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }
@@ -754,14 +834,15 @@ static void requestDTMFStop(int channelID, void *data, size_t datalen,
     cmd_item = (&s_DTMFList[socket_id])->next;
     if (cmd_item != (&s_DTMFList[socket_id])) {
         character = cmd_item->data;
-        err = at_send_command(s_ATChannels[channelID], "AT+SDTMF=0", NULL);
-        if (err < 0) {
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        err = at_send_command(s_ATChannels[channelID], "AT+SDTMF=0", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
         }
+        AT_RESPONSE_FREE(p_response);
         snprintf(cmd, sizeof(cmd), "AT+EVTS=0,%c", (int)character);
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         if (err < 0 || p_response->success == 0) {
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            goto error;
         } else {
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
         }
@@ -771,6 +852,17 @@ static void requestDTMFStop(int channelID, void *data, size_t datalen,
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
+    return;
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_MODEM_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
+    at_response_free(p_response);
+    list_remove(socket_id, cmd_item);
+    free(cmd_item);
 }
 
 static void requestSeparateConnection(int channelID, void *data,
@@ -790,14 +882,24 @@ static void requestSeparateConnection(int channelID, void *data,
         snprintf(cmd, sizeof(cmd), "AT+CHLD=2%d", party);
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         if (err < 0 || p_response->success == 0) {
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            goto error;
         } else {
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
         }
         at_response_free(p_response);
+        return;
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
+    at_response_free(p_response);
 }
 
 static void requestExplicitCallTransfer(int channelID, void *data,
@@ -810,9 +912,18 @@ static void requestExplicitCallTransfer(int channelID, void *data,
 
     err = at_send_command(s_ATChannels[channelID], "AT+CHLD=4", &p_response);
     if (err < 0 || p_response->success == 0) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        goto error;
     } else {
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        at_response_free(p_response);
+        return;
+    }
+error:
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 3")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
     at_response_free(p_response);
 }

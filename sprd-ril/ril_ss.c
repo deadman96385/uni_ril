@@ -47,6 +47,11 @@ static void requestSendUSSD(int channelID, void *data, size_t datalen,
     ATResponse  *p_response = NULL;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+        return;
+    }
 
     s_ussdRun[socket_id] = 1;
     ussdInitialRequest = (char *)(data);
@@ -199,7 +204,12 @@ static void requestSetCallForward(int channelID, RIL_CallForwardInfo *data,
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 21")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
     at_response_free(p_response);
 }
 
@@ -283,6 +293,10 @@ error:
         if (err < 0) goto error1;
         if (errNum == 70 || errNum == 254 || errNum == 128 ) {
             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        } else if (errNum == 21) {
+            RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
             at_response_free(p_response);
             return;
         }
@@ -687,7 +701,12 @@ static void requestSetCallForwardU(int channelID, RIL_CallForwardInfo *data,
     return;
 
 error:
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    if (p_response != NULL &&
+            !strcmp(p_response->finalResponse, "+CME ERROR: 21")) {
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
     at_response_free(p_response);
 }
 
@@ -763,6 +782,10 @@ error:
         if (errNum == 70 || errNum == 254 || errNum == 128 ||
             errNum == 254) {
             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        } else if (errNum == 21) {
+            RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
             at_response_free(p_response);
             return;
         }
@@ -864,6 +887,12 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         case RIL_REQUEST_CANCEL_USSD: {
             p_response = NULL;
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            if (s_isSimPresent[socket_id] != PRESENT) {
+                RLOGE("card is absent");
+                RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+                break;
+            }
             err = at_send_command(s_ATChannels[channelID], "AT+CUSD=2",
                                   &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -1002,6 +1031,9 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                                          errNum == 254)) {
                             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE,
                                                   NULL, 0);
+                        } else if (err >= 0 && errNum == 0) {
+                            RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS,
+                                                  NULL, 0);
                         } else {
                             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE,
                                                   NULL, 0);
@@ -1042,6 +1074,9 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                         errCode = at_tok_nextint(&line, &errNum);
                         if (errCode >= 0 && errNum == 254) {
                             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE,
+                                                  NULL, 0);
+                        } else if (errCode >= 0 && errNum == 176) {
+                            RIL_onRequestComplete(t, RIL_E_INVALID_STATE,
                                                   NULL, 0);
                         } else {
                             RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE,
