@@ -768,7 +768,9 @@ void sendEventChannelStatus(StkContext *pstkContext, int socket_id) {
 int createSocket(StkContext *pstkContext) {
     RLOGD("[stk] createSocket");
     int enable = 1;
+    int transTypeTag = -1;
     int fdSocketId = -1;
+    int retryCount = 0;
     int port = pstkContext->pOCData->portNumber;
     char *address = pstkContext->pOCData->DataDstAddress;
 
@@ -776,33 +778,88 @@ int createSocket(StkContext *pstkContext) {
     snprintf(ifName, sizeof(ifName), "seth_lte%d", pstkContext->openchannelCid - 1);
 
     struct sockaddr_in addr;
+    struct sockaddr_in6 addr6;
+    struct sockaddr_in6 srcAddr6;
     memset(&addr, 0, sizeof addr);
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    memset(&addr6, 0, sizeof addr6);
+    memset(&srcAddr6, 0, sizeof srcAddr6);
+    if (pstkContext->pOCData->OtherAddressType == ADDRESS_TYPE_IPV4) {
+        addr.sin_family = AF_INET;
+        transTypeTag = AF_INET;
+    } else if (pstkContext->pOCData->OtherAddressType == ADDRESS_TYPE_IPV6) {
+        addr6.sin6_family = AF_INET6;
+        srcAddr6.sin6_family = AF_INET6;
+        transTypeTag = AF_INET6;
+    }
 
     RLOGD("createSocket ifName: %s", ifName);
     RLOGD("createSocket address: %s", address);
 
     if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_TCP) {
         RLOGD("[stk] create tcp socket");
-        if ((pstkContext->tcpSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-            RLOGE("socket create error");
-            return -1;
+        switch(transTypeTag) {
+            case AF_INET:
+                addr.sin_port = htons(port);
+                if ((pstkContext->tcpSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+                    RLOGE("socket create error");
+                    return -1;
+                }
+                if (setsockopt(pstkContext->tcpSocket, SOL_SOCKET, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
+                    RLOGE("setsockopt error errno = %s", strerror(errno));
+                    close(pstkContext->tcpSocket);
+                    pstkContext->tcpSocket = -1;
+                }
+                break;
+            case AF_INET6:
+                addr6.sin6_port = htons(port);
+                if ((pstkContext->tcpSocket = socket(AF_INET6, SOCK_STREAM, 0)) < 0) {
+                    RLOGE("socket create error");
+                    return -1;
+                }
+//                if (setsockopt(pstkContext->tcpSocket, IPPROTO_IPV6, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
+//                    RLOGE("setsockopt error errno = %s", strerror(errno));
+//                    close(pstkContext->tcpSocket);
+//                    pstkContext->tcpSocket = -1;
+//                }
+
+                char srcAddress[128] = {0};
+                char cmd[128] = {0};
+                sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                RLOGD("createSocket cmd:%s", cmd);
+                property_get(cmd, srcAddress, "");
+                RLOGD("createSocket srcAddress:%s", srcAddress);
+                if (inet_pton(AF_INET6, srcAddress, &srcAddr6.sin6_addr) <= 0) {
+                    RLOGE("socket inet_pton srcAddress error errno = %s", strerror(errno));
+                    return -1;
+                }
+                int err = bind(pstkContext->tcpSocket, (const struct sockaddr*)&srcAddr6, sizeof(struct sockaddr_in6));
+                RLOGD("createSocket bind error =%d", err);
+                break;
+            default:
+                return -1;
         }
-        RLOGD("createSocket pstkContext->tcpSocket: %d", pstkContext->tcpSocket);
-        if (setsockopt(pstkContext->tcpSocket, SOL_SOCKET, SO_BINDTODEVICE,
-                ifName, strlen(ifName)) < 0){
-            RLOGE("setsockopt error errno = %s", strerror(errno));
-            close(pstkContext->tcpSocket);
-            pstkContext->tcpSocket = -1;
-        }
+
+        RLOGD("createSocket pstkContext->tcpSocket:%d", pstkContext->tcpSocket);
+
         fdSocketId = pstkContext->tcpSocket;
-        RLOGD("createSocket fdSocketId: %d", fdSocketId);
+        RLOGD("createSocket fdSocketId:%d", fdSocketId);
     } else if (pstkContext->pOCData->transportType == TRANSPORT_TYPE_UDP) {
         RLOGD("[stk] create udp socket");
-        if ((pstkContext->udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-            RLOGE("socket create error");
-            return -1;
+        switch(transTypeTag) {
+            case AF_INET:
+                if ((pstkContext->udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+                    RLOGE("socket create error");
+                    return -1;
+                }
+                break;
+            case AF_INET6:
+                if ((pstkContext->udpSocket = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
+                    RLOGE("socket create error");
+                    return -1;
+                }
+                break;
+            default:
+                return -1;
         }
         RLOGD("createSocket pstkContext->udpSocket:%d", pstkContext->udpSocket);
         if (setsockopt(pstkContext->udpSocket, SOL_SOCKET, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
@@ -816,14 +873,43 @@ int createSocket(StkContext *pstkContext) {
         return -1;
     }
 
-    if (inet_pton(AF_INET, address, &addr.sin_addr) <= 0){
-        RLOGE("socket inet_pton error errno = %s", strerror(errno));
-        return -1;
-    }
-    if (connect(fdSocketId, (const struct sockaddr *)&addr,
-            sizeof(struct sockaddr_in)) < 0) {
-        RLOGE("socket connect error errno = %s", strerror(errno));
-        return -1;
+
+    switch(transTypeTag) {
+        case AF_INET:
+            if (inet_pton(AF_INET, address, &addr.sin_addr) <= 0) {
+                RLOGE("socket inet_pton error errno = %s", strerror(errno));
+                return -1;
+            }
+            if (connect(fdSocketId, (const struct sockaddr*)&addr, sizeof(struct sockaddr_in)) < 0) {
+                RLOGE("socket connect error errno = %s", strerror(errno));
+                return -1;
+            }
+            break;
+        case AF_INET6:
+            if (inet_pton(AF_INET6, address, &addr6.sin6_addr) <= 0) {
+                RLOGE("socket inet_pton error errno = %s", strerror(errno));
+                return -1;
+            }
+            sleep(1);
+            if (connect(fdSocketId, (const struct sockaddr*)&addr6, sizeof(struct sockaddr_in6)) < 0) {
+                RLOGE("socket connect error errno = %s", strerror(errno));
+                return -1;
+            }
+//            RLOGD("start connect");
+//            while (connect(fdSocketId, (const struct sockaddr*)&addr6, sizeof(struct sockaddr_in6)) < 0) {
+//                RLOGD("end connect");
+//                if (retryCount < 3) {
+//                    retryCount++;
+//                    RLOGD("socket connect fail errno = %s, retryCount = %d", strerror(errno), retryCount);
+//                    sleep(3);
+//                } else {
+//                    RLOGE("socket connect error errno = %s, return", strerror(errno));
+//                    return -1;
+//                }
+//            }
+            break;
+        default:
+            return -1;
     }
 
     pstkContext->needRuning = true;
@@ -911,8 +997,9 @@ static void *openChannelThread(void *param) {
         return NULL;
     }
 
-    if (pstkContext->pOCData->DataDstAddressType != ADDRESS_TYPE_IPV4) {
-        RLOGD("DataDstAddressType not ipv4");
+    if (pstkContext->pOCData->DataDstAddressType != ADDRESS_TYPE_IPV4 &&
+        pstkContext->pOCData->DataDstAddressType != ADDRESS_TYPE_IPV6) {
+        RLOGD("DataDstAddressType not ipv4/v6");
         sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
         return NULL;
     }

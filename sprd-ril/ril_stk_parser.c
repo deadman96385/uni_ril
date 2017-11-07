@@ -177,7 +177,6 @@ int parseProCommand(const char * const rawData, const int length, BerTlv *berTlv
             RLOGD("tem->tTlv[%d].tag is: %d", ii, tem->tTlv.tag);
             RLOGD("tem->tTlv[%d].length is: %d", ii, tem->tTlv.length);
             RLOGD("tem->tTlv[%d].cr is: %d", ii, tem->tTlv.cr);
-            RLOGD("tem->tTlv[%d].value is: %s", ii, tem->tTlv.value);
 
             ii++;
 
@@ -421,7 +420,24 @@ void processOpenChannel(ComprehensionTlv *comprehensionTlv,
                                         strlen((const char *)temp) + 1);
                                 RLOGD("OtherAddress: %s", openChannelData->OtherAddress);
                                 RLOGD("DataDstAddress: %s", openChannelData->DataDstAddress);
-                                RLOGD("OpenChannel Network Access Name done");
+                                RLOGD("OpenChannel Network Access IPV4 Name done");
+                            } else if (openChannelData->OtherAddressType ==
+                                    ADDRESS_TYPE_IPV6 && ((length - 1) == 16)) {
+                                int i,j;
+                                char pStrtmp[48] = {0};
+                                convertBinToHex(pStr, length - 1, pStrtmp);
+                                for (i = 0, j = 0; i < 32; i++, j++) {
+                                    temp[j] = pStrtmp[i];
+                                    if (i % 4 == 3) {
+                                        temp[++j] = ':';
+                                    }
+                                }
+                                temp[j - 1] = '\0';
+                                memcpy(openChannelData->OtherAddress, temp, strlen((const char *)temp) + 1);
+                                memcpy(openChannelData->DataDstAddress, temp, strlen((const char *)temp) + 1);
+                                RLOGD("OtherAddress: %s", openChannelData->OtherAddress);
+                                RLOGD("DataDstAddress: %s", openChannelData->DataDstAddress);
+                                RLOGD("OpenChannel Network Access IPV6 Name done");
                             } else {
                                 memset(openChannelData->OtherAddress, 0,
                                         sizeof(openChannelData->OtherAddress));
@@ -455,7 +471,22 @@ void processOpenChannel(ComprehensionTlv *comprehensionTlv,
                                 snprintf(openChannelData->DataDstAddress,
                                         sizeof(openChannelData->DataDstAddress), "%s", temp);
                                 RLOGD("DataDstAddress: %s", openChannelData->DataDstAddress);
-                                RLOGD("OpenChannel Data destination address done");
+                                RLOGD("OpenChannel Data destination IPV4 address done");
+                            } else if (openChannelData->DataDstAddressType ==
+                                    ADDRESS_TYPE_IPV6 && ((length - 1) == 16)) {
+                                int i,j;
+                                char pStrtmp[48] = {0};
+                                convertBinToHex(pStr, length - 1, pStrtmp);
+                                for (i = 0, j = 0; i < 32; i++, j++) {
+                                    temp[j] = pStrtmp[i];
+                                    if (i % 4 == 3) {
+                                        temp[++j] = ':';
+                                    }
+                                }
+                                temp[j - 1] = '\0';
+                                memcpy(openChannelData->DataDstAddress, temp, strlen((const char *)temp) + 1);
+                                RLOGD("DataDstAddress: %s", openChannelData->DataDstAddress);
+                                RLOGD("OpenChannel Data destination IPV6 Name done");
                             } else {
                                 memset(openChannelData->DataDstAddress, 0,
                                         sizeof(openChannelData->DataDstAddress));

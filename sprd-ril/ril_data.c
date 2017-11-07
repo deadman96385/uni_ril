@@ -23,6 +23,7 @@
 #define DDR_STATUS_PROP         "persist.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.sys.pdp.reuse"
 #define RIL_ACT_NIC_NAME        "ril.act.nic.name"
+#define BIP_OPENCHANNEL         "persist.sys.bip.openchannel"
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
@@ -3414,7 +3415,6 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     char gspsprop[PROPERTY_VALUE_MAX] = {0};
     char cmd[AT_COMMAND_LEN];
     IPType actIPType = ipType;
-    char ifName[AT_COMMAND_LEN] = {0};
     int isAutoTest = 0;
     int err = -1;
 
@@ -3427,13 +3427,14 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     property_get(ETH_SP, prop, "veth");
 
     /* set net interface name */
-    snprintf(ifName, sizeof(ifName), "%s%d", prop, cidIndex);
-    property_set(SYS_NET_ADDR, ifName);
-    RLOGD("Net interface addr linker = %s", ifName);
+    snprintf(linker, sizeof(linker), "%s%d", prop, cidIndex);
+    property_set(SYS_NET_ADDR, linker);
+    RLOGD("Net interface addr linker = %s", linker);
 
     property_get(GSPS_ETH_UP_PROP, gspsprop, "0");
     RLOGD("GSPS up prop = %s", gspsprop);
     isAutoTest = atoi(gspsprop);
+    RLOGD("ipType = %d", ipType);
 
     if (ipType != IPV4) {
         actIPType = IPV6;
@@ -3442,13 +3443,10 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         if (actIPType == IPV6) {
             property_set(SYS_IPV6_LINKLOCAL, pdp_info[cidIndex].ipv6laddr);
         }
-        snprintf(cmd, sizeof(cmd), "<preifup>%s;%s;%d", ifName,
+        snprintf(cmd, sizeof(cmd), "<preifup>%s;%s;%d", linker,
                   (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
                   "IPV6" : "IPV4V6"), isAutoTest);
         sendCmdToExtData(cmd);
-
-        snprintf(linker, sizeof(linker), "%s%d", prop, cidIndex);
-        RLOGD("set IP linker = %s", linker);
 
         /* config ip addr */
         if (actIPType != IPV4) {
@@ -3471,7 +3469,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             RLOGE("ifc_enable %s fail: %s\n", linker, strerror(errno));
         }
 
-        snprintf(cmd, sizeof(cmd), "<ifup>%s;%s;%d", ifName,
+        snprintf(cmd, sizeof(cmd), "<ifup>%s;%s;%d", linker,
                   (actIPType == IPV4)? "IPV4" : ((actIPType == IPV6)?
                   "IPV6" : "IPV4V6"), isAutoTest);
         sendCmdToExtData(cmd);
@@ -3496,7 +3494,10 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         }
     } while (ipType == IPV4V6);
 
-    if (s_openchannelInfo[cidIndex].state == OPEN) {
+    char bip[PROPERTY_VALUE_MAX];
+    memset(bip, 0, sizeof(bip));
+    property_get(BIP_OPENCHANNEL, bip, "0");
+    if (strcmp(bip, "1") == 0) {
         if (ipType == IPV4) {
             snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
             property_get(cmd, ip, "");
@@ -3504,6 +3505,9 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             property_get(cmd, dns1, "");
             snprintf(cmd, sizeof(cmd),"net.%s.dns2", linker);
             property_get(cmd, dns2, "");
+            in_addr_t address = inet_addr(ip);
+            err = ifc_create_default_route(linker, address);
+            RLOGD("ifc_create_default_route address = %d, error = %d", address, err);
         } else if (ipType == IPV6) {
             snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
             property_get(cmd, ip2, "");
@@ -3511,6 +3515,17 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             property_get(cmd, dns1, "");
             snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns2", linker);
             property_get(cmd, dns2, "");
+            property_set("persist.sys.bip.ipv6_addr", ip2);
+            int tableIndex = 0;
+            ifc_init();
+            RLOGD("linker = %s", linker);
+            err = ifc_get_ifindex(linker, &tableIndex);
+            RLOGD("index = %d, error = %d", tableIndex, err);
+            ifc_close();
+            tableIndex = tableIndex + 1000;
+            sprintf(cmd, "setprop persist.sys.bip.table_index %d", tableIndex);
+            system(cmd);
+            property_set("ctl.start", "stk");
         } else {
             snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
             property_get(cmd, ip, "");
@@ -3521,12 +3536,6 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
             property_get(cmd, dns2, "");
         }
-        ifc_init();
-        RLOGD("ifc_create_default_route ip = %s", ip);
-        in_addr_t address = inet_addr(ip);
-        err = ifc_create_default_route(linker, address);
-        RLOGD("ifc_create_default_route address = %d, error = %d", address, err);
-        ifc_close();
         //snprintf(cmd, sizeof(cmd), "ip route add default via %s %s dev %s", ip, ip2, linker);
         //RLOGD("cmd = %s", cmd);
         //system(cmd);
@@ -3881,6 +3890,7 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
     } else {
         pdpType = "IP";
     }
+    property_set(BIP_OPENCHANNEL, "1");
     s_openchannelCid = -1;
     queryAllActivePDNInfos(channelID);
     if (s_activePDN > 0) {
@@ -3921,7 +3931,7 @@ void requestDeactiveDataConnection(int channelID, void *data, size_t datalen) {
     p_cid = ((const char **)data)[0];
     cid = atoi(p_cid);
     RLOGD("close channel cid = %d", cid);
-
+    property_set(BIP_OPENCHANNEL, "0");
     if (cid > 0) {
         RLOGD("close channel state = %d", s_openchannelInfo[cid - 1].state);
         s_openchannelInfo[cid - 1].cid = -1;
