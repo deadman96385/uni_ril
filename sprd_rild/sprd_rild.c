@@ -39,7 +39,6 @@
 #define MAX_LIB_ARGS        16
 #define MAX_CAP_NUM         (CAP_TO_INDEX(CAP_LAST_CAP) + 1)
 #define RIL_AT_TEST_PROPERTY  "persist.sys.sprd.attest"
-#define CAP_BLOCK_SUSPEND 36
 
 static int modem;
 #define RILLOGI(fmt, args...) ALOGI("[%c] " fmt, modem,  ## args)
@@ -55,6 +54,9 @@ static void usage(const char *argv0)
 }
 
 extern void RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv);
+
+extern void RIL_register_ATCIServer (RIL_RadioFunctions *(*Init)
+        (const struct RIL_Env *, int, char **), RIL_SOCKET_TYPE socketType, int argc, char **argv);
 
 extern void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                            void *response, size_t responselen);
@@ -101,8 +103,6 @@ static int make_argv(char * args, char ** argv)
  * Our group, cache, was set by init.
  */
 void switchUser() {
-    char debuggable[PROP_VALUE_MAX];
-
     prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
     setuid(AID_RADIO);
 
@@ -111,30 +111,17 @@ void switchUser() {
     header.version = _LINUX_CAPABILITY_VERSION_3;
     header.pid = 0;
 
-    struct __user_cap_data_struct data[MAX_CAP_NUM];
+    struct __user_cap_data_struct data[2];
     memset(&data, 0, sizeof(data));
 
     data[CAP_TO_INDEX(CAP_NET_ADMIN)].effective |= CAP_TO_MASK(CAP_NET_ADMIN);
     data[CAP_TO_INDEX(CAP_NET_ADMIN)].permitted |= CAP_TO_MASK(CAP_NET_ADMIN);
-
     data[CAP_TO_INDEX(CAP_NET_RAW)].effective |= CAP_TO_MASK(CAP_NET_RAW);
     data[CAP_TO_INDEX(CAP_NET_RAW)].permitted |= CAP_TO_MASK(CAP_NET_RAW);
-
-    data[CAP_TO_INDEX(CAP_BLOCK_SUSPEND)].effective |= CAP_TO_MASK(CAP_BLOCK_SUSPEND);
-    data[CAP_TO_INDEX(CAP_BLOCK_SUSPEND)].permitted |= CAP_TO_MASK(CAP_BLOCK_SUSPEND);
 
     if (capset(&header, &data[0]) == -1) {
         RLOGE("capset failed: %s", strerror(errno));
         exit(EXIT_FAILURE);
-    }
-
-    /*
-     * Debuggable build only:
-     * Set DUMPABLE that was cleared by setuid() to have tombstone on RIL crash
-     */
-    property_get("ro.debuggable", debuggable, "0");
-    if (strcmp(debuggable, "1") == 0) {
-        prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
     }
 }
 
@@ -146,6 +133,7 @@ int main(int argc, char **argv)
     char **rilArgv;
     void *dlHandle;
     const RIL_RadioFunctions *(*rilInit)(const struct RIL_Env *, int, char **);
+    const RIL_RadioFunctions *(*rilATCIInit)(const struct RIL_Env *, int, char **);
     char *err_str = NULL;
     const RIL_RadioFunctions *funcs;
     unsigned char hasLibArgs = 0;
@@ -233,12 +221,26 @@ OpenLib:
     }
 
     dlerror(); // Clear any previous dlerror
+    rilATCIInit =
+        (const RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **))
+        dlsym(dlHandle, "RIL_ATCI_Init");
+
+    err_str = dlerror();
+    if (err_str) {
+        RLOGW("RIL_ATCI_Init not defined or exported in %s: %s\n", rilLibPath, err_str);
+    } else if (!rilATCIInit) {
+        RLOGW("RIL_ATCI_Init defined as null in %s. AT Channel Not usable\n", rilLibPath);
+    }
 
     RILLOGD("Rild: rilArgv[1]=%s,rilArgv[2]=%s,ModemType=%s",rilArgv[1],rilArgv[2],rilModem);
     funcs = rilInit(&s_rilEnv, argc, rilArgv);
     RIL_register(funcs, argc, rilArgv);
 
-    RLOGD("RIL_register completed");
+    if (rilATCIInit) {
+        RLOGD("RIL_register_ATCIServer started");
+        RIL_register_ATCIServer(rilATCIInit, RIL_ATCI_SOCKET, argc, rilArgv);
+    }
+    RLOGD("RIL_register_socket completed");
 
 done:
 

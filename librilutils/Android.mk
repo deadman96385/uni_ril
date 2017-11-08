@@ -8,7 +8,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_CFLAGS :=
 
-LOCAL_MODULE:= librilutils
+LOCAL_MODULE:= libsprdrilutils
 
 #LOCAL_LDLIBS += -lpthread
 
@@ -27,6 +27,6 @@ LOCAL_STATIC_LIBRARIES :=
 
 LOCAL_CFLAGS :=
 
-LOCAL_MODULE:= librilutils_static
+LOCAL_MODULE:= libsprdrilutils_static
 
 include $(BUILD_STATIC_LIBRARY)

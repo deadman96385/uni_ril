@@ -32,7 +32,7 @@
     {RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE, dispatchVoid, responseVoid},
     {RIL_REQUEST_CONFERENCE, dispatchVoid, responseVoid},
     {RIL_REQUEST_UDUB, dispatchVoid, responseVoid},
-    {RIL_REQUEST_LAST_CALL_FAIL_CAUSE, dispatchVoid, responseFailCause},
+    {RIL_REQUEST_LAST_CALL_FAIL_CAUSE, dispatchVoid, responseInts},
     {RIL_REQUEST_SIGNAL_STRENGTH, dispatchVoid, responseRilSignalStrength},
     {RIL_REQUEST_VOICE_REGISTRATION_STATE, dispatchVoid, responseStrings},
     {RIL_REQUEST_DATA_REGISTRATION_STATE, dispatchVoid, responseStrings},
@@ -243,7 +243,23 @@
     ,{RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER, dispatchStrings, responseVoid}
     ,{RIL_REQUEST_ENABLE_BROADCAST_SMS, dispatchInts, responseVoid}
     ,{RIL_REQUEST_GET_IMS_BEARER_STATE, dispatchVoid, responseInts}
-    ,{RIL_REQUEST_GET_UNLOCK_RETRY_COUNT, dispatchString, responseInts}
+    ,{RIL_REQUEST_GET_SIMLOCK_STATUS, dispatchInts, responseInts}
+    /* SPRD: add for VoWifi @{ */
+    ,{RIL_REQUEST_IMS_HANDOVER, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_IMS_NETWORK_INFO_CHANGE, dispatchImsNetworkInfo, responseVoid}
+    ,{RIL_REQUEST_IMS_HANDOVER_CALL_END, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_GET_TPMR_STATE, dispatchVoid, responseInts}
+    ,{RIL_REQUEST_SET_TPMR_STATE, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_IMS_WIFI_ENABLE, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE, dispatchInts, responseVoid}
+    ,{RIL_REQUEST_IMS_UPDATE_DATA_ROUTER, dispatchVoid, responseVoid}
+    ,{RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO, dispatchStrings, responseVoid}
+    ,{RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY, dispatchVoid, responseInts}
+    ,{RIL_REQUEST_GET_IMS_PCSCF_ADDR, dispatchVoid, responseString}
+    ,{RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR, dispatchStrings, responseVoid}
+    ,{RIL_REQUEST_IMS_REGADDR, dispatchVoid, responseStrings}
+    /* @} */
 #if defined (RIL_SUPPORTED_OEMSOCKET)
     ,{RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts}
     ,{RIL_EXT_REQUEST_SIM_GET_ATR, dispatchVoid, responseString}
@@ -256,10 +272,7 @@
     ,{RIL_EXT_REQUEST_SET_BAND_INFO_MODE, dispatchInts, responseVoid}
     ,{RIL_EXT_REQUEST_QUERY_LTE_CTCC, dispatchVoid, responseString}
     ,{RIL_EXT_REQUEST_QUERY_LTE_CTCC_SINR, dispatchVoid, responseString}
-    ,{RIL_EXT_REQUEST_SET_SPSLBLOB, dispatchString, responseVoid}
-    ,{RIL_EXT_REQUEST_QUERY_SPSLBLOB, dispatchVoid, responseString}
-    ,{RIL_EXT_REQUEST_GET_BLOB_WHITELIST, dispatchVoid, responseInts}
-    ,{RIL_EXT_REQUEST_QUERY_SUBSIDY_LOCK_STATUS, dispatchVoid, responseInts}
+    ,{RIL_EXT_REQUEST_SET_SMS_BEARER, dispatchInts, responseVoid}
 #endif
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)

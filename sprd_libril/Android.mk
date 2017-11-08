@@ -6,9 +6,11 @@ include $(CLEAR_VARS)
 LOCAL_C_INCLUDES :=$(LOCAL_PATH)/../include
 
 LOCAL_SRC_FILES:= \
-    ril_event.cpp \
     sprd_ril.cpp \
-    sprd_thread_pool.cpp
+    ril_event.cpp \
+    sprd_thread_pool.cpp \
+    RilSocket.cpp \
+    RilATCISocket.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     liblog \
@@ -16,7 +18,10 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libcutils \
     libhardware_legacy \
-    librilutils \
+    libsprdrilutils
+
+LOCAL_PROTOC_OPTIMIZE_TYPE := lite
+
 
 LOCAL_CFLAGS := -DRIL_SHLIB
 
@@ -62,7 +67,7 @@ ifeq ($(BOARD_SAMSUNG_RIL),true)
 LOCAL_CFLAGS += -DGLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION
 endif
 
-LOCAL_MODULE:= librilsprdstatic
+LOCAL_MODULE:= libril_spstatic
 LOCAL_MODULE_TAGS := optional
 
 #LOCAL_LDLIBS += -lpthread

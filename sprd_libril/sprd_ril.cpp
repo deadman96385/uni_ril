@@ -49,8 +49,7 @@
 #include <assert.h>
 #include <netinet/in.h>
 #include <cutils/properties.h>
-#include "ril_event.h"
-#include "ril_ex.h"
+#include <RilATCISocket.h>
 
 namespace android {
 
@@ -190,16 +189,6 @@ static SocketListenParam s_oemSocketParam;
 static pthread_mutex_t s_oemWriteMutex;
 /* }@ */
 
-/* ATCI @{ */
-#define SOCKET_NAME_ATCI "atci_socket1"
-#define SOCKET2_NAME_ATCI "atci_socket2"
-
-static struct ril_event s_atciListenEvent;
-static struct ril_event s_atciCommandsEvent;
-static SocketListenParam s_atciSocketParam;
-static pthread_mutex_t s_atciWriteMutex;
-/* }@ */
-
 struct listnode
 {
     commthread_data_t *user_data;
@@ -266,11 +255,11 @@ static void dispatchVideoPhoneInit(Parcel& p, RequestInfo *pRI);
 static void dispatchVideoPhoneDial(Parcel& p, RequestInfo *pRI);
 static void dispatchVideoPhoneCodec(Parcel& p, RequestInfo *pRI);
 static void dispatchCallForwardUri(Parcel& p, RequestInfo *pRI);
+static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI);
 #endif
 
 
 static int responseInts(Parcel &p, void *response, size_t responselen);
-static int responseFailCause(Parcel &p, void *response, size_t responselen);
 static int responseStrings(Parcel &p, void *response, size_t responselen);
 static int responseString(Parcel &p, void *response, size_t responselen);
 static int responseVoid(Parcel &p, void *response, size_t responselen);
@@ -327,6 +316,7 @@ extern "C" void stripNumberFromSipAddress(const char *sipAddress, char *number, 
 static int responseBroadcastSmsLte(Parcel &p, void *response, size_t responselen);
 static int responseBroadcastSms(Parcel &p, void *response, size_t responselen);
 static int responseMDCAPU(Parcel &p, void *response, size_t responselen);
+static int responseImsNetworkInfo(Parcel &p, void *response, size_t responselen);
 #endif
 
 static int decodeVoiceRadioTechnology (RIL_RadioState radioState);
@@ -363,11 +353,6 @@ static UserCallbackInfo * internalRequestTimedCallback
     (RIL_TimedCallback callback, void *param, const struct timeval *relativeTime);
 
 static void internalRemoveTimedCallback(void *callbackInfo);
-
-#if defined (RIL_SUPPORTED_OEM_PROTOBUF)
-extern "C" void dispatchRawSprd(Parcel &p, RequestInfo *pRI);
-extern "C" int responseRawSprd(Parcel &p, void *response, size_t responselen);
-#endif
 
 /** Index == requestNumber */
 static CommandInfo s_commands[] = {
@@ -2379,9 +2364,51 @@ dispatchCallForwardUri(Parcel &p, RequestInfo *pRI) {
     invalidCommandBlock(pRI);
     return;
 }
+
+static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI){
+    IMS_NetworkInfo info;
+    int32_t t;
+    status_t status;
+
+    memset (&info, 0, sizeof(info));
+
+    // note we only check status at the end
+
+    status = p.readInt32(&t);
+    info.type = (int)t;
+
+    info.info = strdupReadString(p);
+
+    if (status != NO_ERROR) {
+        goto invalid;
+    }
+
+    // special case: number 0-length fields is null
+    if (info.info != NULL && strlen (info.info) == 0) {
+        info.info = NULL;
+    }
+
+    startRequest;
+    appendPrintBuf("%s,type=%d,info=%s", printBuf, info.type, info.info);
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+
+    s_callbacks.onRequest(pRI->pCI->requestNumber, &info, sizeof(info), pRI);
+
+#ifdef MEMSET_FREED
+    memsetString(info.info);
+#endif
+    free (info.info);
+#ifdef MEMSET_FREED
+    memset(&info, 0, sizeof(info));
 #endif
 
-
+    return;
+    invalid:
+    invalidCommandBlock(pRI);
+    return;
+}
+#endif
 
 static void dispatchNVReadItem(Parcel &p, RequestInfo *pRI) {
     RIL_NV_ReadItem nvri;
@@ -2667,9 +2694,6 @@ sendResponseRaw (const void *data, size_t dataSize, RIL_SOCKET_TYPE socket_type)
     if (socket_type == RIL_OEM_SOCKET) {
         fd = s_oemSocketParam.fdCommand;
         writeMutex = &s_oemWriteMutex;
-    } else if (socket_type == RIL_ATCI_SOCKET) {
-        fd = s_atciSocketParam.fdCommand;
-        writeMutex = &s_atciWriteMutex;
     }
     if (fd < 0) {
         return -1;
@@ -2742,40 +2766,6 @@ responseInts(Parcel &p, void *response, size_t responselen) {
     }
     removeLastChar;
     closeResponse;
-
-    return 0;
-}
-
-// Response is an int or RIL_LastCallFailCauseInfo.
-// Currently, only Shamu plans to use RIL_LastCallFailCauseInfo.
-// TODO(yjl): Let all implementations use RIL_LastCallFailCauseInfo.
-static int responseFailCause(Parcel &p, void *response, size_t responselen) {
-    if (response == NULL && responselen != 0) {
-        RLOGE("invalid response: NULL");
-        return RIL_ERRNO_INVALID_RESPONSE;
-    }
-
-    if (responselen == sizeof(int)) {
-      startResponse;
-      int *p_int = (int *) response;
-      appendPrintBuf("%s%d,", printBuf, p_int[0]);
-      p.writeInt32(p_int[0]);
-      removeLastChar;
-      closeResponse;
-    } else if (responselen == sizeof(RIL_LastCallFailCauseInfo)) {
-      startResponse;
-      RIL_LastCallFailCauseInfo *p_fail_cause_info = (RIL_LastCallFailCauseInfo *) response;
-      appendPrintBuf("%s[cause_code=%d,vendor_cause=%s]", printBuf, p_fail_cause_info->cause_code,
-                     p_fail_cause_info->vendor_cause);
-      p.writeInt32(p_fail_cause_info->cause_code);
-      writeStringToParcel(p, p_fail_cause_info->vendor_cause);
-      removeLastChar;
-      closeResponse;
-    } else {
-      RLOGE("responseFailCause: invalid response length %d expected an int or "
-            "RIL_LastCallFailCauseInfo", (int)responselen);
-      return RIL_ERRNO_INVALID_RESPONSE;
-    }
 
     return 0;
 }
@@ -3658,13 +3648,17 @@ static int responseSimRefresh(Parcel &p, void *response, size_t responselen) {
     }
 
     startResponse;
-    if (s_callbacks.version == 7) {
+    if (s_callbacks.version >= 7) {
         RIL_SimRefreshResponse_v7 *p_cur = ((RIL_SimRefreshResponse_v7 *) response);
         p.writeInt32(p_cur->result);
-        p.writeInt32(p_cur->ef_id);
-        writeStringToParcel(p, p_cur->aid);
+        writeStringToParcel(p, p_cur->ef_id);
+        if (p_cur->aid != NULL && strcmp(p_cur->aid, "")) {
+            writeStringToParcel(p, p_cur->aid);
+        } else {
+            writeStringToParcel(p, NULL);
+        }
 
-        appendPrintBuf("%sresult=%d, ef_id=%d, aid=%s",
+        appendPrintBuf("%sresult=%d, ef_id=%s, aid=%s",
                 printBuf,
                 p_cur->result,
                 p_cur->ef_id,
@@ -4737,6 +4731,26 @@ static int responseCallForwardsUri(Parcel &p, void *response, size_t responselen
     return 0;
 }
 
+static int responseImsNetworkInfo(Parcel &p, void *response, size_t responselen){
+    if (response == NULL) {
+        RILLOGE("invalid response: NULL");
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    if (responselen != sizeof(IMS_NetworkInfo)) {
+        RILLOGE("invalid IMS_NetworkInfo response length was %d expected %d",
+                (int)responselen, (int)sizeof (IMS_NetworkInfo));
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+    IMS_NetworkInfo *p_cur = (IMS_NetworkInfo *) response;
+    p.writeInt32(p_cur->type);
+    writeStringToParcel(p, p_cur->info);
+    startResponse;
+    appendPrintBuf("responseImsNetworkInfo: type=%d, info=%s", p_cur->type, p_cur->info);
+    closeResponse;
+    return 0;
+}
+
 static int responseBroadcastSmsLte(Parcel &p, void *response, size_t responselen) {
     if (response == NULL) {
         RILLOGE("invalid response: NULL");
@@ -4951,16 +4965,9 @@ static void processCommandsCallback(int fd, short flags, void *param) {
         /* loop until EAGAIN/EINTR, end of stream, or other error */
         ret = record_stream_get_next(p_rs, &p_record, &recordlen);
         if (ret == 0 && p_record == NULL) {
-            if (p_info->type != RIL_ATCI_SOCKET) {
-                record_stream_free(p_rs);
-                RILLOGE("PCC end of stream");
-                exit(0);
-            } else {
-                if (fd != -1) {
-                    close(fd);
-                }
-                p_info->fdCommand = -1;
-            }
+            record_stream_free(p_rs);
+            RILLOGE("PCC end of stream");
+            exit(0);
             /* end-of-stream
              * restart rild
              * */
@@ -5099,7 +5106,6 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                     pthread_mutex_unlock(&s_dispatchMutex);
                 } else if(pCI->requestNumber == RIL_REQUEST_DIAL
                         || pCI->requestNumber == RIL_REQUEST_RADIO_POWER
-                        || pCI->requestNumber == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE
                         || pCI->requestNumber == RIL_REQUEST_DTMF
                         || pCI->requestNumber == RIL_REQUEST_DTMF_START
                         || pCI->requestNumber == RIL_REQUEST_DTMF_STOP
@@ -5163,8 +5169,6 @@ static void processCommandsCallback(int fd, short flags, void *param) {
                     pthread_cond_signal(&s_dispatchCond);
                     pthread_mutex_unlock(&s_dispatchMutex);
                 } else if(pCI->requestNumber == RIL_REQUEST_DIAL
-                        || pCI->requestNumber == RIL_REQUEST_RADIO_POWER
-                        || pCI->requestNumber == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE
                         || pCI->requestNumber == RIL_REQUEST_DTMF
                         || pCI->requestNumber == RIL_REQUEST_DTMF_START
                         || pCI->requestNumber == RIL_REQUEST_DTMF_STOP
@@ -5403,6 +5407,52 @@ static void listenCallback (int fd, short flags, void *param) {
     rilEventAddWakeup (&s_commands_event);
 
     onNewCommandConnect();
+}
+
+static void listenCallback_ATCI (int fd, short flags, void *param) {
+    int ret;
+    int err;
+
+    char* processName;
+    RecordStream *p_rs;
+    MySocketListenParam* listenParam;
+    RilSocket *atciSocket = NULL;
+    socketClient *sClient = NULL;
+    int fdCommand = -1;
+
+    SocketListenParam *p_info = (SocketListenParam *)param;
+
+    if(RIL_ATCI_SOCKET == p_info->type) {
+        listenParam = (MySocketListenParam *)param;
+        atciSocket = listenParam->socket;
+    }
+    struct sockaddr_un peeraddr;
+    socklen_t socklen = sizeof (peeraddr);
+
+    struct ucred creds;
+    socklen_t szCreds = sizeof(creds);
+
+    struct passwd *pwd = NULL;
+
+    fdCommand = accept(fd, (sockaddr *) &peeraddr, &socklen);
+
+    if (fdCommand < 0 ) {
+        RILLOGE("Error on accept() errno:%s", strerror(errno));
+        /* start listening for new connections again */
+        rilEventAddWakeup(atciSocket->getListenEvent());
+        return;
+    }
+
+    RILLOGD("libril: new ATCI socket connection");
+
+    atciSocket->setCommandFd(fdCommand);
+    p_rs = record_stream_new(atciSocket->getCommandFd(), MAX_COMMAND_BYTES);
+    sClient = new socketClient(atciSocket, p_rs);
+    ril_event_set (atciSocket->getCallbackEvent(), atciSocket->getCommandFd(), 1,
+    atciSocket->getCommandCb(), sClient);
+
+    rilEventAddWakeup(atciSocket->getCallbackEvent());
+    atciSocket->onNewCommandConnect();
 }
 
 static void freeDebugCallbackArgs(int number, char **args) {
@@ -5647,14 +5697,14 @@ static void listenCallbackOEM(int fd, short flags, void *param) {
     fdCommand = accept(fd, (sockaddr *)&peeraddr, &socklen);
 
     if (fdCommand < 0) {
-        RILLOGE("[OEM] Error on accept() errno:%d", errno);
+        RILLOGE("[ATCI] Error on accept() errno:%d", errno);
         return;
     }
 
     ret = fcntl(fdCommand, F_SETFL, O_NONBLOCK);
 
     if (ret < 0) {
-        RILLOGE("[OEM] Error setting O_NONBLOCK errno:%d", errno);
+        RILLOGE("[ATCI] Error setting O_NONBLOCK errno:%d", errno);
     }
 
     RILLOGD("libril: new connection to oem_socket");
@@ -5671,40 +5721,6 @@ static void listenCallbackOEM(int fd, short flags, void *param) {
     // Inform oem socket that modem maybe assert or reset
     RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0);
 #endif
-}
-
-static void listenCallbackATCI(int fd, short flags, void *param) {
-    int ret;
-    int fdCommand;
-    RecordStream *p_rs;
-    SocketListenParam *p_info = (SocketListenParam *)param;
-
-    assert(fd == p_info->fdListen);
-
-    struct sockaddr_un peeraddr;
-    socklen_t socklen = sizeof(peeraddr);
-
-    fdCommand = accept(fd, (sockaddr *)&peeraddr, &socklen);
-    if (fdCommand < 0) {
-        RLOGE("[ATCI] Error on accept() errno:%d", errno);
-        return;
-    }
-
-    ret = fcntl(fdCommand, F_SETFL, O_NONBLOCK);
-    if (ret < 0) {
-        RLOGE("[ATCI] Error setting O_NONBLOCK errno:%d", errno);
-    }
-
-    RLOGI("libril: new connection to ATCI");
-
-    p_info->fdCommand = fdCommand;
-    p_rs = record_stream_new(p_info->fdCommand, MAX_COMMAND_BYTES);
-    p_info->p_rs = p_rs;
-
-
-    ril_event_set(p_info->commands_event, p_info->fdCommand, false,
-            p_info->processCommandsCallback, p_info);
-    rilEventAddWakeup(p_info->commands_event);
 }
 
 static void startListenOEM(RIL_SOCKET_ID socket_id, SocketListenParam *socket_listen_p) {
@@ -5737,40 +5753,6 @@ static void startListenOEM(RIL_SOCKET_ID socket_id, SocketListenParam *socket_li
     /* note: non-persistent so we can accept only one connection at a time */
     ril_event_set(socket_listen_p->listen_event, fdListen, false,
                 listenCallbackOEM, socket_listen_p);
-
-    rilEventAddWakeup(socket_listen_p->listen_event);
-}
-
-static void startListenATCI(RIL_SOCKET_ID socket_id, SocketListenParam *socket_listen_p) {
-    int fdListen = -1;
-    int ret;
-    char socket_name[20];
-
-    memset(socket_name, 0, sizeof(char) * 20);
-
-    snprintf(socket_name, sizeof(socket_name), "atci_socket%d", (socket_id + 1));
-
-    RILLOGD("Start to listen %s", socket_name);
-
-    fdListen = socket_local_server(socket_name,
-            ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-    if (fdListen < 0) {
-        RILLOGE("Failed to get socket %s", socket_name);
-        return;
-    }
-
-    ret = listen(fdListen, 1);
-
-    if (ret < 0) {
-        RILLOGE("Failed to listen on control socket '%d': %s",
-             fdListen, strerror(errno));
-        return;
-    }
-    socket_listen_p->fdListen = fdListen;
-
-    /* note: non-persistent so we can accept only one connection at a time */
-    ril_event_set(socket_listen_p->listen_event, fdListen, false,
-                listenCallbackATCI, socket_listen_p);
 
     rilEventAddWakeup(socket_listen_p->listen_event);
 }
@@ -6084,19 +6066,23 @@ RIL_register (const RIL_RadioFunctions *callbacks, int argc, char ** argv) {
                      RIL_OEM_SOCKET               /* RIL_SOCKET_TYPE */
                      };
      startListenOEM((RIL_SOCKET_ID)(s_sim_num), &s_oemSocketParam);
+}
 
-     s_atciSocketParam = {
-                     (RIL_SOCKET_ID)s_sim_num,    /* socket_id */
-                     -1,                          /* fdListen */
-                     -1,                          /* fdCommand */
-                     NULL,                        /* processName */
-                     &s_atciCommandsEvent,         /* commands_event */
-                     &s_atciListenEvent,           /* listen_event */
-                     processCommandsCallback,     /* processCommandsCallback */
-                     NULL,                        /* p_rs */
-                     RIL_ATCI_SOCKET               /* RIL_SOCKET_TYPE */
-                     };
-     startListenATCI((RIL_SOCKET_ID)(s_sim_num), &s_atciSocketParam);
+extern "C" void
+RIL_register_ATCIServer (RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),RIL_SOCKET_TYPE socketType, int argc, char **argv) {
+
+    RIL_RadioFunctions* atciFuncs = NULL;
+    char s_name_socket[128] = {0};
+
+    if(Init) {
+        atciFuncs = Init(&RilATCISocket::atciRilEnv, argc, argv);
+        snprintf(s_name_socket, sizeof(s_name_socket), "atci_socket%d", s_sim_num+1);
+        switch(socketType) {
+            case RIL_ATCI_SOCKET:
+                RILLOGD("%s created", s_name_socket);
+                RilATCISocket::initATCISocket(s_name_socket, atciFuncs);
+        }
+    }
 }
 
 static int
@@ -6145,9 +6131,9 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
         fd = s_rilSocketParam.fdCommand;
     } else if (socket_type == RIL_OEM_SOCKET) {
         fd = s_oemSocketParam.fdCommand;
-    } else if (socket_type == RIL_ATCI_SOCKET) {
-        fd = s_atciSocketParam.fdCommand;
     }
+
+
 
     if (pRI->local > 0) {
         // Locally issued command...void only!
@@ -6191,17 +6177,6 @@ RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responsel
     }
 
 done:
-    if (socket_type == RIL_ATCI_SOCKET) {
-        if (fd != -1) {
-            close(fd);
-        }
-        s_atciSocketParam.fdCommand = -1;
-        if (s_atciSocketParam.p_rs != NULL) {
-            record_stream_free(s_atciSocketParam.p_rs);
-            s_atciSocketParam.p_rs = NULL;
-        }
-        rilEventAddWakeup(s_atciSocketParam.listen_event);
-    }
     free(pRI);
 }
 
@@ -6848,8 +6823,24 @@ requestToString(int request) {
         case RIL_REQUEST_IMS_INITIAL_GROUP_CALL: return "RIL_REQUEST_IMS_INITIAL_GROUP_CALL";
         case RIL_REQUEST_IMS_ADD_TO_GROUP_CALL: return "RIL_REQUEST_IMS_ADD_TO_GROUP_CALL";
         case RIL_REQUEST_IMS_SET_CONFERENCE_URI: return "RIL_REQUEST_IMS_SET_CONFERENCE_URI";
+        /* SPRD: add for VoWifi @{ */
+        case RIL_REQUEST_IMS_HANDOVER: return "RIL_REQUEST_IMS_HANDOVER";
+        case RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE: return "RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE";
+        case RIL_REQUEST_IMS_NETWORK_INFO_CHANGE: return "RIL_REQUEST_IMS_NETWORK_INFO_CHANGE";
+        case RIL_REQUEST_IMS_HANDOVER_CALL_END: return "RIL_REQUEST_IMS_HANDOVER_CALL_END";
+        case RIL_REQUEST_IMS_WIFI_ENABLE: return "RIL_REQUEST_IMS_WIFI_ENABLE";
+        case RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE: return "RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE";
+        case RIL_REQUEST_IMS_UPDATE_DATA_ROUTER: return "RIL_REQUEST_IMS_UPDATE_DATA_ROUTER";
+        case RIL_REQUEST_GET_TPMR_STATE: return "RIL_REQUEST_GET_TPMR_STATE";
+        case RIL_REQUEST_SET_TPMR_STATE: return "RIL_REQUEST_SET_TPMR_STATE";
+        case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: return "RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO";
+        case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY";
+        case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
+        case RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
+        case RIL_REQUEST_IMS_REGADDR: return "IMS_REGADDR";
+        /* @} */
         case RIL_REQUEST_GET_IMS_BEARER_STATE: return "RIL_REQUEST_GET_IMS_BEARER_STATE";
-        case RIL_REQUEST_GET_UNLOCK_RETRY_COUNT: return "GET_UNLOCK_RETRY_COUNT";
+        case RIL_REQUEST_GET_SIMLOCK_STATUS: return "RIL_REQUEST_GET_SIMLOCK_STATUS";
         case RIL_REQUEST_VIDEOPHONE_DIAL: return "VIDEOPHONE_DIAL";
         case RIL_REQUEST_VIDEOPHONE_CODEC: return "VIDEOPHONE_CODEC";
         case RIL_REQUEST_VIDEOPHONE_HANGUP: return "VIDEOPHONE_HANGUP";
@@ -6904,10 +6895,7 @@ requestToString(int request) {
         case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: return "REQUEST_SET_BAND_INFO_MODE";
         case RIL_EXT_REQUEST_QUERY_LTE_CTCC: return "QUERY_LTE_CTCC";
         case RIL_EXT_REQUEST_QUERY_LTE_CTCC_SINR: return "QUERY_LTE_CTCC_SINR";
-        case RIL_EXT_REQUEST_SET_SPSLBLOB: return "SET_SPSLBLOB";
-        case RIL_EXT_REQUEST_QUERY_SPSLBLOB: return "QUERY_SPSLBLOB";
-        case RIL_EXT_REQUEST_GET_BLOB_WHITELIST: return "GET_BLOB_WHITELIST";
-        case RIL_EXT_REQUEST_QUERY_SUBSIDY_LOCK_STATUS: return "QUERY_SUBSIDY_LOCK_STATUS";
+        case RIL_EXT_REQUEST_SET_SMS_BEARER: return "SET_SMS_BEARER";
 #endif  // RIL_SUPPORTED_OEMSOCKET
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
@@ -7026,11 +7014,17 @@ requestToString(int request) {
         case RIL_UNSOL_GPRS_RAU: return "UNSOL_GPRS_RAU";
         case RIL_UNSOL_RESPONS_IMS_CONN_ENABLE: return "RIL_UNSOL_RESPONS_IMS_CONN_ENABLE";
         case RIL_UNSOL_CLEAR_CODE_FALLBACK: return "RIL_UNSOL_CLEAR_CODE_FALLBACK";
+        /* SPRD: add for VoWifi @{ */
+        case RIL_UNSOL_IMS_HANDOVER_REQUEST: return "RIL_UNSOL_IMS_HANDOVER_REQUEST";
+        case RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE: return "RIL_UNSOL_IMS_HANDOVER_STATUS_CHANGE";
+        case RIL_UNSOL_IMS_NETWORK_INFO_CHANGE: return "RIL_UNSOL_IMS_NETWORK_INFO_CHANGE";
+        case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
+        case RIL_UNSOL_IMS_WIFI_PARAM: return "RIL_UNSOL_IMS_WIFI_PARAM";
+        /* @} */
 #if defined (RIL_SUPPORTED_OEMSOCKET)
         case RIL_EXT_UNSOL_RIL_CONNECTED: return "UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED: return "UNSOL_ECC_NETWORKLIST_CHANGED";
-        case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
 #endif  // RIL_SUPPORTED_OEMSOCKET
         case RIL_UNSOL_RESPONSE_VIDEO_QUALITY:return "RIL_UNSOL_RESPONSE_VIDEO_QUALITY";
         case RIL_UNSOL_VT_CAPABILITY: return "UNSOL_VT_CAPABILITY";
@@ -7067,3 +7061,15 @@ requestToString(int request) {
 }
 
 } /* namespace android */
+
+void rilEventAddWakeup_helper(struct ril_event *ev) {
+    android::rilEventAddWakeup(ev);
+}
+
+void listenCallback_helper(int fd, short flags, void *param) {
+    android::listenCallback_ATCI(fd, flags, param);
+}
+
+int blockingWrite_helper(int fd, const void *buffer, size_t len) {
+    return android::blockingWrite(fd, buffer, len);
+}

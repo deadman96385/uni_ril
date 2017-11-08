@@ -12,13 +12,10 @@ LOCAL_SRC_FILES := \
     at_tok.c \
     sprd_atci.c \
     ril_call_blacklist.c \
-    ril_oem.c \
-    ril_stk_bip.c \
-    ril_stk_parser.c \
-    channel_controller.c
+    ril_oem.c
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog libcutils libutils librilsprd librilutils libnetutils
+    liblog libcutils libutils librilsprd librilutils
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE

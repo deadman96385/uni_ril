@@ -112,11 +112,6 @@ struct ATChannels {
     ATUnsolHandler s_unsolHandler;
 
 };
-
-ATResponse * at_response_new();
-int isFinalResponseError(const char *line);
-int isFinalResponseSuccess(const char *line);
-
 struct ATChannels ATChannel[MAX_CHANNELS]; //move from Atchannel.c
 void init_channels(void);
 void stop_reader(void);
