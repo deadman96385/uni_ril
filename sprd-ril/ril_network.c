@@ -1691,6 +1691,7 @@ static void requestGetLTEPreferredNetType(int channelID,
                 type = NT_GSM;
                 break;
             case WCDMA_ONLY:
+            case WCDMA_OR_TD_ONLY:
                 type = NT_WCDMA;
                 break;
             case TD_ONLY:
@@ -1732,6 +1733,7 @@ static void requestGetLTEPreferredNetType(int channelID,
                 type = NETWORK_MODE_LTE_ONLY;
                 break;
             case WCDMA_ONLY:
+            case WCDMA_OR_TD_ONLY:
             case PRIMARY_WCDMA_ONLY:
                 type = NETWORK_MODE_WCDMA_ONLY;
                 break;
