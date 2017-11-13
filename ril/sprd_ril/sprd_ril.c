@@ -6422,18 +6422,29 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
 {
     int err;
     char prop[PROPERTY_VALUE_MAX] = { 0 };
+    char locationUpdate[PROPERTY_VALUE_MAX] = { 0 };
 
     pthread_mutex_lock(&s_screen_mutex);
     property_get(PROP_RADIO_FD_DISABLE, prop, "0");
     RILLOGD(" PROP_RADIO_FD_DISABLE = %s", prop);
+    property_get("persist.sys.location.update", locationUpdate, "0");
+    RILLOGD("persist.sys.location.update = %s", locationUpdate);
     s_screenState = status;
     if (!status) {
         /* Suspend */
         at_send_command(ATch_type[channelID], "AT+CCED=2,8", NULL);
         if(!strcmp(s_modem, "l") || !strcmp(s_modem, "tl") || !strcmp(s_modem, "lf")) {
-            at_send_command(ATch_type[channelID], "AT+CEREG=1", NULL);
+            if (strcmp(locationUpdate, "0")) {
+                at_send_command(ATch_type[channelID], "AT+CEREG=2", NULL);
+            } else {
+                at_send_command(ATch_type[channelID], "AT+CEREG=1", NULL);
+            }
         }
-        at_send_command(ATch_type[channelID], "AT+CREG=1", NULL);
+        if (strcmp(locationUpdate, "0")) {
+            at_send_command(ATch_type[channelID], "AT+CREG=2", NULL);
+        } else {
+            at_send_command(ATch_type[channelID], "AT+CREG=1", NULL);
+        }
         at_send_command(ATch_type[channelID], "AT+CGREG=1", NULL);
         if (isVoLteEnable()) {
             at_send_command(ATch_type[channelID], "AT+CIREG=0", NULL);
@@ -8097,11 +8108,6 @@ static void requestGetCellInfoList(void *data, size_t datalen, RIL_Token t,int c
     char *line=NULL ,*p =NULL,*skip =NULL,*plmn = NULL;
     char cmd[20]={0},rsp[20]={0};
     int commas = 0,cell_num=0,sskip=0,registered = 0,net_type = 0,cell_type = 0,biterr_2g=0,biterr_3g=0;
-
-    if (!s_screenState) {
-        RILLOGD("GetCellInfo ScreenState %d",s_screenState);
-        goto ERROR;
-    }
 
     response = (RIL_CellInfo**) malloc(count * sizeof(RIL_CellInfo*));
     if (response == NULL) {
