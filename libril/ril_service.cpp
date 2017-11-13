@@ -122,6 +122,10 @@ void convertRilDataCallListToHal(void *response, size_t responseLen,
 
 void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<CellInfo>& records);
 
+extern "C" int updatePlmn(int slotId, const char *mncmcc, char *resp, size_t respLen);
+extern "C" int updateNetworkList(int slotId, char **networkList, size_t datalen,
+                      char *resp, size_t respLen);
+
 struct RadioImpl : public IExtRadio {
     int32_t mSlotId;
     sp<IRadioResponse> mRadioResponse;
@@ -11020,6 +11024,80 @@ int radio::radioCapabilityChangedInd(int slotId, int indicationType, int token,
 
     return 0;
 }
+/***************************IMS EXTENSION REQUEST*****************************/
+
+extern "C" int updatePlmn(int slotId, const char *mncmcc, char *resp, size_t respLen) {
+    int ret = -1;
+    if (slotId >= SIM_COUNT || slotId < 0 || mncmcc == NULL) {
+        RLOGE("Invalid params");
+        return ret;
+    }
+
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+#if VDBG
+        RLOGD("updatePlmn");
+#endif
+
+        std::string pStr;
+        auto cb = [&](hidl_string updatedResp) {
+            pStr = updatedResp.c_str();
+        };
+
+        Return<void> status  = radioService[slotId]->mExtRadioIndication->
+                updatePlmn(hidl_string(mncmcc), cb);
+        if (!status.isOk()) {
+            RLOGE("Failed to updatePlmn");
+        } else {
+            ret = 0;
+            snprintf(resp, respLen, "%s", pStr.c_str());
+        }
+    } else {
+        RLOGE("updatePlmn: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+    return ret;
+}
+
+extern "C" int updateNetworkList(int slotId, char **networkList, size_t datalen,
+                      char *resp, size_t respLen) {
+    int ret = -1;
+    if (slotId >= SIM_COUNT || slotId < 0 || networkList == NULL ||
+            datalen % sizeof(char *) != 0) {
+        RLOGE("Invalid params");
+        return ret;
+    }
+
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+#if VDBG
+        RLOGD("updateNetworkList");
+#endif
+
+        std::string pStr;
+        auto cb = [&](hidl_string updatedResp) {
+            pStr = updatedResp.c_str();
+        };
+
+        hidl_vec<hidl_string> data;
+        char **list = (char **)networkList;
+        int numStrings = datalen / sizeof(char *);
+        data.resize(numStrings);
+        for (int i = 0; i < numStrings; i++) {
+            data[i] = convertCharPtrToHidlString(list[i]);
+        }
+
+        Return<void> status  = radioService[slotId]->mExtRadioIndication->
+                updateNetworkList(data, cb);
+        if (!status.isOk()) {
+            RLOGE("Failed to updatePlmn");
+        } else {
+            ret = 0;
+            snprintf(resp, respLen, "%s", pStr.c_str());
+        }
+    } else {
+        RLOGE("updateNetworkList: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+    return ret;
+}
+
 /***************************IMS EXTENSION REQUEST*****************************/
 
 Return<void> RadioImpl::setIMSResponseFunctions(

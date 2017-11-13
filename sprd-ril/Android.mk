@@ -27,13 +27,12 @@ LOCAL_SRC_FILES := \
     ril_mmgr.c \
 
 LOCAL_SHARED_LIBRARIES := \
-    liblog libcutils libutils librilsprd librilutils libril_tele libnetutils
+    liblog libcutils libutils librilsprd librilutils libnetutils
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libril_tele
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libril_threads
 
 LOCAL_CFLAGS += -DSIM_AUTO_POWERON  -DRIL_EXTENSION

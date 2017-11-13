@@ -148,4 +148,8 @@ int csq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 /* for +CESQ: unsol response process */
 int cesq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 
+extern int updatePlmn(int slotId, const char *mncmcc, char *resp, size_t respLen);
+extern int updateNetworkList(int slotId, char **networkList, size_t datalen,
+                      char *resp, size_t respLen);
+
 #endif  // RIL_NETWORK_H_

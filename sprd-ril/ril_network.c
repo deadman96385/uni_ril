@@ -10,7 +10,6 @@
 #include "ril_sim.h"
 #include "ril_data.h"
 #include "ril_misc.h"
-#include "TelephonyEx.h"
 #include "ril_async_cmd_handler.h"
 #include "channel_controller.h"
 #include "ril_call.h"
@@ -957,7 +956,8 @@ static void requestOperator(int channelID, void *data, size_t datalen,
         memset(updatedPlmn, 0, sizeof(updatedPlmn));
         ret = getOperatorName(response[2], updatedPlmn);
         if (ret != 0) {
-            err = updatePlmn(socket_id, (const char *)(response[2]), updatedPlmn);
+            err = updatePlmn(socket_id, (const char *)(response[2]),
+                    updatedPlmn, sizeof(updatedPlmn));
             if (err == 0 && strcmp(updatedPlmn, response[2])) {
                 RLOGD("updated plmn = %s", updatedPlmn);
                 response[0] = updatedPlmn;
@@ -1434,7 +1434,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
 #if defined (RIL_EXTENSION)
         if (strcmp(prop, "true") == 0) {
             err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
-                                    updatedNetList);
+                                    updatedNetList, count * sizeof(char) * 64);
             if (err == 0) {
                 RLOGD("updatedNetworkList: %s", updatedNetList);
                 cur[0] = updatedNetList;
@@ -3074,7 +3074,8 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     memset(operatorName, 0, sizeof(operatorName));
-    err = updatePlmn(socket_id, (const char *)plmn, operatorName);
+    err = updatePlmn(socket_id, (const char *)plmn, operatorName,
+                     sizeof(operatorName));
     if (err == 0) {
         RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
         MUTEX_ACQUIRE(s_operatorInfoListMutex);
