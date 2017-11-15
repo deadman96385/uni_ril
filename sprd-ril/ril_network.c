@@ -109,6 +109,7 @@ int s_workMode[SIM_COUNT] = {0};
 int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
 int s_sessionId[SIM_COUNT] = {0};
+int s_radioAccessFamily[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
@@ -434,6 +435,29 @@ int is4G(int urcNetType, int mapNetType, RIL_SOCKET_ID socketId) {
         s_in4G[socketId] = 0;
     }
     return s_in4G[socketId];
+}
+
+/* Calculation the number of one-bits in input parameter */
+int bitCount(int rat) {
+    int num = 0;
+    while (rat) {
+        if (rat % 2 == 1) {
+            num++;
+        }
+        rat = rat / 2;
+    }
+    return num;
+}
+
+int isMaxRat(int rat) {
+    int simId = 0, bitNum = 0, maxBitValue = -1;
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        bitNum = bitCount(s_radioAccessFamily[simId]);
+        if (bitNum > maxBitValue) {
+            maxBitValue = bitNum;
+        }
+    }
+    return (bitCount(rat) == maxBitValue ? 1 : 0);
 }
 
 static void requestSignalStrength(int channelID, void *data,
@@ -2801,7 +2825,7 @@ static int applySetLTERadioCapability(RIL_RadioCapability *rc, int channelID,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if ((rc->rat & RAF_LTE) == RAF_LTE) {
+    if (isMaxRat(rc->rat)) {
         if (s_multiModeSim != socket_id) {
             s_multiModeSim = socket_id;
         } else {
@@ -2984,6 +3008,7 @@ static void requestSetRadioCapability(int channelID, void *data,
     switch (rc.phase) {
         case RC_PHASE_START:
             s_sessionId[socket_id] = rc.session;
+            s_radioAccessFamily[socket_id] = rc.rat;
             RLOGD("requestSetRadioCapability RC_PHASE_START");
             responseRc->status = RC_STATUS_SUCCESS;
             RIL_onRequestComplete(t, RIL_E_SUCCESS, responseRc,
