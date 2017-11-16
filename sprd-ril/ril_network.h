@@ -69,6 +69,7 @@ typedef enum {
     W_G = 2,
     LWG_LWG = 3,
     LG_G = 4,
+    WG_WG = 5,
 } ModemConfig;
 
 typedef struct OperatorInfoList {

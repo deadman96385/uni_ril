@@ -219,6 +219,8 @@ int getMultiMode() {
         workMode = TD_LTE_AND_TD_AND_GSM;
     } else if (strcmp(prop, "W_G,G") == 0) {
         workMode = WCDMA_AND_GSM;
+    } else if (strcmp(prop, "W_G,W_G") == 0) {
+        workMode = PRIMARY_WCDMA_AND_GSM;
     } else if (strcmp(prop, "TL_LF_G,G") == 0) {
         workMode = TD_LTE_AND_LTE_FDD_AND_GSM;
     }
@@ -1030,7 +1032,7 @@ static int getRadioFeatures(int socket_id) {
             rat = RAF_UNKNOWN;
         } else if (s_modemConfig == LG_G) {
                 rat = RAF_LTE | GSM;
-        } else if (s_modemConfig == W_G) {
+        } else if (s_modemConfig == W_G || s_modemConfig == WG_WG) {
             rat = WCDMA | GSM;
         } else {
             rat = RAF_LTE | WCDMA | GSM;
@@ -1627,26 +1629,18 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 type = TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM;
                 break;
             case NT_GSM: {
-                if (s_modemConfig != LWG_WG) {
-                    type = PRIMARY_GSM_ONLY;
-                } else {
-                    if (socket_id == s_multiModeSim) {
-                        type = PRIMARY_GSM_ONLY;
-                    } else {
-                        type = GSM_ONLY;
-                    }
+                type = PRIMARY_GSM_ONLY;
+                if (socket_id != s_multiModeSim) {
+                    type = GSM_ONLY;
                 }
                 break;
             }
             case NT_WCDMA: {
-                if (s_modemConfig == LWG_WG) {
+                type = WCDMA_ONLY;
+                if (s_modemConfig == LWG_WG || s_modemConfig == WG_WG) {
                     if (socket_id == s_multiModeSim) {
                         type = PRIMARY_WCDMA_ONLY;
-                    } else {
-                        type = WCDMA_ONLY;
                     }
-                } else {
-                    type = WCDMA_ONLY;
                 }
                 break;
             }
@@ -1667,14 +1661,17 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NT_WCDMA_GSM: {
+                type = WCDMA_AND_GSM;
                 if (s_modemConfig == LWG_WG) {
                     if (socket_id == s_multiModeSim) {
                         type = PRIMARY_WCDMA_AND_GSM;
                     } else {
                         type = TD_AND_WCDMA;
                     }
-                } else {
-                    type = WCDMA_AND_GSM;
+                } else if (s_modemConfig == WG_WG) {
+                    if (socket_id == s_multiModeSim) {
+                        type = PRIMARY_WCDMA_AND_GSM;
+                    }
                 }
                 break;
             }
@@ -1709,6 +1706,12 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                     } else {
                         type = TD_AND_WCDMA;
                     }
+                } else if (s_modemConfig == WG_WG) {
+                    if (socket_id == s_multiModeSim) {
+                        type = PRIMARY_WCDMA_AND_GSM;
+                    } else {
+                        type = WCDMA_AND_GSM;
+                    }
                 } else {
                     int mode = getMultiMode();
                     type = mode;
@@ -1723,14 +1726,9 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NETWORK_MODE_GSM_ONLY:
-                if (s_modemConfig != LWG_WG) {
-                    type = PRIMARY_GSM_ONLY;
-                } else {
-                    if (socket_id == s_multiModeSim) {
-                        type = PRIMARY_GSM_ONLY;
-                    } else {
-                        type = GSM_ONLY;
-                    }
+                type = PRIMARY_GSM_ONLY;
+                if (socket_id != s_multiModeSim) {
+                    type = GSM_ONLY;
                 }
                 break;
             case NETWORK_MODE_LTE_ONLY: {
@@ -1746,14 +1744,11 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NETWORK_MODE_WCDMA_ONLY:
-                if (s_modemConfig == LWG_WG) {
+                type = WCDMA_ONLY;
+                if (s_modemConfig == LWG_WG || s_modemConfig == WG_WG) {
                     if (socket_id == s_multiModeSim) {
                         type = PRIMARY_WCDMA_ONLY;
-                    } else {
-                        type = WCDMA_ONLY;
                     }
-                } else {
-                    type = WCDMA_ONLY;
                 }
                 break;
             default:
