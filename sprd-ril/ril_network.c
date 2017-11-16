@@ -1164,7 +1164,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             snprintf(cmd, sizeof(cmd), "AT+CEMODE=%d", cemode);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
-            if (s_presentSIMCount == 1) {
+            if (s_presentSIMCount == 1 && socket_id == s_multiModeSim) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
                                       &p_response);
                 if (err < 0 || p_response->success == 0) {
