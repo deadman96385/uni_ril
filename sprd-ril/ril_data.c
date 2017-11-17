@@ -1794,12 +1794,16 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             } else {
                 isSetReattach = socket_id == s_multiModeSim;
             }
-            if (isSetReattach && (s_in4G[socket_id] == 1 ||
+
+            getProperty(socket_id, "gsm.sim.operator.numeric", prop, "");
+            RLOGD("prop = %s", prop);
+            if (isSetReattach && ((s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED)) {
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED) ||
+                (strcmp(prop, "732101") == 0))) {
                 at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
             }
         } else {
