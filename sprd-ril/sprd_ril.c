@@ -117,6 +117,7 @@ sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
 bool s_isUserdebug = false;
 int s_modemConfig = 0;
+int s_roModemConfig = 0;
 int s_isSimPresent[SIM_COUNT];
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
@@ -1004,6 +1005,19 @@ int getModemConfig() {
     return modemConfig;
 }
 
+int getROModemConfig() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    int modemConfig = 0;
+
+    property_get(RO_MODEM_CONFIG_PROP, prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0) {
+        modemConfig = LWG_WG;
+    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+        modemConfig = LWG_LWG;
+    }
+    return modemConfig;
+}
+
 void setHwVerPorp() {
     int ret = -1;
     int fd = -1;
@@ -1079,6 +1093,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
 
     s_isLTE = isLte();
     s_modemConfig = getModemConfig();
+    s_roModemConfig = getROModemConfig();
     for (simId = 0; simId < SIM_COUNT; simId++) {
         s_isSimPresent[simId] = SIM_UNKNOWN;
     }

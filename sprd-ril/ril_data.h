@@ -177,10 +177,11 @@ typedef enum {
 extern int s_dataAllowed[SIM_COUNT];
 extern int s_manualSearchNetworkId;
 extern bool s_LTEDetached[SIM_COUNT];
-extern struct PDPInfo s_PDP[MAX_PDP];
+extern struct PDPInfo s_PDP[SIM_COUNT][MAX_PDP];
 
-void putPDP(int cid);
-int isExistActivePdp();
+void putPDP(RIL_SOCKET_ID socket_id, int cid);
+int isExistActivePdp(RIL_SOCKET_ID socket_id);
+
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processDataUnsolicited(RIL_SOCKET_ID socket_ID, const char *s);

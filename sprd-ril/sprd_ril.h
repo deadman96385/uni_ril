@@ -42,16 +42,17 @@
 #define AT_PREFIX "^"
 #endif
 
-#define AT_COMMAND_LEN      128
-#define ARRAY_SIZE          128  // cannot change the value
-#define MAX_AT_RESPONSE     0x1000
+#define AT_COMMAND_LEN       128
+#define ARRAY_SIZE           128  // cannot change the value
+#define MAX_AT_RESPONSE      0x1000
 
-#define NUM_ELEMS(x)        (sizeof(x) / sizeof(x[0]))
-#define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
-#define AT_CMD_STR(str)     (str), sizeof((str)) - 1
+#define NUM_ELEMS(x)         (sizeof(x) / sizeof(x[0]))
+#define RIL_UNUSED_PARM(a)   noopRemoveWarning((void *)&(a));
+#define AT_CMD_STR(str)      (str), sizeof((str)) - 1
 
-#define MODEM_CONFIG_PROP   "persist.radio.modem.config"
-#define PRIMARY_SIM_PROP    "persist.radio.primary.sim"
+#define MODEM_CONFIG_PROP    "persist.radio.modem.config"
+#define PRIMARY_SIM_PROP     "persist.radio.primary.sim"
+#define RO_MODEM_CONFIG_PROP "ro.radio.modem.capability"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \
@@ -89,6 +90,7 @@ typedef struct {
 
 extern bool s_isLTE;
 extern int s_modemConfig;
+extern int s_roModemConfig;
 extern int s_multiModeSim;
 extern int s_isSimPresent[SIM_COUNT];
 extern sem_t s_sem[SIM_COUNT];
