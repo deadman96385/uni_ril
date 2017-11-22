@@ -84,8 +84,7 @@ int phoneIsIdle(int socket_id) {
     err = at_send_command_multiline(s_ATChannels[channelID], "AT+CLCC",
                                     "+CLCC:", &p_response);
     if (err != 0 || p_response->success == 0) {
-        at_response_free(p_response);
-        return -1;
+        goto done;
     }
 
     /* total the calls */
@@ -93,8 +92,10 @@ int phoneIsIdle(int socket_id) {
          p_cur = p_cur->p_next) {
         countCalls++;
     }
-    at_response_free(p_response);
 
+done:
+    putChannel(channelID);
+    at_response_free(p_response);
     return countCalls;
 }
 
