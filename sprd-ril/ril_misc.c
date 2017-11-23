@@ -357,6 +357,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         at_send_command(s_ATChannels[channelID], "AT+CCED=2,8", NULL);
         if (s_isLTE) {
             at_send_command(s_ATChannels[channelID], "AT+CEREG=1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPEDDAENABLE=1", NULL);
         }
         at_send_command(s_ATChannels[channelID], "AT+CREG=1", NULL);
         at_send_command(s_ATChannels[channelID], "AT+CGREG=1", NULL);
@@ -375,6 +376,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         at_send_command(s_ATChannels[channelID], "AT+CCED=1,8", NULL);
         if (s_isLTE) {
             at_send_command(s_ATChannels[channelID], "AT+CEREG=2", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SPEDDAENABLE=0", NULL);
         }
         at_send_command(s_ATChannels[channelID], "AT+CREG=2", NULL);
         at_send_command(s_ATChannels[channelID], "AT+CGREG=2", NULL);
