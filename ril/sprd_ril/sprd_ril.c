@@ -1999,7 +1999,7 @@ static void onSIMReady(int channelID)
      * ds = 1   // Status reports routed to TE
      * bfr = 1  // flush buffer
      */
-    at_send_command(ATch_type[channelID],"AT+CNMI=3,2,2,1,1", NULL);
+    at_send_command(ATch_type[channelID],"AT+CNMI=3,0,2,1,1", NULL);
 
     getSmsState(channelID);
 
