@@ -1083,7 +1083,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
             if (s_presentSIMCount == 1) {
-                if (s_modemConfig == LWG_LWG) {
+                if (s_roModemConfig == LWG_LWG) {
                     snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
                     at_send_command(s_ATChannels[channelID], cmd, NULL);
                 } else {
@@ -1097,7 +1097,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             }
 #if defined (ANDROID_MULTI_SIM)
             else {
-                if (s_modemConfig == LWG_LWG) {
+                if (s_roModemConfig == LWG_LWG) {
                     RLOGD("socket_id = %d, s_multiModeSim = %d", socket_id,
                            s_multiModeSim);
                     if (socket_id == s_multiModeSim) {
