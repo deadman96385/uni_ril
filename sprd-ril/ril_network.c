@@ -2995,7 +2995,6 @@ static void requestSetRadioCapability(int channelID, void *data,
 
     RIL_RadioCapability rc;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
     memcpy(&rc, data, sizeof(RIL_RadioCapability));
     RLOGD("requestSetRadioCapability : %d, %d, %d, %d, %s, %d, rild:%d",
             rc.version, rc.session, rc.phase, rc.rat, rc.logicalModemUuid,
@@ -3084,7 +3083,7 @@ static void requestSetRadioCapability(int channelID, void *data,
         default:
             s_sessionId[socket_id] = rc.session;
             responseRc->status = RC_STATUS_FAIL;
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
             break;
     }
 

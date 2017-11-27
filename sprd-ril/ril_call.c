@@ -509,7 +509,11 @@ static void requestDial(int channelID, void *data, size_t datalen,
     RIL_Dial *p_dial = NULL;
     p_dial = (RIL_Dial *)data;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+        return;
+    }
     switch (p_dial->clir) {
         case 0: clir = ""; break;   /* subscription default */
         case 1: clir = "I"; break;  /* invocation */
