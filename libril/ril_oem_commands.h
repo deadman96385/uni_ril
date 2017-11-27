@@ -43,3 +43,5 @@
     {RIL_EXT_REQUEST_SET_XCAP_IP_ADDR, dispatchStrings, responseVoid},
     {RIL_EXT_REQUEST_REATTACH, dispatchVoid, responseVoid},
     {RIL_EXT_REQUEST_SET_VOICE_DOMAIN, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_SET_SMS_BEARER, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_SET_LOCAL_TONE, dispatchInts, responseVoid},
