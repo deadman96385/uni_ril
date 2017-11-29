@@ -15808,20 +15808,8 @@ mainLoop(void *param)
         sim_num = sim_save;
         for(i = 0; i < channel_nums; i++)
         {
-            if(!strcmp(s_modem, "t")) {
-                sprintf(str,"/dev/CHNPTYT%d",sim_num);
-            } else if(!strcmp(s_modem, "w")) {
-                sprintf(str,"/dev/CHNPTYW%d",sim_num);
-            } else if(!strcmp(s_modem, "l")) {
-                sprintf(str,"/dev/CHNPTYL%d",sim_num);
-            } else if(!strcmp(s_modem, "tl")) {
-                sprintf(str,"/dev/CHNPTYTL%d",sim_num);
-            } else if(!strcmp(s_modem, "lf")) {
-                sprintf(str,"/dev/CHNPTYLF%d",sim_num);
-            } else {
-                RILLOGE("Invalid tty device");
-                exit(-1);
-            }
+            snprintf(str, sizeof(str), "/dev/CHNPTY%d", sim_num);
+            RILLOGD("ttyName: %s", str);
 
             strcpy(descriptions[i].ttyName , str);
 
