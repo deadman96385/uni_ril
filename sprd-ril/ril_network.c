@@ -2817,22 +2817,21 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         // case RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE:
         //    break;
         case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE: {
-            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-//            if (s_isLTE) {
-//#if (SIM_COUNT == 2)
-//                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
-//                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_2]);
-//#endif
-//                err = requestSetLTEPreferredNetType(channelID, data, datalen, t);
-//                if (err < 0) {
-//#if (SIM_COUNT == 2)
-//                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
-//                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
-//#endif
-//                }
-//            } else {
-//                requestSetPreferredNetType(channelID, data, datalen, t);
-//            }
+            if (s_isLTE) {
+#if (SIM_COUNT == 2)
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_lock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
+                err = requestSetLTEPreferredNetType(channelID, data, datalen, t);
+                if (err < 0) {
+#if (SIM_COUNT == 2)
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_1]);
+                pthread_mutex_unlock(&s_radioPowerMutex[RIL_SOCKET_2]);
+#endif
+                }
+            } else {
+                requestSetPreferredNetType(channelID, data, datalen, t);
+            }
             break;
         }
         case RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE: {
