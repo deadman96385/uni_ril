@@ -195,7 +195,7 @@ typedef struct Srvccpendingrequest{
 
 #define VOLTE_ENABLE_PROP         "persist.sys.volte.enable"
 #define VOLTE_PCSCF_ADDRESS        "persist.sys.volte.pcscf"
-
+static pthread_mutex_t apn_lock = PTHREAD_MUTEX_INITIALIZER;
 /*SPRD: add for NITZ operator info */
 #define NITZ_OPERATOR        "persist.radio.nitz.operator"
 
@@ -10796,6 +10796,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         bool IsLte = isLte();
         p_response = NULL;
         int isApnInfoChange = 0;
+        pthread_mutex_lock(&apn_lock);
         if (initialAttachApn == NULL) {
             initialAttachApn = (RIL_InitialAttachApn *) malloc(
                     sizeof(RIL_InitialAttachApn));
@@ -10885,6 +10886,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
 
         at_response_free(p_response);
         trafficclass = 2;
+        pthread_mutex_unlock(&apn_lock);
         break;
     }
 
