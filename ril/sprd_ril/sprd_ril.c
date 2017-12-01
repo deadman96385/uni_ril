@@ -11600,6 +11600,21 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_EXT_REQUEST_QUERY_SMS_STORAGE_MODE:
             requestQuerySmsStorageMode(channelID, data, datalen, t, NULL);
             break;
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: {
+            p_response = NULL;
+            int mode = ((int*)data)[0];
+            char cmd[128] = {0};
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCLSTONE=%d", mode);
+            err = at_send_command(ATch_type[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
 #endif  // RIL_SUPPORTED_OEMSOCKET
 #elif defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
         case RIL_REQUEST_GET_CELL_BROADCAST_CONFIG:
@@ -14247,7 +14262,25 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             RILLOGD("onUnsolicited(),CLCK response : %d", response);
             RIL_onUnsolicitedResponse(RIL_UNSOL_FDN_ENABLE, &response, sizeof(response));
         }
+    } else if (strStartsWith(s, "+EARLYMEDIA:")) {
+        char *tmp = NULL;
+        int response = 0;
+        RLOGD("UNSOL EARLY MEDIA is : %s", s);
+
+        /* +EARLYMEDIA:<value> */
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_EARLY_MEDIA,
+                &response, sizeof(response));
     }
+
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
     else if (strStartsWith(s, "+SPUSATSMS:")) {
         char *response = NULL;
