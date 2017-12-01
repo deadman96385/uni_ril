@@ -5010,7 +5010,7 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                 || pCI->requestNumber == RIL_REQUEST_ALLOW_DATA
                 || pCI->requestNumber == RIL_REQUEST_SETUP_DATA_CALL
 #endif
-                || pCI->requestNumber == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
+                ) {
                 list_add_tail(cmdList->slowReqList, cmd_item, socket_id);
                 pthread_mutex_lock(&(cmdList->slowDispatchMutex));
                 pthread_cond_signal(&(cmdList->slowDispatchCond));
