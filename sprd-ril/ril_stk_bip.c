@@ -1055,6 +1055,9 @@ static void *openChannelThread(void *param) {
         if (ret < 0) {
             RLOGE("Failed to create createSocketThread errno: %d", errno);
         }
+    } else {
+        RLOGD("[stk] SetupStkConnect fail");
+        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
     }
     return NULL;
 }
