@@ -1522,12 +1522,16 @@ error:
     putUnusablePDPCid();
 
     response.status = s_lastPDPFailCause[socket_id];
+    response.suggestedRetryTime = -1;
+    response.cid = -1;
+    response.active = -1;
     response.type = "";
     response.ifname = "";
     response.addresses = "";
     response.dnses = "";
     response.gateways = "";
     response.pcscf = "";
+    response.mtu = 0;
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, &response,
             sizeof(RIL_Data_Call_Response_v11));
 }
