@@ -24,8 +24,6 @@
     {RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE, radio::notifyIMSHandoverStatusUpdateResponse},
     {RIL_REQUEST_IMS_NETWORK_INFO_CHANGE, radio::notifyIMSNetworkInfoChangedResponse},
     {RIL_REQUEST_IMS_HANDOVER_CALL_END, radio::notifyIMSCallEndResponse},
-    {RIL_REQUEST_GET_TPMR_STATE, radio::getTPMRStateResponse},
-    {RIL_REQUEST_SET_TPMR_STATE, radio::setTPMRStateResponse},
     {RIL_REQUEST_IMS_WIFI_ENABLE, radio::notifyVoWifiEnableResponse},
     {RIL_REQUEST_IMS_WIFI_CALL_STATE_CHANGE, radio::notifyVoWifiCallStateChangedResponse},
     {RIL_REQUEST_IMS_UPDATE_DATA_ROUTER, radio::notifyDataRouterUpdateResponse},

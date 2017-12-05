@@ -352,8 +352,12 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_GET_IMS_BEARER_STATE ||
                  request == RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN ||
                  request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY ||
-                 request == RIL_REQUEST_GET_TPMR_STATE ||
-                 request == RIL_REQUEST_SET_TPMR_STATE ||
+                 request == RIL_EXT_REQUEST_GET_TPMR_STATE ||
+                 request == RIL_EXT_REQUEST_SET_TPMR_STATE ||
+                 request == RIL_EXT_REQUEST_SET_VIDEO_RESOLUTION ||
+                 request == RIL_EXT_REQUEST_ENABLE_WIFI_PARAM_REPORT ||
+                 request == RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT ||
+                 request == RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE ||
                  request == RIL_REQUEST_IMS_HANDOVER ||
                  request == RIL_REQUEST_IMS_HANDOVER_STATUS_UPDATE ||
                  request == RIL_REQUEST_IMS_NETWORK_INFO_CHANGE ||

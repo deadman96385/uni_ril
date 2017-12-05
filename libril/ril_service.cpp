@@ -588,6 +588,20 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> updateCLIP(int32_t serial, int32_t enable);
 
+    Return<void> setTPMRState(int32_t serial, int32_t state);
+
+    Return<void> getTPMRState(int32_t serial);
+
+    Return<void> setVideoResolution(int32_t serial, int32_t resolution);
+
+    Return<void> enableLocalHold(int32_t serial, bool enabled);
+
+    Return<void> enableWiFiParamReport(int32_t serial, bool enabled);
+
+    Return<void> callMediaChangeRequestTimeOut(int32_t serial, int32_t callId);
+
+    Return<void> setDualVolteState(int32_t serial, int32_t state);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -635,10 +649,6 @@ struct RadioImpl : public IExtRadio {
     Return<void> notifyIMSNetworkInfoChanged(int32_t serial, const ImsNetworkInfo& networkInfo);
 
     Return<void> notifyIMSCallEnd(int32_t serial, int32_t type);
-
-    Return<void> getTPMRState(int32_t serial);
-
-    Return<void> setTPMRState(int32_t serial, int32_t state);
 
     Return<void> notifyVoWifiEnable(int32_t serial, bool enable);
 
@@ -9575,6 +9585,62 @@ Return<void> RadioImpl::updateCLIP(int32_t serial, int32_t enable) {
     return Void();
 }
 
+Return<void> RadioImpl::setTPMRState(int32_t serial, int32_t state) {
+#if VDBG
+    RLOGD("setTPMRState: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_TPMR_STATE, 1, state);
+    return Void();
+}
+
+Return<void> RadioImpl::getTPMRState(int32_t serial) {
+#if VDBG
+    RLOGD("getTPMRState: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_TPMR_STATE);
+    return Void();
+}
+
+Return<void> RadioImpl::setVideoResolution(int32_t serial, int32_t resolution) {
+#if VDBG
+    RLOGD("setVideoResolution: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_VIDEO_RESOLUTION, 1, resolution);
+    return Void();
+}
+
+Return<void> RadioImpl::enableLocalHold(int32_t serial, bool enabled) {
+#if VDBG
+    RLOGD("enableLocalHold: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_ENABLE_LOCAL_HOLD, 1, BOOL_TO_INT(enabled));
+    return Void();
+}
+
+Return<void> RadioImpl::enableWiFiParamReport(int32_t serial, bool enabled) {
+#if VDBG
+    RLOGD("enableWiFiParamReport: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_ENABLE_WIFI_PARAM_REPORT, 1, BOOL_TO_INT(enabled));
+    return Void();
+}
+
+Return<void> RadioImpl::callMediaChangeRequestTimeOut(int32_t serial, int32_t callId) {
+#if VDBG
+    RLOGD("callMediaChangeRequestTimeOut: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT, 1, callId);
+    return Void();
+}
+
+Return<void> RadioImpl::setDualVolteState(int32_t serial, int32_t state) {
+#if VDBG
+    RLOGD("setDualVolteState: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE, 1, state);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10622,6 +10688,148 @@ int radio::updateCLIPResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::getTPMRStateResponse(int slotId, int responseType, int serial,
+                                RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getTPMRStateResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
+                        response, responseLen);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getTPMRStateResponse(responseInfo, ret);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getTPMRStateResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setTPMRStateResponse(int slotId, int responseType, int serial,
+                                RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setTPMRStateResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setTPMRStateResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setTPMRStateResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setVideoResolutionResponse(int slotId, int responseType, int serial,
+                                      RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setVideoResolutionResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setVideoResolutionResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setVideoResolutionResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::enableLocalHoldResponse(int slotId, int responseType, int serial,
+                                   RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("enableLocalHoldResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                enableLocalHoldResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("enableLocalHoldResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::enableWiFiParamReportResponse(int slotId, int responseType, int serial,
+                                         RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("enableWiFiParamReportResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                enableWiFiParamReportResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("enableWiFiParamReportResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::callMediaChangeRequestTimeOutResponse(int slotId, int responseType,
+                                                 int serial, RIL_Errno e,
+                                                 void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("callMediaChangeRequestTimeOutResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                callMediaChangeRequestTimeOutResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("callMediaChangeRequestTimeOutResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setDualVolteStateResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setDualVolteStateResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setDualVolteStateResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setDualVolteStateResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int radio::videoPhoneCodecInd(int slotId, int indicationType, int token,
@@ -11480,22 +11688,6 @@ Return<void> RadioImpl::notifyIMSCallEnd(int32_t serial, int32_t type) {
     return Void();
 }
 
-Return<void> RadioImpl::getTPMRState(int32_t serial) {
-#if VDBG
-    RLOGD("getTPMRState: serial %d", serial);
-#endif
-    dispatchVoid(serial, mSlotId, RIL_REQUEST_GET_TPMR_STATE);
-    return Void();
-}
-
-Return<void> RadioImpl::setTPMRState(int32_t serial, int32_t state) {
-#if VDBG
-    RLOGD("setTPMRState: serial %d", serial);
-#endif
-    dispatchInts(serial, mSlotId, RIL_REQUEST_SET_TPMR_STATE, 1, state);
-    return Void();
-}
-
 Return<void> RadioImpl::notifyVoWifiEnable(int32_t serial, bool enable) {
 #if VDBG
     RLOGD("notifyVoWifiEnable: serial %d", serial);
@@ -12120,47 +12312,6 @@ int radio::notifyIMSCallEndResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
     } else {
         RLOGE("notifyIMSCallEndResponse: radioService[%d]->mIMSRadioResponse == NULL",
-                slotId);
-    }
-
-    return 0;
-}
-
-int radio::getTPMRStateResponse(int slotId, int responseType, int serial,
-                                RIL_Errno e, void *response, size_t responseLen) {
-#if VDBG
-    RLOGD("getTPMRStateResponse: serial %d", serial);
-#endif
-
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
-        RadioResponseInfo responseInfo = {};
-        int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
-                response, responseLen);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
-                getTPMRStateResponse(responseInfo, ret);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
-    } else {
-        RLOGE("getTPMRStateResponse: radioService[%d]->mIMSRadioResponse == NULL",
-                slotId);
-    }
-
-    return 0;
-}
-
-int radio::setTPMRStateResponse(int slotId, int responseType, int serial,
-                                RIL_Errno e, void *response, size_t responseLen) {
-#if VDBG
-    RLOGD("setTPMRStateResponse: serial %d", serial);
-#endif
-
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
-        RadioResponseInfo responseInfo = {};
-        populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
-                setTPMRStateResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
-    } else {
-        RLOGE("setTPMRStateResponse: radioService[%d]->mIMSRadioResponse == NULL",
                 slotId);
     }
 

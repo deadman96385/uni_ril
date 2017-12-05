@@ -884,6 +884,27 @@ int setVoiceDomainResponse(int slotId, int responseType, int serial,
 int updateCLIPResponse(int slotId, int responseType, int serial,
                        RIL_Errno e, void *response, size_t responseLen);
 
+int setTPMRStateResponse(int slotId, int responseType, int serial,
+                         RIL_Errno e, void *response, size_t responseLen);
+
+int getTPMRStateResponse(int slotId, int responseType, int serial,
+                         RIL_Errno e, void *response, size_t responseLen);
+
+int setVideoResolutionResponse(int slotId, int responseType, int serial,
+                               RIL_Errno e, void *response, size_t responseLen);
+
+int enableLocalHoldResponse(int slotId, int responseType, int serial,
+                            RIL_Errno e, void *response, size_t responseLen);
+
+int enableWiFiParamReportResponse(int slotId, int responseType, int serial,
+                                  RIL_Errno e, void *response, size_t responseLen);
+
+int callMediaChangeRequestTimeOutResponse(int slotId, int responseType, int serial,
+                                         RIL_Errno e, void *response, size_t responseLen);
+
+int setDualVolteStateResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int videoPhoneCodecInd(int slotId, int indicationType, int token,
@@ -1006,12 +1027,6 @@ int notifyIMSNetworkInfoChangedResponse(int slotId, int responseType, int serial
 
 int notifyIMSCallEndResponse(int slotId, int responseType, int serial,
                              RIL_Errno e, void *response, size_t responseLen);
-
-int getTPMRStateResponse(int slotId, int responseType, int serial,
-                         RIL_Errno e, void *response, size_t responseLen);
-
-int setTPMRStateResponse(int slotId, int responseType, int serial,
-                         RIL_Errno e, void *response, size_t responseLen);
 
 int notifyVoWifiEnableResponse(int slotId, int responseType, int serial,
                                RIL_Errno e, void *response, size_t responseLen);

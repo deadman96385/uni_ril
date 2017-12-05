@@ -1843,7 +1843,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
-        case RIL_REQUEST_GET_TPMR_STATE: {
+        case RIL_EXT_REQUEST_GET_TPMR_STATE: {
             p_response = NULL;
             int response = 0;
 
@@ -1867,7 +1867,7 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
-        case RIL_REQUEST_SET_TPMR_STATE: {
+        case RIL_EXT_REQUEST_SET_TPMR_STATE: {
             char cmd[AT_COMMAND_LEN];
 
             snprintf(cmd, sizeof(cmd), "AT+SPTPMR=%d", ((int *)data)[0]);
@@ -1877,6 +1877,82 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_VIDEO_RESOLUTION:{
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+CDEFMP=1,\"%d\"", ((int *)data)[0]);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_ENABLE_LOCAL_HOLD: {
+            int enable = ((int *)data)[0];
+            p_response = NULL;
+
+            if (enable) {
+                err = at_send_command(s_ATChannels[channelID], "AT+SPLOCALHOLD=1;", &p_response);
+            } else {
+                err = at_send_command(s_ATChannels[channelID], "AT+SPLOCALHOLD=0;", &p_response);
+            }
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_ENABLE_WIFI_PARAM_REPORT :{
+            int enable = ((int *)data)[0];
+            p_response = NULL;
+
+            if (enable) {
+                err = at_send_command(s_ATChannels[channelID], "AT+WIFIPARAM=1,0,0,0,5", &p_response);
+            } else {
+                err = at_send_command(s_ATChannels[channelID], "AT+WIFIPARAM=0,0,0,0,0", &p_response);
+            }
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+CCMMD=%d,5", ((int *)data)[0]);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCAPABILITY=49,1,%d", ((int *)data)[0]);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
             break;
         }
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: {
