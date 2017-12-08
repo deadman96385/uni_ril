@@ -3509,6 +3509,8 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
             goto out;
         }
+        s_imsRegistered[socket_id] = response;
+        RLOGD("s_imsRegistered = %d", s_imsRegistered[socket_id]);
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
                                   &response, sizeof(response), socket_id);
         RIL_onUnsolicitedResponse(RIL_UNSOL_IMS_NETWORK_STATE_CHANGED,
