@@ -317,14 +317,6 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
 
         if (isVoLteEnable()) {
             at_send_command(s_ATChannels[channelID], "AT+CIREG=2", NULL);
-            /* add for bug 534775 */
-            int response = s_imsRegistered[socket_id];
-            RIL_onUnsolicitedResponse(
-                RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED, &response,
-                sizeof(response), socket_id);
-            RIL_onUnsolicitedResponse(
-                RIL_UNSOL_IMS_NETWORK_STATE_CHANGED, &response,
-                sizeof(response), socket_id);
         }
         if (isExistActivePdp(socket_id) && !strcmp(prop, "0")) {
             char cmd[ARRAY_SIZE] = {0};
