@@ -566,9 +566,10 @@ int getModemConfig() {
     int modemConfig = 0;
 
     property_get(MODEM_CONFIG_PROP, prop, "");
-    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0) {
+    if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0 || strcmp(prop, "TL_LF_W_G,W_G") == 0) {
         modemConfig = LWG_WG;
-    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+    } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
+               strcmp(prop, "TL_LF_W_G,TL_LF_W_G") == 0) {
         modemConfig = LWG_LWG;
     } else if (strcmp(prop, "TL_LF_G,G") == 0) {
         modemConfig = LG_G;
@@ -883,7 +884,8 @@ static void initializeCallback(void *param) {
             // Status word 0 to disable DSDA;
             // Status word 1 for L+W/G modem to enable DSDA;
             // Status word 2 for L+L modem to enable DSDA.
-            if(strcmp(dsdsMode, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+            if(strcmp(dsdsMode, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
+               strcmp(dsdsMode, "TL_LF_W_G,TL_LF_W_G") == 0) {
                 at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,2",
                                 NULL);
             } else {
