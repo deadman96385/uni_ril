@@ -992,20 +992,24 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
             goto out;
         }
+        skipNextComma(&tmp);
         err = at_tok_nextstr(&tmp, &response->aid);
         if (err < 0) {
             RLOGD("%s fail", s);
             goto out;
         }
         response->result = result;
+        if (SIM_RESET == result) {
+            s_imsInitISIM[socket_id] = -1;
+        }
+        if (strcmp(response->aid, "") != 0) {
+            if (strncasecmp((response->aid) + 10, "1004", 4) == 0) { //1004 Isim app change
+                RLOGD("Isim app change");
+                s_imsInitISIM[socket_id] = -1;
+                RIL_requestTimedCallback(initIsimCard, (void *)&s_socketId[socket_id], NULL);
+            }
+        }
         response->aid = "";
-        if (SIM_RESET == result || strcmp(response->aid, "") != 0) {
-            s_imsInitISIM[socket_id] = -1;
-        }
-        if (RIL_APPTYPE_ISIM == s_appType[socket_id] && SIM_INIT == result) {
-            s_imsInitISIM[socket_id] = -1;
-            RIL_requestTimedCallback(initIsimCard, (void *)&s_socketId[socket_id], NULL);
-        }
         RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
                 sizeof(RIL_SimRefreshResponse_v7), socket_id);
     /* SPRD: add for alpha identifier display in stk @{ */
