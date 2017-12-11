@@ -53,6 +53,7 @@
 
 #define MODEM_CONFIG_PROP   "persist.radio.modem.config"
 #define PRIMARY_SIM_PROP    "persist.radio.primary.sim"
+#define RO_MODEM_CONFIG_PROP "ro.radio.modem.capability"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \
@@ -99,6 +100,7 @@ typedef struct {
 
 extern bool s_isLTE;
 extern int s_modemConfig;
+extern int s_roModemConfig;
 extern int s_multiModeSim;
 extern int s_isSimPresent[SIM_COUNT];
 extern sem_t s_sem[SIM_COUNT];
