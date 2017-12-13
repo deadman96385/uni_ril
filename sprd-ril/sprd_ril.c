@@ -770,6 +770,123 @@ void setRadioState(int channelID, RIL_RadioState newState) {
     }
 }
 
+void initModemProp(int channelID) {
+    ATResponse *p_response = NULL;
+    char modemCapbility[PROPERTY_VALUE_MAX] = {0};
+    char modemConfig[PROPERTY_VALUE_MAX] = {0};
+    char workmode[PROPERTY_VALUE_MAX] = {0};
+    char overseaProp[PROPERTY_VALUE_MAX] = {0};
+    char *line = NULL;
+    int err;
+    int modemCap = -1; // modem max capability
+
+    property_get(MODEM_CAPABILITY, modemCapbility, "");
+    property_get(MODEM_CONFIG_PROP, modemConfig, "");
+    property_get(MODEM_WORKMODE_PROP, workmode, "");
+    property_get(OVERSEA_VERSION, overseaProp, "");
+    RLOGD("modemCapbility=%s, modemConfig=%s, workmode=%s", modemCapbility,
+           modemConfig, workmode);
+
+    if (s_isLTE && (!strcmp(modemCapbility, "") || !strcmp(modemConfig, "") ||
+                    !strcmp(workmode, ""))) {
+        err = at_send_command_singleline(s_ATChannels[channelID],
+                "AT+SPCAPABILITY=51,0", "+SPCAPABILITY:", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            RLOGE("AT+SPCAPABILITY=51,0 return error");
+            goto error;
+        }
+
+        line = p_response->p_intermediates->line;
+
+        err = at_tok_start(&line);
+        if (err < 0) goto error;
+
+        skipNextComma(&line);
+        skipNextComma(&line);
+        err = at_tok_nextint(&line, &modemCap);
+        if (err < 0) {
+            RLOGE("parse modemCap failed");
+            goto error;
+        }
+        RLOGD("modemCap=%d", modemCap);
+    }
+
+    if (modemCap == 4) {  // WW
+        if (!strcmp(modemCapbility, "")) {
+            property_set(MODEM_CAPABILITY, "W_G,W_G");
+        }
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "W_G,W_G");
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "22,14");
+        }
+    } else if (modemCap == 2) {  // LL
+        if (!strcmp(modemCapbility, "")) {
+            property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,TL_LF_TD_W_G");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CAPABILITY, "TL_LF_W_G,TL_LF_W_G");
+            }
+        }
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,TL_LF_TD_W_G");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,TL_LF_W_G");
+            }
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "9,9");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_WORKMODE_PROP, "6,6");
+            }
+        }
+    } else if (modemCap == 1) {  // LW
+        if (!strcmp(modemCapbility, "")) {
+            property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,W_G");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CAPABILITY, "TL_LF_W_G,W_G");
+            }
+        }
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,W_G");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,W_G");
+            }
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "9,255");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_WORKMODE_PROP, "6,255");
+            }
+        }
+    } else if (modemCap == 0) {  // LG
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,G");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,G");
+            }
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "9,10");
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_WORKMODE_PROP, "6,10");
+            }
+        }
+    }
+
+    AT_RESPONSE_FREE(p_response);
+    return;
+
+error:
+    RLOGE("config default mode wG");
+    AT_RESPONSE_FREE(p_response);
+    if (!strcmp(modemConfig, "")) {
+        property_set(MODEM_CONFIG_PROP, "W_G,G");
+    }
+    if (!strcmp(workmode, "")) {
+        property_set(MODEM_WORKMODE_PROP, "14,10");
+    }
+}
 /**
  * Initialize everything that can be configured while we're still in
  * AT+CFUN=0
@@ -909,6 +1026,8 @@ static void initializeCallback(void *param) {
             }
         }
     }
+
+    initModemProp(channelID);
 
     /* set some auto report AT command on or off */
     if (isVoLteEnable()) {

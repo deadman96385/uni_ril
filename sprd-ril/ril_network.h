@@ -12,6 +12,8 @@
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
+#define MODEM_CAPABILITY        "persist.radio.modem.capability"
+#define OVERSEA_VERSION         "ro.radio.flavor"
 
 /*  LTE PS registration state */
 typedef enum {
