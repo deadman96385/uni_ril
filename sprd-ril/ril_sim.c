@@ -2971,6 +2971,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2:
             requestSIMOpenChannelWITHP2(channelID, data, datalen, t);
             break;
+        case RIL_EXT_REQUEST_SIM_POWER:
+            requestSIMPower(channelID, data, NULL);
+            break;
         default:
             return 0;
     }

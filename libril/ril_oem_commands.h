@@ -45,3 +45,4 @@
     {RIL_EXT_REQUEST_SET_VOICE_DOMAIN, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_SET_SMS_BEARER, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_SET_LOCAL_TONE, dispatchInts, responseVoid},
+    {RIL_EXT_REQUEST_SIM_POWER, dispatchInts, responseVoid}
