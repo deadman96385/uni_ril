@@ -53,6 +53,7 @@
 #define MODEM_CONFIG_PROP    "persist.radio.modem.config"
 #define PRIMARY_SIM_PROP     "persist.radio.primary.sim"
 #define RO_MODEM_CONFIG_PROP "ro.radio.modem.capability"
+#define MIFI_PRODUCT_PROP   "persist.radio.mifi.product"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \

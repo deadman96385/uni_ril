@@ -4997,8 +4997,6 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             if (pCI->requestNumber == RIL_REQUEST_SEND_SMS
                 || pCI->requestNumber == RIL_REQUEST_SEND_SMS_EXPECT_MORE
                 || pCI->requestNumber == RIL_REQUEST_IMS_SEND_SMS
-                || pCI->requestNumber == RIL_REQUEST_QUERY_FACILITY_LOCK
-                || pCI->requestNumber == RIL_REQUEST_SET_FACILITY_LOCK
                 || pCI->requestNumber == RIL_REQUEST_QUERY_CALL_FORWARD_STATUS
                 || pCI->requestNumber == RIL_REQUEST_SET_CALL_FORWARD
                 || pCI->requestNumber == RIL_REQUEST_GET_CLIR
@@ -5053,7 +5051,9 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             } else if (pCI->requestNumber == RIL_REQUEST_SIM_IO
                         || pCI->requestNumber == RIL_REQUEST_WRITE_SMS_TO_SIM
                         || pCI->requestNumber == RIL_REQUEST_DELETE_SMS_ON_SIM
-                        || pCI->requestNumber == RIL_REQUEST_GET_SMSC_ADDRESS) {
+                        || pCI->requestNumber == RIL_REQUEST_GET_SMSC_ADDRESS
+                        || pCI->requestNumber == RIL_REQUEST_QUERY_FACILITY_LOCK
+                        || pCI->requestNumber == RIL_REQUEST_SET_FACILITY_LOCK) {
                 list_add_tail(cmdList->simReqList, cmd_item, socket_id);
                 pthread_mutex_lock(&(cmdList->normalDispatchMutex));
                 pthread_cond_signal(&(cmdList->normalDispatchCond));

@@ -1850,6 +1850,7 @@ typedef enum {
     PRIMARY_TD_ONLY = 19,
     PRIMARY_TD_AND_WCDMA = 20,
     PRIMARY_WCDMA_AND_GSM = 22,
+    TD_LTE_AND_LTE_FDD_WCDMA_TD = 24,
     NONE = 254,
     TD_AND_WCDMA = 255,
 } RadioFeatures;
