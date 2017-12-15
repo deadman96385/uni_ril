@@ -22,9 +22,9 @@
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
+int s_manualSearchNetworkId = -1;
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
-static int s_defaultDataId = -1;
 static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
@@ -1766,11 +1766,28 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     }
 }
 
+/**
+ * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
+ * we can get data connection card id by s_dataAllowed
+ */
+int getDefaultDataCardId() {
+    int i = 0;
+    int ret = -1;
+    for (i = 0; i < SIM_COUNT; i++) {
+        if (s_dataAllowed[i] == 1) {
+            ret = i;
+        }
+    }
+    return ret;
+}
+
 static void requestSetInitialAttachAPN(int channelID, void *data,
                                             size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
     int initialAttachId = 1;
     int ret = -1;
+    bool isSetReattach = false;
+    char prop[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1792,7 +1809,16 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             }
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
-            if (socket_id == s_multiModeSim && (s_in4G[socket_id] == 1 ||
+            /*bug769723 CMCC version reattach on data card*/
+            property_get("ro.radio.spice", prop, "0");
+            if (!strcmp(prop, "1")) {
+                if (socket_id == getDefaultDataCardId()) {
+                    isSetReattach = true;
+                }
+            } else {
+                isSetReattach = socket_id == s_multiModeSim;
+            }
+            if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
@@ -2023,77 +2049,6 @@ void requestAllowData(int channelID, void *data, size_t datalen,
     }
 }
 
-/**
- * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
- * we can get data connection card id by s_dataAllowed
- */
-int getDefaultDataCardId() {
-    int i = 0;
-    int ret = -1;
-    for (i = 0; i < SIM_COUNT; i++) {
-        if (s_dataAllowed[i] == 1) {
-            ret = i;
-        }
-    }
-    return ret;
-}
-
-void cleanUpAllConnections(int channelID) {
-    int i;
-    int cid;
-    char cmd[AT_COMMAND_LEN];
-    int deactiveChannelID = channelID;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    s_defaultDataId = getDefaultDataCardId();
-    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
-        RLOGD("there is no active data connections!");
-        return;
-    }
-    if (socket_id != s_defaultDataId) {
-        deactiveChannelID = getChannel(s_defaultDataId);
-    }
-    for (i = 0; i < MAX_PDP; i++) {
-        cid = getPDPCid(socket_id, i);
-        if (cid > 0) {
-            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-            at_send_command(s_ATChannels[deactiveChannelID], cmd, NULL);
-            cgact_deact_cmd_rsp(cid);
-        }
-    }
-    if (socket_id != s_defaultDataId) {
-        putChannel(deactiveChannelID);
-    }
-}
-
-void activeAllConnections(int channelID) {
-    if (s_defaultDataId < 0 || s_defaultDataId >= SIM_COUNT) {
-        return;
-    }
-
-    int i;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-    int dataChannelID = channelID;
-    if (socket_id != s_defaultDataId) {
-        dataChannelID = getChannel(s_defaultDataId);
-    }
-
-    //property_set(APN_DELAY_PROP, "1");
-    for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(socket_id, i) > 0) {
-            RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
-            if (s_PDP[socket_id][i].state == PDP_BUSY) {
-                int cid = getPDPCid(socket_id, i);
-                putPDP(socket_id, i);
-                requestOrSendDataCallList(dataChannelID, cid, NULL);
-            }
-        }
-    }
-    if (socket_id != s_defaultDataId) {
-        putChannel(dataChannelID);
-    }
-    s_defaultDataId = -1;
-}
-
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -2102,8 +2057,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
-            if (s_defaultDataId >= 0 || s_swapCard != 0) {
-                RLOGD("defaultDataId = %d, swapcard = %d", s_defaultDataId, s_swapCard);
+            if (s_manualSearchNetworkId >= 0 || s_swapCard != 0) {
+                RLOGD("s_manualSearchNetworkId = %d, swapcard = %d", s_manualSearchNetworkId, s_swapCard);
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
@@ -2152,7 +2107,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestDataCallList(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ALLOW_DATA: {
-            if (s_defaultDataId >= 0) {
+            if (s_manualSearchNetworkId >= 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
@@ -2418,6 +2373,38 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
 
+        }
+        case RIL_REQUEST_IMS_REGADDR: {
+            p_response = NULL;
+            err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPIMSREGADDR?",
+                                             "+SPIMSREGADDR:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                int count = 2;
+                char *imsAddr[2] = {NULL, NULL};
+                char *line = p_response->p_intermediates->line;
+                if (findInBuf(line, strlen(line), "+SPIMSREGADDR")) {
+                    err = at_tok_flag_start(&line, ':');
+                    if (err < 0) break;
+
+                    err = at_tok_nextstr(&line, &imsAddr[0]);
+                    if (err < 0) break;
+
+                    err = at_tok_nextstr(&line, &imsAddr[1]);
+                    if (err < 0) break;
+
+                    if ((imsAddr[0] != NULL) && (imsAddr[1] != NULL)) {
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, imsAddr, count * sizeof(char*));
+                    } else {
+                        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    }
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            }
+            at_response_free(p_response);
+            break;
         }
         default :
             ret = 0;

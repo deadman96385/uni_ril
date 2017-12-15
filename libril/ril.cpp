@@ -5088,7 +5088,15 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             close(fd);
         }
         p_info->fdCommand = -1;
-        if (p_info->type != RIL_ATCI_SOCKET) {
+        if (p_info->type == RIL_ATCI_SOCKET) {
+            RLOGE("not receive at cmd, client died");
+            s_atciSocketParam.fdCommand = -1;
+            if (s_atciSocketParam.p_rs != NULL) {
+                record_stream_free(s_atciSocketParam.p_rs);
+                s_atciSocketParam.p_rs = NULL;
+            }
+            rilEventAddWakeup(s_atciSocketParam.listen_event);
+        } else {
             ril_event_del(p_info->commands_event);
 
             record_stream_free(p_rs);
@@ -6817,6 +6825,8 @@ const char *requestToString(int request) {
         case RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY: return "GET_IMS_SRVCC_CAPBILITY";
         case RIL_REQUEST_GET_IMS_PCSCF_ADDR: return "GET_IMS_PCSCF_ADDR";
         case RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
+        case RIL_REQUEST_IMS_REGADDR: return "IMS_REGADDR";
+        case RIL_REQUEST_IMS_UPDATE_CLIP: return "IMS_UPDATE_CLIP";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */

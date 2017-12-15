@@ -1084,6 +1084,21 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_REQUEST_IMS_UPDATE_CLIP: {
+            int enable = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+            p_response = NULL;
+
+            snprintf(cmd, sizeof(cmd), "AT+CLIP=%d", enable);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
