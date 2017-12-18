@@ -269,6 +269,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY ||
           request == RIL_REQUEST_SET_BAND_MODE ||
           request == RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE ||
+          request == RIL_REQUEST_START_NETWORK_SCAN ||
+          request == RIL_REQUEST_STOP_NETWORK_SCAN ||
           request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_STATUS ||
           request == RIL_EXT_REQUEST_GET_SIMLOCK_DUMMYS ||
@@ -341,6 +343,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_GET_MUTE ||
                  request == RIL_REQUEST_GET_CURRENT_CALLS ||
                  request == RIL_REQUEST_LAST_CALL_FAIL_CAUSE ||
+                 request == RIL_REQUEST_START_NETWORK_SCAN ||
+                 request == RIL_REQUEST_STOP_NETWORK_SCAN ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
