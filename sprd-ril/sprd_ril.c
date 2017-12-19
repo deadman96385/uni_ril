@@ -585,7 +585,7 @@ int getROModemConfig() {
     char prop[PROPERTY_VALUE_MAX] = {0};
     int modemConfig = 0;
 
-    property_get(RO_MODEM_CONFIG_PROP, prop, "");
+    property_get(MODEM_CAPABILITY, prop, "");
     if (strcmp(prop, "TL_LF_TD_W_G,W_G") == 0 || strcmp(prop, "TL_LF_W_G,W_G") == 0) {
         modemConfig = LWG_WG;
     } else if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
