@@ -6658,6 +6658,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_COLP: return "QUERY_COLP";
         case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
         case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: return "UPDATE_OPERATOR_NAME";
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6727,6 +6729,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "RIL_EXT_REQUEST_SET_SINGLE_PDN";
+        case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
         default: return "<unknown request>";
     }
 }
