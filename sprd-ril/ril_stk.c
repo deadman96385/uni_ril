@@ -912,7 +912,7 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
            case SEND_DATA:
            case GET_CHANNEL_STATUS:
                 pBipClient = (BipClient *)calloc(1, sizeof(BipClient));
-                pBipClient->response = response;
+                pBipClient->response = strdup(response);
                 pBipClient->socket_id = socket_id;
                 pthread_attr_init(&attr);
                 pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
