@@ -405,7 +405,7 @@ int closeVirtual(int socket_id){
     int channelID = -1;
     channelID = getChannel(socket_id);
 
-    err = at_send_command(s_ATChannels[channelID],"VSIM_EXIT:AT+RSIMRSP=\"VSIM\",0", NULL);
+    err = at_send_command(s_ATChannels[channelID],"AT+RSIMRSP=\"VSIM\",0", NULL);
     onSimDisabled(channelID);
 
     putChannel(channelID);
