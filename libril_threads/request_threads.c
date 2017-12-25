@@ -390,8 +390,7 @@ ATCmdType getCmdType(int request) {
         || request == RIL_REQUEST_SET_CLIR
         || request == RIL_REQUEST_QUERY_CALL_WAITING
         || request == RIL_REQUEST_SET_CALL_WAITING
-        || request == RIL_REQUEST_QUERY_CLIP
-        || request == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
+        || request == RIL_REQUEST_QUERY_CLIP) {
         cmdType = AT_CMD_TYPE_SLOW;
     } else if (request == RIL_REQUEST_RADIO_POWER
             || request == RIL_REQUEST_DIAL
