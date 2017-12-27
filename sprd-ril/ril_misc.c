@@ -32,6 +32,12 @@ bool s_vsimInitFlag[SIM_COUNT] = {false, false};
 pthread_mutex_t s_vsimSocketMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_vsimSocketCond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_screenMutex = PTHREAD_MUTEX_INITIALIZER;
+struct timeval s_timevalCloseVsim = {60, 0};
+
+typedef struct {
+    int socket_id1;
+    int socket_id2;
+} VirtualCardPara;
 
 static void requestBasebandVersion(int channelID, void *data, size_t datalen,
                                    RIL_Token t) {
@@ -359,6 +365,69 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &hwCfg, sizeof(hwCfg));
 }
 
+int vsimQueryVirtual(int socket_id){
+    RLOGD("vsimQueryVirtual, phoneId: %d", socket_id);
+    int err = -1;
+    int channelID = -1;
+    int vsimMode = -1;
+    char *line = NULL;
+    ATResponse *p_response = NULL;
+    channelID = getChannel(socket_id);
+    err = at_send_command_singleline(s_ATChannels[channelID],
+            "AT+VIRTUALSIMINIT?", "+VIRTUALSIMINIT:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RLOGD("vsim query virtual card error");
+    } else {
+        line = p_response->p_intermediates->line;
+        RLOGD("vsim query virtual card resp:%s",line);
+        err = at_tok_start(&line);
+        err = at_tok_nextint(&line, &vsimMode);
+    }
+    at_response_free(p_response);
+    if (vsimMode > 0) {
+        at_send_command(s_ATChannels[channelID],"AT+RSIMRSP=\"ERRO\",1,", NULL);
+    }
+    putChannel(channelID);
+
+    return vsimMode;
+}
+
+void onSimDisabled(int channelID) {
+    int sim_status = getSIMStatus(false, channelID);
+    at_send_command(s_ATChannels[channelID],
+                    "AT+SFUN=5", NULL);
+    setRadioState(channelID, RADIO_STATE_OFF);
+}
+
+int closeVirtual(int socket_id){
+    RLOGD("closeVirtual, phoneId: %d", socket_id);
+    int err = -1;
+    int channelID = -1;
+    channelID = getChannel(socket_id);
+
+    err = at_send_command(s_ATChannels[channelID],"VSIM_EXIT:AT+RSIMRSP=\"VSIM\",0", NULL);
+    onSimDisabled(channelID);
+
+    putChannel(channelID);
+    return err;
+}
+
+static void closeVirtualThread(void *param) {
+    RLOGD("closeVsimCard");
+    VirtualCardPara *virtualCardPara = (VirtualCardPara *)param;
+    if (s_vsimClientFd < 0 ) {
+        if (virtualCardPara->socket_id1 == 1) {
+            closeVirtual(RIL_SOCKET_1);
+        }
+#if (SIM_COUNT >= 2)
+        if (virtualCardPara->socket_id2 == 1) {
+            closeVirtual(RIL_SOCKET_2);
+        }
+#endif
+    }
+    free(virtualCardPara);
+}
+
 void *listenVsimSocketThread() {
     int ret = -1;
     if (s_vsimServerFd < 0) {
@@ -390,6 +459,21 @@ void *listenVsimSocketThread() {
             close(s_vsimClientFd);
             s_vsimListenLoop = false;
             s_vsimClientFd = -1;
+
+            int vsimMode1 = -1;
+            int vsimMode2 = -1;
+            VirtualCardPara *virtualCardPara = NULL;
+            vsimMode1 = vsimQueryVirtual(RIL_SOCKET_1);
+#if (SIM_COUNT >= 2)
+    vsimMode2 = vsimQueryVirtual(RIL_SOCKET_2);
+#endif
+
+            virtualCardPara = (VirtualCardPara *)calloc(1, sizeof(VirtualCardPara));
+            virtualCardPara->socket_id1 = vsimMode1;
+            virtualCardPara->socket_id2 = vsimMode2;
+
+            RIL_requestTimedCallback(closeVirtualThread,
+                        (void *)virtualCardPara, &s_timevalCloseVsim);
         }
         RLOGD("vsim read %s",error);
     } while (s_vsimClientFd > 0);
@@ -419,6 +503,11 @@ void* sendVsimReqThread(void *cmd) {
             RLOGE("Failed to write cmd to vsim!error = %s", strerror(errno));
             close(s_vsimClientFd);
             s_vsimClientFd = -1;
+
+            vsimQueryVirtual(RIL_SOCKET_1);
+#if (SIM_COUNT >= 2)
+    vsimQueryVirtual(RIL_SOCKET_2);
+#endif
         }
         RLOGD("vsim write OK");
     } else {
@@ -440,12 +529,7 @@ void sendVsimReq(char *cmd) {
         RLOGE("Failed to create sendVsimReqThread errno: %d", errno);
     }
 }
-void onSimDisabled(int channelID) {
-    int sim_status = getSIMStatus(false, channelID);
-    at_send_command(s_ATChannels[channelID],
-                    "AT+SFUN=5", NULL);
-    setRadioState(channelID, RADIO_STATE_OFF);
-}
+
 void requestSendAT(int channelID, const char *data, size_t datalen,
                    RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -548,6 +632,22 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
         }
         at_response_free(p_response);
+        return;
+    }  else if (strStartsWith(ATcmd, "VSIM_TIMEOUT")) {
+        int time = -1;
+        char *cmd = NULL;
+        cmd = ATcmd;
+        at_tok_start(&cmd);
+        err = at_tok_nextint(&cmd, &time);
+        RLOGD("VSIM_TIMEOUT:%d",time);
+        if (time > 0) {
+            s_timevalCloseVsim.tv_sec = time;
+            response[0] = "OK";
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
+        } else {
+            response[0] = "ERROR";
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char *));
+        }
         return;
     } else {
         err = at_send_command_multiline(s_ATChannels[channelID], ATcmd, "",
