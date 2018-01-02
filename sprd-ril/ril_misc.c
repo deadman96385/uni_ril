@@ -477,6 +477,10 @@ void* sendVsimReqThread(void *cmd) {
         RLOGD("vsim write OK");
     } else {
         RLOGE("vsim socket disconnected");
+        vsimQueryVirtual(RIL_SOCKET_1);
+        #if (SIM_COUNT >= 2)
+            vsimQueryVirtual(RIL_SOCKET_2);
+        #endif
     }
     free(cmd);
     return NULL;
