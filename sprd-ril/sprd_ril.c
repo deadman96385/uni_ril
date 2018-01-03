@@ -787,8 +787,7 @@ void initModemProp(int channelID) {
     RLOGD("modemCapbility=%s, modemConfig=%s, workmode=%s", modemCapbility,
            modemConfig, workmode);
 
-    if (s_isLTE && (!strcmp(modemCapbility, "") || !strcmp(modemConfig, "") ||
-                    !strcmp(workmode, ""))) {
+    if (s_isLTE) {
         err = at_send_command_singleline(s_ATChannels[channelID],
                 "AT+SPCAPABILITY=51,0", "+SPCAPABILITY:", &p_response);
         if (err < 0 || p_response->success == 0) {
@@ -814,6 +813,10 @@ void initModemProp(int channelID) {
     if (modemCap == 4) {  // WW
         if (!strcmp(modemCapbility, "")) {
             property_set(MODEM_CAPABILITY, "W_G,W_G");
+        } else if (strcmp(modemCapbility, "W_G,W_G")) {  // for OTA modem update
+            property_set(MODEM_CAPABILITY, "W_G,W_G");
+            property_set(MODEM_CONFIG_PROP, "W_G,W_G");
+            property_set(MODEM_WORKMODE_PROP, "22,14");
         }
         if (!strcmp(modemConfig, "")) {
             property_set(MODEM_CONFIG_PROP, "W_G,W_G");
@@ -823,53 +826,93 @@ void initModemProp(int channelID) {
         }
     } else if (modemCap == 2) {  // LL
         if (!strcmp(modemCapbility, "")) {
-            property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,TL_LF_TD_W_G");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_CAPABILITY, "TL_LF_W_G,TL_LF_W_G");
+            } else {
+                property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,TL_LF_TD_W_G");
+            }
+        } else if (strcmp(modemCapbility, "TL_LF_TD_W_G,TL_LF_TD_W_G") &&
+                   strcmp(modemCapbility, "TL_LF_W_G,TL_LF_W_G")) {  // for OTA modem update
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CAPABILITY, "TL_LF_W_G,TL_LF_W_G");
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,TL_LF_W_G");
+                property_set(MODEM_WORKMODE_PROP, "6,6");
+            } else {
+                property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,TL_LF_TD_W_G");
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,TL_LF_TD_W_G");
+                property_set(MODEM_WORKMODE_PROP, "9,9");
             }
         }
         if (!strcmp(modemConfig, "")) {
-            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,TL_LF_TD_W_G");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,TL_LF_W_G");
+            } else {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,TL_LF_TD_W_G");
             }
         }
         if (!strcmp(workmode, "")) {
-            property_set(MODEM_WORKMODE_PROP, "9,9");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_WORKMODE_PROP, "6,6");
+            } else {
+                property_set(MODEM_WORKMODE_PROP, "9,9");
             }
         }
     } else if (modemCap == 1) {  // LW
         if (!strcmp(modemCapbility, "")) {
-            property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,W_G");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_CAPABILITY, "TL_LF_W_G,W_G");
+            } else {
+                property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,W_G");
+            }
+
+        } else if (strcmp(modemCapbility, "TL_LF_TD_W_G,W_G") &&
+                   strcmp(modemCapbility, "TL_LF_W_G,W_G")) {  // for OTA modem update
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CAPABILITY, "TL_LF_W_G,W_G");
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,W_G");
+                property_set(MODEM_WORKMODE_PROP, "6,255");
+            } else {
+                property_set(MODEM_CAPABILITY, "TL_LF_TD_W_G,W_G");
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,W_G");
+                property_set(MODEM_WORKMODE_PROP, "9,255");
             }
         }
         if (!strcmp(modemConfig, "")) {
-            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,W_G");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,W_G");
+            } else {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,W_G");
             }
         }
         if (!strcmp(workmode, "")) {
-            property_set(MODEM_WORKMODE_PROP, "9,255");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_WORKMODE_PROP, "6,255");
+            } else {
+                property_set(MODEM_WORKMODE_PROP, "9,255");
             }
         }
     } else if (modemCap == 0) {  // LG
         if (!strcmp(modemConfig, "")) {
-            property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,G");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,G");
+            } else {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,G");
+            }
+        } else if (strcmp(modemCapbility, "TL_LF_TD_W_G,G") &&
+                   strcmp(modemCapbility, "TL_LF_W_G,G")) {  // for OTA modem update
+            if (strcmp(overseaProp, "")) {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,G");
+                property_set(MODEM_WORKMODE_PROP, "6,10");
+            } else {
+                property_set(MODEM_CONFIG_PROP, "TL_LF_TD_W_G,G");
+                property_set(MODEM_WORKMODE_PROP, "9,10");
             }
         }
         if (!strcmp(workmode, "")) {
-            property_set(MODEM_WORKMODE_PROP, "9,10");
             if (strcmp(overseaProp, "")) {
                 property_set(MODEM_WORKMODE_PROP, "6,10");
+            } else {
+                property_set(MODEM_WORKMODE_PROP, "9,10");
             }
         }
     }
