@@ -73,17 +73,17 @@ struct PDPInfo s_PDP[MAX_PDP] = {
     {-1, -1, -1, false, PDP_IDLE, PTHREAD_MUTEX_INITIALIZER}
 };
 static PDNInfo s_PDN[MAX_PDP_CP] = {
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""}
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""}
 };
 static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
 static bool isApnEqual(char *new, char *old);
@@ -473,7 +473,7 @@ static int getSPACTFBcause(int channelID) {
 
 static void queryAllActivePDNInfos(int channelID) {
     int err = 0;
-    int n, skip, active;
+    int skip, active;
     char *line;
     ATLine *pCur;
     PDNInfo *pdns = s_PDN;
@@ -485,9 +485,10 @@ static void queryAllActivePDNInfos(int channelID) {
     if (err < 0 || pdnResponse->success == 0) goto done;
     for (pCur = pdnResponse->p_intermediates; pCur != NULL;
          pCur = pCur->p_next) {
-        int cid;
+        int i, cid;
         int type;
         char *apn;
+        char *attachApn;
         line = pCur->line;
         err = at_tok_start(&line);
         if (err < 0) {
@@ -498,7 +499,8 @@ static void queryAllActivePDNInfos(int channelID) {
             pdns->nCid = -1;
         }
         cid = pdns->nCid;
-        if (pdns->nCid > MAX_PDP) {
+        i = cid - 1;
+        if (cid > MAX_PDP || i < 0) {
             continue;
         }
         err = at_tok_nextint(&line, &active);
@@ -511,14 +513,14 @@ static void queryAllActivePDNInfos(int channelID) {
         /* apn */
         err = at_tok_nextstr(&line, &apn);
         if (err < 0) {
-            s_PDN[cid - 1].nCid = -1;
+            s_PDN[i].nCid = -1;
         }
-        snprintf(s_PDN[cid - 1].strApn, sizeof(s_PDN[cid - 1].strApn),
+        snprintf(s_PDN[i].strApn, sizeof(s_PDN[i].strApn),
                  "%s", apn);
         /* type */
         err = at_tok_nextint(&line, &type);
         if (err < 0) {
-            s_PDN[cid - 1].nCid = -1;
+            s_PDN[i].nCid = -1;
         }
         char *strType = NULL;
         switch (type) {
@@ -535,12 +537,19 @@ static void queryAllActivePDNInfos(int channelID) {
                 strType = "IP";
                 break;
         }
-        snprintf(s_PDN[cid - 1].strIPType, sizeof(s_PDN[cid - 1].strIPType),
+        snprintf(s_PDN[cid - 1].strIPType, sizeof(s_PDN[i].strIPType),
                   "%s", strType);
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextstr(&line, &attachApn);
+            if (err >= 0) {
+                snprintf(s_PDN[i].strAttachApn, sizeof(s_PDN[i].strAttachApn),
+                     "%s", attachApn);
+            }
+        }
         if (active > 0) {
-            RLOGI("active PDN: cid = %d, iptype = %s, apn = %s",
-                  s_PDN[cid - 1].nCid, s_PDN[cid - 1].strIPType,
-                  s_PDN[cid - 1].strApn);
+            RLOGI("active PDN: cid = %d, iptype = %s, apn = %s, attachApn = %s",
+                  s_PDN[i].nCid, s_PDN[i].strIPType,
+                  s_PDN[i].strApn, s_PDN[i].strAttachApn);
         }
         pdns++;
     }
@@ -648,6 +657,14 @@ char *getPDNAPN(int index) {
         return NULL;
     } else {
         return s_PDN[index].strApn;
+    }
+}
+
+char *getPDNAttachAPN(int index) {
+    if (index >= MAX_PDP_CP || index < 0) {
+        return NULL;
+    } else {
+        return s_PDN[index].strAttachApn;
     }
 }
 
@@ -1242,8 +1259,8 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                     RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
                     if (i < MAX_PDP && (getPDPState(i) == PDP_IDLE) &&
                         (useDefaultPDN ||
-                        (isApnEqual((char *)apn, getPDNAPN(i)) &&
-                        isProtocolEqual((char *)type, getPDNIPType(i))) ||
+                        ((isApnEqual((char *)apn, getPDNAPN(i)) || !strcasecmp((char *)apn, getPDNAttachAPN(i))) &&
+                            isProtocolEqual((char *)type, getPDNIPType(i))) ||
                         s_singlePDNAllowed[socket_id] == 1)) {
                         RLOGD("Using default PDN");
                         getPDPByIndex(i);

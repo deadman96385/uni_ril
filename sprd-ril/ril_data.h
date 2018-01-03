@@ -53,6 +53,7 @@ typedef struct {
     int nCid;
     char strIPType[64];
     char strApn[64];
+    char strAttachApn[64];
 } PDNInfo;
 
 /* data call fail cause mapping */
