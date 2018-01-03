@@ -86,6 +86,7 @@ typedef struct {
     int nCid;
     char strIPType[64];
     char strApn[64];
+    char strAttachApn[64];
 } PDNInfo;
 
 typedef struct PDP_INFO {
