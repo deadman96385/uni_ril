@@ -2430,6 +2430,74 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_UPDATE_PLMN: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            int type = ((int*)data)[0];
+            int action = ((int*)data)[1];
+            int plmn = ((int*)data)[2];
+            int act1 = ((int*)data)[3];
+            int act2 = ((int*)data)[4];
+            int act3 = ((int*)data)[5];
+            p_response = NULL;
+            if (type == 0) {
+                if (action == 0 || action == 1) {
+                    snprintf(cmd, sizeof(cmd), "AT+cufp=%d,\"%d\"", action, plmn);
+                } else if (action == 2) {
+                    snprintf(cmd, sizeof(cmd), "AT+SPSELMODE=1");
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    break;
+                }
+            } else if (type == 1) {
+                if (action == 1) {
+                    snprintf(cmd, sizeof(cmd), "AT+cpol=0,2,\"%d\",%d,,%d,%d", plmn, act1, act2, act3);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    break;
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_QUERY_PLMN: {
+            int i = -1;
+            int type = ((int*)data)[0];
+            char response[MAX_AT_RESPONSE] = {0};
+            char *line = NULL;
+            ATLine *p_cur = NULL;
+            p_response = NULL;
+            if (type != 1) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+            err = at_send_command_multiline(s_ATChannels[channelID], "AT+CPOL?",
+                                             "+CPOL:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                for (i = 0, p_cur = p_response->p_intermediates; p_cur != NULL;
+                     p_cur = p_cur->p_next, i++) {
+                    line = p_cur->line;
+                    at_tok_start(&line);
+                    skipWhiteSpace(&line);
+                    strlcat(response, line, sizeof(response));
+                    strlcat(response, ";", sizeof(response));
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response) + 1);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default :
             ret = 0;
             break;
