@@ -295,7 +295,7 @@ error:
             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
             at_response_free(p_response);
             return;
-        } else if (errNum == 21) {
+        } else if (errNum == 21 || errNum == 0) {
             RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
             at_response_free(p_response);
             return;
@@ -970,11 +970,11 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS: {
-             if (isVoLteEnable()) {
-                 requestQueryCallForwardU(channelID, data, datalen, t);
-             } else {
-                 requestQueryCallForward(channelID, data, datalen, t);
-             }
+            if (isVoLteEnable()) {
+                requestQueryCallForwardU(channelID, data, datalen, t);
+            } else {
+                requestQueryCallForward(channelID, data, datalen, t);
+            }
             break;
         }
         case RIL_REQUEST_SET_CALL_FORWARD: {
