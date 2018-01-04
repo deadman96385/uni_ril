@@ -109,17 +109,17 @@ struct PDPInfo s_PDP[SIM_COUNT][MAX_PDP] = {
 #endif
 };
 static PDNInfo s_PDN[MAX_PDP_CP] = {
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""},
-    { -1, "", ""}
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""},
+    { -1, "", "", ""}
 };
 static void detachGPRS(int channelID, void *data, size_t datalen, RIL_Token t);
 static bool isApnEqual(char *new, char *old);
@@ -499,7 +499,7 @@ static int getSPACTFBcause(int channelID) {
 
 static void queryAllActivePDNInfos(int channelID) {
     int err = 0;
-    int n, skip, active;
+    int skip, active;
     char *line;
     ATLine *pCur;
     PDNInfo *pdns = s_PDN;
@@ -511,9 +511,10 @@ static void queryAllActivePDNInfos(int channelID) {
     if (err < 0 || pdnResponse->success == 0) goto done;
     for (pCur = pdnResponse->p_intermediates; pCur != NULL;
          pCur = pCur->p_next) {
-        int cid;
+        int i, cid;
         int type;
         char *apn;
+        char *attachApn;
         line = pCur->line;
         err = at_tok_start(&line);
         if (err < 0) {
@@ -524,7 +525,8 @@ static void queryAllActivePDNInfos(int channelID) {
             pdns->nCid = -1;
         }
         cid = pdns->nCid;
-        if (pdns->nCid > MAX_PDP) {
+        i = cid - 1;
+        if (pdns->nCid > MAX_PDP || i < 0) {
             continue;
         }
         err = at_tok_nextint(&line, &active);
@@ -537,14 +539,14 @@ static void queryAllActivePDNInfos(int channelID) {
         /* apn */
         err = at_tok_nextstr(&line, &apn);
         if (err < 0) {
-            s_PDN[cid - 1].nCid = -1;
+            s_PDN[i].nCid = -1;
         }
-        snprintf(s_PDN[cid - 1].strApn, sizeof(s_PDN[cid - 1].strApn),
+        snprintf(s_PDN[i].strApn, sizeof(s_PDN[i].strApn),
                  "%s", apn);
         /* type */
         err = at_tok_nextint(&line, &type);
         if (err < 0) {
-            s_PDN[cid - 1].nCid = -1;
+            s_PDN[i].nCid = -1;
         }
         char *strType = NULL;
         switch (type) {
@@ -561,12 +563,19 @@ static void queryAllActivePDNInfos(int channelID) {
                 strType = "IP";
                 break;
         }
-        snprintf(s_PDN[cid - 1].strIPType, sizeof(s_PDN[cid - 1].strIPType),
+        snprintf(s_PDN[cid - 1].strIPType, sizeof(s_PDN[i].strIPType),
                   "%s", strType);
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextstr(&line, &attachApn);
+            if (err >= 0) {
+                snprintf(s_PDN[i].strAttachApn, sizeof(s_PDN[i].strAttachApn),
+                     "%s", attachApn);
+            }
+        }
         if (active > 0) {
-            RLOGI("active PDN: cid = %d, iptype = %s, apn = %s",
-                  s_PDN[cid - 1].nCid, s_PDN[cid - 1].strIPType,
-                  s_PDN[cid - 1].strApn);
+            RLOGI("active PDN: cid = %d, iptype = %s, apn = %s, attachApn = %s",
+                  s_PDN[i].nCid, s_PDN[i].strIPType,
+                  s_PDN[i].strApn, s_PDN[i].strAttachApn);
         }
         pdns++;
     }
@@ -677,6 +686,14 @@ char *getPDNAPN(int index) {
         return NULL;
     } else {
         return s_PDN[index].strApn;
+    }
+}
+
+char *getPDNAttachAPN(int index) {
+    if (index >= MAX_PDP_CP || index < 0) {
+        return NULL;
+    } else {
+        return s_PDN[index].strAttachApn;
     }
 }
 
@@ -1311,7 +1328,7 @@ error:
  *           0: Reuse defaulte bearer success;
  *          >0: Reuse failed, the failed cid;
  */
-static int reuseDefaultBearer(int channelID, const char *apn,
+static int reuseDefaultBearer(int channelID, void *data,
                                const char *type, RIL_Token t) {
     bool islte = s_isLTE;
     int err, ret = -1, cgdata_err;
@@ -1320,6 +1337,13 @@ static int reuseDefaultBearer(int channelID, const char *apn,
     char prop[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     int useDefaultPDN;
+
+    const char *apn, *username, *password, *authtype;
+
+    apn = ((const char **)data)[2];
+    username = ((const char **)data)[3];
+    password = ((const char **)data)[4];
+    authtype = ((const char **)data)[5];
 
     property_get(REUSE_DEFAULT_PDN, prop, "0");
     useDefaultPDN = atoi(prop);
@@ -1338,14 +1362,34 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                     RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
                     if (i < MAX_PDP &&
                         (useDefaultPDN ||
-                        (isApnEqual((char *)apn, getPDNAPN(i)) &&
-                        isProtocolEqual((char *)type, getPDNIPType(i))) ||
+                        ((isApnEqual((char *)apn, getPDNAPN(i)) || !strcasecmp((char *)apn, getPDNAttachAPN(i))) &&
+                            isProtocolEqual((char *)type, getPDNIPType(i))) ||
                         s_singlePDNAllowed[socket_id] == 1)) {
                         if (getPDPState(socket_id, i) == PDP_IDLE) {
                             RLOGD("Using default PDN");
                             getPDPByIndex(socket_id, i);
                             cgact_deact_cmd_rsp(cid);
                             AT_RESPONSE_FREE(p_response);
+                            char newCmd[AT_COMMAND_LEN] = {0};
+                            char qosState[PROPERTY_VALUE_MAX] = {0};
+                            snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
+                                      cid, type, apn);
+                            err = cgdcont_set_cmd_req(cmd, newCmd);
+                            if (err == 0) {
+                                err = at_send_command(s_ATChannels[channelID], newCmd, NULL);
+                            }
+
+                            snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username,
+                                      password, cid, atoi(authtype));
+                            at_send_command(s_ATChannels[channelID], cmd, NULL);
+                            /* Set required QoS params to default */
+                            property_get("persist.sys.qosstate", qosState, "0");
+                            if (!strcmp(qosState, "0")) {
+                                snprintf(cmd, sizeof(cmd),
+                                          "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                                          cid, s_trafficClass[socket_id]);
+                                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                            }
                             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
                                       cid);
                             cgdata_set_cmd_req(cmd);
@@ -1402,13 +1446,11 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen,
     int nRetryTimes = 0;
     int ret;
     int isFallback = 0;
-    const char *pdpType;
-    const char *apn = NULL;
+    const char *pdpType = "IP";
     RIL_Data_Call_Response_v11 response;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    apn = ((const char **)data)[2];
 
     if (isVoLteEnable() && !isExistActivePdp(socket_id)) {  // for ddr, power consumption
         char prop[PROPERTY_VALUE_MAX];
@@ -1427,7 +1469,7 @@ RETRY:
     }
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
-    ret = reuseDefaultBearer(channelID, apn, pdpType, t);
+    ret = reuseDefaultBearer(channelID, data, pdpType, t);
     if (ret == 0) {
         return;
     } else if (ret > 0) {
@@ -1595,14 +1637,15 @@ static void deactivateDataConnection(int channelID, void *data,
     if (cid < 1) {
         goto error;
     }
-    if (getPDPState(socket_id, cid - 1) == PDP_IDLE) {
-        RLOGD("deactive done!");
-        goto done;
-    }
+
     RLOGD("deactivateDC s_in4G[%d]=%d, count = %d", socket_id, s_in4G[socket_id],
                 s_openchannelInfo[cid - 1].count);
     if (s_openchannelInfo[cid - 1].count > 0) {
         s_openchannelInfo[cid - 1].count--;
+    }
+    if (getPDPState(socket_id, cid - 1) == PDP_IDLE) {
+        RLOGD("deactive done!");
+        goto done;
     }
     if (s_openchannelInfo[cid - 1].count != 0){
         goto error;
@@ -2031,10 +2074,11 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
             if (state == PDP_BUSY || cid > 0) {
                 snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", i + 1);
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
-                cgact_deact_cmd_rsp(cid);
                 RLOGD("s_PDP[%d].state = %d", i, state);
+                putPDP(socket_id, i);
+                cgact_deact_cmd_rsp(cid);
+
                 if (state == PDP_BUSY) {
-                    putPDP(socket_id, i);
                     requestOrSendDataCallList(channelID, cid, NULL);
                 }
                 AT_RESPONSE_FREE(p_response);
