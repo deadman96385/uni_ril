@@ -6130,6 +6130,7 @@ done:
             record_stream_free(s_atciSocketParam.p_rs);
             s_atciSocketParam.p_rs = NULL;
         }
+        RLOGD("start to listen atci socket connect again");
         rilEventAddWakeup(s_atciSocketParam.listen_event);
     }
     free(pRI);
