@@ -54,6 +54,8 @@ struct OpenchannelInfo s_openchannelInfo[6] = {
 };
 static int s_openchannelCid = -1;
 
+static int s_curCid[SIM_COUNT];
+
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
         PDP_FAIL_ERROR_UNSPECIFIED
@@ -836,6 +838,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     }
     cgdata_set_cmd_req(cmd);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    s_curCid[socket_id] = cid;
     cgdata_set_cmd_rsp(p_response, cid - 1, primaryCid, channelID);
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
@@ -1311,6 +1314,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                 responses, n * sizeof(RIL_Data_Call_Response_v11), socket_id);
     }
     s_LTEDetached[socket_id] = false;
+    s_curCid[socket_id] = 0;
     return;
 
 error:
@@ -1395,6 +1399,7 @@ static int reuseDefaultBearer(int channelID, void *data,
                             cgdata_set_cmd_req(cmd);
                             err = at_send_command(s_ATChannels[channelID], cmd,
                                                   &p_response);
+                            s_curCid[socket_id] = cid;
                             cgdata_set_cmd_rsp(p_response, cid - 1, 0, channelID);
                             cgdata_err = errorHandlingForCGDATA(channelID,
                                     p_response, err, cid);
@@ -2163,6 +2168,12 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     int err;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    // L+L don't need auto detach.
+    if (s_autoDetach == 1 && s_modemConfig == LWG_LWG) {
+        s_autoDetach = 0;
+    }
+
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
             if (s_isSimPresent[socket_id] == SIM_ABSENT) {
@@ -2180,6 +2191,15 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
                     if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+                        /* bug813401 L+L version,only setup data call on data card @{ */
+                        if (s_modemConfig == LWG_LWG && s_dataAllowed[socket_id] != 1) {
+                            s_lastPDPFailCause[socket_id] =
+                                    PDP_FAIL_ERROR_UNSPECIFIED;
+                            RIL_onRequestComplete(t,
+                                    RIL_E_GENERIC_FAILURE, NULL, 0);
+                            break;
+                        }
+                        /* }@ */
                         requestSetupDataCall(channelID, data, datalen, t);
                         s_failCount = 0;
                     } else {
@@ -2765,6 +2785,9 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 if (endStatus == 104) {
                     if (cid > 0 && cid <= MAX_PDP &&
                         s_PDP[socket_id][cid - 1].state == PDP_BUSY) {
+                        if (cid == s_curCid[socket_id]) {
+                            s_LTEDetached[socket_id] = true;
+                        }
                         CallbackPara *cbPara =
                                 (CallbackPara *)malloc(sizeof(CallbackPara));
                         if (cbPara != NULL) {
