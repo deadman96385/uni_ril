@@ -16,6 +16,7 @@
 #include "telephony/ril.h"
 #include "telephony/thread_pool.h"
 #include "request_threads.h"
+#include <cutils/properties.h>
 
 int s_simCount = 1;
 int s_threadNumber = 0;
@@ -62,6 +63,8 @@ static const RIL_TheadsFunctions s_threadsFunctions = {
     getSocketIdByChannelID,
     enqueueRequest
 };
+
+static bool s_isLLVersion = false;
 
 void *noopRemoveWarning(void *a) {
     return a;
@@ -435,6 +438,9 @@ ATCmdType getCmdType(int request) {
         } else {
             cmdType = AT_CMD_TYPE_DATA;
         }
+    } else if (s_isLLVersion && s_simCount > 1
+            && request == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
+        cmdType = AT_CMD_TYPE_DATA;
     }
     return cmdType;
 }
@@ -641,6 +647,7 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
                                               int simCount, int threadNumber) {
     int i = 0;
     int ret = -1;
+    char prop[PROPERTY_VALUE_MAX];
 
     s_requestFunctions = requestFunctions;
     s_simCount = simCount;
@@ -736,6 +743,12 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
         sem_init(&s_semLockArray[i].semLock, 0, 0);
     }
 #endif
+
+    property_get("persist.radio.modem.config", prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
+        strcmp(prop, "TL_LF_W_G,TL_LF_W_G") == 0) {
+        s_isLLVersion = true;
+    }
 
     return &s_threadsFunctions;
 }
