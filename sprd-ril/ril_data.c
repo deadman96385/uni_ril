@@ -1139,13 +1139,13 @@ static void requestOrSendDataCallList(int channelID, int cid,
             iplist = alloca(IPListSize);
             separator = " ";
             iplist[0] = 0;
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             strlcat(iplist, prop, IPListSize);
             strlcat(iplist, separator, IPListSize);
             RLOGD("IPV4V6 cmd = %s, prop = %s, iplist = %s", cmd, prop, iplist);
 
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             strlcat(iplist, prop, IPListSize);
             responses[i].addresses = iplist;
@@ -1154,8 +1154,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
             separator = "";
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid - 1,
-                          nn + 1);
+                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth,
+                          ncid - 1, nn + 1);
                 property_get(cmd, prop, NULL);
 
                 /* Append the DNS IP address */
@@ -1166,8 +1166,8 @@ static void requestOrSendDataCallList(int channelID, int cid,
                       dnslist);
             }
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth,
-                          ncid - 1, nn + 1);
+                snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid - 1,
+                          nn + 1);
                 property_get(cmd, prop, NULL);
 
                 /* Append the DNS IP address */
