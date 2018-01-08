@@ -403,6 +403,87 @@ static void convertFailCause(RIL_SOCKET_ID socket_id, int cause) {
     }
 }
 
+static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data)
+{
+    ATResponse *p_response = NULL;
+    char *line;
+    int err = 0;
+    int failCause = 0;
+    const char *apn = NULL;
+    const char *username = NULL;
+    const char *password = NULL;
+    const char *authtype = NULL;
+    char cmd[128] = {0};
+    int fb_ip_type = -1;
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char eth[PROPERTY_VALUE_MAX] = {0};
+    char qosState[PROPERTY_VALUE_MAX] = {0};
+
+    apn = ((const char **)data)[2];
+    username = ((const char **)data)[3];
+    password = ((const char **)data)[4];
+    authtype = ((const char **)data)[5];
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    //IPV4
+    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0", index+1, apn);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0){
+        goto retryIPV6;
+    }
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto retryIPV6;
+    }else{
+        goto done;
+    }
+
+retryIPV6:
+
+    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IPV6\",\"%s\",\"\",0,0", index+1, apn);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0){
+        goto error;
+    }
+
+    snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username, password,index+1,atoi(authtype));
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    /* Set required QoS params to default */
+    property_get("persist.sys.qosstate", qosState, "0");
+    if(!strcmp(qosState, "0")) {
+        snprintf(cmd, sizeof(cmd), "AT+CGEQREQ=%d,0,0,0,0,0,2,0,\"0\",\"0e0\",3,0,0", index+1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", index + 1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+    }
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RLOGD("both V4 and V6 are failed");
+        goto error;
+    }
+
+done:
+    updatePDPCid(index + 1, 1);
+    updatePDPSocketId(index + 1, socket_id);
+    AT_RESPONSE_FREE(p_response);
+    return true;
+error:
+    AT_RESPONSE_FREE(p_response);
+    return false;
+}
+
 /**
  * return -2: fail cause 253, need retry active for another cid;
  *         0: success;
@@ -427,9 +508,16 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                 err = at_tok_nextint(&line, &failCause);
                 if (err >= 0) {
                     if (failCause == 288 || failCause == 128) {
-                        ret = DATA_ACTIVE_NEED_RETRY;  // 128: network reject
+                        ret = DATA_ACTIVE_NEED_RETRY;
                     } else if (failCause == 253) {
                         ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
+                    } else if (failCause == 128 || failCause == 38) {// 128: network reject
+                        ret = DATA_ACTIVE_NEED_FALLBACK;
+                        if (failCause == 128){
+                            s_lastPDPFailCause[socket_id] = PDP_FAIL_UNKNOWN_PDP_ADDRESS_TYPE;
+                        }else if (failCause == 38){
+                            s_lastPDPFailCause[socket_id] = PDP_FAIL_NETWORK_FAILURE;
+                        }
                     } else {
                         convertFailCause(socket_id, failCause);
                     }
@@ -787,6 +875,9 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
     if (ret != DATA_ACTIVE_SUCCESS) {
+        if (ret == DATA_ACTIVE_NEED_FALLBACK) {
+            return ret;
+        }
         putPDP(cid - 1);
         return ret;
     }
@@ -1339,7 +1430,13 @@ RETRY:
             nRetryTimes++;
             goto RETRY;
         }
-    } else if (ret == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
+    } else if (ret == DATA_ACTIVE_NEED_FALLBACK) {
+        if (doIPV4_IPV6_Fallback(channelID, index, data) == false) {
+            goto error;
+        } else {
+            goto done;
+        }
+    }  else if (ret == DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
         updatePDPCid(index + 1, -1);
         goto RETRY;
     } else if (ret == DATA_ACTIVE_SUCCESS &&
