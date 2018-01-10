@@ -5036,6 +5036,7 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_REQUEST_IMS_INITIAL_GROUP_CALL
                     || pCI->requestNumber == RIL_REQUEST_IMS_ADD_TO_GROUP_CALL
                     || pCI->requestNumber == RIL_REQUEST_VIDEOPHONE_DIAL
+                    || pCI->requestNumber == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY
                     /* }@ */
                     /* OEM SOCKET REQUEST @{ */
                     || pCI->requestNumber == RIL_EXT_REQUEST_VIDEOPHONE_DIAL
