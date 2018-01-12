@@ -35,6 +35,10 @@ static int freeVideoPhoneCodec(void *data, size_t datalen);
 static int freeCallForwardUri(void *data, size_t datalen);
 static int freeNotifyIMSNetworkInfoChanged(void *data, size_t datalen);
 
+static int freeSetCarrierImsiEncryption(void *data, size_t datalen);
+static int freeStartNetworkScan(void *data, size_t datalen);
+static int freeStartKeepAlive(void *data, size_t datalen);
+
 MemoryManager s_memoryManager[] = {
 #include "ril_aosp_mmgr.h"
 };
@@ -467,6 +471,39 @@ static int freeNotifyIMSNetworkInfoChanged(void *data, size_t datalen) {
 
     memset(nwInfo, 0, datalen);
     free(nwInfo);
+
+    return 0;
+}
+
+static int freeSetCarrierImsiEncryption(void *data, size_t datalen) {
+    RIL_CarrierInfoForImsiEncryption *info =
+            (RIL_CarrierInfoForImsiEncryption *)data;
+    memsetString(info->mcc);
+    memsetString(info->mnc);
+    memsetString(info->keyIdentifier);
+
+    free(info->mcc);
+    free(info->mnc);
+    free(info->keyIdentifier);
+
+    free(info->carrierKey);
+
+    memset(info, 0, datalen);
+    free(info);
+
+    return 0;
+}
+static int freeStartNetworkScan(void *data, size_t datalen) {
+    RIL_NetworkScanRequest *scanRequest = (RIL_NetworkScanRequest *)data;
+    memset(scanRequest, 0, datalen);
+    free(scanRequest);
+
+    return 0;
+}
+static int freeStartKeepAlive(void *data, size_t datalen) {
+    RIL_KeepaliveRequest *kaReq = (RIL_KeepaliveRequest *)data;
+    memset(kaReq, 0, datalen);
+    free(kaReq);
 
     return 0;
 }

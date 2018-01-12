@@ -1657,11 +1657,17 @@ Return<void> RadioImpl::startNetworkScan(int32_t serial, const V1_1::NetworkScan
         return Void();
     }
 
-    RIL_NetworkScanRequest scan_request = {};
-
-    scan_request.type = (RIL_ScanType) request.type;
-    scan_request.interval = request.interval;
-    scan_request.specifiers_length = request.specifiers.size();
+    RIL_NetworkScanRequest *scan_request =
+            (RIL_NetworkScanRequest *)calloc(1, sizeof(RIL_NetworkScanRequest));
+    if (scan_request == NULL) {
+        RLOGE("Memory allocation failed for request %s",
+                requestToString(pRI->pCI->requestNumber));
+        sendErrorResponse(pRI, RIL_E_NO_MEMORY);
+        return Void();
+    }
+    scan_request->type = (RIL_ScanType) request.type;
+    scan_request->interval = request.interval;
+    scan_request->specifiers_length = request.specifiers.size();
     for (size_t i = 0; i < request.specifiers.size(); ++i) {
         if (request.specifiers[i].geranBands.size() > MAX_BANDS ||
             request.specifiers[i].utranBands.size() > MAX_BANDS ||
@@ -1672,7 +1678,7 @@ Return<void> RadioImpl::startNetworkScan(int32_t serial, const V1_1::NetworkScan
         }
         const V1_1::RadioAccessSpecifier& ras_from =
                 request.specifiers[i];
-        RIL_RadioAccessSpecifier& ras_to = scan_request.specifiers[i];
+        RIL_RadioAccessSpecifier& ras_to = scan_request->specifiers[i];
 
         ras_to.radio_access_network = (RIL_RadioAccessNetworks) ras_from.radioAccessNetwork;
         ras_to.channels_length = ras_from.channels.size();
@@ -1702,7 +1708,7 @@ Return<void> RadioImpl::startNetworkScan(int32_t serial, const V1_1::NetworkScan
         }
     }
 
-    CALL_ONREQUEST(RIL_REQUEST_START_NETWORK_SCAN, &scan_request, sizeof(scan_request), pRI,
+    CALL_ONREQUEST(RIL_REQUEST_START_NETWORK_SCAN, scan_request, sizeof(RIL_NetworkScanRequest), pRI,
             pRI->socket_id);
 
     return Void();
@@ -3298,26 +3304,35 @@ Return<void> RadioImpl::setCarrierInfoForImsiEncryption(int32_t serial,
         return Void();
     }
 
-    RIL_CarrierInfoForImsiEncryption imsiEncryption = {};
+    RIL_CarrierInfoForImsiEncryption *imsiEncryption =
+            (RIL_CarrierInfoForImsiEncryption *)calloc(1, sizeof(RIL_CarrierInfoForImsiEncryption));
+    if (imsiEncryption == NULL) {
+        RLOGE("Memory allocation failed for request %s",
+                requestToString(pRI->pCI->requestNumber));
+        sendErrorResponse(pRI, RIL_E_NO_MEMORY);
+        return Void();
+    }
 
-    if (!copyHidlStringToRil(&imsiEncryption.mnc, data.mnc, pRI)) {
+    if (!copyHidlStringToRil(&imsiEncryption->mnc, data.mnc, pRI)) {
+        free(imsiEncryption);
         return Void();
     }
-    if (!copyHidlStringToRil(&imsiEncryption.mcc, data.mcc, pRI)) {
-        memsetAndFreeStrings(1, imsiEncryption.mnc);
+    if (!copyHidlStringToRil(&imsiEncryption->mcc, data.mcc, pRI)) {
+        memsetAndFreeStrings(1, imsiEncryption->mnc);
+        free(imsiEncryption);
         return Void();
     }
-    if (!copyHidlStringToRil(&imsiEncryption.keyIdentifier, data.keyIdentifier, pRI)) {
-        memsetAndFreeStrings(2, imsiEncryption.mnc, imsiEncryption.mcc);
+    if (!copyHidlStringToRil(&imsiEncryption->keyIdentifier, data.keyIdentifier, pRI)) {
+        memsetAndFreeStrings(2, imsiEncryption->mnc, imsiEncryption->mcc);
+        free(imsiEncryption);
         return Void();
     }
     int32_t lSize = data.carrierKey.size();
-    imsiEncryption.carrierKey = new uint8_t[lSize];
-    memcpy(imsiEncryption.carrierKey, data.carrierKey.data(), lSize);
-    imsiEncryption.expirationTime = data.expirationTime;
-    CALL_ONREQUEST(pRI->pCI->requestNumber, &imsiEncryption,
+    imsiEncryption->carrierKey = (uint8_t *)calloc(lSize, sizeof(uint8_t));
+    memcpy(imsiEncryption->carrierKey, data.carrierKey.data(), lSize);
+    imsiEncryption->expirationTime = data.expirationTime;
+    CALL_ONREQUEST(pRI->pCI->requestNumber, imsiEncryption,
             sizeof(RIL_CarrierInfoForImsiEncryption), pRI, pRI->socket_id);
-    delete(imsiEncryption.carrierKey);
     return Void();
 }
 
@@ -3330,15 +3345,22 @@ Return<void> RadioImpl::startKeepalive(int32_t serial, const V1_1::KeepaliveRequ
         return Void();
     }
 
-    RIL_KeepaliveRequest kaReq = {};
-
-    kaReq.type = static_cast<RIL_KeepaliveType>(keepalive.type);
-    switch(kaReq.type) {
+    RIL_KeepaliveRequest *kaReq =
+            (RIL_KeepaliveRequest *)calloc(1, sizeof(RIL_KeepaliveRequest));
+    if (kaReq == NULL) {
+        RLOGE("Memory allocation failed for request %s",
+                requestToString(pRI->pCI->requestNumber));
+        sendErrorResponse(pRI, RIL_E_NO_MEMORY);
+        return Void();
+    }
+    kaReq->type = static_cast<RIL_KeepaliveType>(keepalive.type);
+    switch(kaReq->type) {
         case NATT_IPV4:
             if (keepalive.sourceAddress.size() != 4 ||
                     keepalive.destinationAddress.size() != 4) {
                 RLOGE("Invalid address for keepalive!");
                 sendErrorResponse(pRI, RIL_E_INVALID_ARGUMENTS);
+                free(kaReq);
                 return Void();
             }
             break;
@@ -3347,26 +3369,28 @@ Return<void> RadioImpl::startKeepalive(int32_t serial, const V1_1::KeepaliveRequ
                     keepalive.destinationAddress.size() != 16) {
                 RLOGE("Invalid address for keepalive!");
                 sendErrorResponse(pRI, RIL_E_INVALID_ARGUMENTS);
+                free(kaReq);
                 return Void();
             }
             break;
         default:
             RLOGE("Unknown packet keepalive type!");
             sendErrorResponse(pRI, RIL_E_INVALID_ARGUMENTS);
+            free(kaReq);
             return Void();
     }
 
-    ::memcpy(kaReq.sourceAddress, keepalive.sourceAddress.data(), keepalive.sourceAddress.size());
-    kaReq.sourcePort = keepalive.sourcePort;
+    ::memcpy(kaReq->sourceAddress, keepalive.sourceAddress.data(), keepalive.sourceAddress.size());
+    kaReq->sourcePort = keepalive.sourcePort;
 
-    ::memcpy(kaReq.destinationAddress,
+    ::memcpy(kaReq->destinationAddress,
             keepalive.destinationAddress.data(), keepalive.destinationAddress.size());
-    kaReq.destinationPort = keepalive.destinationPort;
+    kaReq->destinationPort = keepalive.destinationPort;
 
-    kaReq.maxKeepaliveIntervalMillis = keepalive.maxKeepaliveIntervalMillis;
-    kaReq.cid = keepalive.cid; // This is the context ID of the data call
+    kaReq->maxKeepaliveIntervalMillis = keepalive.maxKeepaliveIntervalMillis;
+    kaReq->cid = keepalive.cid; // This is the context ID of the data call
 
-    CALL_ONREQUEST(pRI->pCI->requestNumber, &kaReq, sizeof(RIL_KeepaliveRequest), pRI, pRI->socket_id);
+    CALL_ONREQUEST(pRI->pCI->requestNumber, kaReq, sizeof(RIL_KeepaliveRequest), pRI, pRI->socket_id);
     return Void();
 }
 
@@ -3374,12 +3398,7 @@ Return<void> RadioImpl::stopKeepalive(int32_t serial, int32_t sessionHandle) {
 #if VDBG
     RLOGD("%s(): %d", __FUNCTION__, serial);
 #endif
-    RequestInfo *pRI = android::addRequestToList(serial, mSlotId, RIL_REQUEST_STOP_KEEPALIVE);
-    if (pRI == NULL) {
-        return Void();
-    }
-
-    CALL_ONREQUEST(pRI->pCI->requestNumber, &sessionHandle, sizeof(uint32_t), pRI, pRI->socket_id);
+    dispatchInts(serial, mSlotId, RIL_REQUEST_STOP_KEEPALIVE, 1, sessionHandle);
     return Void();
 }
 
