@@ -1667,7 +1667,12 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         if (s_isLTE) {
             ret = getDataProfile(response, channelID, initialAttachId);
             ret = compareApnProfile(pIAApn, response);
+            getProperty(socket_id, "gsm.sim.operator.numeric", prop, "");
+            RLOGD("prop = %s", prop);
             if (ret > 0) {
+                if ((strcmp(prop, "732101") == 0) && isStrEmpty(pIAApn->apn) && isStrEmpty(pIAApn->protocol)){
+                    at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+                }
                 goto done;
             } else {
                 setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
@@ -1675,8 +1680,6 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
 
-            getProperty(socket_id, "gsm.sim.operator.numeric", prop, "");
-            RLOGD("prop = %s", prop);
             if (socket_id == s_multiModeSim && ((s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
