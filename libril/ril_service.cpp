@@ -1674,6 +1674,7 @@ Return<void> RadioImpl::startNetworkScan(int32_t serial, const V1_1::NetworkScan
             request.specifiers[i].eutranBands.size() > MAX_BANDS ||
             request.specifiers[i].channels.size() > MAX_CHANNELS) {
             sendErrorResponse(pRI, RIL_E_INVALID_ARGUMENTS);
+            free(scan_request);
             return Void();
         }
         const V1_1::RadioAccessSpecifier& ras_from =
@@ -1700,6 +1701,7 @@ Return<void> RadioImpl::startNetworkScan(int32_t serial, const V1_1::NetworkScan
                 break;
             default:
                 sendErrorResponse(pRI, RIL_E_INVALID_ARGUMENTS);
+                free(scan_request);
                 return Void();
         }
         // safe to copy to geran_bands because it's a union member
