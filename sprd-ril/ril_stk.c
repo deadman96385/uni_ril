@@ -1001,6 +1001,7 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         response->result = result;
         if (SIM_RESET == result) {
             s_imsInitISIM[socket_id] = -1;
+            s_stkServiceRunning[socket_id] = false;
         }
         if (strcmp(response->aid, "") != 0) {
             if (strncasecmp((response->aid) + 10, "1004", 4) == 0) { //1004 Isim app change
