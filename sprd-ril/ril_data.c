@@ -38,6 +38,8 @@ static char s_SavedDns[IP_ADDR_SIZE] = {0};
 static char s_SavedDns_IPV6[IP_ADDR_SIZE * 4] ={0};
 static int s_swapCard = 0;
 
+static int s_curCid[SIM_COUNT];
+
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
         PDP_FAIL_ERROR_UNSPECIFIED
@@ -819,6 +821,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     }
     cgdata_set_cmd_req(cmd);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    s_curCid[socket_id] = cid;
     cgdata_set_cmd_rsp(p_response, cid - 1, primaryCid, channelID);
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
@@ -1294,6 +1297,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                 responses, n * sizeof(RIL_Data_Call_Response_v11), socket_id);
     }
     s_LTEDetached[socket_id] = false;
+    s_curCid[socket_id] = 0;
     return;
 
 error:
@@ -1376,6 +1380,7 @@ static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_T
                         cgdata_set_cmd_req(cmd);
                         err = at_send_command(s_ATChannels[channelID], cmd,
                                               &p_response);
+                        s_curCid[socket_id] = cid;
                         cgdata_set_cmd_rsp(p_response, cid - 1, 0, channelID);
                         cgdata_err = errorHandlingForCGDATA(channelID,
                                 p_response, err, cid);
@@ -2749,6 +2754,9 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 if (endStatus == 104) {
                     if (cid > 0 && cid <= MAX_PDP &&
                         s_PDP[socket_id][cid - 1].state == PDP_BUSY) {
+                        if (cid == s_curCid[socket_id]) {
+                            s_LTEDetached[socket_id] = true;
+                        }
                         CallbackPara *cbPara =
                                 (CallbackPara *)malloc(sizeof(CallbackPara));
                         if (cbPara != NULL) {
