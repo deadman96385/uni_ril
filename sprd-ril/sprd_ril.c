@@ -810,7 +810,35 @@ void initModemProp(int channelID) {
         RLOGD("modemCap=%d", modemCap);
     }
 
-    if (modemCap == 4) {  // WW
+    if (modemCap == 16) {  // LL-4mod
+        if (!strcmp(modemCapbility, "")) {
+            property_set(MODEM_CAPABILITY, "TL_LF_W_G,TL_LF_W_G");
+        } else if (strcmp(modemCapbility, "TL_LF_W_G,TL_LF_W_G")) {  // for OTA modem update
+            property_set(MODEM_CAPABILITY, "TL_LF_W_G,TL_LF_W_G");
+            property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,TL_LF_W_G");
+            property_set(MODEM_WORKMODE_PROP, "6,6");
+        }
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,TL_LF_W_G");
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "6,6");
+        }
+    } else if (modemCap == 8) {  // LW-4mod
+        if (!strcmp(modemCapbility, "")) {
+            property_set(MODEM_CAPABILITY, "TL_LF_W_G,W_G");
+        } else if (strcmp(modemCapbility, "TL_LF_W_G,W_G")) {  // for OTA modem update
+            property_set(MODEM_CAPABILITY, "TL_LF_W_G,W_G");
+            property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,W_G");
+            property_set(MODEM_WORKMODE_PROP, "6,255");
+        }
+        if (!strcmp(modemConfig, "")) {
+            property_set(MODEM_CONFIG_PROP, "TL_LF_W_G,W_G");
+        }
+        if (!strcmp(workmode, "")) {
+            property_set(MODEM_WORKMODE_PROP, "6,255");
+        }
+    } else if (modemCap == 4) {  // WW
         if (!strcmp(modemCapbility, "")) {
             property_set(MODEM_CAPABILITY, "W_G,W_G");
         } else if (strcmp(modemCapbility, "W_G,W_G")) {  // for OTA modem update
