@@ -767,7 +767,8 @@ static void initializeCallback(void *param) {
             // Status word 0 to disable DSDA;
             // Status word 1 for L+W/G modem to enable DSDA;
             // Status word 2 for L+L modem to enable DSDA.
-            if(strcmp(dsdsMode, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0) {
+            if(strcmp(dsdsMode, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0
+                || strcmp(dsdsMode, "TL_LF_W_G,TL_LF_W_G") == 0) {
                 at_send_command(s_ATChannels[channelID], "AT+SPCAPABILITY=49,1,2",
                                 NULL);
             } else {
