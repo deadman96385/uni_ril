@@ -21,3 +21,4 @@
     {RIL_EXT_UNSOL_SIM_PS_REJECT, radio::simPSRejectInd, WAKE_PARTIAL},
     {RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, radio::simMgrSimStatusChangedInd, WAKE_PARTIAL},
     {RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED, radio::radioCapabilityChangedInd, WAKE_PARTIAL},
+    {RIL_EXT_UNSOL_EARLY_MEDIA, radio::earlyMediaInd, WAKE_PARTIAL},

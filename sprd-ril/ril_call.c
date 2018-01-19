@@ -1955,6 +1955,21 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: {
+            p_response = NULL;
+            int mode = ((int*)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCLSTONE=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         case RIL_REQUEST_IMS_NOTIFY_HANDOVER_CALL_INFO: {
             int err;
             char cmd[AT_COMMAND_LEN * 4] = {0};
@@ -3005,6 +3020,23 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         RIL_onUnsolicitedResponse(RIL_UNSOL_IMS_WIFI_PARAM, response,
                                   sizeof(response), socket_id);
+    } else if (strStartsWith(s, "+EARLYMEDIA:")) {
+        char *tmp = NULL;
+        int response = 0;
+        RLOGD("UNSOL EARLY MEDIA is : %s", s);
+
+        /* +EARLYMEDIA:<value> */
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_EARLY_MEDIA,
+                &response, sizeof(response), socket_id);
     } else {
         ret = 0;
     }

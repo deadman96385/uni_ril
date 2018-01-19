@@ -1301,6 +1301,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_ENABLE_WIFI_PARAM_REPORT: return "ENABLE_WIFI_PARAM_REPORT";
         case RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT: return "CALL_MEDIA_CHANGE_REQUEST_TIMEOUT";
         case RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE: return "SET_DUAL_VOLTE_STATE";
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -1377,6 +1378,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD: return "UNSOL_SWITCH_PRIMARY_CARD";
         case RIL_EXT_UNSOL_SIM_PS_REJECT: return "UNSOL_SIM_PS_REJECT";
+        case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
 //        case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
         default: return "<unknown request>";
     }

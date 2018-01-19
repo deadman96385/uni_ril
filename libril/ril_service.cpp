@@ -602,6 +602,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setDualVolteState(int32_t serial, int32_t state);
 
+    Return<void> setLocalTone(int32_t serial, int32_t state);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9662,6 +9664,14 @@ Return<void> RadioImpl::setDualVolteState(int32_t serial, int32_t state) {
     return Void();
 }
 
+Return<void> RadioImpl::setLocalTone(int32_t serial, int32_t state) {
+#if VDBG
+    RLOGD("setLocalTone: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_LOCAL_TONE, 1, state);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10851,6 +10861,26 @@ int radio::setDualVolteStateResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::setLocalToneResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setLocalToneResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setLocalToneResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setLocalToneResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int radio::videoPhoneCodecInd(int slotId, int indicationType, int token,
@@ -11249,6 +11279,28 @@ int radio::radioCapabilityChangedInd(int slotId, int indicationType, int token,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("radioCapabilityChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::earlyMediaInd(int slotId, int indicationType,
+                         int token, RIL_Errno e, void *response,
+                         size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen != sizeof(int)) {
+            RLOGE("earlyMediaInd: invalid response");
+            return 0;
+        }
+        int32_t id = ((int32_t *)response)[0];
+#if VDBG
+        RLOGD("earlyMediaInd: %d", id);
+#endif
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                earlyMediaInd(convertIntToRadioIndicationType(indicationType), id);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("earlyMediaInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
