@@ -1143,11 +1143,24 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
 
 #if (SIM_COUNT == 2)
         if (s_presentSIMCount == 0) {
-            if (socket_id != s_multiModeSim) {
+            if (s_isSimPresent[1 - socket_id] == SIM_UNKNOWN) {
                 RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                           NULL, 0, socket_id);
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
                 return;
+            } else {
+                if (socket_id != s_multiModeSim) {
+                    if (s_radioState[1 - socket_id] == RADIO_STATE_OFF ||
+                            s_radioState[1 - socket_id] == RADIO_STATE_UNAVAILABLE) {
+                        int *data = (int *)calloc(1, sizeof(int));
+                        data[0] = 1;
+                        onRequest(RIL_REQUEST_RADIO_POWER, data, sizeof(int), NULL, 1 - socket_id);
+                        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                                                  NULL, 0, socket_id);
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                        return;
+                    }
+                }
             }
         } else if (s_presentSIMCount == 1) {
             if (isSimPresent(socket_id) == 0) {
