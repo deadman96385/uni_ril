@@ -97,6 +97,13 @@ typedef struct {
     void *para;
 } CallbackPara;
 
+#if defined (ANDROID_MULTI_SIM)
+void onRequest(int request, void *data, size_t datalen,
+                      RIL_Token t, RIL_SOCKET_ID socket_id);
+#else
+void onRequest(int request, void *data, size_t datalen, RIL_Token t);
+#endif
+
 extern bool s_isLTE;
 extern int s_modemConfig;
 extern int s_roModemConfig;

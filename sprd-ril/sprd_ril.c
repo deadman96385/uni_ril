@@ -120,13 +120,10 @@ static int s_closed[SIM_COUNT];
 static const struct timeval TIMEVAL_0 = {0, 0};
 
 #if defined (ANDROID_MULTI_SIM)
-static void onRequest(int request, void *data, size_t datalen,
-                      RIL_Token t, RIL_SOCKET_ID socket_id);
 static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t,
                          RIL_SOCKET_ID socket_id);
 RIL_RadioState currentState(RIL_SOCKET_ID socket_id);
 #else
-static void onRequest(int request, void *data, size_t datalen, RIL_Token t);
 static void onSapRequest(int request, void *data, size_t datalen, RIL_Token t);
 RIL_RadioState currentState();
 #endif
@@ -205,11 +202,12 @@ static void usage(char *s) {
  * that the radio is ready to process another command (whether or not
  * the previous command has completed).
  */
+
 #if defined (ANDROID_MULTI_SIM)
-static void onRequest(int request, void *data, size_t datalen,
+void onRequest(int request, void *data, size_t datalen,
                       RIL_Token t, RIL_SOCKET_ID socket_id)
 #else
-static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
+void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 #endif
 {
 #if defined(ANDROID_MULTI_SIM)
