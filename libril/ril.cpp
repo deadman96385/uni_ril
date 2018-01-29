@@ -545,6 +545,8 @@ int s_cdmaSubscriptionSource = -1;
  */
 int s_simRuimStatus = -1;
 
+static bool s_isLLVersion = false;
+
 static char *RIL_getRilSocketName() {
     return rild;
 }
@@ -5067,6 +5069,12 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                 pthread_mutex_lock(&s_dataDispatchMutex);
                 pthread_cond_signal(&s_dataDispatchCond);
                 pthread_mutex_unlock(&s_dataDispatchMutex);
+            } else if (s_isLLVersion && pCI->requestNumber == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
+                RLOGD("add sim%d %s to datalist", socket_id, requestToString(request));
+                list_add_tail(s_dataReqList, cmd_item, RIL_SOCKET_1);
+                pthread_mutex_lock(&s_dataDispatchMutex);
+                pthread_cond_signal(&s_dataDispatchCond);
+                pthread_mutex_unlock(&s_dataDispatchMutex);
 #endif
             } else {
                 list_add_tail(cmdList->otherReqList, cmd_item, socket_id);
@@ -5923,6 +5931,12 @@ extern "C" void RIL_register(const RIL_RadioFunctions *callbacks) {
     for (simId = 0; simId < SIM_COUNT; simId++) {
         snprintf(oemSocketName, sizeof(oemSocketName), "oem_socket%d", (simId + 1));
         startListenEXT(oemSocketName, &s_oemSocketParam[simId]);
+    }
+
+    property_get(MODEM_CONFIG_PROP, prop, "");
+    if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
+        strcmp(prop, "TL_LF_W_G,TL_LF_W_G") == 0) {
+        s_isLLVersion = true;
     }
 }
 

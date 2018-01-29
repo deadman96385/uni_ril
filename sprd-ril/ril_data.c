@@ -2084,6 +2084,12 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     int err;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    // L+L don't need auto detach.
+    if (s_autoDetach == 1 && s_modemConfig == LWG_LWG) {
+        s_autoDetach = 0;
+    }
+
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
             if (s_manualSearchNetworkId >= 0 || s_swapCard != 0) {
