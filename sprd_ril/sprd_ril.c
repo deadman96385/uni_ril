@@ -3946,6 +3946,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
         case 3:
         case 16:
         case 301:
+        case 999:
             response = CALL_FAIL_NORMAL;
             break;
         case 302:
@@ -3953,6 +3954,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
             break;
         case 17:
         case 21:
+        case 1486:
             response = CALL_FAIL_BUSY;
             break;
         case 34:
@@ -3973,7 +3975,11 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
             response = CALL_FAIL_FDN_BLOCKED;
             break;
         default:
-            response = CALL_FAIL_ERROR_UNSPECIFIED;
+            if (call_fail_cause > 1000) {
+                response = CALL_FAIL_CONGESTION;
+            } else {
+                response = CALL_FAIL_ERROR_UNSPECIFIED;
+            }
             break;
     }
     pthread_mutex_unlock(&s_call_mutex);
