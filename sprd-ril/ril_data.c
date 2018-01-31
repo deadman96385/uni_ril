@@ -2908,6 +2908,66 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if(card_id == socket_id){
             RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SETUP_DATA_FOR_CP, NULL, 0, socket_id);
         }
+    }  else if (strStartsWith(s, "SPUCOPSLIST:")) {
+        int i = 0;
+        int tok = 0;
+        int count = 0;
+        char *tmp = NULL;
+        char *checkTmp = NULL;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        skipWhiteSpace(&tmp);
+        checkTmp = tmp;
+        int len = strlen(checkTmp);
+
+        while (len--) {
+            if (*checkTmp == '(')
+                tok++;
+            if (*checkTmp  == ')') {
+                if (tok == 1) {
+                    count++;
+                    tok--;
+                }
+            }
+            if (*checkTmp != 0)
+                checkTmp++;
+        }
+        RLOGD("Searched available cops list numbers = %d\n", count);
+
+        char **responseStr = calloc(count, sizeof(char*));
+        for (i=0; i < count; i++) {
+            responseStr[i] = calloc(ARRAY_SIZE, sizeof(char));
+        }
+        i = 0;
+        while ((i++ < count) && (tmp = strchr(tmp, '(')) ) {
+            int stat1 = 0;
+            int stat2 = 0;
+            int stat3 = 0;
+            char statChr[20] = {0};
+            char *strChr = statChr;
+
+            tmp++;
+            err = at_tok_nextstr(&tmp, &strChr);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat1);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat2);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat3);
+            if (err < 0) continue;
+
+            snprintf(responseStr[i-1], ARRAY_SIZE * sizeof(char), "%s-%d-%d-%d", strChr, stat1, stat2, stat3);
+        }
+        RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SPUCOPS_LIST, responseStr, count * sizeof(char *), socket_id);
+done:
+        for (i=0; i < count; i++) {
+            free(responseStr[i]);
+        }
+        free(responseStr);
     } else {
         ret = 0;
     }

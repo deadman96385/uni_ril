@@ -6972,6 +6972,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED: return "UNSOL_SIMMGR_SIM_STATUS_CHANGED";
         case RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED: return "UNSOL_RADIO_CAPABILITY_CHANGED";
         case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_SPUCOPS_LIST: return "UNSOL_SPUCOPS_LIST";
         default: return "<unknown request>";
     }
 }
