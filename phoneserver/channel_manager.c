@@ -1072,7 +1072,7 @@ static void *signal_process(){
                     ind_eng_pty[sim_index]->ops->pty_write(ind_eng_pty[sim_index], ind_str, strlen(ind_str));
             }
         }
-        sleep(1);
+        sleep(3);
     }
     return NULL;
 }
