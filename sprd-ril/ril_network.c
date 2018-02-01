@@ -1085,6 +1085,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     char cmd[AT_COMMAND_LEN] = {0};
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
     char radioResetProp[PROPERTY_VALUE_MAX] = {0};
+    char manualAttachProp[PROPERTY_VALUE_MAX] = {0};
     struct timespec timeout;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
@@ -1235,6 +1236,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                 }
             }
 #endif
+            property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
+            RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+            snprintf(cmd, sizeof(cmd), "AT+SPLTEMANUATT=%s", manualAttachProp);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+
         } else {
 #if defined (ANDROID_MULTI_SIM)
             if (s_presentSIMCount == 2) {
