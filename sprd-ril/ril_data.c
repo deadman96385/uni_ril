@@ -1838,12 +1838,13 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
             memset(old->password, 0, strlen(old->password));
         }
     }
-    if ((isStrEmpty(new->apn) && isStrEmpty(new->protocol)) ||
-            (isApnEqual(new->apn, old->apn) &&
+    if (isStrEmpty(new->apn) && isStrEmpty(new->protocol)){
+        ret = 2;
+    } else if (isApnEqual(new->apn, old->apn) &&
         isStrEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
-        new->authtype == old->authtype)) {
+        new->authtype == old->authtype) {
         ret = 1;
     }
     return ret;
@@ -1897,6 +1898,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     int ret = -1;
     bool isSetReattach = false;
     char prop[PROPERTY_VALUE_MAX] = {0};
+    char manualAttachProp[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1912,6 +1914,13 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             ret = getDataProfile(response, channelID, initialAttachId);
             ret = compareApnProfile(pIAApn, response);
             if (ret > 0) {
+                if(ret == 2){  // esm flag = 0, both apn and protocol are empty.
+                    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
+                    RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+                    if(atoi(manualAttachProp)){
+                        at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+                    }
+                }
                 goto done;
             } else {
                 setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
