@@ -3934,28 +3934,28 @@ void requestLastDataFailCause(int channelID, void *data, size_t datalen, RIL_Tok
 
 void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Token t)
 {
-    int response = CALL_FAIL_ERROR_UNSPECIFIED;
+    int response[2] = {CALL_FAIL_ERROR_UNSPECIFIED,CALL_FAIL_ERROR_UNSPECIFIED};
     pthread_mutex_lock(&s_call_mutex);
     switch(call_fail_cause) {
         case 1:
         case 22:
         case 28:
-            response = CALL_FAIL_UNOBTAINABLE_NUMBER;
+            response[0] = CALL_FAIL_UNOBTAINABLE_NUMBER;
             break;
         case 0:
         case 3:
         case 16:
         case 301:
         case 999:
-            response = CALL_FAIL_NORMAL;
+            response[0] = CALL_FAIL_NORMAL;
             break;
         case 302:
-            response = CALL_FAIL_IMEI_NOT_ACCEPTED;
+            response[0] = CALL_FAIL_IMEI_NOT_ACCEPTED;
             break;
         case 17:
         case 21:
         case 1486:
-            response = CALL_FAIL_BUSY;
+            response[0] = CALL_FAIL_BUSY;
             break;
         case 34:
         case 38:
@@ -3963,28 +3963,29 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen, RIL_Tok
         case 42:
         case 44:
         case 47:
-            response = CALL_FAIL_CONGESTION;
+            response[0] = CALL_FAIL_CONGESTION;
             break;
         case 68:
-            response = CALL_FAIL_ACM_LIMIT_EXCEEDED;
+            response[0] = CALL_FAIL_ACM_LIMIT_EXCEEDED;
             break;
         case 8:
-            response = CALL_FAIL_CALL_BARRED;
+            response[0] = CALL_FAIL_CALL_BARRED;
             break;
         case 241:
-            response = CALL_FAIL_FDN_BLOCKED;
+            response[0] = CALL_FAIL_FDN_BLOCKED;
             break;
         default:
             if (call_fail_cause > 1000) {
-                response = CALL_FAIL_CONGESTION;
+                response[0] = CALL_FAIL_CONGESTION;
             } else {
-                response = CALL_FAIL_ERROR_UNSPECIFIED;
+                response[0] = CALL_FAIL_ERROR_UNSPECIFIED;
             }
             break;
     }
+    response[1] = call_fail_cause;
     pthread_mutex_unlock(&s_call_mutex);
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 }
 
 static void requestBasebandVersion(int channelID, void *data, size_t datalen, RIL_Token t)
