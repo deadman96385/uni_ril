@@ -1190,7 +1190,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                 RLOGE("Unknown IP type!");
             }
         }
-        responses[i].mtu = DEFAULT_MTU;
+        //responses[i].mtu = DEFAULT_MTU;
         if ((cid != -1) && (t == NULL)) {
              if (responses[i].active > 0) {
                  RLOGE("i = %d", i);
