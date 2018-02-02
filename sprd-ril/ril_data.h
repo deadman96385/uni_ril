@@ -17,7 +17,6 @@
 #define DATA_ACTIVE_SUCCESS                              0
 #define DATA_ACTIVE_FAILED                               1
 #define DATA_ACTIVE_NEED_RETRY                           2
-#define DATA_ACTIVE_NEED_FALLBACK                        3
 
 #define TRAFFIC_CLASS_DEFAULT                            2
 
