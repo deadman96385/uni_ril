@@ -6431,10 +6431,10 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
         /* Suspend */
         at_send_command(ATch_type[channelID], "AT+CCED=2,8", NULL);
         if(!strcmp(s_modem, "l") || !strcmp(s_modem, "tl") || !strcmp(s_modem, "lf")) {
-            at_send_command(ATch_type[channelID], "AT+CEREG=1", NULL);
+            at_send_command(ATch_type[channelID], "AT+CEREG=2", NULL);
         }
-        at_send_command(ATch_type[channelID], "AT+CREG=1", NULL);
-        at_send_command(ATch_type[channelID], "AT+CGREG=1", NULL);
+        at_send_command(ATch_type[channelID], "AT+CREG=2", NULL);
+        at_send_command(ATch_type[channelID], "AT+CGREG=2", NULL);
         if (isVoLteEnable()) {
             at_send_command(ATch_type[channelID], "AT+CIREG=0", NULL);
         }
