@@ -701,7 +701,7 @@ static void *signal_process() {
                 PHS_LOGE("ind string size > %d\n", MAX_AT_CMD_LEN);
             }
         }
-        sleep(1);
+        sleep(3);
     }
     return NULL;
 }
