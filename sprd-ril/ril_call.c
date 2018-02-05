@@ -1066,6 +1066,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
         case 3:
         case 16:
         case 301:
+        case 999:
             response = CALL_FAIL_NORMAL;
             break;
         case 302:
@@ -1073,6 +1074,7 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
             break;
         case 17:
         case 21:
+        case 1486:
             response = CALL_FAIL_BUSY;
             break;
         case 34:
@@ -1081,6 +1083,46 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
         case 42:
         case 44:
         case 47:
+        case 1301:
+        case 1400:
+        case 1401:
+        case 1402:
+        case 1403:
+        case 1404:
+        case 1405:
+        case 1406:
+        case 1407:
+        case 1408:
+        case 1409:
+        case 1410:
+        case 1411:
+        case 1412:
+        case 1413:
+        case 1414:
+        case 1415:
+        case 1416:
+        case 1420:
+        case 1421:
+        case 1423:
+        case 1480:
+        case 1481:
+        case 1482:
+        case 1483:
+        case 1484:
+        case 1485:
+        case 1487:
+        case 1488:
+        case 1500:
+        case 1501:
+        case 1502:
+        case 1503:
+        case 1504:
+        case 1505:
+        case 1513:
+        case 1600:
+        case 1603:
+        case 1604:
+        case 1606:
             response = CALL_FAIL_CONGESTION;
             break;
         case 68:
