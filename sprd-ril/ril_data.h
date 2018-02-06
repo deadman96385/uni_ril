@@ -190,6 +190,7 @@ typedef enum {
 
 extern int s_dataAllowed[SIM_COUNT];
 extern int s_manualSearchNetworkId;
+extern int s_setNetworkId;
 extern bool s_LTEDetached[SIM_COUNT];
 extern struct PDPInfo s_PDP[SIM_COUNT][MAX_PDP];
 
