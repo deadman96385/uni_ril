@@ -3220,6 +3220,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestQueryNetworkSelectionMode(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_SET_NETWORK_SELECTION_AUTOMATIC: {
+            s_setNetworkId = getSocketIdByChannelID (channelID);
             p_response = NULL;
             err = at_send_command(s_ATChannels[channelID], "AT+COPS=0",
                                   &p_response);
@@ -3233,6 +3234,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
                 at_response_free(p_response);
+                s_setNetworkId = -1;
                 break;
             }
         error:
@@ -3243,10 +3245,13 @@ int processNetworkRequests(int request, void *data, size_t datalen,
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
             at_response_free(p_response);
+            s_setNetworkId = -1;
             break;
         }
         case RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL:
+            s_setNetworkId = getSocketIdByChannelID (channelID);
             requestNetworkRegistration(channelID, data, datalen, t);
+            s_setNetworkId = -1;
             break;
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
             s_manualSearchNetworkId = getSocketIdByChannelID (channelID);

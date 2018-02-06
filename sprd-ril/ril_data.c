@@ -27,6 +27,7 @@
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
 int s_manualSearchNetworkId = -1;
+int s_setNetworkId = -1;
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
 static int s_GSCid;
@@ -2248,7 +2249,9 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestDataCallList(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ALLOW_DATA: {
-            if (s_manualSearchNetworkId >= 0) {
+            RLOGD("s_manualSearchNetworkId = %d,s_setNetworkId = %d",
+                   s_manualSearchNetworkId,s_setNetworkId );
+            if (s_manualSearchNetworkId >= 0 || s_setNetworkId >= 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
