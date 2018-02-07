@@ -15255,6 +15255,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         int cid;
         int state;
         int qci;
+        int isVideoCall = 1;
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -15273,8 +15274,15 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
             RILLOGD("%s get qci fail", s);
             goto out;
         }
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &isVideoCall);
+            if (err < 0) {
+                RLOGE("get isVideoCall fail");
+                goto out;
+            }
+        }
         RILLOGD("onUnsolicited(),SPIMSPDPINFO state:%d  qci:%d",state,qci);
-        if(state == 0/*deactive*/ && qci == 2/*video*/){
+        if(state == 0/*deactive*/ && qci == 2/*video*/ && isVideoCall == 1){
             RIL_requestTimedCallback (requestDowngradeToVoice, NULL, NULL);
         }
     }
