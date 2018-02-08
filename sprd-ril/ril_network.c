@@ -2951,6 +2951,15 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         const char *cmd = "+SPTESTMODE:";
         checkAndCompleteRequest(socket_id, cmd, (void *)(&response));
+    } else if (strStartsWith(s, "+SPNCELLSCAN:")) {
+        char *tmp = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        RIL_onUnsolicitedResponse(
+                RIL_EXT_UNSOL_CELL_SCAN, tmp, strlen(tmp) + 1, socket_id);
     } else {
         return 0;
     }

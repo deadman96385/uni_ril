@@ -5942,7 +5942,9 @@ typedef struct {
 #define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 18)
 #define RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED      (RIL_EXT_UNSOL_RESPONSE_BASE + 19)
 #define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 20)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
+#define RIL_EXT_UNSOL_CELL_SCAN                     (RIL_EXT_UNSOL_RESPONSE_BASE + 21)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_CELL_SCAN
+
 /*****************************************************************************/
 
 /*****************************************************************************/

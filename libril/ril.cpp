@@ -6730,6 +6730,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "RIL_EXT_REQUEST_SET_SINGLE_PDN";
         case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_CELL_SCAN: return "UNSOL_CELL_SCAN";
         default: return "<unknown request>";
     }
 }
