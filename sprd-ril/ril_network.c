@@ -1156,11 +1156,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                         int *data = (int *)calloc(1, sizeof(int));
                         data[0] = 1;
                         onRequest(RIL_REQUEST_RADIO_POWER, data, sizeof(int), NULL, 1 - socket_id);
-                        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
-                                                  NULL, 0, socket_id);
-                        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-                        return;
                     }
+                    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                                              NULL, 0, socket_id);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                    return;
                 }
             }
         } else if (s_presentSIMCount == 1) {
