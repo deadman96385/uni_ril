@@ -1261,12 +1261,12 @@ static void requestFacilityLock(int request, int channelID, char **data,
 
             getSimlockRemainTimes(channelID, UNLOCK_PIN);
         } else if (!strcmp(data[0], "FD")) {
-            getSimlockRemainTimes(channelID, UNLOCK_PIN2);
             int *mode = (int *)malloc(sizeof(int));
             *mode = atoi(data[1]);
             const char *cmd = "+CLCK:";
             // timeout is in seconds
             addAsyncCmdList(socket_id, t, cmd, (void *)mode, 10);
+            getSimlockRemainTimes(channelID, UNLOCK_PIN2);
             goto done;
         }
         result = 1;
