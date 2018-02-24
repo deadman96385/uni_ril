@@ -259,6 +259,7 @@
     ,{RIL_REQUEST_GET_IMS_PCSCF_ADDR, dispatchVoid, responseString}
     ,{RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR, dispatchStrings, responseVoid}
     ,{RIL_REQUEST_IMS_REGADDR, dispatchVoid, responseStrings}
+    ,{RIL_REQUEST_GET_IMS_SMSC_ADDRESS, dispatchVoid, responseString}
     /* @} */
 #if defined (RIL_SUPPORTED_OEMSOCKET)
     ,{RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts}

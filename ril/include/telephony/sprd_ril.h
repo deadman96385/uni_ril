@@ -6022,6 +6022,9 @@ typedef struct {
 #define USIM_DATA_OFFSET_3  3
 #define USIM_FILE_DES_TAG 0x82
 #define USIM_FILE_SIZE_TAG 0x80
+#define GET_RESPONSE_EF_SIZE_BYTES              15
+#define READ_RECORD_MODE_ABSOLUTE               4
+#define COMMAND_READ_RECORD                     0xb2
 //#define MODEM_TYPE_GSM "0"
 #define MODEM_TYPE_TDSCDMA "1"
 #define MODEM_TYPE_WCDMA "2"
@@ -6126,7 +6129,9 @@ typedef struct {
 #define RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR (RIL_SPRD_REQUEST_BASE + 80)
 #define RIL_REQUEST_IMS_REGADDR (RIL_SPRD_REQUEST_BASE + 81)
 /* @} */
-#define RIL_SPRD_REQUEST_LAST RIL_REQUEST_IMS_REGADDR
+
+#define RIL_REQUEST_GET_IMS_SMSC_ADDRESS (RIL_SPRD_REQUEST_BASE + 82)
+#define RIL_SPRD_REQUEST_LAST RIL_REQUEST_GET_IMS_SMSC_ADDRESS
 
 
 /*****************************OEM SOCKET REQUEST******************************/

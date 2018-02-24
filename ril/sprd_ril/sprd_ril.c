@@ -225,6 +225,7 @@ static bool isAttachEnable();
 static void requestDowngradeToVoice();
 //SPRD: Bug 625003 Add for Reliance simlock
 static void requestGetSimLockStatus(int channelID, void *data, size_t datalen, RIL_Token t);
+static void requestGetImsSMSC(RIL_Token t);
 #define NUM_ELEMS(x) (sizeof(x)/sizeof(x[0]))
 
 struct listnode
@@ -7292,6 +7293,31 @@ void convertStringToHex(char *outString, char *inString, int len)
     *outString = '\0';
 }
 
+
+int hexCharToInt(char c) {
+    if (c >= '0' && c <= '9') return (c - '0');
+    if (c >= 'A' && c <= 'F') return (c - 'A' + 10);
+    if (c >= 'a' && c <= 'f') return (c - 'a' + 10);
+
+    RLOGE("invalid hex char %c", c);
+
+    return -1;
+}
+
+void
+hexStringToBytes(char *             str,
+                 unsigned char *    dst) {
+
+    if (str == NULL || dst == NULL) return;
+
+    int len = strlen(str);
+
+    int i;
+    for (i = 0 ; i < len; i += 2) {
+        dst[i / 2] = ((hexCharToInt(str[i]) << 4) | hexCharToInt(str[i + 1]));
+    }
+}
+
 static void requestSendUSSD(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     ATResponse  *p_response = NULL;
@@ -9489,6 +9515,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || (request == RIL_REQUEST_DIAL && s_isstkcall)
                 || request == RIL_REQUEST_GPRS_ATTACH
                 || request == RIL_REQUEST_GPRS_DETACH
+                || request == RIL_REQUEST_GET_IMS_SMSC_ADDRESS
         )) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -10712,45 +10739,49 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 at_response_free(p_response);
                 break;
             }
+
+        case RIL_REQUEST_GET_IMS_SMSC_ADDRESS:
+            requestGetImsSMSC(t);
+            break;
         case RIL_REQUEST_SET_SMSC_ADDRESS:
             {
-                char *cmd;
-                int ret;
-                char str_temp[50] = {0};
-                char *cp;
-                unsigned int i;
+        char *cmd;
+        int ret;
+        char str_temp[50] = { 0 };
+        char *cp;
+        unsigned int i;
 
-                p_response = NULL;
-                RILLOGD("[sms]RIL_REQUEST_SET_SMSC_ADDRESS (%s)", (char*)(data));
+        p_response = NULL;
+        RILLOGD("[sms]RIL_REQUEST_SET_SMSC_ADDRESS (%s)", (char*)(data));
 
-                cp = str_temp;
-                for(i = 0 ; i< strlen((char*)data); i++)
-                {
-                    if( *((char*)data + i) != '\"' && *((char*)data+i) != ',' && *((char*)data+i) != '\0'){
-                        cp += sprintf(cp,"%X",*((char*)data+i));
-                    } else if( *((char*)data+i) == ','){
-                        break;
-                    }
-                }
-
-                ret = asprintf(&cmd, "AT+CSCA=\"%s\"", str_temp);
-
-                if(ret < 0) {
-                    RILLOGE("Failed to allocate memory");
-                    cmd = NULL;
-                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-                    break;
-                }
-                err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                free(cmd);
-                if (err < 0 || p_response->success == 0) {
-                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-                } else {
-                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-                }
-                at_response_free(p_response);
+        cp = str_temp;
+        for (i = 0; i < strlen((char*) data); i++) {
+            if (*((char*) data + i) != '\"' && *((char*) data + i) != ','
+                    && *((char*) data + i) != '\0') {
+                cp += sprintf(cp, "%X", *((char*) data + i));
+            } else if (*((char*) data + i) == ',') {
                 break;
             }
+        }
+
+        ret = asprintf(&cmd, "AT+CSCA=\"%s\"", str_temp);
+
+        if (ret < 0) {
+            RILLOGE("Failed to allocate memory");
+            cmd = NULL;
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            break;
+        }
+        err = at_send_command(ATch_type[channelID], cmd, &p_response);
+        free(cmd);
+        if (err < 0 || p_response->success == 0) {
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        }
+        at_response_free(p_response);
+        break;
+    }
     case RIL_REQUEST_SET_IMS_SMSC: {
         char *cmd;
         int ret;
@@ -17157,4 +17188,277 @@ static void requestDowngradeToVoice(){
         at_response_free(p_response);
     }
     putChannel(channelID);
+}
+
+
+static void requestGetImsSMSC(RIL_Token t) {
+    int err = 0;
+    char rsp_psismsc[500] = { 0 };
+    int isim = 0;
+    if (s_ImsISIM) {
+        isim = 1;
+    } else {
+        err = -1;
+        RLOGE("not isim card, so unable to get smsc from psismsc");
+        goto done;
+    }
+
+again: err = iccExchangeSimIO(COMMAND_GET_RESPONSE, 28645,
+            isim ? "3F007FFF" : "3F007F10", 0, 0, GET_RESPONSE_EF_SIZE_BYTES,
+            NULL, NULL, NULL, isim, rsp_psismsc);
+    if (err < 0 || rsp_psismsc == NULL) {
+        if (isim == 0) {
+            RLOGE("Failed to get EFpsisms from sim,return null");
+            err = -1;
+            goto done;
+        } else {
+            RLOGE("Failed to get EFpsisms from isim, read sim again");
+            isim = 0;
+            goto again;
+        }
+    }
+
+    int recordSize = 0;
+    int count = getFileCount(rsp_psismsc, &recordSize);
+    RLOGD("getFileCount = %d, recordSize = %d", count, recordSize);
+    if (0 == count || recordSize == 0) {
+        if (isim == 0) {
+            RLOGE("Failed to get EFpsisms count from sim,return null");
+            err = -1;
+            goto done;
+        } else {
+            RLOGE("Failed to get EFpsisms count from isim, read sim again");
+            isim = 0;
+            goto again;
+        }
+    }
+
+    // read EFpsisms content
+    err = iccExchangeSimIO(COMMAND_READ_RECORD, 28645,
+            isim ? "3F007FFF" : "3F007F10", isim, READ_RECORD_MODE_ABSOLUTE,
+            recordSize, NULL, NULL, NULL, isim, rsp_psismsc);
+    if (err < 0 || rsp_psismsc == NULL) {
+        if (isim == 0) {
+            RLOGE("Failed to get EFpsisms content from sim,return null");
+            err = -1;
+            goto done;
+        } else {
+            RLOGE("Failed to get EFpsisms content from isim, read sim again");
+            isim = 0;
+            goto again;
+        }
+    }
+
+    RLOGD("rsp = %s", rsp_psismsc);
+
+done: if (err < 0) {
+        RILLOGD("response of RIL_REQUEST_GET_IMS_SMSC: generic failure!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else {
+        RILLOGD("response of RIL_REQUEST_GET_IMS_SMSC: %s", rsp_psismsc);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, rsp_psismsc,
+                strlen(rsp_psismsc) + 1);
+    }
+}
+
+int iccExchangeSimIO(int command, int fileid, char* path, int p1, int p2, int p3,
+            char* data, char* pin2, char* aid, int isim, char *rsp) {
+    int err = -1;
+    char *cmd = NULL;
+    char *line = NULL;
+    char pad_data = '0';
+    int sw1 = 0, sw2 = 0;
+    ATResponse *p_response = NULL;
+    int channelID = getChannel();
+
+    if (data == NULL/*read*/) {
+        if (isim) {
+            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"",
+                    s_sessionId, command, fileid, p1, p2, p3, pad_data, path);
+
+        } else {
+            err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"", command,
+                    fileid, p1, p2, p3, pad_data, path);
+        }
+    } else /*update*/{
+        if (isim) {
+            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"",
+                    s_sessionId, command, fileid, p1, p2, p3, data, path);
+        } else {
+            err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,\"%s\",\"%s\"",
+                    command, fileid, p1, p2, p3, data, path);
+        }
+    }
+
+    if (err < 0) {
+        RLOGE("Failed to allocate memory");
+        cmd = NULL;
+        goto error;
+    }
+
+    err = at_send_command_singleline(ATch_type[channelID], cmd,
+            isim ? "+CRLA:" : "+CRSM:", &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0)
+        goto error;
+    err = at_tok_nextint(&line, &sw1);
+    if (err < 0)
+        goto error;
+    err = at_tok_nextint(&line, &sw2);
+    if (err < 0)
+        goto error;
+    if (at_tok_hasmore(&line)) {
+        char *simResponse = NULL;
+        err = at_tok_nextstr(&line, &simResponse);
+        if (err < 0)
+            goto error;
+        memcpy(rsp, simResponse, strlen(simResponse) + 1);
+    }
+
+    if ((sw1 == 0x90 || sw1 == 0x91 || sw1 == 0x9e || sw1 == 0x9f)
+            && sw2 == 0x00 && rsp != NULL) {
+        RLOGD("rsp = %s", rsp);
+    } else {
+        goto error;
+    }
+
+    putChannel(channelID);
+    at_response_free(p_response);
+    return 1;
+
+    error: putChannel(channelID);
+    at_response_free(p_response);
+    RLOGD("fail to read EF %d", fileid);
+    return -1;
+}
+
+int getFileCount(char *rsp,  int *recordSize) {
+
+    unsigned char *byteRsp = NULL;
+    int len = strlen(rsp) / 2;
+
+    byteRsp = (unsigned char *) malloc(len + sizeof(char));
+    hexStringToBytes(rsp, byteRsp);
+    int count = 0;
+    int channelID = getChannel();
+    RIL_AppType simType = getSimType(channelID);
+    if (simType == RIL_APPTYPE_SIM) {
+        RLOGE("getsimFileCount");
+        if (TYPE_EF != byteRsp[RESPONSE_DATA_FILE_TYPE]) {
+            RLOGE("RESPONSE_DATA_FILE_TYPE != ...");
+            goto error;
+        }
+        if ((byteRsp[RESPONSE_DATA_STRUCTURE] & 0x07)
+                == EF_TYPE_TRANSPARENT) {
+            RLOGE("EF_TYPE_TRANSPARENT");
+            count = (unsigned int) (((byteRsp[RESPONSE_DATA_FILE_SIZE_2]
+                    & 0xff) << 8)
+                    | (byteRsp[RESPONSE_DATA_FILE_SIZE_2] & 0xff));
+            RLOGE("count = ...%d", count);
+        } else if ((byteRsp[RESPONSE_DATA_STRUCTURE] & 0x07)
+                == EF_TYPE_LINEAR_FIXED
+                || (byteRsp[RESPONSE_DATA_STRUCTURE] & 0x07)
+                        == EF_TYPE_CYCLIC) {
+            RLOGE("EF_TYPE_LINEAR_FIXED OR EF_TYPE_CYCLIC");
+            *recordSize = (unsigned int) byteRsp[RESPONSE_DATA_RECORD_LENGTH] & 0xff;
+
+            count = (unsigned int) (((byteRsp[RESPONSE_DATA_FILE_SIZE_1]
+                    & 0xff) << 8)
+                    | (byteRsp[RESPONSE_DATA_FILE_SIZE_2] & 0xff))
+                    / *recordSize;
+            RLOGE("recordSize = ...%d", *recordSize);
+            RLOGE("count = ...%d", count);
+
+        } else {
+            RLOGE("Unknown EF type %d ", (byteRsp[RESPONSE_DATA_STRUCTURE] & 0x07));
+        }
+
+    } else if (simType == RIL_APPTYPE_USIM) {
+
+        if (byteRsp[RESPONSE_DATA_FCP_FLAG] != TYPE_FCP) {
+            RLOGE("wrong fcp flag, unable to get FileCount ");
+            if (byteRsp != NULL) {
+                free(byteRsp);
+                byteRsp = NULL;
+            }
+            goto error;
+        }
+        RLOGE("getUsimFileCount");
+        int desIndex = 0;
+        int sizeIndex = 0;
+        int i = 0;
+        for (i = 0; i < len; i++) {
+            if (byteRsp[i] == USIM_FILE_DES_TAG) {
+                desIndex = i;
+                break;
+            }
+        }
+        RLOGE("TYPE_FCP_DES index = %d", desIndex);
+        for (i = desIndex; i < len;) {
+            if (byteRsp[i] == USIM_FILE_SIZE_TAG) {
+                sizeIndex = i;
+                break;
+            } else {
+                i += (byteRsp[i + 1] + 2);
+            }
+        }
+        RLOGE("TYPE_FCP_SIZE index = %d ", sizeIndex);
+        if ((byteRsp[desIndex + RESPONSE_DATA_FILE_DES_FLAG] & 0x07)
+                == EF_TYPE_TRANSPARENT) {
+            RLOGE("EF_TYPE_TRANSPARENT");
+            count = (unsigned int) (((byteRsp[sizeIndex + USIM_DATA_OFFSET_2]
+                    & 0xff) << 8)
+                    | (byteRsp[sizeIndex + USIM_DATA_OFFSET_3] & 0xff));
+            RLOGE("count = ...%d", count);
+        } else if ((byteRsp[desIndex + RESPONSE_DATA_FILE_DES_FLAG] & 0x07)
+                == EF_TYPE_LINEAR_FIXED
+                || (byteRsp[desIndex + RESPONSE_DATA_FILE_DES_FLAG] & 0x07)
+                        == EF_TYPE_CYCLIC) {
+            RLOGE("EF_TYPE_LINEAR_FIXED OR EF_TYPE_CYCLIC");
+            if (USIM_FILE_DES_TAG != byteRsp[RESPONSE_DATA_FILE_DES_FLAG]) {
+                RLOGE("USIM_FILE_DES_TAG != ...");
+                goto error;
+            }
+            if (TYPE_FILE_DES_LEN != byteRsp[RESPONSE_DATA_FILE_DES_LEN_FLAG]) {
+                RLOGE("TYPE_FILE_DES_LEN != ...");
+                goto error;
+            }
+            *recordSize =
+                    (unsigned int) (((byteRsp[RESPONSE_DATA_FILE_RECORD_LEN_1]
+                            & 0xff) << 8)
+                            | (byteRsp[RESPONSE_DATA_FILE_RECORD_LEN_2] & 0xff));
+            count = (unsigned int) (((byteRsp[sizeIndex + USIM_DATA_OFFSET_2]
+                    & 0xff) << 8)
+                    | (byteRsp[sizeIndex + USIM_DATA_OFFSET_3] & 0xff))
+                    / *recordSize;
+            RLOGE("recordSize = ...%d", *recordSize);
+            RLOGE("count = ...%d", count);
+
+        } else {
+            RLOGE("Unknown EF type %d ",
+                    (byteRsp[desIndex + RESPONSE_DATA_FILE_DES_FLAG] & 0x07));
+        }
+
+    }
+    if (byteRsp != NULL) {
+        free(byteRsp);
+        byteRsp = NULL;
+    }
+    putChannel(channelID);
+    return count;
+error:
+    RLOGD("get sim file count error, return 0");
+    if (byteRsp != NULL) {
+        free(byteRsp);
+        byteRsp = NULL;
+    }
+    putChannel(channelID);
+    return 0;
 }
