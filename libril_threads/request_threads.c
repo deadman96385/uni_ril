@@ -417,6 +417,8 @@ ATCmdType getCmdType(int request) {
             || request == RIL_REQUEST_IMS_CALL_FALL_BACK_TO_VOICE
             || request == RIL_REQUEST_IMS_INITIAL_GROUP_CALL
             || request == RIL_REQUEST_IMS_ADD_TO_GROUP_CALL
+            || request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY
+            || request == RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY
             /* }@ */
             /* OEM SOCKET REQUEST @{ */
             || request == RIL_EXT_REQUEST_VIDEOPHONE_DIAL
