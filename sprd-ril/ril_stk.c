@@ -925,6 +925,15 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     pBipClient = NULL;
                 }
                 goto out;
+           case REFRESH:
+                if (strncasecmp(&(response[typePos + 2]), "04", 2) == 0) { //SIM_RESET
+                    RLOGD("Type of Refresh is SIM_RESET");
+                    s_stkServiceRunning[socket_id] = false;
+                    RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
+                                      strlen(response) + 1, socket_id);
+                    goto out;
+                }
+                break;
            default:
                 break;
         }
