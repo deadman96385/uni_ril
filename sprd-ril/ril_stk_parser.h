@@ -222,6 +222,7 @@ typedef enum {
     RECEIVE_DATA = 0x42,
     SEND_DATA = 0x43,
     GET_CHANNEL_STATUS = 0x44,
+    REFRESH = 0x01,
 } CommandType;
 
 /**
