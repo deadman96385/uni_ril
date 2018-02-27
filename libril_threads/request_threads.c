@@ -49,6 +49,7 @@ void enqueueRequest(int request, void *data, size_t datalen, RIL_Token t,
 void *noopRemoveWarning(void *a);
 int getChannel(RIL_SOCKET_ID socket_id);
 RIL_SOCKET_ID getSocketIdByChannelID(int channelID);
+bool isLLVersion();
 
 const RIL_RequestFunctions *s_requestFunctions = NULL;
 #define processRequest(request, data, datalen, t, socket_id) \
@@ -63,8 +64,6 @@ static const RIL_TheadsFunctions s_threadsFunctions = {
     getSocketIdByChannelID,
     enqueueRequest
 };
-
-static bool s_isLLVersion = false;
 
 void *noopRemoveWarning(void *a) {
     return a;
@@ -440,7 +439,7 @@ ATCmdType getCmdType(int request) {
         } else {
             cmdType = AT_CMD_TYPE_DATA;
         }
-    } else if (s_isLLVersion && s_simCount > 1
+    } else if (isLLVersion() && s_simCount > 1
             && request == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
         cmdType = AT_CMD_TYPE_DATA;
     }
@@ -649,7 +648,6 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
                                               int simCount, int threadNumber) {
     int i = 0;
     int ret = -1;
-    char prop[PROPERTY_VALUE_MAX];
 
     s_requestFunctions = requestFunctions;
     s_simCount = simCount;
@@ -746,11 +744,16 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
     }
 #endif
 
+    return &s_threadsFunctions;
+}
+
+bool isLLVersion() {
+    char prop[PROPERTY_VALUE_MAX];
     property_get("persist.radio.modem.config", prop, "");
     if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
         strcmp(prop, "TL_LF_W_G,TL_LF_W_G") == 0) {
-        s_isLLVersion = true;
+        return true;
+    } else {
+        return false;
     }
-
-    return &s_threadsFunctions;
 }
