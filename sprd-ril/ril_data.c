@@ -3971,6 +3971,9 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
     const char *apn = NULL;
     apn = ((const char **)data)[2];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    if (s_dataAllowed[socket_id] != 1) {
+        return -1;
+    }
     if (datalen > 6 * sizeof(char *)) {
         pdpType = ((const char **)data)[6];
     } else {
