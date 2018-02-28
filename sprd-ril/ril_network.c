@@ -1024,6 +1024,8 @@ static int getRadioFeatures(int socket_id) {
         }
     } else if (s_modemConfig == LWG_LWG) {
         rat = RAF_LTE | WCDMA | GSM;
+    } else if (s_modemConfig == WG_WG) {
+        rat = WCDMA | GSM;
     } else {
         workMode = s_workMode[socket_id];
         if (workMode == GSM_ONLY) {
@@ -1032,7 +1034,7 @@ static int getRadioFeatures(int socket_id) {
             rat = RAF_UNKNOWN;
         } else if (s_modemConfig == LG_G) {
                 rat = RAF_LTE | GSM;
-        } else if (s_modemConfig == W_G || s_modemConfig == WG_WG) {
+        } else if (s_modemConfig == W_G ) {
             rat = WCDMA | GSM;
         } else {
             rat = RAF_LTE | WCDMA | GSM;
