@@ -49,6 +49,8 @@ extern "C" {
 #define MAX_DATA_LEN 4
 #define MAX_UUID_LENGTH 64
 
+#define ARRAY_SIZE          128  // cannot change the value
+
 typedef void * RIL_Token;
 
 typedef enum {

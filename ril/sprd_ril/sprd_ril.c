@@ -6905,12 +6905,14 @@ static void requestSetSmsBroadcastConfig(int channelID,  void *data, size_t data
     RIL_GSM_BroadcastSmsConfigInfo gsmBci;
     int enable = 0;
 #if defined (RIL_SPRD_EXTENSION)
-    int  i =0 ,j=0;
+    int  i = 0;
     char pre_colon = 0x22;
     int count = datalen/sizeof(RIL_GSM_BroadcastSmsConfigInfo*);
     int channelLen =0;
     int langLen = 0;
     int len = 0;
+    int serviceId[ARRAY_SIZE] = {0};
+    int index = 0;
     char *channel;
     char *lang;
     char  get_char[10] ={0};
@@ -6941,7 +6943,7 @@ static void requestSetSmsBroadcastConfig(int channelID,  void *data, size_t data
         memcpy(channel+channelLen,tmp,strlen(tmp));
         channelLen += len;
         RILLOGI("Reference-ril. requestSetSmsBroadcastConfig channel %s ,%d ",channel, channelLen);
-
+        serviceId[index++] = gsmBci.fromServiceId;
         if(gsmBci.fromServiceId != gsmBci.toServiceId){
             memset(tmp, 0,20);
             setSmsBroadcastConfigData(gsmBci.toServiceId,i,2,channel,&len,tmp);
@@ -6949,6 +6951,7 @@ static void requestSetSmsBroadcastConfig(int channelID,  void *data, size_t data
             channelLen += len;
             RILLOGI("Reference-ril. requestSetSmsBroadcastConfig channel %s ,%d",channel, channelLen);
         }
+        serviceId[index++] = gsmBci.toServiceId;
 
         memset(tmp, 0,20);
         setSmsBroadcastConfigData(gsmBci.fromCodeScheme,i,1,lang,&len,tmp);
@@ -6997,49 +7000,40 @@ static void requestSetSmsBroadcastConfig(int channelID,  void *data, size_t data
     if (enable == 0) {
         int cmas = 0;
         int etws = 0;
+        int etwsTest = 0;
         int current = 0;
-        int channel1[128] = {0};
-        int tempo;
-        char *delim = ",";
-        char *temp;
-        char *pChannel;
-        char *outer_ptr = NULL;
-        char *inner_ptr = NULL;
 
-        pChannel = channel;
-        skipFirstQuotes(&pChannel);
-
-        temp = strtok_r(pChannel, delim, &outer_ptr);
-        while (temp != NULL) {
-            tempo = atoi(temp);
-            if (tempo != 4370 && tempo != 4383) {
-                channel1[j] = tempo;
-            }
-            RLOGD("requestSetSmsBroadcastConfig channel1[j] = %d", channel1[j]);
-            temp = strtok_r(NULL, delim, &inner_ptr);
-            j++;
-        }
-        for (current = 0; current < j; current = current + 2) {
-            // cmas message under LTE, channel is from 4371 to 4382
-            if (channel1[current] >= 4371 && channel1[current] <= 4382 &&
-                    channel1[current + 1] >= 4371 &&
-                    channel1[current + 1] <= 4382) {
+        RLOGD("index %d", index);
+        for (current = 0; current < index; current = current + 2) {
+            // cmas message under LTE, channel is from 4370 to 6400
+            if (serviceId[current] >= 4370 && serviceId[current] <= 6400 &&
+                    serviceId[current + 1] >= 4370 &&
+                    serviceId[current + 1] <= 6400) {
                 cmas++;
-            } else if (4355 == channel1[current] &&
-                    4355 == channel1[current + 1]) {
-                // etws sec message under LTE, channel is 4355
+            } else if ((serviceId[current] >= 4352 && serviceId[current] <= 4359
+                    && serviceId[current + 1] >= 4352 &&
+                    serviceId[current + 1] <= 4359) &&
+                    (serviceId[current] != 4355 &&
+                            serviceId[current + 1] != 4355)) {
+                // etws primary and second message under LTE, channel is from
+                // 4352 to 4359 except 4355.
                 etws++;
+            } else if (serviceId[current] == 4355 &&
+                    serviceId[current + 1] == 4355) {
+                // etws test message under LTE, channel is 4355
+                etwsTest++;
             }
+        }
+        if (0 != etwsTest) {  // enable etws test message
+            at_send_command(ATch_type[channelID], "AT+SPPWS=2,2,1,2", NULL);
         }
         if (0 != cmas && 0 != etws) {  // enable etws sec and cmas message
-            at_send_command(ATch_type[channelID], "AT+SPPWS=2,1,2,1", NULL);
+            at_send_command(ATch_type[channelID], "AT+SPPWS=1,1,2,1", NULL);
         } else {
             if (0 != cmas) {  // enable cmas message
-                at_send_command(ATch_type[channelID], "AT+SPPWS=2,2,2,1",
-                        NULL);
+                at_send_command(ATch_type[channelID], "AT+SPPWS=2,2,2,1", NULL);
             } else if (0 != etws) {  // enable etws message
-                at_send_command(ATch_type[channelID], "AT+SPPWS=2,1,2,2",
-                        NULL);
+                at_send_command(ATch_type[channelID], "AT+SPPWS=1,1,2,2", NULL);
             }
         }
     }
