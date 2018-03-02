@@ -1832,19 +1832,21 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
         goto done;
     }
 
-    s_workMode[socket_id] = type;
 #if defined (ANDROID_MULTI_SIM)
 #if (SIM_COUNT == 2)
-    snprintf(numToStr, sizeof(numToStr), "%d,%d", s_workMode[RIL_SOCKET_1],
-            s_workMode[RIL_SOCKET_2]);
+    if (socket_id == RIL_SOCKET_1) {
+        snprintf(numToStr, sizeof(numToStr), "%d,%d", type,
+                s_workMode[RIL_SOCKET_2]);
+    } else if (socket_id == RIL_SOCKET_2){
+        snprintf(numToStr, sizeof(numToStr), "%d,%d", s_workMode[RIL_SOCKET_1],
+                type);
+    }
 #endif
 #else
-    snprintf(numToStr, sizeof(numToStr), "%d,10", s_workMode[RIL_SOCKET_1]);
+     snprintf(numToStr, sizeof(numToStr), "%d,10", type);
 #endif
 
     RLOGD("set network type workmode:%s", numToStr);
-    property_set(MODEM_WORKMODE_PROP, numToStr);
-
     snprintf(cmd, sizeof(cmd), "AT+SPTESTMODE=%s", numToStr);
 
     const char *respCmd = "+SPTESTMODE:";
@@ -1872,6 +1874,9 @@ again:
             goto done;
         }
     }
+
+    s_workMode[socket_id] = type;
+    property_set(MODEM_WORKMODE_PROP, numToStr);
 
     at_response_free(p_response);
     pthread_mutex_unlock(&s_workModeMutex);
