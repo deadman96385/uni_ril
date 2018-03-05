@@ -859,6 +859,11 @@ int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
                 RIL_onRequestComplete(t, RIL_E_SIM_ABSENT, NULL, 0);
                 break;
             }
+            if (data == NULL || strlen(data) == 0) {
+                RLOGE("SET_SMSC_ADDRESS invalid adress: %s", data);
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
             int hexLen = strlen(data) * 2 + 1;
             unsigned char *hexData =
                     (unsigned char *)calloc(hexLen, sizeof(unsigned char));
