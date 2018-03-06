@@ -485,15 +485,15 @@ done:
     }
 
     /** SPRD: Bug 523208 set pin/puk remain times to prop. @{*/
-    if ((s_needQueryPinTimes[socket_id] && ret == SIM_PIN) ||
-            (s_needQueryPukTimes[socket_id] && ret == SIM_PUK)) {
-        if (ret == SIM_PIN) {
+    if ((s_needQueryPinTimes[socket_id] && (ret == SIM_PIN || ret == SIM_READY))
+            || (s_needQueryPukTimes[socket_id] && ret == SIM_PUK)) {
+        if (ret == SIM_PIN || ret == SIM_READY) {
             s_needQueryPinTimes[socket_id] = false;
         } else {
             s_needQueryPukTimes[socket_id] = false;
         }
         int remaintime = getSimlockRemainTimes(channelID,
-                ret == SIM_PIN ? UNLOCK_PIN : UNLOCK_PUK);
+                ret == SIM_PUK ? UNLOCK_PUK : UNLOCK_PIN);
     } else if (s_needQueryPinPuk2Times[socket_id] && ret == SIM_READY) {
         s_needQueryPinPuk2Times[socket_id] = false;
         getSimlockRemainTimes(channelID, UNLOCK_PIN2);
