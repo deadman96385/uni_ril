@@ -1393,6 +1393,9 @@ static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_T
                                 DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
                             updatePDPCid(socket_id, i + 1, -1);
                             putPDPByIndex(socket_id, i);
+                        } else if (cgdata_err == DATA_ACTIVE_NEED_RETRY) {
+                            /*bug837360 cgdata during ps attach,pdp active fail*/
+                            ret = -2;
                         } else {
                             ret = cid;
                         }
@@ -1446,6 +1449,11 @@ RETRY:
     } else if (ret > 0) {
         primaryindex = ret - 1;
         goto error;
+    } else if (ret == -2) {
+        if (nRetryTimes < 5) {
+            nRetryTimes++;
+            goto RETRY;
+        }
     }
 
     index = getPDP(socket_id);
