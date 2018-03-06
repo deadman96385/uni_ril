@@ -1684,9 +1684,19 @@ int cvt_cgcontrdp_rsp(AT_CMD_RSP_T * rsp,
                 }
 
                 if (ip_type_num > 1) {
-                    PHS_LOGD("cvt_cgcontrdp_rsp: IPV4V6");
-                    ppp_info[cid-1].ip_state = IPV4V6;
-                    sprintf(cmd, "setprop net.%s%d.ip_type %d", prop, cid-1,IPV4V6);
+                    char pdp_type[PROPERTY_VALUE_MAX];
+                    property_get("gsm.radio.pdp_type", pdp_type, "IPV4V6");
+                    PHS_LOGD("cvt_cgcontrdp_rsp: IPV4V6, request type : %s", pdp_type);
+                    if (strcmp(pdp_type, "IP") == 0) {
+                        ppp_info[cid-1].ip_state = IPV4;
+                        sprintf(cmd, "setprop net.%s%d.ip_type %d", prop, cid-1,IPV4);
+                    } else if (strcmp(pdp_type, "IPV6") == 0){
+                        ppp_info[cid-1].ip_state = IPV6;
+                        sprintf(cmd, "setprop net.%s%d.ip_type %d", prop, cid-1,IPV6);
+                    } else {
+                        ppp_info[cid-1].ip_state = IPV4V6;
+                        sprintf(cmd, "setprop net.%s%d.ip_type %d", prop, cid-1,IPV4V6);
+                    }
                     system(cmd);
                 }
                 ppp_info[cid-1].state = PPP_STATE_ACTIVE;
