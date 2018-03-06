@@ -1157,9 +1157,21 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
 
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
     } else {  // unlock/lock this facility
+        const char *str = "+CLCK:";
+        if (!strcmp(data[0], "FD")) {
+            int *mode = (int *) malloc(sizeof(int));
+            *mode = atoi(data[1]);
+            // timeout is in seconds
+            RLOGD("addAsyncCmdList");
+            addAsyncCmdList(socket_id, t, str, (void *) mode, 10);
+        }
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
         free(cmd);
         if (err < 0 || p_response->success == 0) {
+            if (!strcmp(data[0], "FD")) {
+                RLOGD("removeAsyncCmdList");
+                removeAsyncCmdList(t, str);
+            }
             goto error;
         } else if (!strcmp(data[0], "SC")) {
             /* add for modem reboot */
@@ -1173,12 +1185,6 @@ static void requestFacilityLock(int channelID, char **data, size_t datalen,
 
             getSimlockRemainTimes(channelID, UNLOCK_PIN);
         } else if (!strcmp(data[0], "FD")) {
-            int *mode = (int *)malloc(sizeof(int));
-            *mode = atoi(data[1]);
-            const char *cmd = "+CLCK:";
-            // timeout is in seconds
-            addAsyncCmdList(socket_id, t, cmd, (void *)mode, 10);
-
             getSimlockRemainTimes(channelID, UNLOCK_PIN2);
             goto done;
         }
