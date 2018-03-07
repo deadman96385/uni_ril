@@ -1543,14 +1543,9 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NETWORK_MODE_GSM_ONLY:
-                if (s_modemConfig != LWG_WG) {
-                    type = PRIMARY_GSM_ONLY;
-                } else {
-                    if (socket_id == s_multiModeSim) {
-                        type = PRIMARY_GSM_ONLY;
-                    } else {
-                        type = GSM_ONLY;
-                    }
+                type = PRIMARY_GSM_ONLY;
+                if (socket_id != s_multiModeSim) {
+                    type = GSM_ONLY;
                 }
                 break;
             case NETWORK_MODE_LTE_ONLY: {
