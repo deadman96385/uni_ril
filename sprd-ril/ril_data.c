@@ -850,9 +850,10 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     /* Set required QoS params to default */
     property_get("persist.sys.qosstate", qosState, "0");
     if (!strcmp(qosState, "0")) {
+        //bug837103:traffic_class = 0;sdu_err_ratio = 0;
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
+                  "AT+CGEQREQ=%d,4,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                  cid);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
 
@@ -1738,9 +1739,10 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     /* Set required QoS params to default */
     property_get("persist.sys.qosstate", qosState, "0");
     if (!strcmp(qosState, "0")) {
+        //bug837103:traffic_class = 0;sdu_err_ratio = 0;
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
+                  "AT+CGEQREQ=%d,4,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                  cid);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
 }
@@ -2105,9 +2107,10 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 /* Set required QoS params to default */
                 property_get("persist.sys.qosstate", qosState, "0");
                 if (!strcmp(qosState, "0")) {
+                    //bug837103:traffic_class = 0;sdu_err_ratio = 0;
                     snprintf(cmd, sizeof(cmd),
-                        "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                        initialAttachId, s_trafficClass[socket_id]);
+                        "AT+CGEQREQ=%d,4,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                        initialAttachId);
                     err = at_send_command(s_ATChannels[channelID], cmd, NULL);
                 }
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
