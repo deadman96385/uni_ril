@@ -340,6 +340,32 @@ done:
     return fastDormancyTime;
 }
 
+int setupVPIfNeeded() {
+    char bt_pan_active[PROPERTY_VALUE_MAX] = {0};
+    char agps_active[PROPERTY_VALUE_MAX] = {0};
+    char internet_tethering[PROPERTY_VALUE_MAX] = {0};
+    char wifi_active[PROPERTY_VALUE_MAX] = {0};
+    char mms_active[PROPERTY_VALUE_MAX] = {0};
+    int setupVPIfNeeded = 0;
+
+    property_get("bluetooth.ril.bt-pan.active", bt_pan_active, "1");
+    property_get("sys.ril.agps.active", agps_active, "1");
+    property_get("sys.ril.internet_tethering",
+                  internet_tethering, "1");
+    property_get("sys.ril.wifi.active", wifi_active, "1");
+    property_get("ril.mms.active", mms_active, "1");
+
+    if (strcmp(bt_pan_active, "1") && strcmp(agps_active, "1") &&
+        strcmp(internet_tethering, "1") && strcmp(wifi_active, "1") &&
+        strcmp(mms_active, "1") ) {
+        setupVPIfNeeded = 1;
+    }
+    RLOGD("%s,%s,%s,%s,%s, setupVPIfNeeded=%d", bt_pan_active, agps_active,
+          internet_tethering, wifi_active, mms_active, setupVPIfNeeded);
+
+    return setupVPIfNeeded;
+}
+
 static void requestScreeState(int channelID, int status, RIL_Token t) {
     int err;
     int stat;
@@ -371,6 +397,9 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
                      getFastDormancyTime(status));
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
+        if (setupVPIfNeeded()) {
+            at_send_command(s_ATChannels[channelID], "AT+SPVOICEPREFER=1", NULL);
+        }
     } else {
         /* Resume */
         at_send_command(s_ATChannels[channelID], "AT+CCED=1,8", NULL);
@@ -400,6 +429,7 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
                                          (void *)&s_socketId[socket_id], NULL);
             }
         }
+        at_send_command(s_ATChannels[channelID], "AT+SPVOICEPREFER=0", NULL);
         RIL_onUnsolicitedResponse(
             RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED, NULL, 0, socket_id);
     }
