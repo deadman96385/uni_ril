@@ -3069,6 +3069,14 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                             socket_id);
                 }
             } else if (value == 0 || value == 2) {
+                if (at_tok_hasmore(&tmp)) {
+                    err = at_tok_nextint(&tmp, &cause);
+                    if (err < 0) goto out;
+                    if (cause == 0) {
+                        s_imsInitISIM[socket_id] = -1;
+                    }
+                }
+
                 RIL_requestTimedCallback(onSimPresent,
                                          (void *)&s_socketId[socket_id], NULL);
             }
