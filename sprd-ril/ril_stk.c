@@ -261,6 +261,9 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
         response->result = result;
+        if (SIM_RESET == result || strcmp(response->aid, "") != 0) {
+            s_imsInitISIM[socket_id] = -1;
+        }
         RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_REFRESH, response,
                 sizeof(RIL_SimRefreshResponse_v7), socket_id);
     /* SPRD: add for alpha identifier display in stk @{ */
