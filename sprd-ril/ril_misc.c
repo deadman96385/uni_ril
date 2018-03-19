@@ -13,6 +13,8 @@
 
 /* Fast Dormancy disable property */
 #define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
+/* PROP_FAST_DORMANCY value is "a,b". a is screen_off value, b is on value */
+#define PROP_FAST_DORMANCY    "persist.radio.fastdormancy"
 
 /* for sleep log */
 #define BUFFER_SIZE     (12 * 1024 * 4)
@@ -224,6 +226,29 @@ error:
     at_response_free(p_response);
 }
 
+int getFastDormancyTime(int screeState) {
+    int screenOffValue = 2, screenOnValue = 5, fastDormancyTime = 0, err;
+    char fastDormancyPropValue[PROPERTY_VALUE_MAX] = {0};
+    char *p_fastDormancy = NULL;
+
+    property_get(PROP_FAST_DORMANCY, fastDormancyPropValue, "");
+    if (strcmp(fastDormancyPropValue, "")) {
+        p_fastDormancy = fastDormancyPropValue;
+        err = at_tok_nextint(&p_fastDormancy, &screenOffValue);
+        if (err < 0) {
+            goto done;
+        }
+        err = at_tok_nextint(&p_fastDormancy, &screenOnValue);
+        if (err < 0) {
+            goto done;
+        }
+    }
+done:
+    screeState ? (fastDormancyTime = screenOnValue) :
+                 (fastDormancyTime = screenOffValue);
+    return fastDormancyTime;
+}
+
 static void requestScreeState(int channelID, int status, RIL_Token t) {
     int err;
     int stat;
@@ -246,10 +271,13 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         at_send_command(s_ATChannels[channelID], "AT+CGREG=1", NULL);
 
         if (isVoLteEnable()) {
-            at_send_command(s_ATChannels[channelID], "AT+CIREG=0", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+CIREG=1", NULL);
         }
         if (isExistActivePdp() && !strcmp(prop, "0")) {
-            at_send_command(s_ATChannels[channelID], "AT*FDY=1,2", NULL);
+            char cmd[ARRAY_SIZE] = {0};
+            snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
+                     getFastDormancyTime(status));
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
     } else {
         /* Resume */
@@ -275,7 +303,10 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
                 sizeof(response), socket_id);
         }
         if (isExistActivePdp() && !strcmp(prop, "0")) {
-            at_send_command(s_ATChannels[channelID], "AT*FDY=1,5", NULL);
+            char cmd[ARRAY_SIZE] = {0};
+            snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
+                     getFastDormancyTime(status));
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
         }
 
         if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
@@ -311,7 +342,7 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
 
     int i, err;
     char *ATcmd = (char *)data;
-    char buf[ARRAY_SIZE * 8] = {0};
+    char buf[MAX_AT_RESPONSE] = {0};
     char *cmd;
     char *pdu;
     char *response[1] = {NULL};
@@ -375,8 +406,13 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
     return;
 
 error:
+    memset(buf, 0 ,sizeof(buf));
+    strlcat(buf, "ERROR", sizeof(buf));
+    strlcat(buf, "\r\n", sizeof(buf));
+    response[0] = buf;
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                          sizeof(char *));
     at_response_free(p_response);
-    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 }
 
 void requestQueryCOLP(int channelID, RIL_Token t) {
@@ -522,17 +558,23 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_GET_BAND_INFO: {
             p_response = NULL;
             char *line = NULL;
-            err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPCLB?",
-                                             "+SPCLB:", &p_response);
-            if (err < 0 || p_response->success == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            RLOGD("GET_BAND_INFO s_in4G[%d]=%d", socket_id, s_in4G[socket_id]);
+            if (s_in4G[socket_id]) {
+                err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPCLB?",
+                                                 "+SPCLB:", &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                } else {
+                    line = p_response->p_intermediates->line;
+                    at_tok_start(&line);
+                    skipWhiteSpace(&line);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line) + 1);
+                }
+                at_response_free(p_response);
             } else {
-                line = p_response->p_intermediates->line;
-                at_tok_start(&line);
-                skipWhiteSpace(&line);
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, line, strlen(line) + 1);
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
-            at_response_free(p_response);
             break;
         }
         case RIL_EXT_REQUEST_SET_BAND_INFO_MODE: {

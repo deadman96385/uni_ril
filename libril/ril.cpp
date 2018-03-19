@@ -50,7 +50,6 @@
 #include <RilSapSocket.h>
 
 int s_multiModeSim = 0;
-int s_simEnabled[SIM_COUNT];
 
 extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
                                        void *response, size_t responselen);
@@ -77,7 +76,6 @@ namespace android {
 
 #define PROPERTY_RIL_IMPL "gsm.version.ril-impl"
 
-#define SIM_ENABLED_PROP        "persist.radio.sim_enabled"
 #define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
 #define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
 #define MODEM_CONFIG_PROP       "persist.radio.modem.config"
@@ -182,7 +180,6 @@ extern "C" void getProperty(RIL_SOCKET_ID socket_id, const char *property,
                             char *value, const char *defaultVal);
 extern "C" void setProperty(RIL_SOCKET_ID socket_id, const char *property,
                             const char *value);
-void initSIMVariables();
 void initPrimarySim();
 
 extern "C" char rild[MAX_SOCKET_NAME_LENGTH] = SOCKET_NAME_RIL;
@@ -4906,7 +4903,15 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
             close(fd);
         }
         p_info->fdCommand = -1;
-        if (p_info->type != RIL_ATCI_SOCKET) {
+        if (p_info->type == RIL_ATCI_SOCKET) {
+            RLOGE("not receive at cmd, client died");
+            s_atciSocketParam.fdCommand = -1;
+            if (s_atciSocketParam.p_rs != NULL) {
+                record_stream_free(s_atciSocketParam.p_rs);
+                s_atciSocketParam.p_rs = NULL;
+            }
+            rilEventAddWakeup(s_atciSocketParam.listen_event);
+        } else {
             ril_event_del(p_info->commands_event);
 
             record_stream_free(p_rs);
@@ -4921,7 +4926,6 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
 
 static void onNewCommandConnect(RIL_SOCKET_ID socket_id) {
     // Init Variables
-    initSIMVariables();
     initPrimarySim();
 
     // Inform we are connected and the ril version
@@ -6629,7 +6633,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_STOP_QUERY_NETWORK: return "STOP_QUERY_NETWORK";
         case RIL_EXT_REQUEST_FORCE_DETACH: return "FORCE_DETACH";
         case RIL_EXT_REQUEST_GET_HD_VOICE_STATE: return "GET_HD_VOICE_STATE";
-        case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
+        case RIL_EXT_REQUEST_SIMMGR_SIM_POWER: return "SIMMGR_SIM_POWER";
         case RIL_EXT_REQUEST_ENABLE_RAU_NOTIFY: return "ENABLE_RAU_NOTIFY";
         case RIL_EXT_REQUEST_SET_COLP: return "SET_COLP";
         case RIL_EXT_REQUEST_GET_DEFAULT_NAN: return "GET_DEFAULT_NAN";
@@ -6650,7 +6654,12 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_COLP: return "QUERY_COLP";
         case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
         case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: return "UPDATE_OPERATOR_NAME";
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
+        case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: return "SIMMGR_GET_SIM_STATUS";
         /* }@ */
+        case RIL_EXT_REQUEST_ENABLE_EMERGENCY_ONLY: return "EMERGENCY_ONLY";
+        case RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATE: return "GET_SUBSIDYLOCK_STATE";
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED: return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
@@ -6719,6 +6728,9 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SIMLOCK_SIM_EXPIRED: return "UNSOL_SIMLOCK_SIM_EXPIRED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_REQUEST_SET_SINGLE_PDN: return "RIL_EXT_REQUEST_SET_SINGLE_PDN";
+        case RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED: return "UNSOL_RADIO_CAPABILITY_CHANGED";
+        case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED: return "RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED";
         default: return "<unknown request>";
     }
 }
@@ -6792,6 +6804,8 @@ static void listenCallbackEXT(int fd, short flags __unused, void *param) {
         // Inform oem socket that modem maybe assert or reset
         RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_RIL_CONNECTED, NULL, 0,
                            p_info->socket_id);
+        RIL_UNSOL_RESPONSE(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
+                           NULL, 0, p_info->socket_id);
     }
 }
 
@@ -6923,16 +6937,6 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
     }
 
     property_set(property, propVal);
-}
-
-void initSIMVariables() {
-    int simId;
-    char prop[PROPERTY_VALUE_MAX];
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        memset(prop, 0, sizeof(prop));
-        getProperty((RIL_SOCKET_ID)simId, SIM_ENABLED_PROP, prop, "1");
-        s_simEnabled[simId] = atoi(prop);
-    }
 }
 
 void initPrimarySim() {

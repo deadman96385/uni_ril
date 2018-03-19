@@ -44,6 +44,7 @@
 
 #define AT_COMMAND_LEN      128
 #define ARRAY_SIZE          128  // cannot change the value
+#define MAX_AT_RESPONSE     0x1000
 
 #define NUM_ELEMS(x)        (sizeof(x) / sizeof(x[0]))
 #define RIL_UNUSED_PARM(a)  noopRemoveWarning((void *)&(a));
@@ -87,7 +88,6 @@ typedef struct {
 extern bool s_isLTE;
 extern int s_modemConfig;
 extern int s_multiModeSim;
-extern int s_simEnabled[SIM_COUNT];
 extern sem_t s_sem[SIM_COUNT];
 extern RIL_RadioState s_radioState[SIM_COUNT];
 extern const RIL_SOCKET_ID s_socketId[SIM_COUNT];

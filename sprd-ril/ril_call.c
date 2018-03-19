@@ -239,12 +239,12 @@ int callFromCLCCLine(char *line, RIL_Call *p_call) {
         /* tolerate null here */
         if (err < 0) return 0;
 
-        // Some lame implementations return strings
+        /* Some lame implementations return strings
         // like "NOT AVAILABLE" in the CLCC line
         if (p_call->number != NULL &&
             0 == strspn(p_call->number, "+0123456789*#abc")) {
             p_call->number = NULL;
-        }
+        } */
 
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
@@ -1531,6 +1531,21 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: {
+            p_response = NULL;
+            int mode = ((int*)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCLSTONE=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             ret = 0;
             break;
@@ -1728,6 +1743,29 @@ void onCallCSFallBackAccept(void *param) {
 
     channelID = getChannel(socket_id);
     at_send_command(s_ATChannels[channelID], "AT+SCSFB=1,1", NULL);
+    putChannel(channelID);
+}
+
+void onSSCallCSFallBackAccept(void *param) {
+    int channelID = -1;
+    int index = 0;
+    char cmd[AT_COMMAND_LEN] = {0};
+    CallbackPara *cbPara = (CallbackPara *)param;
+
+    if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+        RLOGE("onSSCallCSFallBackAccept, Invalid socket_id %d", cbPara->socket_id);
+        FREEMEMORY(cbPara->para);
+        FREEMEMORY(cbPara);
+        return;
+    }
+
+    index = *((int *)(cbPara->para));
+    channelID = getChannel(cbPara->socket_id);
+    FREEMEMORY(cbPara->para);
+    FREEMEMORY(cbPara);
+
+    snprintf(cmd, sizeof(cmd), "AT+CSSSFB=%d,1", index);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
     putChannel(channelID);
 }
 
@@ -2214,6 +2252,45 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     } else if (strStartsWith(s, "+SCSFB")) {
         RIL_requestTimedCallback(onCallCSFallBackAccept,
                     (void *)&s_socketId[socket_id], NULL);
+    } else if (strStartsWith(s, "+CSSSFB")) {
+        int index = 0;
+        char *tmp = NULL;
+        CallbackPara *cbPara = NULL;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &index);
+        if (err < 0) {
+            RLOGE("%s fail", s);
+            goto out;
+        }
+        cbPara = (CallbackPara *)calloc(1, sizeof(CallbackPara));
+        if (cbPara != NULL) {
+            cbPara->para = (int *)calloc(1, sizeof(int));
+            *((int *)(cbPara->para)) = index;
+            cbPara->socket_id = socket_id;
+            RIL_requestTimedCallback(onSSCallCSFallBackAccept, (void *)cbPara,
+                                     NULL);
+        }
+    } else if (strStartsWith(s, "+EARLYMEDIA:")) {
+        char *tmp = NULL;
+        int response = 0;
+        RLOGD("UNSOL EARLY MEDIA is : %s", s);
+
+        /* +EARLYMEDIA:<value> */
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_EARLY_MEDIA,
+                &response, sizeof(response), socket_id);
     } else {
         ret = 0;
     }

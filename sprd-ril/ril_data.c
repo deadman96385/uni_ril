@@ -17,9 +17,9 @@
 #define REUSE_DEFAULT_PDN          "persist.sys.pdp.reuse"
 
 int s_dataAllowed[SIM_COUNT];
+int s_manualSearchNetworkId = -1;
 /* for LTE, attach will occupy a cid for default PDP in CP */
 bool s_LTEDetached[SIM_COUNT] = {0};
-static int s_defaultDataId = -1;
 static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
@@ -1116,7 +1116,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                 RLOGE("Unknown IP type!");
             }
         }
-        responses[i].mtu = DEFAULT_MTU;
+        //responses[i].mtu = DEFAULT_MTU;
         if ((cid != -1) && (t == NULL)) {
              if (responses[i].active > 0) {
                  RLOGE("i = %d", i);
@@ -1290,15 +1290,15 @@ static int reuseDefaultBearer(int channelID, const char *apn,
                             AT_RESPONSE_FREE(p_response);
                         }
                     }
-                } else if (i < MAX_PDP) {
+                } /*else if (i < MAX_PDP) {//for bug704303
                     putPDP(i);
                 }
-            }
-        } else {
+*/            }
+        } /*else {
             for (i = 0; i < MAX_PDP; i++) {
                 putPDP(i);
             }
-        }
+        }*/
     }
     return ret;
 }
@@ -1614,21 +1614,30 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
     if (isStrEmpty(new->username) || isStrEmpty(new->password) ||
         new->authtype <= 0) {
         new->authtype = AUTH_NONE;
-        memset(new->username, 0, strlen(new->username));
-        memset(new->password, 0, strlen(new->password));
+        if (new->username != NULL) {
+             memset(new->username, 0, strlen(new->username));
+        }
+        if (new->password != NULL) {
+             memset(new->password, 0, strlen(new->password));
+        }
     }
     if (isStrEmpty(old->username) || isStrEmpty(old->password) ||
         old->authtype <= 0) {
         RLOGD("old profile is empty");
         old->authtype = AUTH_NONE;
-        memset(old->username, 0, strlen(old->username));
-        memset(old->password, 0, strlen(old->password));
+        if (old->username != NULL) {
+             memset(old->username, 0, strlen(old->username));
+        }
+        if (old->password != NULL) {
+            memset(old->password, 0, strlen(old->password));
+        }
     }
-    if (isApnEqual(new->apn, old->apn) &&
-        isProtocolEqual(new->protocol, old->protocol) &&
+    if ((isStrEmpty(new->apn) && isStrEmpty(new->protocol)) ||
+            (isApnEqual(new->apn, old->apn) &&
+        isStrEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
-        new->authtype == old->authtype) {
+        new->authtype == old->authtype)) {
         ret = 1;
     }
     return ret;
@@ -1656,11 +1665,28 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     }
 }
 
+/**
+ * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
+ * we can get data connection card id by s_dataAllowed
+ */
+int getDefaultDataCardId() {
+    int i = 0;
+    int ret = -1;
+    for (i = 0; i < SIM_COUNT; i++) {
+        if (s_dataAllowed[i] == 1) {
+            ret = i;
+        }
+    }
+    return ret;
+}
+
 static void requestSetInitialAttachAPN(int channelID, void *data,
                                             size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
     int initialAttachId = 1;
     int ret = -1;
+    bool isSetReattach = false;
+    char prop[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1682,7 +1708,16 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             }
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
-            if (socket_id == s_multiModeSim && (s_in4G[socket_id] == 1 ||
+            /*bug769723 CMCC version reattach on data card*/
+            property_get("ro.radio.spice", prop, "0");
+            if (!strcmp(prop, "1")) {
+                if (socket_id == getDefaultDataCardId()) {
+                    isSetReattach = true;
+                }
+            } else {
+                isSetReattach = socket_id == s_multiModeSim;
+            }
+            if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
@@ -1758,18 +1793,19 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD");
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
+            if (s_sessionId[socket_id] != 0) {
+                RLOGD("setRadioCapability is on going during attach, return!!");
+                goto error;
+            }
             if (socket_id != s_multiModeSim ) {
                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,1",
                          socket_id);
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
-                if (s_sessionId[socket_id] != 0) {
-                    RLOGD("setRadioCapability is on going, return!!");
-                    goto error;
-                }
                 err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                                        &p_response);
                 if (err < 0 || p_response->success == 0) {
-                     goto error;
+                    at_send_command(s_ATChannels[channelID], "AT+SGFD", NULL);
+                    goto error;
                 }
             } else {
                 snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0",
@@ -1833,6 +1869,10 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
             if (s_modemConfig == LWG_LWG) {
                 // ap do nothing when detach on L+L version
             } else {
+                if (s_sessionId[socket_id] != 0) {
+                    RLOGD("setRadioCapability is on going during detach, return!!");
+                    goto error;
+                }
                 if (socket_id != s_multiModeSim) {
                     err = at_send_command(s_ATChannels[channelID], "AT+SGFD",
                                           &p_response);
@@ -1894,59 +1934,6 @@ void requestAllowData(int channelID, void *data, size_t datalen,
     }
 }
 
-/**
- * as RIL_REQUEST_ALLOW_DATA is necessary before active data connection,
- * we can get data connection card id by s_dataAllowed
- */
-int getDefaultDataCardId() {
-    int i = 0;
-    int ret = -1;
-    for (i = 0; i < SIM_COUNT; i++) {
-        if (s_dataAllowed[i] == 1) {
-            ret = i;
-        }
-    }
-    return ret;
-}
-
-void cleanUpAllConnections() {
-    int i;
-    char cmd[AT_COMMAND_LEN];
-
-    s_defaultDataId = getDefaultDataCardId();
-    if (s_defaultDataId < 0) {
-        RLOGD("there is no active data connections!");
-        return;
-    }
-    int dataChannelID = getChannel(s_defaultDataId);
-    for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(i) > 0) {
-            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", getPDPCid(i));
-            at_send_command(s_ATChannels[dataChannelID], cmd, NULL);
-        }
-    }
-    putChannel(dataChannelID);
-}
-
-void activeAllConnections() {
-    int i;
-    int dataChannelID = getChannel(s_defaultDataId);
-
-    s_defaultDataId = -1;
-    property_set(APN_DELAY_PROP, "1");
-    for (i = 0; i < MAX_PDP; i++) {
-        if (getPDPCid(i) > 0) {
-            RLOGD("s_PDP[%d].state = %d", i, getPDPState(i));
-            if (s_PDP[i].state == PDP_BUSY) {
-                int cid = getPDPCid(i);
-                putPDP(i);
-                requestOrSendDataCallList(dataChannelID, cid, NULL);
-            }
-        }
-    }
-    putChannel(dataChannelID);
-}
-
 int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -1955,7 +1942,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     switch (request) {
         case RIL_REQUEST_SETUP_DATA_CALL: {
-            if (s_defaultDataId >= 0) {
+            if (s_manualSearchNetworkId >= 0) {
+                RLOGD("s_manualSearchNetworkId = %d",s_manualSearchNetworkId);
                 s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
@@ -1968,7 +1956,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                         requestSetupDataCall(channelID, data, datalen, t);
                     } else {
                         if (s_modemConfig != LWG_LWG &&
-                                s_multiModeSim != socket_id) {
+                                s_multiModeSim != socket_id && s_dataAllowed[socket_id] == 1) {
                             requestSetupDataCall(channelID, data, datalen, t);
                         } else {
                             s_lastPDPFailCause[socket_id] =
@@ -1997,7 +1985,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             requestDataCallList(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_ALLOW_DATA: {
-            if (s_defaultDataId >= 0) {
+            if (s_manualSearchNetworkId >= 0) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }

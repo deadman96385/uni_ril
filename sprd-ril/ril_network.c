@@ -23,6 +23,9 @@
 /* set network type for engineer mode */
 #define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
 
+/* set the comb-register flag*/
+#define CEMODE_PROP             "persist.radio.cemode"
+
 RIL_RegState s_CSRegStateDetail[SIM_COUNT] = {
         RIL_REG_STATE_UNKNOWN
 #if (SIM_COUNT >= 2)
@@ -112,6 +115,8 @@ int s_presentSIMCount = 0;
 bool s_isSimPresent[SIM_COUNT];
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
 OperatorInfoList s_operatorInfoList;
+
+void setWorkMode();
 
 void setSimPresent(RIL_SOCKET_ID socket_id, bool hasSim) {
     RLOGD("setSimPresent hasSim = %d", hasSim);
@@ -889,9 +894,7 @@ static int getRadioFeatures(int socket_id, int isUnsolHandling) {
         rat = RAF_LTE | WCDMA | GSM;
     } else {
         if (isUnsolHandling == 1) {  // UNSOL_RADIO_CAPABILITY
-            char prop[PROPERTY_VALUE_MAX] = {0};
-            getProperty(socket_id, MODEM_WORKMODE_PROP, prop, "10");
-            workMode = atoi(prop);
+            workMode =  s_workMode[socket_id];
         } else {  // GET_RADIO_CAPABILITY
             workMode = getWorkMode(socket_id);
         }
@@ -949,16 +952,15 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(datalen);
 
     int err, i;
-    char sim_prop[PROPERTY_VALUE_MAX];
-    char data_prop[PROPERTY_VALUE_MAX];
     char cmd[AT_COMMAND_LEN] = {0};
+    char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
     if (s_desiredRadioState[socket_id] == 0) {
-        int sim_status = getSIMStatus(channelID);
+        int sim_status = getSIMStatus(false, channelID);
 
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],
@@ -977,6 +979,11 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
         initSIMPresentState();
+        getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+        if (strcmp(simEnabledProp, "0") == 0) {
+            RLOGE("sim enable false,radio power on failed");
+            goto error;
+        }
         buildWorkModeCmd(cmd, sizeof(cmd));
 
 #if (SIM_COUNT == 2)
@@ -997,10 +1004,39 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         }
 #endif
 
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            if (p_response != NULL &&
+                    strcmp(p_response->finalResponse, "+CME ERROR: 15") == 0) {
+                RLOGE("set wrong workmode in cmcc version");
+            #if (SIM_COUNT == 2)
+                if (s_multiModeSim == RIL_SOCKET_1) {
+                    s_multiModeSim = RIL_SOCKET_2;
+                } else if (s_multiModeSim == RIL_SOCKET_2) {
+                    s_multiModeSim = RIL_SOCKET_1;
+                }
+                char numToStr[ARRAY_SIZE] = {0};
+                snprintf(numToStr, sizeof(numToStr), "%d", s_multiModeSim);
+                property_set(PRIMARY_SIM_PROP, numToStr);
+            #endif
+                setWorkMode();
+                buildWorkModeCmd(cmd, sizeof(cmd));
+                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                RIL_onUnsolicitedResponse(
+                        RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED,
+                        NULL, 0, socket_id);
+            }
+        }
+        AT_RESPONSE_FREE(p_response);
 
         if (s_isLTE) {
-            at_send_command(s_ATChannels[channelID], "AT+CEMODE=1", NULL);
+            int cemode = 0;
+            char cemodeProp[PROPERTY_VALUE_MAX] = {0};
+            property_get(CEMODE_PROP, cemodeProp, "1");
+            cemode = atoi(cemodeProp);
+            memset(cmd, 0, sizeof(cmd));
+            snprintf(cmd, sizeof(cmd), "AT+CEMODE=%d", cemode);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
             if (s_presentSIMCount == 1) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
@@ -1980,22 +2016,23 @@ static void requestGetCellInfoList(int channelID, void *data,
     char *line =  NULL, *p = NULL, *skip = NULL, *plmn = NULL;
 
     ATResponse *p_response = NULL;
-    RIL_CellInfo **response = NULL;
+    RIL_CellInfo_v12 **response = NULL;
 
     if (!s_screenState) {
         RLOGD("GetCellInfo ScreenState %d", s_screenState);
         goto error;
     }
-    response = (RIL_CellInfo **)malloc(count * sizeof(RIL_CellInfo *));
+    response = (RIL_CellInfo_v12 **)malloc(count * sizeof(RIL_CellInfo_v12 *));
     if (response == NULL) {
         goto error;
     }
-    memset(response, 0, count * sizeof(RIL_CellInfo *));
+    memset(response, 0, count * sizeof(RIL_CellInfo_v12 *));
 
     for (i = 0; i < count; i++) {
-        response[i] = malloc(sizeof(RIL_CellInfo));
-        memset(response[i], 0, sizeof(RIL_CellInfo));
+        response[i] = malloc(sizeof(RIL_CellInfo_v12));
+        memset(response[i], 0, sizeof(RIL_CellInfo_v12));
     }
+
     // for mcc & mnc
     err = at_send_command_singleline(s_ATChannels[channelID], "AT+COPS?",
                                      "+COPS:", &p_response);
@@ -2021,9 +2058,9 @@ static void requestGetCellInfoList(int channelID, void *data,
     mcc = atoi(plmn) / 100;
     mnc = atoi(plmn) - mcc * 100;
 
-    if (netType == 7) {
+    if (netType == 7 || netType == 16) {
         cellType = RIL_CELL_INFO_TYPE_LTE;
-    } else if (netType == 1 || netType == 0) {
+    } else if (netType == 0 || netType == 1 || netType == 3) {
         cellType = RIL_CELL_INFO_TYPE_GSM;
     } else {
         cellType = RIL_CELL_INFO_TYPE_WCDMA;
@@ -2142,6 +2179,8 @@ static void requestGetCellInfoList(int channelID, void *data,
         response[0]->CellInfo.lte.cellIdentityLte.ci  = cid;
         response[0]->CellInfo.lte.cellIdentityLte.pci = pscPci;
         response[0]->CellInfo.lte.cellIdentityLte.tac = lac;
+        response[0]->CellInfo.lte.cellIdentityLte.earfcn = INT_MAX;
+
         response[0]->CellInfo.lte.signalStrengthLte.cqi = 100;
         response[0]->CellInfo.lte.signalStrengthLte.rsrp = rsrp;
         response[0]->CellInfo.lte.signalStrengthLte.rsrq = rsrq;
@@ -2153,20 +2192,26 @@ static void requestGetCellInfoList(int channelID, void *data,
         response[0]->CellInfo.gsm.cellIdentityGsm.mnc = mnc;
         response[0]->CellInfo.gsm.cellIdentityGsm.lac = lac;
         response[0]->CellInfo.gsm.cellIdentityGsm.cid = cid;
+        response[0]->CellInfo.gsm.cellIdentityGsm.arfcn = INT_MAX;
+        response[0]->CellInfo.gsm.cellIdentityGsm.bsic = 0xFF;
+
         response[0]->CellInfo.gsm.signalStrengthGsm.bitErrorRate = biterr2G;
         response[0]->CellInfo.gsm.signalStrengthGsm.signalStrength = sig2G;
+        response[0]->CellInfo.gsm.signalStrengthGsm.timingAdvance = INT_MAX;
     } else {  // 3G, Don't support CDMA
         response[0]->CellInfo.wcdma.cellIdentityWcdma.mcc = mcc;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.mnc = mnc;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.lac = lac;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.cid = cid;
         response[0]->CellInfo.wcdma.cellIdentityWcdma.psc = pscPci;
+        response[0]->CellInfo.wcdma.cellIdentityWcdma.uarfcn = INT_MAX;
+
         response[0]->CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = biterr3G;
         response[0]->CellInfo.wcdma.signalStrengthWcdma.signalStrength = sig3G;
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, (*response),
-                          count * sizeof(RIL_CellInfo));
+                          count * sizeof(RIL_CellInfo_v12));
     at_response_free(p_response);
     if (response != NULL) {
         for (i = 0; i < count; i++) {
@@ -2540,6 +2585,50 @@ exit:
     free(responseRc);
 }
 
+void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
+                               RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    char *plmn = (char *)data;
+    char operatorName[ARRAY_SIZE] = {0};
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    memset(operatorName, 0, sizeof(operatorName));
+    err = updatePlmn(socket_id, (const char *)plmn, operatorName);
+    if (err == 0) {
+        RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
+        MUTEX_ACQUIRE(s_operatorInfoListMutex);
+        OperatorInfoList *pList = s_operatorInfoList.next;
+        OperatorInfoList *next;
+        while (pList != &s_operatorInfoList) {
+            next = pList->next;
+            if (strcmp(plmn, pList->plmn) == 0) {
+                RLOGD("find the plmn, remove if from s_operatorInfoList!");
+                pList->next->prev = pList->prev;
+                pList->prev->next = pList->next;
+                pList->next = NULL;
+                pList->prev = NULL;
+
+                free(pList->plmn);
+                free(pList->operatorName);
+                free(pList);
+                break;
+            }
+            pList = next;
+        }
+        MUTEX_RELEASE(s_operatorInfoListMutex);
+        addToOperatorInfoList(plmn, operatorName);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+
+        RIL_onUnsolicitedResponse(
+                RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+                NULL, 0, socket_id);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    }
+}
+
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID) {
     int err;
@@ -2593,9 +2682,9 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             requestNetworkRegistration(channelID, data, datalen, t);
             break;
         case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: {
-            cleanUpAllConnections();
+            s_manualSearchNetworkId = getSocketIdByChannelID (channelID);
             requestNetworkList(channelID, data, datalen, t);
-            activeAllConnections();
+            s_manualSearchNetworkId = -1;
             break;
         }
         case RIL_REQUEST_RESET_RADIO:
@@ -2676,6 +2765,31 @@ int processNetworkRequests(int request, void *data, size_t datalen,
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: {
+            requestUpdateOperatorName(channelID, data, datalen, t);
+            break;
+        }
+        case RIL_EXT_REQUEST_ENABLE_EMERGENCY_ONLY: {
+            RLOGD("radio state is ", s_radioState[socket_id]);
+            int value = ((int *) data)[0];
+            char cmd[AT_COMMAND_LEN];
+            p_response = NULL;
+            snprintf(cmd, sizeof(cmd), "AT+SPECCMOD=%d", value);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                if (value == 1) {
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                } else {
+                    err = at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
+                    err = at_send_command(s_ATChannels[channelID], "AT+SFUN=4", NULL);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                }
             }
             at_response_free(p_response);
             break;

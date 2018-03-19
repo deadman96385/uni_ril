@@ -138,8 +138,22 @@ static pthread_mutex_t s_simStatusMutex[SIM_COUNT] = {
 const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+int s_sim_sessionId[SIM_COUNT] = {
+        -1
+#if (SIM_COUNT >= 2)
+       ,-1
+#if (SIM_COUNT >= 3)
+       ,-1
+#if (SIM_COUNT >= 4)
+       ,-1
+#endif
+#endif
+#endif
+};
+
 static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
+static int initISIM(int channelID);
 
 static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     int err, result;
@@ -208,6 +222,8 @@ static void getSIMStatusAgainForSimBusy(void *param) {
                 pthread_mutex_unlock(&s_simBusy[socket_id].s_sim_busy_mutex);
             }
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                    NULL, 0, socket_id);
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED,
                     NULL, 0, socket_id);
             goto done;
     }
@@ -318,7 +334,7 @@ void decryptPin(char *pin, unsigned char encryptedPin[17]) {
 }
 
 /* Returns SIM_NOT_READY on error */
-SimStatus getSIMStatus(int channelID) {
+SimStatus getSIMStatus(int request, int channelID) {
     ATResponse *p_response = NULL;
     int err;
     int ret = SIM_NOT_READY;
@@ -456,7 +472,10 @@ out:
 done:
     at_response_free(p_response);
     if (ret != SIM_ABSENT) {
-        if (s_simEnabled[socket_id] == 0) {
+        char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
+        getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+        if (request != RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS &&
+                strcmp(simEnabledProp, "0") == 0) {
             ret = SIM_ABSENT;
         }
     }
@@ -486,6 +505,7 @@ done:
         s_needQueryPukTimes[socket_id] = true;
         s_needQueryPinPuk2Times[socket_id] = true;
         s_imsInitISIM[socket_id] = -1;
+        s_sim_sessionId[socket_id] = -1;
     }
     /** }@ */
     pthread_mutex_unlock(&s_simStatusMutex[socket_id]);
@@ -542,7 +562,8 @@ error:
  * This must be freed using freeCardStatus.
  * @return: On success returns RIL_E_SUCCESS
  */
-static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
+static int getCardStatus(int request, int channelID,
+                         RIL_CardStatus_v6 **pp_card_status) {
     static RIL_AppStatus app_status_array[] = {
         // SIM_ABSENT = 0
         {RIL_APPTYPE_UNKNOWN, RIL_APPSTATE_UNKNOWN, RIL_PERSOSUBSTATE_UNKNOWN,
@@ -621,15 +642,22 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
          RIL_PERSOSUBSTATE_SIMLOCK_FOREVER, NULL, NULL, 0,
          RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
     };
+    static RIL_AppStatus ims_app_status_array[] = {
+         { RIL_APPTYPE_ISIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
+             NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN }
+     };
+
     RIL_CardState card_state;
     int num_apps;
     int sim_status;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
 
-    if (s_simEnabled[socket_id] == 0) {
+    getProperty(socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+    if (request == RIL_REQUEST_GET_SIM_STATUS && strcmp(simEnabledProp, "0") == 0) {
         sim_status = SIM_ABSENT;
     } else {
-        sim_status = getSIMStatus(channelID);
+        sim_status = getSIMStatus(request, channelID);
     }
 
     if (sim_status == SIM_ABSENT) {
@@ -651,6 +679,12 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
 
     s_appType[socket_id] = getSimType(channelID);
 
+    int isimResp = 0;
+    if(sim_status == SIM_READY && s_appType[socket_id] == RIL_APPTYPE_USIM) {
+        isimResp = initISIM(channelID);
+        RLOGD("app type %d", isimResp);
+    }
+
     /* Initialize application status */
     unsigned int i;
     for (i = 0; i < RIL_CARD_MAX_APPS; i++) {
@@ -664,12 +698,20 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status) {
      * that reflects sim_status for gsm.
      */
     if (num_apps != 0) {
-        /* Only support one app, gsm */
-        p_card_status->num_applications = 1;
-        p_card_status->gsm_umts_subscription_app_index = 0;
+        if(isimResp != 1)  {
+            /* Only support one app, gsm */
+            p_card_status->num_applications = 1;
+            p_card_status->gsm_umts_subscription_app_index = 0;
 
-        /* Get the correct app status */
-        p_card_status->applications[0] = app_status_array[sim_status];
+            /* Get the correct app status */
+            p_card_status->applications[0] = app_status_array[sim_status];
+        } else {
+            p_card_status->num_applications = 2;
+            p_card_status->gsm_umts_subscription_app_index = 0;
+            p_card_status->ims_subscription_app_index = 1;
+            p_card_status->applications[0] = app_status_array[sim_status];
+            p_card_status->applications[1] = ims_app_status_array[0];
+        }
     }
 
     *pp_card_status = p_card_status;
@@ -895,7 +937,7 @@ out:
         }
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &remaintime,
                 sizeof(remaintime));
-        simstatus = getSIMStatus(channelID);
+        simstatus = getSIMStatus(-1, channelID);
         if (simstatus == SIM_READY &&
             s_radioState[socket_id] == RADIO_STATE_ON) {
             setRadioState(channelID, RADIO_STATE_SIM_READY);
@@ -976,7 +1018,7 @@ static void requestEnterSimPuk2(int channelID, void *data, size_t datalen,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
     at_response_free(p_response);
 
-    simstatus = getSIMStatus(channelID);
+    simstatus = getSIMStatus(-1, channelID);
     RLOGD("simstatus = %d, radioStatus = %d", simstatus,
           s_radioState[socket_id]);
     if (simstatus == SIM_READY  && s_radioState[socket_id] == RADIO_STATE_ON) {
@@ -1268,6 +1310,11 @@ out:
     return status;
 }
 
+static bool isISIMFileId(int fileId) {
+    return fileId == 0x6f04 || fileId == 0x6f02 || fileId == 0x6f03
+             || fileId == 0x6f07  || fileId == 0x6f09 || fileId == 0x6fe5;
+}
+
 static void requestSIM_IO(int channelID, void *data, size_t datalen,
                              RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -1284,15 +1331,38 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
     memset(&sr, 0, sizeof(sr));
 
     p_args = (RIL_SIM_IO_v6 *)data;
+    bool isISIMfile = isISIMFileId(p_args->fileid);
 
     /* FIXME handle pin2 */
     if (p_args->pin2 != NULL) {
         RLOGI("Reference-ril. requestSIM_IO pin2");
     }
     if (p_args->data == NULL) {
-        err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,%c,\"%s\"",
+        if (isISIMfile) {
+            if (s_sim_sessionId[socket_id] == -1) {
+                RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                goto error;
+            }
+            err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,%c,\"%s\"",
+                    s_sim_sessionId[getSocketIdByChannelID(channelID)],
+                    p_args->command, p_args->fileid,
+                    p_args->p1, p_args->p2, p_args->p3,pad_data,p_args->path);
+        }  else {
+            if (isISIMfile) {
+                if (s_sim_sessionId[socket_id] == -1) {
+                    RLOGE("s_simSessionId is -1, SIM_IO return ERROR");
+                    goto error;
+                }
+                err = asprintf(&cmd, "AT+CRLA=%d,%d,%d,%d,%d,%d,\"%s\",\"%s\"",
+                        s_sim_sessionId[getSocketIdByChannelID(channelID)],
+                        p_args->command, p_args->fileid,
+                        p_args->p1, p_args->p2, p_args->p3, p_args->data,p_args->path);
+            } else {
+                err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,\"%s\",\"%s\"",
                         p_args->command, p_args->fileid, p_args->p1, p_args->p2,
-                        p_args->p3, pad_data, p_args->path);
+                        p_args->p3, p_args->data, p_args->path);
+            }
+        }
     } else {
         err = asprintf(&cmd, "AT+CRSM=%d,%d,%d,%d,%d,\"%s\",\"%s\"",
                         p_args->command, p_args->fileid, p_args->p1, p_args->p2,
@@ -1304,7 +1374,7 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         goto error;
     }
 
-    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CRSM:",
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, isISIMfile ?"+CRLA:" : "+CRSM:",
                                      &p_response);
     free(cmd);
 
@@ -2077,6 +2147,10 @@ static int initISIM(int channelID) {
         if (err >= 0) {
             err = at_tok_nextint(&line, &s_imsInitISIM[socket_id]);
             RLOGD("Response of ISIM is %d", s_imsInitISIM[socket_id]);
+            if(s_imsInitISIM[socket_id] == 1) {
+                err = at_tok_nextint(&line, &s_sim_sessionId[socket_id]);
+                RLOGE("SessionId of ISIM is %d", s_sim_sessionId[socket_id]);
+            }
         }
     }
     at_response_free(p_response);
@@ -2144,8 +2218,6 @@ void notifySIMStatus(int channelID, void *data, RIL_Token t) {
     int onOff = ((int *)data)[0];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    s_simEnabled[socket_id] = onOff;
-
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
@@ -2157,8 +2229,6 @@ void requestSIMPower(int channelID, void *data, RIL_Token t) {
     int onOff = ((int *)data)[0];
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-    s_simEnabled[socket_id] = onOff;
 
     if (onOff == 0) {
         err = at_send_command(s_ATChannels[channelID], "AT+SPDISABLESIM=1",
@@ -2553,7 +2623,7 @@ static void requestGetSimLockWhiteList(int channelID, void *data,
         cmd = NULL;
         goto error;
     }
-    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+spsmnw:",
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPSMNW:",
                                          &p_response);
     free(cmd);
 
@@ -2725,14 +2795,15 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
     ATResponse *p_response = NULL;
 
     switch (request) {
-        case RIL_REQUEST_GET_SIM_STATUS: {
+        case RIL_REQUEST_GET_SIM_STATUS:
+        case RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS: {
             RIL_CardStatus_v6 *p_card_status;
             char *p_buffer;
             int buffer_size;
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
             sem_wait(&(s_sem[socket_id]));
-            int result = getCardStatus(channelID, &p_card_status);
+            int result = getCardStatus(request, channelID, &p_card_status);
             sem_post(&(s_sem[socket_id]));
 
             if (result == RIL_E_SUCCESS) {
@@ -2860,7 +2931,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             }
             break;
         }
-        case RIL_EXT_REQUEST_SIM_POWER:
+        case RIL_EXT_REQUEST_SIMMGR_SIM_POWER:
             notifySIMStatus(channelID, data, t);
             break;
         /* }@ */
@@ -2870,6 +2941,25 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2:
             requestSIMOpenChannelWITHP2(channelID, data, datalen, t);
             break;
+        case RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATE: {
+            p_response = NULL;
+            char *line;
+            int result;
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                    "AT+SPSLENABLED?", "+SPSLENABLED:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err == 0) {
+                    err = at_tok_nextint(&line, &result);
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(result));
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
@@ -2940,12 +3030,18 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                     if (err < 0) goto out;
                     if (cause == 2) {
                         s_simState[socket_id] = SIM_DROP;
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     } else if (cause == 34) {  // sim removed
                         s_simState[socket_id] = SIM_REMOVE;
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         RIL_requestTimedCallback(onSimAbsent,
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
@@ -2954,6 +3050,9 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                         RIL_onUnsolicitedResponse(
                                 RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,
                                 socket_id);
+                        RIL_onUnsolicitedResponse(
+                                RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
+                                0, socket_id);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
                     }
@@ -2964,6 +3063,10 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                 if (value == 4) {
                     RIL_requestTimedCallback(onSimlockLocked,
                             (void *)&s_socketId[socket_id], &TIMEVAL_CALLSTATEPOLL);
+                } else if (value == 100) {
+                    RIL_onUnsolicitedResponse(
+                            RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL, 0,
+                            socket_id);
                 }
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,
