@@ -2011,10 +2011,10 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
                 at_send_command(s_ATChannels[channelID], cmd, &p_response);
                 RLOGD("s_PDP[%d].state = %d", i, state);
                 putPDP(socket_id, i);
-                cgact_deact_cmd_rsp(cid);
+                cgact_deact_cmd_rsp(i + 1);
 
                 if (state == PDP_BUSY) {
-                    requestOrSendDataCallList(channelID, cid, NULL);
+                    requestOrSendDataCallList(channelID, i + 1, NULL);
                 }
 
                 AT_RESPONSE_FREE(p_response);
