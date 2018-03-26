@@ -10,12 +10,11 @@
 #include "sprd_ril.h"
 #include "ril_utils.h"
 #include "ril_data.h"
+#include "ril_network.h"
 #include "ril_stk_bip.h"
 #include "ril_stk_parser.h"
 
 extern StkContextList *s_stkContextList;
-
-#define STK_PHONE_ISIDLE_PROP        "persist.radio.phone.isidle"
 
 int sendTRData(int socket_id, char *data) {
     int ret = -1;
@@ -1016,9 +1015,11 @@ static void *openChannelThread(void *param) {
         return NULL;
     }
 
-    property_get(STK_PHONE_ISIDLE_PROP, phoneIdle, "true");
-    RLOGD("openChannelThread phoneMode: %s", phoneIdle);
-    if (strcmp(phoneIdle,"true") == 0) {
+    /* STK case27.22.4.27.2.8 :if the command is rejected because
+    * the class B terminal(Register State is 2g) is busy on a call
+    */
+    RLOGD("openChannelThread phoneRegisterState: %d", s_in2G[socket_id]);
+    if (s_in2G[socket_id]) {
         if (phoneIsIdle(socket_id)) {
             RLOGD("openchannel busy on call");
             sendChannelResponse(pstkContext, TERMINAL_CRNTLY_UNABLE_TO_PROCESS, socket_id);
