@@ -110,6 +110,7 @@ typedef struct OperatorInfoList {
 
 extern int s_presentSIMCount;
 extern int s_in4G[SIM_COUNT];
+extern int s_in2G[SIM_COUNT];
 extern int s_workMode[SIM_COUNT];
 extern int s_sessionId[SIM_COUNT];
 extern int s_desiredRadioState[SIM_COUNT];
