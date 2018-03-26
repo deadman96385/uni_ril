@@ -35,6 +35,7 @@ static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
 static int s_autoDetach = 1;  /* whether support auto detach */
+static int s_pdpType = IPV4V6;
 
 PDP_INFO pdp_info[MAX_PDP_NUM];
 pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -1375,6 +1376,13 @@ static int reuseDefaultBearer(int channelID, void *data,
                             getPDPByIndex(socket_id, i);
                             cgact_deact_cmd_rsp(cid);
                             AT_RESPONSE_FREE(p_response);
+                            if (strcmp(type, "IP") == 0) {
+                                s_pdpType = IPV4;
+                            } else if (strcmp(type, "IPV6") == 0){
+                                s_pdpType = IPV6;
+                            } else {
+                                s_pdpType = IPV4V6;
+                            }
                             char newCmd[AT_COMMAND_LEN] = {0};
                             char qosState[PROPERTY_VALUE_MAX] = {0};
                             snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
@@ -1476,6 +1484,7 @@ RETRY:
     } else {
         pdpType = "IP";
     }
+
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
     ret = reuseDefaultBearer(channelID, data, pdpType, t);
@@ -1806,6 +1815,7 @@ static bool isApnEqual(char *new, char *old) {
 static bool isProtocolEqual(char *new, char *old) {
     bool ret = false;
     if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(old, "IPV4V6") == 0 ||
         strcasecmp(new, old) == 0) {
         ret = true;
     }
@@ -3824,11 +3834,12 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                     }
 
                     if (ip_type_num > 1) {
-                        RLOGD("cgcontrdp_set_cmd_rsp: IPV4V6");
-                        pdp_info[cid - 1].ip_state = IPV4V6;
+                        RLOGD("cgcontrdp_set_cmd_rsp is IPV4V6, s_pdpType = %d", s_pdpType);
+                        pdp_info[cid - 1].ip_state = s_pdpType;
                         snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
-                                 prop, cid - 1, IPV4V6);
+                                 prop, cid - 1, s_pdpType);
                         system(cmd);
+                        s_pdpType = IPV4V6;
                     }
                     pdp_info[cid - 1].state = PDP_STATE_ACTIVE;
                     RLOGD("PDP_STATE_ACTIVE");
