@@ -105,6 +105,7 @@ int s_multiModeSim = 0;
 int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 int s_imsBearerEstablished[SIM_COUNT];
 int s_in4G[SIM_COUNT];
+int s_in2G[SIM_COUNT] = {0};
 int s_workMode[SIM_COUNT] = {0};
 int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
@@ -790,6 +791,13 @@ static void requestRegistrationState(int channelID, int request,
 
     if (response[3] != -1) {
         response[3] = mapCgregResponse(response[3]);
+        /* STK case27.22.4.27.2.8 :if the command is rejected because
+         * the class B terminal(Register State is 2g) is busy on a call
+         */
+        if (response[3] == RADIO_TECH_GPRS
+                || response[3] == RADIO_TECH_EDGE) {
+            s_in2G[socket_id] = 1;
+        }
         snprintf(res[3], sizeof(res[3]), "%d", response[3]);
         responseStr[3] = res[3];
     }
