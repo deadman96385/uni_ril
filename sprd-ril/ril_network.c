@@ -73,6 +73,7 @@ static pthread_mutex_t s_workModeMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_simPresentMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_presentSIMCountMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_physicalCellidMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_dsdaStatusMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t s_LTEAttachMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
 #if (SIM_COUNT >= 2)
@@ -3376,10 +3377,26 @@ static void radioPowerOnTimeout(void *param) {
     putChannel(channelID);
 }
 
+static void setPropForAsync(void *param) {
+    SetPropPara *propPara = (SetPropPara *)param;
+    if (propPara == NULL) {
+        RLOGE("Invalid param");
+        return;
+    }
+    RLOGD("setprop socketId:%d,name:%s value:%s mutex:%p",
+            propPara->socketId, propPara->propName, propPara->propValue, propPara->mutex);
+    pthread_mutex_lock(propPara->mutex);
+    setProperty(propPara->socketId, propPara->propName, propPara->propValue);
+    pthread_mutex_unlock(propPara->mutex);
+    RLOGD("setprop complete");
+    free(propPara->propName);
+    free(propPara->propValue);
+    free(propPara);
+}
+
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     char *line = NULL;
     int err;
-
     if (strStartsWith(s, "+CSQ:")) {
         if (s_isLTE) {
             goto out;
@@ -3581,9 +3598,8 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
     } else if (strStartsWith(s, "+SPPCI:")) {
         char *tmp;
-        int cid;
+        int cid, propNameLen, propValueLen;
         char phy_cellid[ARRAY_SIZE];
-
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -3593,9 +3609,22 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
         snprintf(phy_cellid, sizeof(phy_cellid), "%d", cid);
-        pthread_mutex_lock(&s_physicalCellidMutex);
-        setProperty(socket_id, PHYSICAL_CELLID_PROP, phy_cellid);
-        pthread_mutex_unlock(&s_physicalCellidMutex);
+        SetPropPara *cellIdPara = (SetPropPara *)calloc(1, sizeof(SetPropPara));
+        propNameLen = strlen(PHYSICAL_CELLID_PROP) + 1;
+        propValueLen = strlen(phy_cellid) + 1;
+        cellIdPara->socketId = socket_id;
+        cellIdPara->propName =
+                (char *)calloc(propNameLen, sizeof(char));
+        cellIdPara->propValue =
+                (char *)calloc(propValueLen, sizeof(char));
+        memcpy(cellIdPara->propName, PHYSICAL_CELLID_PROP, propNameLen);
+        memcpy(cellIdPara->propValue, phy_cellid, propValueLen);
+        cellIdPara->mutex = &s_physicalCellidMutex;
+        pthread_t tid;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_create(&tid, &attr, (void *)setPropForAsync, (void *)cellIdPara);
     } else if (strStartsWith(s, "+SPNWNAME:")) {
         /* NITZ operator name */
         char *tmp = NULL;
@@ -3657,7 +3686,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int response = 0;
         char *tmp = NULL;
         char status[AT_COMMAND_LEN] = {0};
-
+        int propNameLen, propValueLen;
         line = strdup(s);
         tmp = line;
 
@@ -3668,7 +3697,22 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (err < 0) goto out;
 
         snprintf(status, sizeof(status), "%d", response);
-        setProperty(socket_id, DSDA_STATUS_PROP, status);
+        SetPropPara *dsdaPara = (SetPropPara *)calloc(1, sizeof(SetPropPara));
+        propNameLen = strlen(DSDA_STATUS_PROP) + 1;
+        propValueLen = strlen(status) + 1;
+        dsdaPara->socketId = socket_id;
+        dsdaPara->propName =
+                (char *)calloc(propNameLen, sizeof(char));
+        dsdaPara->propValue =
+                (char *)calloc(propValueLen, sizeof(char));
+        memcpy(dsdaPara->propName, DSDA_STATUS_PROP, propNameLen);
+        memcpy(dsdaPara->propValue, status, propValueLen);
+        dsdaPara->mutex = &s_dsdaStatusMutex;
+        pthread_t tid;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_create(&tid, &attr, (void *)setPropForAsync, (void *)dsdaPara);
     } else {
         return 0;
     }

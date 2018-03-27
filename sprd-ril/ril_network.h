@@ -81,6 +81,13 @@ typedef struct OperatorInfoList {
     struct OperatorInfoList *prev;
 } OperatorInfoList;
 
+typedef struct SetPropPara {
+    int socketId;
+    char *propName;
+    char *propValue;
+    pthread_mutex_t *mutex;
+} SetPropPara;
+
 #define RIL_SIGNALSTRENGTH_INVALID 0x7FFFFFFF
 
 #define RIL_SIGNALSTRENGTH_INIT(ril_signalstrength) do {                                               \
