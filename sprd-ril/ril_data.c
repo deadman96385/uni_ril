@@ -1394,6 +1394,8 @@ static int reuseDefaultBearer(int channelID, void *data, const char *type, RIL_T
                             updatePDPCid(socket_id, i + 1, -1);
                             putPDPByIndex(socket_id, i);
                         } else if (cgdata_err == DATA_ACTIVE_NEED_RETRY) {
+                            /*bug849843 cSim1 data attach failed after call in dual LTE network mode*/
+                            putPDPByIndex(socket_id, i);
                             /*bug837360 cgdata during ps attach,pdp active fail*/
                             ret = -2;
                         } else {
