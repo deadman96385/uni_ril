@@ -971,6 +971,26 @@ error:
     return ret;
 }
 
+/*
+ * check if IPv6 address is begain with FE80,if yes,return Ipv6 address begin with 0000
+ */
+void checkIpv6Address(char *oldIpv6Address, char *newIpv6Address, int len) {
+    RLOGD("checkIpv6Address: old ipv6 address is: %s", oldIpv6Address);
+    if (oldIpv6Address == NULL) {
+        snprintf(newIpv6Address, len,"%s",
+                "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF");
+        return;
+    }
+    strncpy(newIpv6Address, oldIpv6Address, strlen(oldIpv6Address));
+    if (strncasecmp(newIpv6Address, "fe80:", sizeof("fe80:") - 1) == 0) {
+    char *temp = strchr(newIpv6Address, ':');
+       if (temp != NULL) {
+           snprintf(newIpv6Address, len, "0000%s", temp);
+       }
+    }
+    RLOGD("checkIpv6Address: ipv6 address is: %s",newIpv6Address);
+}
+
 static void requestOrSendDataCallList(int channelID, int cid,
                                            RIL_Token *t) {
     int err;
@@ -1267,6 +1287,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                             char cmd[AT_COMMAND_LEN] = {0};
                             char prop0[PROPERTY_VALUE_MAX] = {0};
                             char prop1[PROPERTY_VALUE_MAX] = {0};
+                            char ipv6Address[PROPERTY_VALUE_MAX] = {0};
                             if (!strcmp(responses[i].type, "IPV4V6")) {
                                 snprintf(cmd, sizeof(cmd), "net.%s%d.ip",
                                         eth, cid - 1);
@@ -1275,17 +1296,19 @@ static void requestOrSendDataCallList(int channelID, int cid,
                                 snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip",
                                         eth, cid - 1);
                                 property_get(cmd, prop1, NULL);
+                                checkIpv6Address(prop1, ipv6Address, sizeof(ipv6Address));
                                 snprintf(cmd, sizeof(cmd),
                                           "AT+XCAPIP=%d,\"%s,[%s]\"", cid,
-                                          prop0, prop1);
+                                          prop0, ipv6Address);
                             } else if (!strcmp(responses[i].type, "IP")) {
                                 snprintf(cmd, sizeof(cmd),
                                     "AT+XCAPIP=%d,\"%s,[FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF]\"",
                                     cid, responses[i].addresses);
                             } else {
+                                checkIpv6Address(responses[i].addresses, ipv6Address, sizeof(ipv6Address));
                                 snprintf(cmd, sizeof(cmd),
                                         "AT+XCAPIP=%d,\"0.0.0.0,[%s]\"", cid,
-                                        responses[i].addresses);
+                                        ipv6Address);
                             }
                             at_send_command(s_ATChannels[channelID], cmd, NULL);
                             s_addedIPCid = responses[i].cid;
@@ -2434,6 +2457,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             char *index = ((char **)data)[0];
             char *ipv4 = ((char **)data)[1];
             char *ipv6 = ((char **)data)[2];
+            char ipv6Address[PROPERTY_VALUE_MAX] = {0};
             RLOGD("index = %s", index);
             /* send IP for volte addtional business */
             if (s_isLTE && index != NULL) {
@@ -2444,8 +2468,9 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 if (ipv6 == NULL || strlen(ipv6) <= 0) {
                     ipv6 = "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF";
                 }
+                checkIpv6Address(ipv6, ipv6Address, sizeof(ipv6Address));
                 snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"",
-                          atoi(index) + 1, ipv4, ipv6);
+                          atoi(index) + 1, ipv4, ipv6Address);
                 at_send_command(s_ATChannels[channelID], cmd, NULL);
             }
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
