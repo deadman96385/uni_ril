@@ -583,6 +583,7 @@ static void *processBipClient(void *param) {
     socket_id = pBipClient->socket_id;
 
     pResMsg = (CatResponseMessageSprd *)calloc(1, sizeof(CatResponseMessageSprd));
+    rilMessage = (RilMessage *)calloc(1, sizeof(RilMessage));
     berTlv = (BerTlv *)calloc(1, sizeof(BerTlv));
 
     switch (parseProCommand(rawData, length, berTlv)) {
@@ -620,8 +621,6 @@ static void *processBipClient(void *param) {
      }
 
      cmdType = cmdDet->typeOfCommand;
-
-     rilMessage = (RilMessage *)calloc(1, sizeof(RilMessage));
 
      switch (cmdType) {
         case OPEN_CHANNEL: {
