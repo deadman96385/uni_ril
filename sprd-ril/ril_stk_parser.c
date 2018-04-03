@@ -134,7 +134,7 @@ int parseProCommand(const char * const rawData, const int length, BerTlv *berTlv
         proCmdLen = temp;
     } else if (temp == 0x81) {
         temp = *(pStr++) & 0xff;
-        if (temp < 0x81) {
+        if (temp < 0x80) {
             ret = CMD_DATA_NOT_UNDERSTOOD;
             goto EXIT;
         }
