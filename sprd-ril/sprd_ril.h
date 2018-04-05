@@ -106,6 +106,7 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t);
 #endif
 
 extern bool s_isLTE;
+extern bool s_isFirstPowerOn;
 extern int s_modemConfig;
 extern int s_roModemConfig;
 extern int s_multiModeSim;

@@ -110,6 +110,7 @@ bool s_isUserdebug = false;
 int s_modemConfig = 0;
 int s_roModemConfig = 0;
 int s_isSimPresent[SIM_COUNT];
+bool s_isFirstPowerOn = false;
 const char *s_modem = NULL;
 const struct RIL_Env *s_rilEnv;
 const struct timeval TIMEVAL_CALLSTATEPOLL = {0, 500000};
@@ -1447,6 +1448,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
+
+    s_isFirstPowerOn = true;
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);

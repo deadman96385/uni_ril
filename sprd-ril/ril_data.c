@@ -1959,6 +1959,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     response->password = (char *)calloc(ARRAY_SIZE, sizeof(char));
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+    RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+
     if (data != NULL) {
         RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
         if (s_isLTE) {
@@ -1966,10 +1969,8 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             ret = compareApnProfile(pIAApn, response);
             if (ret > 0) {
                 if(ret == 2){  // esm flag = 0, both apn and protocol are empty.
-                    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
-                    RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
-                    if(atoi(manualAttachProp)){
-                        at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+                    if(!strcmp(manualAttachProp, "1") && (s_roModemConfig == LWG_LWG || socket_id == s_multiModeSim)){
+                        at_send_command(s_ATChannels[channelID], "AT+CGATT=1", NULL);
                     }
                 } else {
                     RLOGD("send APN information even though apn is same with network");
@@ -1978,6 +1979,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 goto done;
             } else {
                 setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
+                if(!strcmp(manualAttachProp, "1") && (s_roModemConfig == LWG_LWG || socket_id == s_multiModeSim)){
+                    at_send_command(s_ATChannels[channelID], "AT+CGATT=1", NULL);
+                }
             }
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);

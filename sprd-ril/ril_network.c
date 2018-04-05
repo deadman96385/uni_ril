@@ -1163,6 +1163,14 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             goto error;
         }
         initWorkMode();
+
+        property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+        RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+        if(!strcmp(manualAttachProp, "1") && s_isFirstPowerOn && (s_roModemConfig == LWG_LWG || socket_id == s_multiModeSim)){
+            at_send_command(s_ATChannels[channelID], "AT+SPMANUATTACH=1", NULL);
+            s_isFirstPowerOn = false;
+        }
+
         buildWorkModeCmd(cmd, sizeof(cmd));
 
 #if (SIM_COUNT == 2)
@@ -1232,12 +1240,14 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                     snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
                     at_send_command(s_ATChannels[channelID], cmd, NULL);
                 } else {
-                    err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
-                                          &p_response);
-                    if (err < 0 || p_response->success == 0) {
-                        RLOGE("GPRS auto attach failed!");
+                    if(!strcmp(manualAttachProp, "0")){
+                        err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
+                                              &p_response);
+                        if (err < 0 || p_response->success == 0) {
+                            RLOGE("GPRS auto attach failed!");
+                        }
+                        AT_RESPONSE_FREE(p_response);
                     }
-                    AT_RESPONSE_FREE(p_response);
                 }
             }
 #if defined (ANDROID_MULTI_SIM)
@@ -1259,26 +1269,28 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                 }
             }
 #endif
-            property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
-            RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
-            snprintf(cmd, sizeof(cmd), "AT+SPLTEMANUATT=%s", manualAttachProp);
-            at_send_command(s_ATChannels[channelID], cmd, NULL);
 
         } else {
 #if defined (ANDROID_MULTI_SIM)
             if (s_presentSIMCount == 2) {
                 if (s_workMode[socket_id] != GSM_ONLY) {
-                    at_send_command(s_ATChannels[channelID],
-                            "AT+SAUTOATT=1", NULL);
+                    if(!strcmp(manualAttachProp, "0")){
+                        at_send_command(s_ATChannels[channelID],
+                                "AT+SAUTOATT=1", NULL);
+                    }
                 } else {
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=0", NULL);
                 }
             } else {
-                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+                if(!strcmp(manualAttachProp, "0")){
+                    at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+                }
             }
 #else
-            at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+            if(!strcmp(manualAttachProp, "0")){
+                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+            }
 #endif
         }
 
