@@ -143,6 +143,7 @@ char RIL_SP_SIM_PIN_PROPERTYS[128]; // ril.*.sim.pin* --ril.*.sim.pin1 or ril.*.
 
 #define MAX_AT_RESPONSE 0x1000
 
+#define PROP_SIM_OPERATOR_NUMERIC "gsm.sim.operator.numeric"
 int s_isuserdebug = 0;
 
 int modem;
@@ -3603,6 +3604,8 @@ static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_
 
 RETRY:
     bLteDetached = false;
+    property_get(PROP_SIM_OPERATOR_NUMERIC, prop,"0");
+    RILLOGD("sim operator numeric = %s", prop);
     if (IsLte && s_testmode != 10) {
         queryAllActivePDN(channelID);
         if (activePDN > 0) {
@@ -3617,7 +3620,9 @@ RETRY:
                     }
                     if (i < MAX_PDP
                             && (!strcasecmp(getPDNAPN(i), apn)
-                                    || !strcasecmp(strApnName, apn)) && (getPDPState(i) == PDP_IDLE)) {
+                                    || !strcasecmp(strApnName, apn)) && (getPDPState(i) == PDP_IDLE)
+                                    || (strcmp(prop, "41312") == 0)
+                                    || (strcmp(prop, "41311") == 0)) {
                         RILLOGD("Using default PDN");
                         primaryindex = i;
                         getPDPByIndex(i);
@@ -10806,6 +10811,12 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
             }
         case RIL_REQUEST_SET_INITIAL_ATTACH_APN:
         {
+            char prop[PROPERTY_VALUE_MAX] = {0};
+            property_get(PROP_SIM_OPERATOR_NUMERIC, prop,"0");
+            RILLOGD("sim operator numeric = %s", prop);
+        if ((strcmp(prop, "41312") == 0) || (strcmp(prop, "41311") == 0)) {
+            break;
+        }
         char cmd[128] = { 0 };
         char qos_state[PROPERTY_VALUE_MAX] = { 0 };
         int initial_attach_id = 1;
