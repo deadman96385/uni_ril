@@ -906,6 +906,18 @@ int setDualVolteStateResponse(int slotId, int responseType, int serial,
                               RIL_Errno e, void *response, size_t responseLen);
 int setLocalToneResponse(int slotId, int responseType, int serial,
                               RIL_Errno e, void *response, size_t responseLen);
+int updatePlmnPriorityResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+int queryPlmnResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+
+int setSimPowerRealResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+
+/*********************SPRD ATCI REQUESTs' responseFunction******************/
+
+int vsimSendCmdResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int videoPhoneCodecInd(int slotId, int indicationType, int token,
@@ -956,7 +968,7 @@ int bandInfoInd(int slotId, int indicationType, int token,
 int switchPrimaryCardInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
 
-int simPSRejectInd(int slotId, int indicationType, int token,
+int networkErrorCodeInd(int slotId, int indicationType, int token,
                    RIL_Errno e, void *response, size_t responseLen);
 
 int simMgrSimStatusChangedInd(int slotId, int indicationType, int token,
@@ -965,6 +977,11 @@ int simMgrSimStatusChangedInd(int slotId, int indicationType, int token,
 int radioCapabilityChangedInd(int slotId, int indicationType, int token,
                               RIL_Errno e, void *response, size_t responseLen);
 int earlyMediaInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
+int availableNetworksInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
+/*******************ATC EXTENSION REQUESTs' responseFunction******************/
+int vsimRSimReqInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
 /*******************IMS EXTENSION REQUESTs' responseFunction******************/
 

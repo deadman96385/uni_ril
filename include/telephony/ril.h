@@ -102,6 +102,7 @@ extern "C" {
 #define MAX_CHANNELS 32
 #define MAX_RADIO_ACCESS_NETWORKS 8
 
+#define MIFI_PRODUCT_PROP   "persist.radio.mifi.product"
 
 typedef void * RIL_Token;
 
@@ -2364,6 +2365,7 @@ typedef enum {
     PRIMARY_TD_AND_WCDMA = 20,
     TD_LTE_AND_LTE_FDD_AND_GSM = 21,
     PRIMARY_WCDMA_AND_GSM = 22,
+    TD_LTE_AND_LTE_FDD_WCDMA_TD = 24,
     NONE = 254,
     TD_AND_WCDMA = 255,
 } RadioFeatures;
@@ -7278,7 +7280,10 @@ typedef enum {
 #define RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT (RIL_EXT_REQUEST_BASE + 52)
 #define RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE        (RIL_EXT_REQUEST_BASE + 53)
 #define RIL_EXT_REQUEST_SET_LOCAL_TONE              (RIL_EXT_REQUEST_BASE + 54)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SET_LOCAL_TONE
+#define RIL_EXT_REQUEST_UPDATE_PLMN                 (RIL_EXT_REQUEST_BASE + 55)
+#define RIL_EXT_REQUEST_QUERY_PLMN                  (RIL_EXT_REQUEST_BASE + 56)
+#define RIL_EXT_REQUEST_SIM_POWER_REAL              (RIL_EXT_REQUEST_BASE + 57)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SIM_POWER_REAL
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -7301,8 +7306,19 @@ typedef enum {
 #define RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED     (RIL_EXT_UNSOL_RESPONSE_BASE + 17)
 #define RIL_EXT_UNSOL_RADIO_CAPABILITY_CHANGED      (RIL_EXT_UNSOL_RESPONSE_BASE + 18)
 #define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 19)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
+#define RIL_EXT_UNSOL_SPUCOPS_LIST                  (RIL_EXT_UNSOL_RESPONSE_BASE + 20)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SPUCOPS_LIST
+/*****************************************************************************/
 
+
+/*****************************ATC SOCKET REQUEST******************************/
+#define RIL_ATC_REQUEST_BASE                        6000
+#define RIL_ATC_REQUEST_VSIM_SEND_CMD              (RIL_ATC_REQUEST_BASE + 1)
+#define RIL_ATC_REQUEST_LAST                        RIL_ATC_REQUEST_VSIM_SEND_CMD
+
+#define RIL_ATC_UNSOL_RESPONSE_BASE                 7000
+#define RIL_ATC_UNSOL_VSIM_RSIM_REQ                 (RIL_ATC_UNSOL_RESPONSE_BASE + 0)
+#define RIL_ATC_UNSOL_RESPONSE_LAST                 RIL_ATC_UNSOL_VSIM_RSIM_REQ
 /*****************************************************************************/
 
 /*****************************************************************************/

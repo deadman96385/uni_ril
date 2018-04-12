@@ -58,7 +58,8 @@ typedef enum {
     OEM_SERVICE,
     RADIO_SERVICE,
     RADIOINTERACTOR_SERVICE,
-    IMS_SERVICE
+    IMS_SERVICE,
+    ATC_SERVICE
 } serviceType;
 
 RIL_RadioFunctions *s_vendorFunctions = NULL;
@@ -139,6 +140,9 @@ struct RadioImpl : public IExtRadio {
     sp<IIMSRadioResponse> mIMSRadioResponse;
     sp<IIMSRadioIndication> mIMSRadioIndication;
 
+    sp<IAtcRadioResponse> mAtcRadioResponse;
+    sp<IAtcRadioIndication> mAtcRadioIndication;
+
     Return<void> setResponseFunctions(
             const ::android::sp<IRadioResponse>& radioResponse,
             const ::android::sp<IRadioIndication>& radioIndication);
@@ -150,6 +154,10 @@ struct RadioImpl : public IExtRadio {
     Return<void> setIMSResponseFunctions(
             const ::android::sp<IIMSRadioResponse>& radioResponse,
             const ::android::sp<IIMSRadioIndication>& radioIndication);
+
+    Return<void> setAtcResponseFunctions(
+            const ::android::sp<IAtcRadioResponse>& radioResponse,
+            const ::android::sp<IAtcRadioIndication>& radioIndication);
 
     Return<void> sendCmdSync(int32_t phoneId,
             const ::android::hardware::hidl_string& cmd, sendCmdSync_cb _hidl_cb);
@@ -604,6 +612,13 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setLocalTone(int32_t serial, int32_t state);
 
+    Return<void> queryPlmn(int32_t serial, int32_t type);
+
+    Return<void> updatePlmnPriority(int32_t serial, int32_t type, int32_t action, int32_t plmn,
+            int32_t act1, int32_t act2, int32_t act3);
+
+    Return<void> setSimPowerReal(int32_t serial, bool enable);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -683,6 +698,8 @@ struct RadioImpl : public IExtRadio {
             const ::android::hardware::hidl_string& appId);
 
     Return<void> getImsRegAddress(int32_t serial);
+
+    Return<void> vsimSendCmd(int32_t serial, int32_t phoneId, const ::android::hardware::hidl_string& cmd);
 };
 
 struct OemHookImpl : public IOemHook {
@@ -9672,6 +9689,30 @@ Return<void> RadioImpl::setLocalTone(int32_t serial, int32_t state) {
     return Void();
 }
 
+Return<void> RadioImpl::queryPlmn(int32_t serial, int32_t type) {
+#if VDBG
+    RLOGD("queryPlmn: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_QUERY_PLMN, 1, type);
+    return Void();
+}
+
+Return<void> RadioImpl::updatePlmnPriority(int32_t serial, int32_t type, int32_t action, int32_t plmn,
+        int32_t act1, int32_t act2, int32_t act3) {
+#if VDBG
+    RLOGD("updatePlmn: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_UPDATE_PLMN, 6, type, action, plmn, act1, act2, act3);
+    return Void();
+}
+
+Return<void> RadioImpl::setSimPowerReal(int32_t serial, bool enable) {
+#if VDBG
+    RLOGD("setSimPowerReal: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SIM_POWER_REAL, 1, BOOL_TO_INT(enable));
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10881,6 +10922,85 @@ int radio::setLocalToneResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::updatePlmnPriorityResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("updatePlmnPriorityResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                updatePlmnPriorityResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("updatePlmnPriorityResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::queryPlmnResponse(int slotId, int responseType, int serial,
+                         RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("queryPlmnResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                queryPlmnResponse(responseInfo, convertCharPtrToHidlString((char *)response));
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("queryPlmnResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setSimPowerRealResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setSimPowerRealResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setSimPowerRealResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("simPowerResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+/*********************SPRD ATCI REQUESTs' responseFunction******************/
+int radio::vsimSendCmdResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("vsimSendCmdResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mAtcRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mAtcRadioResponse->
+                vsimSendCmdResponse(responseInfo, convertCharPtrToHidlString((char *)response));
+        radioService[slotId]->checkReturnStatus(retStatus, ATC_SERVICE);
+    } else {
+        RLOGE("vsimSendCmdResponse: radioService[%d]->mAtcRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
 int radio::videoPhoneCodecInd(int slotId, int indicationType, int token,
@@ -11234,17 +11354,28 @@ int radio::switchPrimaryCardInd(int slotId, int indicationType,
     return 0;
 }
 
-int radio::simPSRejectInd(int slotId, int indicationType, int token,
+int radio::networkErrorCodeInd(int slotId, int indicationType, int token,
                           RIL_Errno e, void *response, size_t responseLen) {
     if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen % sizeof(int) != 0) {
+            RLOGE("videoPhoneRemoteMediaInd: invalid response");
+            return 0;
+        }
 #if VDBG
-        RLOGD("simPSRejectInd");
+        RLOGD("networkErrorCodeInd");
 #endif
+        hidl_vec<int32_t> data;
+        int *pInt = (int *)response;
+        int numInts = responseLen / sizeof(int);
+        data.resize(numInts);
+        for (int i = 0; i < numInts; i++) {
+            data[i] = (int32_t)pInt[i];
+        }
         Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
-                simPSRejectInd(convertIntToRadioIndicationType(indicationType));
+                networkErrorCodeInd(convertIntToRadioIndicationType(indicationType), data);
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("simPSRejectInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+        RLOGE("networkErrorCodeInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -11301,6 +11432,78 @@ int radio::earlyMediaInd(int slotId, int indicationType,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("earlyMediaInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::availableNetworksInd(int slotId, int indicationType, int token,
+                                        RIL_Errno e, void *response,
+                                        size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen % sizeof(char *) != 0) {
+            RLOGE("availableNetworksInd: invalid response");
+            return 0;
+        }
+#if VDBG
+        RLOGD("availableNetworksInd");
+#endif
+        hidl_vec<hidl_string> data;
+
+        char **resp = (char **)response;
+        int numStrings = responseLen / sizeof(char *);
+        data.resize(numStrings);
+        for (int i = 0; i < numStrings; i++) {
+           data[i] = convertCharPtrToHidlString(resp[i]);
+        }
+
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                availableNetworksInd(convertIntToRadioIndicationType(indicationType),
+                        data);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("availableNetworksInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
+
+/***************************ATC EXTENSION REQUEST*****************************/
+Return<void> RadioImpl::setAtcResponseFunctions(
+        const ::android::sp<IAtcRadioResponse>& radioResponse,
+       const ::android::sp<IAtcRadioIndication>& radioIndication) {
+    RLOGD("setAtcResponseFunctions");
+
+    pthread_rwlock_t *radioServiceRwlockPtr = radio::getRadioServiceRwlock(mSlotId);
+    int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
+    assert(ret == 0);
+
+    mAtcRadioResponse = radioResponse;
+    mAtcRadioIndication = radioIndication;
+
+    ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
+    assert(ret == 0);
+
+    return Void();
+}
+
+/**************SPRD ATC UNSOL RESPONSEs' responsFunction****************/
+int radio::vsimRSimReqInd(int slotId, int indicationType, int token,
+                       RIL_Errno e, void *response, size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mAtcRadioIndication != NULL) {
+        if (response == NULL || responseLen == 0) {
+            RLOGE("vsimRSimReqInd: invalid response");
+            return 0;
+        }
+#if VDBG
+        RLOGD("vsimRSimReqInd");
+#endif
+        Return<void> retStatus = radioService[slotId]->mAtcRadioIndication->
+                vsimRSimReqInd(convertIntToRadioIndicationType(indicationType),
+                            convertCharPtrToHidlString((char *)response));
+        radioService[slotId]->checkReturnStatus(retStatus, ATC_SERVICE);
+    } else {
+        RLOGE("vsimRSimReqInd: radioService[%d]->mAtcRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -11873,6 +12076,15 @@ Return<void> RadioImpl::getImsRegAddress(int32_t serial) {
     RLOGD("getImsRegAddress: serial %d", serial);
 #endif
     dispatchVoid(serial, mSlotId, RIL_REQUEST_IMS_REGADDR);
+    return Void();
+}
+
+Return<void> RadioImpl::vsimSendCmd(int32_t serial, int32_t phoneId,
+        const ::android::hardware::hidl_string& cmd) {
+#if VDBG
+    RLOGD("vsimSendCmd: serial %d", serial);
+#endif
+    dispatchString(serial, mSlotId, RIL_ATC_REQUEST_VSIM_SEND_CMD, cmd.c_str());
     return Void();
 }
 

@@ -2599,6 +2599,74 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_UPDATE_PLMN: {
+            char cmd[AT_COMMAND_LEN] = {0};
+            int type = ((int*)data)[0];
+            int action = ((int*)data)[1];
+            int plmn = ((int*)data)[2];
+            int act1 = ((int*)data)[3];
+            int act2 = ((int*)data)[4];
+            int act3 = ((int*)data)[5];
+            p_response = NULL;
+            if (type == 0) {
+                if (action == 0 || action == 1) {
+                    snprintf(cmd, sizeof(cmd), "AT+CUFP=%d,\"%d\"", action, plmn);
+                } else if (action == 2) {
+                    snprintf(cmd, sizeof(cmd), "AT+SPSELMODE=1");
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    break;
+                }
+            } else if (type == 1) {
+                if (action == 1) {
+                    snprintf(cmd, sizeof(cmd), "AT+CPOL=0,2,\"%d\",%d,,%d,%d", plmn, act1, act2, act3);
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    break;
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
+        case RIL_EXT_REQUEST_QUERY_PLMN: {
+            int i = -1;
+            int type = ((int*)data)[0];
+            char response[MAX_AT_RESPONSE] = {0};
+            char *line = NULL;
+            ATLine *p_cur = NULL;
+            p_response = NULL;
+            if (type != 1) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+            err = at_send_command_multiline(s_ATChannels[channelID], "AT+CPOL?",
+                                             "+CPOL:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                for (i = 0, p_cur = p_response->p_intermediates; p_cur != NULL;
+                     p_cur = p_cur->p_next, i++) {
+                    line = p_cur->line;
+                    at_tok_start(&line);
+                    skipWhiteSpace(&line);
+                    strlcat(response, line, sizeof(response));
+                    strlcat(response, ";", sizeof(response));
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response) + 1);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default :
             ret = 0;
             break;
@@ -2914,6 +2982,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int type;
         int errCode;
         char *tmp;
+        int response[2];
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
 
@@ -2931,7 +3000,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
                                       0, socket_id);
         }
-        if ((type == 5) && (s_ussdRun[socket_id] == 1)) { // 5: for SS
+        /*if ((type == 5) && (s_ussdRun[socket_id] == 1)) { // 5: for SS
             s_ussdError[socket_id] = 1;
         } else if (type == 10) { // ps business in this sim is rejected by network
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
@@ -2943,6 +3012,19 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, NULL, 0,
                         socket_id);
             }
+        }*/
+        if (type == 5) { // 5: for SS
+            if (s_ussdRun[socket_id] == 1) {
+                 s_ussdError[socket_id] = 1;
+            }
+        } else {
+            if (type == 1) {
+                setProperty(socket_id, "ril.sim.ps.reject", "1");
+            }
+            response[0] = type;
+            response[1] = errCode;
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
+                                            socket_id);
         }
     } else if (strStartsWith(s, "+SPSWAPCARD:")) {
         int id = 0;
@@ -2960,6 +3042,66 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("%s fail", s);
         }
         RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD, (void *)&id, sizeof(int), socket_id);
+    }  else if (strStartsWith(s, "SPUCOPSLIST:")) {
+        int i = 0;
+        int tok = 0;
+        int count = 0;
+        char *tmp = NULL;
+        char *checkTmp = NULL;
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+        skipWhiteSpace(&tmp);
+        checkTmp = tmp;
+        int len = strlen(checkTmp);
+
+        while (len--) {
+            if (*checkTmp == '(')
+                tok++;
+            if (*checkTmp  == ')') {
+                if (tok == 1) {
+                    count++;
+                    tok--;
+                }
+            }
+            if (*checkTmp != 0)
+                checkTmp++;
+        }
+        RLOGD("Searched available cops list numbers = %d\n", count);
+
+        char **responseStr = calloc(count, sizeof(char*));
+        for (i=0; i < count; i++) {
+            responseStr[i] = calloc(ARRAY_SIZE, sizeof(char));
+        }
+        i = 0;
+        while ((i++ < count) && (tmp = strchr(tmp, '(')) ) {
+            int stat1 = 0;
+            int stat2 = 0;
+            int stat3 = 0;
+            char statChr[20] = {0};
+            char *strChr = statChr;
+
+            tmp++;
+            err = at_tok_nextstr(&tmp, &strChr);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat1);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat2);
+            if (err < 0) continue;
+
+            err = at_tok_nextint(&tmp, &stat3);
+            if (err < 0) continue;
+
+            snprintf(responseStr[i-1], ARRAY_SIZE * sizeof(char), "%s-%d-%d-%d", strChr, stat1, stat2, stat3);
+        }
+        RIL_onUnsolicitedResponse (RIL_EXT_UNSOL_SPUCOPS_LIST, responseStr, count * sizeof(char *), socket_id);
+done:
+        for (i=0; i < count; i++) {
+            free(responseStr[i]);
+        }
+        free(responseStr);
     } else {
         ret = 0;
     }
