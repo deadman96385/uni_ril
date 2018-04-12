@@ -11,5 +11,6 @@ typedef struct {
 extern MemoryManager s_memoryManager[];
 extern MemoryManager s_oemMemoryManager[];
 extern MemoryManager s_imsMemoryManager[];
+extern MemoryManager s_atcMemoryManager[];
 
 #endif  // RIL_THREADS_H_

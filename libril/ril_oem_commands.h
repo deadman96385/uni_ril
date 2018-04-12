@@ -57,3 +57,6 @@
     {RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT, radio::callMediaChangeRequestTimeOutResponse},
     {RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE, radio::setDualVolteStateResponse},
     {RIL_EXT_REQUEST_SET_LOCAL_TONE, radio::setLocalToneResponse},
+    {RIL_EXT_REQUEST_UPDATE_PLMN, radio::updatePlmnPriorityResponse},
+    {RIL_EXT_REQUEST_QUERY_PLMN, radio::queryPlmnResponse},
+    {RIL_EXT_REQUEST_SIM_POWER_REAL, radio::setSimPowerRealResponse},

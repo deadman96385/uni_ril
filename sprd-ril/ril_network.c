@@ -1795,6 +1795,9 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                     }
                 }
                 break;
+            case NETWORK_MODE_LTE_WCDMA:
+                type = TD_LTE_AND_LTE_FDD_WCDMA_TD;
+                break;
             default:
                 break;
         }

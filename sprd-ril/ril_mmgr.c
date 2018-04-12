@@ -48,6 +48,9 @@ MemoryManager s_oemMemoryManager[] = {
 MemoryManager s_imsMemoryManager[] = {
 #include "ril_ims_mmgr.h"
 };
+MemoryManager s_atcMemoryManager[] = {
+#include "ril_atc_mmgr.h"
+};
 
 static void memsetString(char *s) {
     if (s != NULL) {

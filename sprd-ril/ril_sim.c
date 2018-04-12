@@ -3045,6 +3045,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
             break;
+        case RIL_EXT_REQUEST_SIM_POWER_REAL:
+            requestSIMPower(channelID, data, NULL);
+            break;
         default:
             return 0;
     }
@@ -3125,14 +3128,20 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                                 (void *)&s_socketId[socket_id], NULL);
                         // sim hot plug out and set stk to not enable
                         s_stkServiceRunning[socket_id] = false;
-                    } else if (cause == 34) {  // sim removed
+                    } else if (cause == 34 || cause == 25) {  // sim removed or turn off
                         RIL_onUnsolicitedResponse(
                                 RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL,
                                 0, socket_id);
-                        RIL_requestTimedCallback(onSimAbsent,
-                                (void *)&s_socketId[socket_id], NULL);
-                        // sim hot plug out and set stk to not enable
-                        s_stkServiceRunning[socket_id] = false;
+                        if (cause == 34) {
+                            RIL_requestTimedCallback(onSimAbsent,
+                                    (void *)&s_socketId[socket_id], NULL);
+                            // sim hot plug out and set stk to not enable
+                            s_stkServiceRunning[socket_id] = false;
+                        }else if (cause == 25) {
+                            RIL_onUnsolicitedResponse(
+                                      RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
+                                      NULL, 0, socket_id);
+                        }
                     } else if (cause == 1 || cause == 7) {  // no sim card
                         RIL_onUnsolicitedResponse(
                                 RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0,

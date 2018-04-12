@@ -215,6 +215,16 @@ static UnsolResponseInfo s_oemUnsolResponses[] = {
 };
 /* }@ */
 
+/* VSIM Request @{ */
+static CommandInfo s_atcCommands[] = {
+#include "ril_atc_commands.h"
+};
+
+static UnsolResponseInfo s_atcUnsolResponses[] = {
+#include "ril_atc_unsol_commands.h"
+};
+/* }@ */
+
 char * RIL_getServiceName() {
     return ril_service_name;
 }
@@ -268,6 +278,9 @@ addRequestToList(int serial, int slotId, int request) {
     } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
         request = request - RIL_EXT_REQUEST_BASE;
         pRI->pCI = &(s_oemCommands[request]);
+    } else if (request > RIL_ATC_REQUEST_BASE && request <= RIL_ATC_REQUEST_LAST) {
+        request = request - RIL_ATC_REQUEST_BASE;
+        pRI->pCI = &(s_atcCommands[request]);
     }
 
     pRI->token = serial;
@@ -805,7 +818,9 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
                  && unsolResponse < RIL_IMS_UNSOL_RESPONSE_BASE)
         || (unsolResponse > RIL_IMS_UNSOL_RESPONSE_LAST
                 && unsolResponse < RIL_EXT_UNSOL_RESPONSE_BASE)
-        || (unsolResponse > RIL_EXT_UNSOL_RESPONSE_LAST)) {
+        || (unsolResponse > RIL_EXT_UNSOL_RESPONSE_LAST
+                && unsolResponse < RIL_ATC_REQUEST_BASE)
+        || (unsolResponse > RIL_ATC_UNSOL_RESPONSE_LAST)) {
         RLOGE("unsupported unsolicited response code %d", unsolResponse);
         return;
     }
@@ -822,6 +837,10 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
             && unsolResponse <= RIL_EXT_UNSOL_RESPONSE_LAST) {
         unsolResponseIndex = unsolResponse - RIL_EXT_UNSOL_RESPONSE_BASE;
         pURI = &(s_oemUnsolResponses[unsolResponseIndex]);
+    } else if (unsolResponse >= RIL_ATC_REQUEST_BASE
+            && unsolResponse <= RIL_ATC_UNSOL_RESPONSE_LAST) {
+        unsolResponseIndex = unsolResponse - RIL_ATC_REQUEST_BASE;
+        pURI = &(s_atcUnsolResponses[unsolResponseIndex]);
     }
 
     // Grab a wake lock if needed for this reponse,
@@ -1302,6 +1321,10 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT: return "CALL_MEDIA_CHANGE_REQUEST_TIMEOUT";
         case RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE: return "SET_DUAL_VOLTE_STATE";
         case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
+        case RIL_EXT_REQUEST_UPDATE_PLMN: return "UPDATE_PLMN";
+        case RIL_EXT_REQUEST_QUERY_PLMN: return "QUERY_PLMN";
+        case RIL_EXT_REQUEST_SIM_POWER_REAL: return "REQUEST_SIM_POWER_REAL";
+        case RIL_ATC_REQUEST_VSIM_SEND_CMD: return "REQUEST_VSIM_SEND_CMD";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -1379,6 +1402,8 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SWITCH_PRIMARY_CARD: return "UNSOL_SWITCH_PRIMARY_CARD";
         case RIL_EXT_UNSOL_SIM_PS_REJECT: return "UNSOL_SIM_PS_REJECT";
         case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_SPUCOPS_LIST: return "UNSOL_SPUCOPS_LIST";
+        case RIL_ATC_UNSOL_VSIM_RSIM_REQ: return "UNSOL_VSIM_RSIM_REQ";
 //        case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
         default: return "<unknown request>";
     }

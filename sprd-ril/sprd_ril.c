@@ -279,7 +279,9 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
           request == RIL_EXT_REQUEST_SEND_CMD ||
           request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
-          request == RIL_EXT_REQUEST_SHUTDOWN)) {
+          request == RIL_EXT_REQUEST_SHUTDOWN ||
+          request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
+          request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -393,7 +395,9 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_SEND_CMD ||
                  request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
                  request == RIL_EXT_REQUEST_SHUTDOWN ||
-                 request == RIL_EXT_REQUEST_SET_VOICE_DOMAIN)) {
+                 request == RIL_EXT_REQUEST_SET_VOICE_DOMAIN ||
+                 request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
+                 request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -426,7 +430,11 @@ done:
     } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
         request = request - RIL_EXT_REQUEST_BASE;
         pMC = &(s_oemMemoryManager[request]);
+    } else if (request > RIL_ATC_REQUEST_BASE && request <= RIL_ATC_REQUEST_LAST) {
+        request = request - RIL_ATC_REQUEST_BASE;
+        pMC = &(s_atcMemoryManager[request]);
     }
+
     if (pMC != NULL) {
         pMC->freeFunction(data, datalen);
     } else {
@@ -712,7 +720,15 @@ static void onSIMReady(int channelID) {
      * ds = 1   // Status reports routed to TE
      * bfr = 1  // flush buffer
      */
-    at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+
+    char prop[ARRAY_SIZE];
+    property_get(MIFI_PRODUCT_PROP, prop, "false");
+    RLOGD("mifi product prop = %s", prop);
+    if (strcmp(prop, "false") == 0) {
+        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+    } else {
+        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,0,2,1,1", NULL);
+    }
 }
 
 void setRadioState(int channelID, RIL_RadioState newState) {
