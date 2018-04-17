@@ -1488,19 +1488,11 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NT_TDSCDMA: {
-                if (s_modemConfig == LWG_WG) {
-                    type = 0;
-                } else {
-                    type = TD_ONLY;
-                }
+                type = TD_ONLY;
                 break;
             }
             case NT_TDSCDMA_GSM: {
-                if (s_modemConfig == LWG_WG) {
-                    type = 0;
-                } else {
-                    type = TD_AND_GSM;
-                }
+                type = TD_AND_GSM;
                 break;
             }
             case NT_WCDMA_GSM: {
