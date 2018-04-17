@@ -6457,6 +6457,26 @@ error:
     at_response_free(p_response);
 }
 
+static void onSimHotplug(void *param)
+{
+    int channelID;
+    int err;
+
+    RILLOGE("onSimHotplug");
+    channelID = getChannel();
+    err = at_send_command(ATch_type[channelID], "AT+RESET=1" , NULL);
+    if (err < 0) {
+        goto error;
+    }
+    putChannel(channelID);
+    return;
+
+error:
+    RILLOGE("onSimHotplug fail");
+    putChannel(channelID);
+}
+
+
 static void requestScreeState(int channelID, int status, RIL_Token t)
 {
     int err;
@@ -13976,14 +13996,17 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                             RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
                         }
                         if(cause == 34) { //sim removed
-                            sim_state = SIM_REMOVE;
-                            RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
+                            RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
                         }
                         if(cause == 1)  //no sim card
                             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,NULL, 0);
                     }
                 } else if (value == 100 || value == 4) {
-                    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
+                    if (value == 100) {
+                        RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
+                    } else {
+                        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
+                    }
                 } else if (value == 0 || value == 2) {
                     if (!strcmp(s_modem,"t") && isSvLte() && !s_init_sim_ready) {
                         // in svlte, if usim, t/g modem should be set as non-autoattach. It will be used by SsdaGsmDataConnectionTracker.java
