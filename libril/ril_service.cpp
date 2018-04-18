@@ -4373,7 +4373,8 @@ int radio::getVoiceRegistrationStateResponse(int slotId,
             } else {
                 char **resp = (char **) response;
                 voiceRegResponse.regState = (RegState) ATOI_NULL_HANDLED_DEF(resp[0], 4);
-                voiceRegResponse.rat = ATOI_NULL_HANDLED(resp[3]);
+                //SPRD Modify for Bug833309: set default rat value to RADIO_TECH_UNKNOWN
+                voiceRegResponse.rat = ATOI_NULL_HANDLED_DEF(resp[3], 0);
                 voiceRegResponse.cssSupported = ATOI_NULL_HANDLED_DEF(resp[7], 0);
                 voiceRegResponse.roamingIndicator = ATOI_NULL_HANDLED(resp[10]);
                 voiceRegResponse.systemIsInPrl = ATOI_NULL_HANDLED_DEF(resp[11], 0);
