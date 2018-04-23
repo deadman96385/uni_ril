@@ -2244,6 +2244,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                     RLOGD("SETUP_DATA_CALL s_PSRegState[%d] = %d", socket_id,
                           s_PSRegState[socket_id]);
                     if (s_PSRegState[socket_id] == STATE_IN_SERVICE) {
+#if (SIM_COUNT == 2)
                         /* bug813401 L+L version,only setup data call on data card @{ */
                         if (s_modemConfig == LWG_LWG && s_dataAllowed[socket_id] != 1) {
                             s_lastPDPFailCause[socket_id] =
@@ -2253,6 +2254,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                             break;
                         }
                         /* }@ */
+#endif
                         requestSetupDataCall(channelID, data, datalen, t);
                         s_failCount = 0;
                     } else {
