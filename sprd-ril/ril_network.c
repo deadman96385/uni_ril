@@ -3987,7 +3987,7 @@ void *signal_process() {
                         &responseV10, sizeof(RIL_SignalStrength_v10), sim_index);
             }
         }
-        sleep(1);
+        sleep(20);
         if ((noSigChange + noSimCard == SIM_COUNT) || (s_screenState == 0)) {
             pthread_mutex_lock(&s_signalProcessMutex);
             pthread_cond_wait(&s_signalProcessCond, &s_signalProcessMutex);
