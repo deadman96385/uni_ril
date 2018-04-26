@@ -3098,6 +3098,39 @@ done:
             free(responseStr[i]);
         }
         free(responseStr);
+    } else if (strStartsWith(s, "+SPPCODATA:")) {
+        int num = 0, i = 0;
+        char *tmp = NULL;
+        RIL_PCO_Data *pcoData = NULL;
+
+        pcoData = (RIL_PCO_Data *) calloc(1, sizeof(RIL_PCO_Data));
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &pcoData->cid);
+        if (err < 0) goto out;
+
+        err = at_tok_nextstr(&tmp, &pcoData->bearer_proto);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &num);
+        if (err < 0) goto out;
+
+        for (i = 0; i < num; i++) {
+            err = at_tok_nextint(&tmp, &pcoData->pco_id);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &pcoData->contents_length);
+            if (err < 0) goto out;
+
+            err = at_tok_nextstr(&tmp, &pcoData->contents);
+            if (err < 0) goto out;
+
+            RIL_onUnsolicitedResponse(RIL_UNSOL_PCO_DATA, pcoData, sizeof(RIL_PCO_Data), socket_id);
+        }
+        free(pcoData);
     } else {
         ret = 0;
     }
