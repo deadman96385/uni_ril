@@ -1100,7 +1100,8 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         case RIL_REQUEST_QUERY_CLIP: {
             p_response = NULL;
-            int response[2] = {0, 0};
+            int skip = 0;
+            int response = 0;
 
             RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
             if (s_isSimPresent[socket_id] != PRESENT) {
@@ -1115,9 +1116,9 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                 char *line = p_response->p_intermediates->line;
                 err = at_tok_start(&line);
                 if (err >= 0) {
-                    err = at_tok_nextint(&line, &response[0]);
+                    err = at_tok_nextint(&line, &skip);
                     if (err >= 0) {
-                        err = at_tok_nextint(&line, &response[1]);
+                        err = at_tok_nextint(&line, &response);
                     }
                 }
 
