@@ -1841,7 +1841,7 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 }
                 break;
             case NETWORK_MODE_LTE_WCDMA:
-                type = TD_LTE_AND_LTE_FDD_WCDMA_TD;
+                type = TD_LTE_AND_LTE_FDD_WCDMA;
                 break;
             default:
                 break;
@@ -2161,6 +2161,9 @@ static void requestGetLTEPreferredNetType(int channelID,
             case WCDMA_ONLY:
             case PRIMARY_WCDMA_ONLY:
                 type = NETWORK_MODE_WCDMA_ONLY;
+                break;
+            case TD_LTE_AND_LTE_FDD_WCDMA:
+                type = NETWORK_MODE_LTE_WCDMA;
                 break;
             default:
                 break;
@@ -3462,7 +3465,7 @@ int processNetworkRequests(int request, void *data, size_t datalen,
 
             property_get(FIXED_SLOT_PROP, prop, "false");
             if (strcmp(prop, "true") == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
             } else {
                 requestSetRadioCapability(channelID, data, datalen, t);
             }
