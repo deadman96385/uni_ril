@@ -12,6 +12,7 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <utils/Log.h>
+#include <unistd.h>
 
 #include "telephony/ril.h"
 #include "telephony/thread_pool.h"
