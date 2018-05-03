@@ -505,6 +505,7 @@ done:
                 ret == SIM_PIN ? UNLOCK_PIN : UNLOCK_PUK);
     } else if (s_needQueryPinPuk2Times[socket_id] && ret == SIM_READY) {
         s_needQueryPinPuk2Times[socket_id] = false;
+        getSimlockRemainTimes(channelID, UNLOCK_PIN);
         getSimlockRemainTimes(channelID, UNLOCK_PIN2);
         getSimlockRemainTimes(channelID, UNLOCK_PUK2);
     } else if (ret == SIM_ABSENT) {
