@@ -313,12 +313,12 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         if (isVoLteEnable()) {
             at_send_command(s_ATChannels[channelID], "AT+CIREG=1", NULL);
         }
-        if (isExistActivePdp(socket_id) && !strcmp(prop, "0")) {
+        /*if (isExistActivePdp(socket_id) && !strcmp(prop, "0")) {
             char cmd[ARRAY_SIZE] = {0};
             snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
                      getFastDormancyTime(status));
             at_send_command(s_ATChannels[channelID], cmd, NULL);
-        }
+        }*/
     } else {
         /* Resume */
         at_send_command(s_ATChannels[channelID], "AT+CCED=1,8", NULL);
@@ -331,12 +331,12 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
         if (isVoLteEnable()) {
             at_send_command(s_ATChannels[channelID], "AT+CIREG=2", NULL);
         }
-        if (isExistActivePdp(socket_id) && !strcmp(prop, "0")) {
+        /*if (isExistActivePdp(socket_id) && !strcmp(prop, "0")) {
             char cmd[ARRAY_SIZE] = {0};
             snprintf(cmd, sizeof(cmd), "AT*FDY=1,%d",
                      getFastDormancyTime(status));
             at_send_command(s_ATChannels[channelID], cmd, NULL);
-        }
+        }*/
 
         if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
             if (s_isLTE) {
@@ -393,7 +393,6 @@ int vsimQueryVirtual(int socket_id){
 }
 
 void onSimDisabled(int channelID) {
-    int sim_status = getSIMStatus(false, channelID);
     at_send_command(s_ATChannels[channelID],
                     "AT+SFUN=5", NULL);
     setRadioState(channelID, RADIO_STATE_OFF);
@@ -601,7 +600,10 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         char *cmd = NULL;
         int socket_id = getSocketIdByChannelID(channelID);
         s_vsimInitFlag[socket_id] = false;
-
+        int sim_status = getSIMStatus(false, channelID);
+        if (sim_status != SIM_ABSENT) {
+            at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
+        }
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);

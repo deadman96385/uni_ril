@@ -5046,6 +5046,7 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_EXT_REQUEST_SWITCH_MULTI_CALL
                     || pCI->requestNumber == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
                     || pCI->requestNumber == RIL_EXT_REQUEST_SIMMGR_SIM_POWER
+                    || pCI->requestNumber == RIL_EXT_REQUEST_SIM_POWER
                     /* }@ */
                     ) {
                 list_add_tail(cmdList->callReqList, cmd_item, socket_id);
@@ -7184,7 +7185,7 @@ void setProperty(RIL_SOCKET_ID socket_id, const char *property,
 // for L+W product
 bool isPrimaryCardWorkMode(int workMode) {
     if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||
-        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||
+        workMode == WCDMA_AND_GSM || workMode == TD_AND_WCDMA ||workMode == TD_AND_GSM ||
         workMode == NONE) {
         return false;
     }

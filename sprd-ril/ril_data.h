@@ -19,7 +19,7 @@
 #define DATA_ACTIVE_NEED_FALLBACK               2
 #define DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID  3
 
-#define TRAFFIC_CLASS_DEFAULT       2
+#define TRAFFIC_CLASS_DEFAULT       4
 #define UNUSABLE_CID                0
 
 #define IP_ADDR_SIZE                16

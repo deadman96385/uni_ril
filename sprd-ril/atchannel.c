@@ -47,6 +47,7 @@ static pthread_cond_t s_ATChannelCond[MAX_AT_CHANNELS];
 
 extern PDP_INFO pdp_info[MAX_PDP_NUM];
 extern int s_psOpened[SIM_COUNT];
+static bool s_echoEnabled = false;
 
 typedef struct {
     int openedATChs;
@@ -231,10 +232,18 @@ static void processLine(struct ATChannels *ATch) {
         ATch->s_smsPDU = NULL;
     } else switch (ATch->s_type) {
         case NO_RESULT:
-            handleUnsolicited(ATch);
+            if (s_echoEnabled && strcmp(ATch->line, ATch->cmd) == 0) {
+                /* echo command, do not addIntermediate */
+                RLOGD("s_echoEnabled,NO_RESULT\n");
+            } else {
+                handleUnsolicited(ATch);
+            }
             break;
         case NUMERIC:
-            if (ATch->sp_response->p_intermediates == NULL &&
+            if (s_echoEnabled && strcmp(ATch->line, ATch->cmd) == 0) {
+                /* echo command, do not addIntermediate */
+                RLOGD("s_echoEnabled,NUMERIC\n");
+            } else if (ATch->sp_response->p_intermediates == NULL &&
                 isdigit(ATch->line[0])) {
                 addIntermediate(ATch);
             } else {
@@ -244,7 +253,10 @@ static void processLine(struct ATChannels *ATch) {
             }
             break;
         case SINGLELINE:
-            if (ATch->sp_response->p_intermediates == NULL &&
+            if (s_echoEnabled && strcmp(ATch->line, ATch->cmd) == 0) {
+                /* echo command, do not addIntermediate */
+                RLOGD("s_echoEnabled,SINGLELINE\n");
+            } else if (ATch->sp_response->p_intermediates == NULL &&
                 strStartsWith(ATch->line, ATch->s_responsePrefix)) {
                 addIntermediate(ATch);
             } else {
@@ -253,7 +265,10 @@ static void processLine(struct ATChannels *ATch) {
             }
             break;
         case MULTILINE:
-            if (strStartsWith (ATch->line, ATch->s_responsePrefix) ||
+            if (s_echoEnabled && strcmp(ATch->line, ATch->cmd) == 0) {
+                /* echo command, do not addIntermediate */
+                RLOGD("s_echoEnabled,MULTILINE\n");
+            } else if (strStartsWith(ATch->line, ATch->s_responsePrefix) ||
                 strchr(ATch->line, ':') == NULL) {
                 addIntermediate(ATch);
             } else {
@@ -601,6 +616,7 @@ static void clearPendingCommand(struct ATChannels *ATch) {
     ATch->sp_response = NULL;
     ATch->s_responsePrefix = NULL;
     ATch->s_smsPDU = NULL;
+    memset(ATch->cmd, 0, sizeof(ATch->cmd));
 }
 
 void init_channels(RIL_SOCKET_ID socket_id) {
@@ -794,6 +810,11 @@ static int at_send_command_full_nolock(struct ATChannels *ATch,
         goto error;
     }
 
+    if (s_echoEnabled) {
+        RLOGD("s_echoEnabled,at_send_command_full_nolock\n");
+        snprintf(ATch->cmd, sizeof(ATch->cmd), "%s", command);
+    }
+
     ATch->s_type = type;
     ATch->s_responsePrefix = (char *)responsePrefix;
     ATch->s_smsPDU = (char *)smspdu;
@@ -950,6 +971,12 @@ int at_send_command(struct ATChannels *ATch, const char *command,
     } else if (!strncasecmp(command, "AT+SFUN=4", sizeof("AT+SFUN=4"))) {
         RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
         s_psOpened[socket_id] = 1;
+    } else if (!strncasecmp(command, "ATE0", sizeof("ATE0"))) {
+        RLOGD("s_echoEnabled false,at_send_command\n");
+        s_echoEnabled = false;
+    } else if (!strncasecmp(command, "ATE1", sizeof("ATE1"))) {
+        RLOGD("s_echoEnabled true,at_send_command\n");
+        s_echoEnabled = true;
     }
 
     err = at_send_command_full(ATch, command, NO_RESULT, NULL, NULL,
@@ -1056,6 +1083,12 @@ int at_send_command_multiline(struct ATChannels *ATch,
     } else if (!strncasecmp(command, "AT+SFUN=4", sizeof("AT+SFUN=4"))) {
         RIL_SOCKET_ID socket_id = getSocketIdByChannelID(ATch->channelID);
         s_psOpened[socket_id] = 1;
+    } else if (!strncasecmp(command, "ATE0", sizeof("ATE0"))) {
+        RLOGD("s_echoEnabled false,at_send_command_multiline\n");
+        s_echoEnabled = false;
+    } else if (!strncasecmp(command, "ATE1", sizeof("ATE1"))) {
+        RLOGD("s_echoEnabled true,at_send_command_multiline\n");
+        s_echoEnabled = true;
     }
 
     err = at_send_command_full(ATch, command, MULTILINE, responsePrefix, NULL,

@@ -73,6 +73,7 @@ struct ATChannels {
     char *name;
     int nolog;
 
+    char cmd[MAX_AT_RESPONSE + 1];
     char s_ATBuffer[MAX_AT_RESPONSE+1];
     char *s_ATBufferCur;
     /* current line */

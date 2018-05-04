@@ -1001,6 +1001,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     int err, i;
     char cmd[AT_COMMAND_LEN] = {0};
     char simEnabledProp[PROPERTY_VALUE_MAX] = {0};
+    char prop[PROPERTY_VALUE_MAX] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1032,6 +1033,12 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             goto error;
         }
         buildWorkModeCmd(cmd, sizeof(cmd));
+        getProperty(0, MODEM_WORKMODE_PROP, prop, "10");
+        int testmode0 = atoi(prop);
+        getProperty(1, MODEM_WORKMODE_PROP, prop, "10");
+        int testmode1 = atoi(prop);
+        RLOGE("current testmode0 = %d,testmode1= %d",testmode0,testmode1);
+
 
 #if (SIM_COUNT == 2)
         if (s_presentSIMCount == 0) {
@@ -1544,21 +1551,23 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                     }
                 } else {
                     int mode = getMultiMode();
-                    if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
-                        type = TD_AND_WCDMA;
-                    } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
-                        type = WCDMA_AND_GSM;
-                    } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
-                        type = TD_AND_GSM;
-                    }
+//                    if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_TD_AND_GSM_CSFB) {
+//                        type = TD_AND_WCDMA;
+//                    } else if (mode == TD_LTE_AND_LTE_FDD_AND_W_AND_GSM_CSFB) {
+//                        type = WCDMA_AND_GSM;
+//                    } else if (mode == TD_LTE_AND_TD_AND_GSM_CSFB) {
+//                        type = TD_AND_GSM;
+//                    }
+                    type = WCDMA_AND_GSM;
                 }
                 break;
             }
             case NETWORK_MODE_GSM_ONLY:
-                type = PRIMARY_GSM_ONLY;
-                if (socket_id != s_multiModeSim) {
-                    type = GSM_ONLY;
-                }
+//                type = PRIMARY_GSM_ONLY;
+//                if (socket_id != s_multiModeSim) {
+//                    type = GSM_ONLY;
+//                }
+                type = GSM_ONLY;
                 break;
             case NETWORK_MODE_LTE_ONLY: {
                 int mode = getMultiMode();
@@ -1571,12 +1580,9 @@ static int requestSetLTEPreferredNetType(int channelID, void *data,
                 break;
             }
             case NETWORK_MODE_WCDMA_ONLY:
-                if (s_modemConfig == LWG_WG) {
-                    if (socket_id == s_multiModeSim) {
-                        type = PRIMARY_WCDMA_ONLY;
-                    } else {
-                        type = WCDMA_ONLY;
-                    }
+                RLOGD("set NETWORK_MODE_WCDMA_ONLY current s_workMode = %d",s_workMode[socket_id]);
+                if (isPrimaryCardWorkMode(s_workMode[socket_id])) {
+                    type = PRIMARY_WCDMA_ONLY;
                 } else {
                     type = WCDMA_ONLY;
                 }
@@ -2154,8 +2160,18 @@ static void requestGetCellInfoList(int channelID, void *data,
     err = at_tok_nextint(&line, &netType);
     if (err < 0) goto error;
 
-    mcc = atoi(plmn) / 100;
-    mnc = atoi(plmn) - mcc * 100;
+    if (plmn != NULL) {
+        if (strlen(plmn) == 5) {
+            mcc = atoi(plmn) / 100;
+            mnc = atoi(plmn) - mcc * 100;
+        } else if (strlen(plmn) == 6) {
+            mcc = atoi(plmn) / 1000;
+            mnc = atoi(plmn) - mcc * 1000;
+        } else {
+            RLOGE("Invalid plmn");
+        }
+    }
+
 
     if (netType == 7 || netType == 16) {
         cellType = RIL_CELL_INFO_TYPE_LTE;
@@ -2517,6 +2533,9 @@ static void requestGetCellInfoList(int channelID, void *data,
     }
 
     uint64_t curTime = ril_nano_time();
+    if (registered == 1 || registered == 5) {
+        registered = 1;
+    }
     response[0].registered = registered;
     response[0].cellInfoType = cellType;
     response[0].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
