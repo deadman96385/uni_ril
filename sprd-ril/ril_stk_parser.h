@@ -413,6 +413,6 @@ void processSendData(ComprehensionTlv *comprehensionTlv, SendChannelData *sendDa
 void processReceiveData(ComprehensionTlv *comprehensionTlv, ReceiveChannelData *receiveData, RilMessage *rilMessage);
 void processCloseChannel(ComprehensionTlv *comprehensionTlv, CloseChannelData *closeChannelDatat, RilMessage *rilMessage);
 void processGetChannelStatus(RilMessage *rilMessage);
-StkContext* getStkContext(int channel_id);
+StkContext *getStkContext(int socket_id, int channel_id);
 
 #endif  //RIL_STK_PARSER_H_
