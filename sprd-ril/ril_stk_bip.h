@@ -92,11 +92,11 @@ typedef struct {
     char *dataStr;
 } ResponseDataSprd;
 
-int lunchOpenChannel(int channel_id);
-int lunchGetChannelStatus(int channel_id);
-int lunchSendData(int channel_id);
-int lunchReceiveData(int channel_id);
-int lunchCloseChannel(int channel_id);
+int lunchOpenChannel(int socket_id, int channel_id);
+int lunchGetChannelStatus(int socket_id, int channel_id);
+int lunchSendData(int socket_id, int channel_id);
+int lunchReceiveData(int socket_id, int channel_id);
+int lunchCloseChannel(int socket_id, int channel_id);
 
 int sendChannelResponse(StkContext *pstkContext, int resCode, int socket_id);
 void sendEventChannelStatus(StkContext *pstkContext, int socket_id);
