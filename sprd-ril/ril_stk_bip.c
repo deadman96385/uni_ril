@@ -14,7 +14,7 @@
 #include "ril_stk_bip.h"
 #include "ril_stk_parser.h"
 
-extern StkContextList *s_stkContextList;
+extern StkContextList *s_stkContextList[SIM_COUNT];
 
 int sendTRData(int socket_id, char *data) {
     int ret = -1;
@@ -410,7 +410,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
             if (pResp == NULL) {
                 buf[bufCount++] = 0x00;
             } else {
-                StkContextList *tmpList = s_stkContextList;
+                StkContextList *tmpList = s_stkContextList[socket_id];
                 if (tmpList == NULL) {
                     RLOGD("s_stkContextList is NULL");
                     buf[bufCount++] = 0x00;
@@ -418,7 +418,7 @@ void sendTerminalResponse(CommandDetails *pCmdDet,
                     buf[bufCount++] =
                             (pResp->linkStatus ? pResp->channelId : 0) |
                             (pResp->linkStatus ? 0x80 : 0);
-                    while (tmpList->next != s_stkContextList) {
+                    while (tmpList->next != s_stkContextList[socket_id]) {
                         RLOGD("multi bip");
                         tmpList = tmpList->next;
                         buf[bufCount++] = 0x00;
@@ -1266,25 +1266,23 @@ int CalcChannelDataLen(int mode, int sendlen, StkContext *pstkContext) {
     return retLen;
 }
 
-int lunchOpenChannel(int channel_id) {
+int lunchOpenChannel(int socket_id, int channel_id) {
     RLOGD("lunchOpenChannel");
     int ret = -1;
-    int socket_id = -1;
     char *netAccessName = NULL;
     StkContext *pstkContext = NULL;
     pthread_attr_t attr;
 
     RLOGD("lunchOpenChannel channel_id = %d", channel_id);
-    pstkContext = getStkContext(channel_id);
-
-    if (pstkContext == NULL) {
-        RLOGE("lunchOpenChannel pstkContext is NULL");
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
         return -1;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
+    pstkContext = getStkContext(socket_id, channel_id);
+
+    if (pstkContext == NULL) {
+        RLOGE("lunchOpenChannel pstkContext is NULL");
         return -1;
     }
 
@@ -1323,22 +1321,20 @@ int lunchOpenChannel(int channel_id) {
     return 1;
 }
 
-int lunchGetChannelStatus(int channel_id) {
+int lunchGetChannelStatus(int socket_id, int channel_id) {
     RLOGD("lunchGetChannelStatus");
-    int socket_id = -1;
     StkContext *pstkContext = NULL;
 
     RLOGD("lunchGetChannelStatus channel_id = %d", channel_id);
-    pstkContext = getStkContext(channel_id);
-
-    if (pstkContext == NULL) {
-        RLOGE("lunchGetChannelStatus pstkContext is NULL");
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
         return -1;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
+    pstkContext = getStkContext(socket_id, channel_id);
+
+    if (pstkContext == NULL) {
+        RLOGE("lunchGetChannelStatus pstkContext is NULL");
         return -1;
     }
 
@@ -1355,12 +1351,11 @@ int lunchGetChannelStatus(int channel_id) {
     return 1;
 }
 
-int lunchSendData(int channel_id) {
+int lunchSendData(int socket_id, int channel_id) {
     RLOGD("lunchSendData");
     int ret = -1;
     int port = 0;
     int sendlen = 0;
-    int socket_id = -1;
     int channellen = 0;
     int fdSocketId = -1;
     unsigned char type = '\0';
@@ -1371,16 +1366,14 @@ int lunchSendData(int channel_id) {
     StkContext *pstkContext = NULL;
 
     RLOGD("lunchSendData channel_id = %d", channel_id);
-    pstkContext = getStkContext(channel_id);
-
-    if (pstkContext == NULL) {
-        RLOGE("lunchSendData pstkContext is NULL");
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
         return -1;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
+    pstkContext = getStkContext(socket_id, channel_id);
+    if (pstkContext == NULL) {
+        RLOGE("lunchSendData pstkContext is NULL");
         return -1;
     }
 
@@ -1449,11 +1442,10 @@ int lunchSendData(int channel_id) {
     return 1;
 }
 
-int lunchReceiveData(int channel_id) {
+int lunchReceiveData(int socket_id, int channel_id) {
     RLOGD("lunchReceiveData");
     int count = 0;
     int remainLen = 0;
-    int socket_id = -1;
     int channelDataLength = 0;
     char *from = NULL;
     char *to = NULL;
@@ -1462,16 +1454,15 @@ int lunchReceiveData(int channel_id) {
     StkContext *pstkContext = NULL;
 
     RLOGD("lunchReceiveData channel_id = %d", channel_id);
-    pstkContext = getStkContext(channel_id);
-
-    if (pstkContext == NULL) {
-        RLOGE("lunchReceiveData pstkContext is NULL");
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
         return -1;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
+    pstkContext = getStkContext(socket_id, channel_id);
+
+    if (pstkContext == NULL) {
+        RLOGE("lunchReceiveData pstkContext is NULL");
         return -1;
     }
 
@@ -1554,25 +1545,23 @@ int lunchReceiveData(int channel_id) {
 
 }
 
-int lunchCloseChannel(int channel_id) {
+int lunchCloseChannel(int socket_id, int channel_id) {
     RLOGD("lunchCloseChannel");
-    int socket_id = -1;
     StkContext *pstkContext = NULL;
 
     RLOGD("lunchReceiveData channel_id = %d", channel_id);
-    pstkContext = getStkContext(channel_id);
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return -1;
+    }
+
+    pstkContext = getStkContext(socket_id, channel_id);
 
     if (pstkContext == NULL) {
         RLOGE("lunchCloseChannel pstkContext is NULL");
         return -1;
     }
     pstkContext->needRuning = false;
-
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
-        return -1;
-    }
 
     pthread_mutex_lock(&pstkContext->closeChannelMutex);
     RLOGD("closeSocket");

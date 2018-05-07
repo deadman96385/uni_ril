@@ -20,10 +20,21 @@ bool s_stkServiceRunning[SIM_COUNT];
 static bool s_lunchOpenChannelDialog[SIM_COUNT];
 static char *s_stkUnsolResponse[SIM_COUNT];
 
-StkContextList *s_stkContextList = NULL;
-static int s_curBipChannelID = 0;
-enum BipChannelState s_bipState[MAX_BIP_CHANNELS] = {0};
-pthread_mutex_t s_bipChannelMutex = PTHREAD_MUTEX_INITIALIZER;
+StkContextList *s_stkContextList[SIM_COUNT];
+static int s_curBipChannelID[SIM_COUNT];
+enum BipChannelState s_bipState[SIM_COUNT][MAX_BIP_CHANNELS];
+pthread_mutex_t s_bipChannelMutex[SIM_COUNT] = {
+            PTHREAD_MUTEX_INITIALIZER,
+        #if (SIM_COUNT >= 2)
+            PTHREAD_MUTEX_INITIALIZER,
+        #if (SIM_COUNT >= 3)
+            PTHREAD_MUTEX_INITIALIZER,
+        #endif
+        #if (SIM_COUNT >= 4)
+            PTHREAD_MUTEX_INITIALIZER,
+        #endif
+        #endif
+};
 
 void freeStkContextList(StkContextList *stkContextList) {
     if (stkContextList == NULL) return;
@@ -86,37 +97,37 @@ void freeStkContextList(StkContextList *stkContextList) {
     stkContextList = NULL;
 }
 
-void putBipChannel(int channelID) {
+void putBipChannel(int socket_id, int channelID) {
     if (channelID < 1 || channelID > MAX_BIP_CHANNELS) {
         return;
     }
 
-    pthread_mutex_lock(&s_bipChannelMutex);
-    if (s_bipState[channelID-1] != BIP_CHANNEL_BUSY) {
+    pthread_mutex_lock(&s_bipChannelMutex[socket_id]);
+    if (s_bipState[socket_id][channelID-1] != BIP_CHANNEL_BUSY) {
         goto done;
     }
-    s_bipState[channelID-1] = BIP_CHANNEL_IDLE;
+    s_bipState[socket_id][channelID-1] = BIP_CHANNEL_IDLE;
 
 done:
     RLOGD("put BipChannel%d", channelID);
-    pthread_mutex_unlock(&s_bipChannelMutex);
+    pthread_mutex_unlock(&s_bipChannelMutex[socket_id]);
 }
 
-int getBipChannel(void) {
+int getBipChannel(int socket_id) {
     int channelID = 0;
     int firstChannel = 0;
     int lastChannel = MAX_BIP_CHANNELS;
 
     for (;;) {
         for (channelID = firstChannel; channelID < lastChannel; channelID++) {
-            pthread_mutex_lock(&s_bipChannelMutex);
-            if (s_bipState[channelID] == BIP_CHANNEL_IDLE) {
-                s_bipState[channelID] = BIP_CHANNEL_BUSY;
+            pthread_mutex_lock(&s_bipChannelMutex[socket_id]);
+            if (s_bipState[socket_id][channelID] == BIP_CHANNEL_IDLE) {
+                s_bipState[socket_id][channelID] = BIP_CHANNEL_BUSY;
                 RLOGD("get BipChannel%d", channelID+1);
-                pthread_mutex_unlock(&s_bipChannelMutex);
+                pthread_mutex_unlock(&s_bipChannelMutex[socket_id]);
                 return channelID+1;
             }
-            pthread_mutex_unlock(&s_bipChannelMutex);
+            pthread_mutex_unlock(&s_bipChannelMutex[socket_id]);
         }
         usleep(5000);
     }
@@ -155,9 +166,9 @@ int initStkContext(StkContext *pstkcontext, int socket_id, OpenChannelData *open
     pstkcontext->pCmdDet = NULL;
 
     pstkcontext->phone_id = socket_id;
-    pstkcontext->channel_id = getBipChannel();
+    pstkcontext->channel_id = getBipChannel(socket_id);
 
-    s_curBipChannelID = pstkcontext->channel_id;
+    s_curBipChannelID[socket_id] = pstkcontext->channel_id;
 
     pstkcontext->pOCData = openChannelData;
     pstkcontext->pCmdDet = cmdDet;
@@ -170,18 +181,18 @@ int initStkContext(StkContext *pstkcontext, int socket_id, OpenChannelData *open
     return 1;
 }
 
-int addToStkContextList(StkContext *pstkcontext) {
+int addToStkContextList(StkContext *pstkcontext, int socket_id) {
     if (pstkcontext != NULL) {
-        if (s_stkContextList == NULL) {
+        if (s_stkContextList[socket_id] == NULL) {
             RLOGD("init s_stkContextList");
-            s_stkContextList = (StkContextList *)calloc(1, sizeof(StkContextList));
-            if (s_stkContextList == NULL) {
+            s_stkContextList[socket_id] = (StkContextList *)calloc(1, sizeof(StkContextList));
+            if (s_stkContextList[socket_id] == NULL) {
                 RLOGE("s_stkContextList malloc error");
                 return 0;
             }
-            s_stkContextList->pstkcontext = pstkcontext;
-            s_stkContextList->next = s_stkContextList;
-            s_stkContextList->prev = s_stkContextList;
+            s_stkContextList[socket_id]->pstkcontext = pstkcontext;
+            s_stkContextList[socket_id]->next = s_stkContextList[socket_id];
+            s_stkContextList[socket_id]->prev = s_stkContextList[socket_id];
         } else {
             RLOGD("add s_stkContextList");
             StkContextList *tmpList = NULL;
@@ -191,10 +202,10 @@ int addToStkContextList(StkContext *pstkcontext) {
                 return 0;
             }
             tmpList->pstkcontext = pstkcontext;
-            tmpList->next = s_stkContextList;
-            tmpList->prev = s_stkContextList->prev;
+            tmpList->next = s_stkContextList[socket_id];
+            tmpList->prev = s_stkContextList[socket_id]->prev;
             tmpList->prev->next = tmpList;
-            s_stkContextList->prev = tmpList;
+            s_stkContextList[socket_id]->prev = tmpList;
         }
     } else {
         RLOGE("pstkcontext is NULL");
@@ -204,22 +215,22 @@ int addToStkContextList(StkContext *pstkcontext) {
     return 1;
 }
 
-int removeFromStkContextList(StkContext *pstkcontext) {
-    if (s_stkContextList != NULL && pstkcontext != NULL) {
-        StkContextList *tmpList = s_stkContextList;
+int removeFromStkContextList(StkContext *pstkcontext, int socket_id) {
+    if (s_stkContextList[socket_id] != NULL && pstkcontext != NULL) {
+        StkContextList *tmpList = s_stkContextList[socket_id];
         if (tmpList == tmpList->next) {
             if (pstkcontext != tmpList->pstkcontext) {
                 return 0;
             } else {
                 freeStkContextList(tmpList);
-                s_stkContextList = NULL;
+                s_stkContextList[socket_id] = NULL;
             }
         } else {
             if (pstkcontext != tmpList->pstkcontext) {
-                while ((tmpList != s_stkContextList) && (pstkcontext != tmpList->pstkcontext)) {
+                while ((tmpList != s_stkContextList[socket_id]) && (pstkcontext != tmpList->pstkcontext)) {
                     tmpList = tmpList->next;
                 }
-                if (tmpList == s_stkContextList) {
+                if (tmpList == s_stkContextList[socket_id]) {
                     return 0;
                 } else {
                     tmpList->next->prev = tmpList->prev;
@@ -229,7 +240,7 @@ int removeFromStkContextList(StkContext *pstkcontext) {
             } else {
                 tmpList->next->prev = tmpList->prev;
                 tmpList->prev->next = tmpList->next;
-                s_stkContextList = tmpList->next;
+                s_stkContextList[socket_id] = tmpList->next;
                 freeStkContextList(tmpList);
             }
         }
@@ -241,15 +252,15 @@ int removeFromStkContextList(StkContext *pstkcontext) {
     return 1;
 }
 
-StkContext *getStkContext(int channel_id) {
+StkContext *getStkContext(int socket_id, int channel_id) {
     RLOGD("getStkContext");
     StkContextList *tmp = NULL;
-    tmp = s_stkContextList;
+    tmp = s_stkContextList[socket_id];
     if (channel_id < 0) {
         return NULL;
     }
     if (tmp == NULL) {
-        RLOGD("s_stkContextList is NULL");
+        RLOGD("s_stkContextList[socket_id] is NULL");
         return NULL;
     }
 
@@ -259,19 +270,19 @@ StkContext *getStkContext(int channel_id) {
         } else {
             tmp = tmp->next;
         }
-    } while (tmp != s_stkContextList);
+    } while (tmp != s_stkContextList[socket_id]);
 
     return NULL;
  }
 
-StkContext *getStkContextUseCid(int openchannelCid) {
+StkContext *getStkContextUseCid(int socket_id, int openchannelCid) {
     StkContextList *tmp = NULL;
-    tmp = s_stkContextList;
+    tmp = s_stkContextList[socket_id];
     if (openchannelCid < 0) {
         return NULL;
     }
     if (tmp == NULL) {
-        RLOGD("s_stkContextList is NULL");
+        RLOGD("s_stkContextList[socket_id] is NULL");
         return NULL;
     }
 
@@ -281,10 +292,10 @@ StkContext *getStkContextUseCid(int openchannelCid) {
         return tmp->pstkcontext;
     }
 
-    while ((tmp != s_stkContextList) && (openchannelCid != tmp->pstkcontext->openchannelCid)) {
+    while ((tmp != s_stkContextList[socket_id]) && (openchannelCid != tmp->pstkcontext->openchannelCid)) {
         tmp = tmp->next;
     }
-    if (tmp == s_stkContextList) {
+    if (tmp == s_stkContextList[socket_id]) {
         return NULL;
     } else {
         return tmp->pstkcontext;
@@ -298,25 +309,25 @@ void sendEvenLoopThread(void *param) {
     StkContext *pstkContext = NULL;
 
     if (param && ((CallbackPara *)param)->para) {
+        socket_id = *((int *)(((CallbackPara *)param)->socket_id));
         openchannelCid = *((int *)(((CallbackPara *)param)->para));
-        RLOGD("sendEvenLoopThread openchannelCid:%d", openchannelCid);
+        RLOGD("sendEvenLoopThread socket_id:%d openchannelCid:%d", socket_id, openchannelCid);
+    }
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
     }
     if (openchannelCid < 0) {
         RLOGE("sendEvenLoopThread openchannelCid less than 0");
         return;
     }
 
-    pstkContext = getStkContextUseCid(openchannelCid);
+    pstkContext = getStkContextUseCid(socket_id, openchannelCid);
     if (pstkContext == NULL) {
         RLOGE("getStkContextUseCid pstkContext is NULL");
         return;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
-        return;
-    }
     pstkContext->channelEstablished = false;
     sendEventChannelStatus(pstkContext, socket_id);
 
@@ -432,29 +443,29 @@ int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
             RLOGD("STK_SEND_TERMINAL_RESPONSE s_lunchOpenChannelDialog:%d", (int)s_lunchOpenChannelDialog);
             if (s_lunchOpenChannelDialog[socket_id]) {
                 int dataLen = strlen(data);
-                int channelId = s_curBipChannelID;
+                int channelId = s_curBipChannelID[socket_id];
                 RLOGD("dataLen:%d",dataLen);
                 if (((char *)data)[dataLen - 2] == '0') {
                     RLOGD("accept lunchOpenChannel");
-                    lunchOpenChannel(channelId);
+                    lunchOpenChannel(socket_id, channelId);
                 } else if (((char *)data)[dataLen - 2] == '1') {
                     RLOGD("cancel send TR");
                     StkContext *pstkContext = NULL;
-                    pstkContext = getStkContext(channelId);
+                    pstkContext = getStkContext(socket_id, channelId);
                     sendChannelResponse(pstkContext, USER_NOT_ACCEPT, socket_id);
 
-                    removeFromStkContextList(pstkContext);
-                    putBipChannel(channelId);
-                    s_curBipChannelID = 0;
+                    removeFromStkContextList(pstkContext, socket_id);
+                    putBipChannel(socket_id, channelId);
+                    s_curBipChannelID[socket_id] = 0;
                 } else {
                     RLOGD("timeout send TR");
                     StkContext *pstkContext = NULL;
-                    pstkContext = getStkContext(channelId);
+                    pstkContext = getStkContext(socket_id, channelId);
                     sendChannelResponse(pstkContext, NO_RESPONSE_FROM_USER, socket_id);
 
-                    removeFromStkContextList(pstkContext);
-                    putBipChannel(channelId);
-                    s_curBipChannelID = 0;
+                    removeFromStkContextList(pstkContext, socket_id);
+                    putBipChannel(socket_id, channelId);
+                    s_curBipChannelID[socket_id] = 0;
                 }
                 s_lunchOpenChannelDialog[socket_id] = false;
                 break;
@@ -626,16 +637,16 @@ static void *processBipClient(void *param) {
                     free(pstkcontext);
                     goto EXIT;
                 }
-                err = addToStkContextList(pstkcontext);
+                err = addToStkContextList(pstkcontext, socket_id);
                 if (err == 0) {
                     free(pstkcontext);
                     goto EXIT;
                 }
 
                 if (openChannelData->channelData.text == NULL) {
-                    int channelId = s_curBipChannelID;
+                    int channelId = s_curBipChannelID[socket_id];
                     RLOGD("direct lunchOpenChannel");
-                    lunchOpenChannel(channelId);
+                    lunchOpenChannel(socket_id, channelId);
                 } else {
                     int bufCount = 0;
                     int totalLength = 0;
@@ -702,7 +713,7 @@ static void *processBipClient(void *param) {
                 RLOGD("processSendData resCode == OK");
                 int channelId = sendData->channelId;
                 StkContext *pstkContext = NULL;
-                pstkContext = getStkContext(channelId);
+                pstkContext = getStkContext(socket_id, channelId);
                 if (pstkContext == NULL) {
                     RLOGD("processSendData getStkContext is NULL");
                     ret = BIP_ERROR;
@@ -716,7 +727,7 @@ static void *processBipClient(void *param) {
                 free(pstkContext->pCmdDet);
                 pstkContext->pCmdDet = cmdDet;
 
-                lunchSendData(channelId);
+                lunchSendData(socket_id, channelId);
             } else {
                 free(cmdDet);
                 free(sendData->channelData.text);
@@ -735,10 +746,10 @@ static void *processBipClient(void *param) {
                 RLOGD("processCloseChannel resCode == OK");
                 int channelId = closeChannelData->channelId;
                 StkContext *pstkContext = NULL;
-                pstkContext = getStkContext(channelId);
+                pstkContext = getStkContext(socket_id, channelId);
                 if (pstkContext == NULL) {
                     RLOGD("processCloseChannel getStkContext is NULL");
-                    if (s_stkContextList == NULL) {
+                    if (s_stkContextList[socket_id] == NULL) {
                         RLOGD("processCloseChannel s_stkContextList is NULL");
                         ret = BIP_ERROR;
                         pResMsg->includeAdditionalInfo = true;
@@ -761,10 +772,10 @@ static void *processBipClient(void *param) {
                 free(pstkContext->pCmdDet);
                 pstkContext->pCmdDet = cmdDet;
 
-                lunchCloseChannel(channelId);
-                removeFromStkContextList(pstkContext);
-                putBipChannel(channelId);
-                s_curBipChannelID = 0;
+                lunchCloseChannel(socket_id, channelId);
+                removeFromStkContextList(pstkContext, socket_id);
+                putBipChannel(socket_id, channelId);
+                s_curBipChannelID[socket_id] = 0;
             } else {
                 free(cmdDet);
                 free(closeChannelData->channelData.text);
@@ -780,11 +791,11 @@ static void *processBipClient(void *param) {
                 RLOGD("processReceiveData resCode == OK");
                 int channelId = receiveData->channelId;
                 StkContext *pstkContext = NULL;
-                pstkContext = getStkContext(channelId);
+                pstkContext = getStkContext(socket_id, channelId);
                 pstkContext->pRCData = receiveData;
                 free(pstkContext->pCmdDet);
                 pstkContext->pCmdDet = cmdDet;
-                lunchReceiveData(channelId);
+                lunchReceiveData(socket_id, channelId);
             } else {
                 free(cmdDet);
                 free(receiveData->channelData.text);
@@ -798,7 +809,7 @@ static void *processBipClient(void *param) {
             if (rilMessage->resCode == OK) {
                 int channelId = DEFAULT_CHANNELID;
                 StkContext *pstkContext = NULL;
-                pstkContext = getStkContext(channelId);
+                pstkContext = getStkContext(socket_id, channelId);
 
                 if (pstkContext == NULL) {
                     RLOGD("processGetChannelStatus getStkContext is NULL");
@@ -812,7 +823,7 @@ static void *processBipClient(void *param) {
                 free(pstkContext->pCmdDet);
                 pstkContext->pCmdDet = cmdDet;
 
-                lunchGetChannelStatus(channelId);
+                lunchGetChannelStatus(socket_id, channelId);
             } else {
                 free(cmdDet);
             }
@@ -898,11 +909,11 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                property_get(STK_BIP_MODE_PROP, bipMode, "single");
                RLOGD("getBipChannel bipMode: %s", bipMode);
                if (strcmp(bipMode,"single") == 0) {
-                   if (s_stkContextList != NULL) {
+                   if (s_stkContextList[socket_id] != NULL) {
                        RLOGD("clear s_stkContextList");
-                       channelId = s_curBipChannelID;
-                       removeFromStkContextList(s_stkContextList->pstkcontext);
-                       putBipChannel(channelId);
+                       channelId = s_curBipChannelID[socket_id];
+                       removeFromStkContextList(s_stkContextList[socket_id]->pstkcontext, socket_id);
+                       putBipChannel(socket_id, channelId);
                    }
                }
            }
