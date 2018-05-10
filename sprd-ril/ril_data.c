@@ -182,6 +182,12 @@ done:
     s_PDP[socket_id][cid].isPrimary = false;
     RLOGD("put s_PDP[%d]", cid);
     pthread_mutex_unlock(&s_PDP[socket_id][cid].mutex);
+    pthread_mutex_lock(&s_signalBipPdpMutex);
+    if (s_openchannelInfo[cid].count != 0) {
+        s_openchannelInfo[cid].count = 0;
+    }
+    s_openchannelInfo[cid].pdpState = false;
+    pthread_mutex_unlock(&s_signalBipPdpMutex);
 }
 
 static int getPDPByIndex(RIL_SOCKET_ID socket_id, int index) {
@@ -1431,13 +1437,14 @@ static int reuseDefaultBearer(int channelID, void *data,
                             AT_RESPONSE_FREE(p_response);
                             if (cgdata_err == DATA_ACTIVE_SUCCESS) {
                                 updatePDPCid(socket_id, i + 1, 1);
-                                requestOrSendDataCallList(channelID, cid, &t);
                                 s_openchannelCid = cid;
                                 pthread_mutex_lock(&s_signalBipPdpMutex);
                                 s_openchannelInfo[i].count++;
                                 s_openchannelInfo[i].pdpState = true;
-                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
+                                pthread_cond_signal(&s_signalBipPdpCond);
                                 pthread_mutex_unlock(&s_signalBipPdpMutex);
+                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
+                                requestOrSendDataCallList(channelID, cid, &t);
                                 ret = 0;
                             } else if (cgdata_err ==
                                     DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
@@ -1571,13 +1578,13 @@ RETRY:
 
 done:
     putUnusablePDPCid(socket_id);
-    requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     pthread_mutex_lock(&s_signalBipPdpMutex);
     s_openchannelCid = primaryindex + 1;
     s_openchannelInfo[primaryindex].count++;
     s_openchannelInfo[primaryindex].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
+    requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     return;
 
 error:
@@ -1689,8 +1696,6 @@ static void deactivateDataConnection(int channelID, void *data,
     if (s_openchannelInfo[cid - 1].count != 0){
         goto error;
     }
-
-    s_openchannelInfo[cid - 1].pdpState = false;
 
     secondaryCid = getFallbackCid(socket_id, cid - 1);
     snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
