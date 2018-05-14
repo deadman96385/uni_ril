@@ -915,6 +915,12 @@ int queryPlmnResponse(int slotId, int responseType, int serial,
 int setSimPowerRealResponse(int slotId, int responseType, int serial,
                               RIL_Errno e, void *response, size_t responseLen);
 
+int getRadioPreferenceResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+
+int setRadioPreferenceResponse(int slotId, int responseType, int serial,
+        RIL_Errno e, void *response, size_t responseLen);
+
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 
 int vsimSendCmdResponse(int slotId, int responseType, int serial,

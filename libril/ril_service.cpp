@@ -627,6 +627,13 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setSimPowerReal(int32_t serial, bool enable);
 
+    Return<void> getRadioPreference(int32_t serial,
+            const ::android::hardware::hidl_string& key);
+
+    Return<void> setRadioPreference(int32_t serial,
+            const ::android::hardware::hidl_string& key,
+            const ::android::hardware::hidl_string& value);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9717,6 +9724,26 @@ Return<void> RadioImpl::setSimPowerReal(int32_t serial, bool enable) {
     dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SIM_POWER_REAL, 1, BOOL_TO_INT(enable));
     return Void();
 }
+
+Return<void> RadioImpl::getRadioPreference(int32_t serial,
+        const ::android::hardware::hidl_string& key) {
+#if VDBG
+    RLOGD("getRadioPreference: serial %d", serial);
+#endif
+    dispatchString(serial, mSlotId, RIL_EXT_REQUEST_GET_RADIO_PREFERENCE, key.c_str());
+    return Void();
+}
+
+Return<void> RadioImpl::setRadioPreference(int32_t serial,
+        const ::android::hardware::hidl_string& key,
+        const ::android::hardware::hidl_string& value) {
+#if VDBG
+    RLOGD("setRadioPrefernce: serial %d", serial);
+#endif
+    dispatchStrings(serial, mSlotId, RIL_EXT_REQUEST_SET_RADIO_PREFERENCE, true,
+            2, key.c_str(), value.c_str());
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10980,6 +11007,46 @@ int radio::setSimPowerRealResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("simPowerResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getRadioPreferenceResponse(int slotId, int responseType, int serial,
+        RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getRadioPreferenceResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo= {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getRadioPreferenceResponse(responseInfo, convertCharPtrToHidlString((char *)response));
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getRadioPreferenceResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setRadioPreferenceResponse(int slotId, int responseType, int serial,
+        RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setRadioPreferenceResponse : serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setRadioPreferenceResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setRadioPreferenceResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 

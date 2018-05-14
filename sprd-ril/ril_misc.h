@@ -12,6 +12,7 @@ extern int s_maybeAddCall;
 extern int s_screenState;
 int processMiscRequests(int request, void *data, size_t datalen,
                            RIL_Token t, int channelID);
+int processPropRequests(int request, void *data, size_t datalen, RIL_Token t);
 int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 void sendCmdSync(int phoneId, char *cmd, char *response, int responseLen);
 

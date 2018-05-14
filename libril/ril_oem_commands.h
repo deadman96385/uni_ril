@@ -60,3 +60,5 @@
     {RIL_EXT_REQUEST_UPDATE_PLMN, radio::updatePlmnPriorityResponse},
     {RIL_EXT_REQUEST_QUERY_PLMN, radio::queryPlmnResponse},
     {RIL_EXT_REQUEST_SIM_POWER_REAL, radio::setSimPowerRealResponse},
+    {RIL_EXT_REQUEST_GET_RADIO_PREFERENCE, radio::getRadioPreferenceResponse},
+    {RIL_EXT_REQUEST_SET_RADIO_PREFERENCE, radio::setRadioPreferenceResponse},

@@ -246,6 +246,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
     RIL_RadioState radioState = s_radioState[socket_id];
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
+
     /**
      * Ignore all requests except !(requests)
      * when RADIO_STATE_UNAVAILABLE.
@@ -280,7 +281,9 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
           request == RIL_EXT_REQUEST_SHUTDOWN ||
           request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
-          request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
+          request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
+          request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
+          request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -346,6 +349,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_LAST_CALL_FAIL_CAUSE ||
                  request == RIL_REQUEST_START_NETWORK_SCAN ||
                  request == RIL_REQUEST_STOP_NETWORK_SCAN ||
+                 request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
+                 request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
@@ -400,7 +405,11 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
-
+    if (request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
+                 request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE) {
+        processPropRequests(request, data, datalen, t);
+        goto done;
+    }
     channelID = getChannel(socket_id);
     if (channelID < 0 || channelID >= MAX_AT_CHANNELS) {
         RLOGE("Invalid request channelID");

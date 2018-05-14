@@ -1045,6 +1045,88 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
     return 1;
 }
 
+int isVendorRadioProp(char *key) {
+    int i;
+    const char *prop_buffer[] = {
+            "persist.vendor.radio.",
+            "ro.vendor.modem.",
+            "ro.vendor.radio.",
+            "vendor.radio.",
+            "vendor.ril.",
+            "vendor.sim.",
+            "vendor.data.",
+            "vendor.net.",
+            "persist.vendor.sys.",
+            "vendor.sys.",
+            NULL
+    };
+    for (i = 0; prop_buffer[i]; i++) {
+        if (strncmp(prop_buffer[i], key, strlen(prop_buffer[i])) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void requestGetRadioPreference(int request, void *data,
+        size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char *key = NULL;
+
+    key = ((char *)data);
+    if (!isVendorRadioProp(key)) {
+        RLOGE("get %s is not vendor radio prop", key);
+        RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+    } else {
+        property_get(key, prop, "");
+        RLOGD("get prop key = %s, value = %s", key, prop);
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, &prop, sizeof(prop));
+    }
+}
+
+static void requestSetRadioPreference(int request, void *data,
+        size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+    int ret = 0;
+    char key[PROPERTY_VALUE_MAX] = {0};
+    char value[PROPERTY_VALUE_MAX] = {0};
+
+    strncpy(key, ((char **)data)[0], strlen(((char **)data)[0]) + 1);
+    strncpy(value, ((char **)data)[1], strlen(((char **)data)[1]) + 1);
+
+    if (!isVendorRadioProp(key)) {
+        RLOGE("set %s is not vendor radio prop", key);
+        RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+    } else {
+        RLOGD("set prop key = %s, value = %s", key, value);
+        ret = property_set(key, value);
+        if (ret < 0) {
+            RLOGE("Error while set prop!");
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        }
+    }
+}
+
+int processPropRequests(int request, void *data, size_t datalen, RIL_Token t) {
+    switch (request) {
+        case RIL_EXT_REQUEST_GET_RADIO_PREFERENCE: {
+            requestGetRadioPreference(request, data, datalen, t);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_RADIO_PREFERENCE: {
+            requestSetRadioPreference(request, data, datalen, t);
+            break;
+        }
+        default:
+            return 0;
+    }
+    return 1;
+}
+
 int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     char *line = NULL;
