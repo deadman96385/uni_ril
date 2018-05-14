@@ -9,11 +9,9 @@
 #define RIL_NETWORK_H_
 
 #define SIG_POOL_SIZE           10
-#define MODEM_WORKMODE_PROP     "persist.radio.modem.workmode"
-#define PRIMARY_SIM_PROP        "persist.radio.primary.sim"
-#define MODEM_CONFIG_PROP       "persist.radio.modem.config"
-#define MODEM_CAPABILITY        "persist.radio.modem.capability"
-#define OVERSEA_VERSION         "ro.radio.flavor"
+#define MODEM_WORKMODE_PROP     "persist.vendor.radio.modem.workmode"
+#define MODEM_CAPABILITY        "persist.vendor.radio.modem.capability"
+#define OVERSEA_VERSION         "ro.vendor.radio.flavor"
 
 /*  LTE PS registration state */
 typedef enum {

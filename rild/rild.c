@@ -113,8 +113,6 @@ int main(int argc, char **argv) {
 
     // functions returned by ril init function in vendor ril
     const RIL_RadioFunctions *funcs;
-    // lib path from rild.libpath property (if it's read)
-    char libPath[PROPERTY_VALUE_MAX];
     // flat to indicate if -- parameters are present
     unsigned char hasLibArgs = 0;
 
@@ -187,10 +185,8 @@ int main(int argc, char **argv) {
         argc = argc -i + 1;
     } else {
         static char * newArgv[MAX_LIB_ARGS];
-        static char args[PROPERTY_VALUE_MAX];
         rilArgv = newArgv;
-        property_get(LIB_ARGS_PROPERTY, args, "");
-        argc = make_argv(args, rilArgv);
+        argc = make_argv("", rilArgv);
     }
 
     rilArgv[argc++] = "-c";
@@ -213,8 +209,6 @@ int main(int argc, char **argv) {
     }
 
     RLOGD("RIL_register_socket completed");
-
-done:
 
     rilc_thread_pool();
 

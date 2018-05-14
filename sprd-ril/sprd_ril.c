@@ -41,14 +41,13 @@
 #include "ril_mmgr.h"
 
 #define VT_DCI "\"000001B000000001B5090000010000000120008440FA282C2090A21F\""
-#define VOLTE_ENABLE_PROP       "persist.sys.volte.enable"
+#define VOLTE_ENABLE_PROP       "persist.vendor.sys.volte.enable"
 /* For special instrument's test */
-#define VOLTE_PCSCF_PROP        "persist.sys.volte.pcscf"
-#define HARDWARE_VERSION_PROP   "sys.hardware.version"
+#define VOLTE_PCSCF_PROP        "persist.vendor.sys.volte.pcscf"
+#define HARDWARE_VERSION_PROP   "vendor.sys.hardware.version"
 #define BUILD_TYPE_PROP         "ro.build.type"
-#define MTBF_ENABLE_PROP        "persist.sys.mtbf.enable"
-#define VOLTE_MODE_PROP         "persist.radio.volte.mode"
-#define DSDS_MODE_PROP          "persist.radio.modem.config"
+#define MTBF_ENABLE_PROP        "persist.vendor.sys.mtbf.enable"
+#define VOLTE_MODE_PROP         "persist.vendor.radio.volte.mode"
 
 struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
@@ -1099,7 +1098,7 @@ static void initializeCallback(void *param) {
         char volteMode[PROPERTY_VALUE_MAX];
         char dsdsMode[PROPERTY_VALUE_MAX];
         property_get(VOLTE_MODE_PROP, volteMode, "");
-        property_get(DSDS_MODE_PROP, dsdsMode, "");
+        property_get(MODEM_CONFIG_PROP, dsdsMode, "");
         if (strcmp(volteMode, "DualVoLTEActive") == 0) {
             // AT+SPCAPABILITY=49,1,X(Status word) to enable/disable DSDA
             // Status word 0 to disable DSDA;
@@ -1133,7 +1132,7 @@ static void initializeCallback(void *param) {
     /* for CMCC version @{ */
     if (s_isLTE) {
         char prop[PROPERTY_VALUE_MAX] = {0};
-        property_get("ro.radio.spice", prop, "0");
+        property_get("ro.vendor.radio.spice", prop, "0");
         if (!strcmp(prop, "1")) {
             at_send_command_singleline(s_ATChannels[channelID],
                     "AT+SPCAPABILITY=32,1,1", "+SPCAPABILITY:", NULL);
@@ -1144,11 +1143,11 @@ static void initializeCallback(void *param) {
     if (!s_isLTE) {
         /*power on sim card */
         char prop[PROPERTY_VALUE_MAX];
-        getProperty(socket_id, "ril.sim.power", prop, "0");
+        getProperty(socket_id, "vendor.ril.sim.power", prop, "0");
 
         if (!strcmp(prop, "0")) {
             at_send_command(s_ATChannels[channelID], "AT+SFUN=2", NULL);
-            setProperty(socket_id, "ril.sim.power", "1");
+            setProperty(socket_id, "vendor.ril.sim.power", "1");
         }
     }
 
@@ -1272,7 +1271,6 @@ static void *mainLoop(void *param) {
     int fd;
     int channelID = 0;
     int firstChannel, lastChannel;
-    char muxDevice[ARRAY_SIZE] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     char ttyName[ARRAY_SIZE] = {0};
     char channelName[ARRAY_SIZE] = {0};
@@ -1286,11 +1284,10 @@ static void *mainLoop(void *param) {
     lastChannel = MAX_AT_CHANNELS;
 #endif
 
-    snprintf(muxDevice, sizeof(muxDevice), "ro.modem.%s.tty", s_modem);
     if (!strcmp(s_modem, "t") || !strcmp(s_modem, "w")) {
-        property_get(muxDevice, prop, "/dev/ts0710mux");
+        property_get(MODEM_TTY_PROP, prop, "/dev/ts0710mux");
     } else if (s_isLTE) {
-        property_get(muxDevice, prop, "/dev/sdiomux");
+        property_get(MODEM_TTY_PROP, prop, "/dev/sdiomux");
     }
 
     for (;;) {
@@ -1408,7 +1405,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
     if (s_modem == NULL) {
         s_modem = (char *)malloc(PROPERTY_VALUE_MAX);
-        property_get("ro.radio.modemtype", (char *)s_modem, "");
+        property_get("ro.vendor.radio.modemtype", (char *)s_modem, "");
         if (strcmp(s_modem, "") == 0) {
             RLOGD("get s_modem failed.");
             free((char *)s_modem);

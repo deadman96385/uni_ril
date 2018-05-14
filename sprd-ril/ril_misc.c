@@ -14,9 +14,9 @@
 #include "channel_controller.h"
 
 /* Fast Dormancy disable property */
-#define RADIO_FD_DISABLE_PROP "persist.radio.fd.disable"
+#define RADIO_FD_DISABLE_PROP "persist.vendor.radio.fd.disable"
 /* PROP_FAST_DORMANCY value is "a,b". a is screen_off value, b is on value */
-#define PROP_FAST_DORMANCY    "persist.radio.fastdormancy"
+#define PROP_FAST_DORMANCY    "persist.vendor.radio.fastdormancy"
 #define SOCKET_NAME_VSIM "vsim_socket"
 /* for sleep log */
 #define BUFFER_SIZE     (12 * 1024 * 4)
@@ -361,12 +361,12 @@ int setupVPIfNeeded() {
     char mms_active[PROPERTY_VALUE_MAX] = {0};
     int setupVPIfNeeded = 0;
 
-    property_get("bluetooth.ril.bt-pan.active", bt_pan_active, "1");
-    property_get("sys.ril.agps.active", agps_active, "1");
-    property_get("sys.ril.internet_tethering",
+    property_get("vendor.bluetooth.ril.bt-pan.active", bt_pan_active, "1");
+    property_get("vendor.sys.ril.agps.active", agps_active, "1");
+    property_get("vendor.sys.ril.internet_tethering",
                   internet_tethering, "1");
-    property_get("sys.ril.wifi.active", wifi_active, "1");
-    property_get("ril.mms.active", mms_active, "1");
+    property_get("vendor.sys.ril.wifi.active", wifi_active, "1");
+    property_get("vendor.ril.mms.active", mms_active, "1");
 
     if (strcmp(bt_pan_active, "1") && strcmp(agps_active, "1") &&
         strcmp(internet_tethering, "1") && strcmp(wifi_active, "1") &&

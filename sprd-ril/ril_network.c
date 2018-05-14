@@ -17,21 +17,16 @@
 #include "time.h"
 
 /* Save physical cellID for AGPS */
-#define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
+//#define PHYSICAL_CELLID_PROP    "gsm.cell.physical_cellid"
 /* Save NITZ operator name string for UI to display right PLMN name */
-#define NITZ_OPERATOR_PROP      "persist.radio.nitz.operator"
-#define FIXED_SLOT_PROP         "ro.radio.fixed_slot"
-#define PHONE_EXTENSION_PROP    "ril.sim.phone_ex.start"
-#define COPS_MODE_PROP          "persist.sys.cops.mode"
+#define NITZ_OPERATOR_PROP      "persist.vendor.radio.nitz"
+#define FIXED_SLOT_PROP         "ro.vendor.radio.fixed_slot"
+#define PHONE_EXTENSION_PROP    "vendor.sim.phone_ex.start"
+#define COPS_MODE_PROP          "persist.vendor.radio.copsmode"
 /* set network type for engineer mode */
-#define ENGTEST_ENABLE_PROP     "persist.radio.engtest.enable"
+#define ENGTEST_ENABLE_PROP     "persist.vendor.radio.engtest.enable"
 /* set the comb-register flag */
-#define CEMODE_PROP             "persist.radio.cemode"
-/* reset modem for recovery */
-#define RADIO_RESET_PROP        "gsm.radioreset"
-
-/* Set DSDA status*/
-#define DSDA_STATUS_PROP        "ril.dsda.status"
+#define CEMODE_PROP             "persist.vendor.radio.cemode"
 
 RIL_RegState s_PSRegStateDetail[SIM_COUNT] = {
         RIL_UNKNOWN
@@ -72,8 +67,6 @@ SimBusy s_simBusy[SIM_COUNT] = {
 static pthread_mutex_t s_workModeMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_simPresentMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_presentSIMCountMutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t s_physicalCellidMutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t s_dsdaStatusMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t s_LTEAttachMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
 #if (SIM_COUNT >= 2)
@@ -178,7 +171,6 @@ void setSimPresent(RIL_SOCKET_ID socket_id, int hasSim) {
 
 int isSimPresent(RIL_SOCKET_ID socket_id) {
     int hasSim = 0;
-    char prop[PROPERTY_VALUE_MAX];
     pthread_mutex_lock(&s_simPresentMutex);
     hasSim = s_isSimPresent[socket_id];
     pthread_mutex_unlock(&s_simPresentMutex);
@@ -627,7 +619,7 @@ static void requestRegistrationState(int channelID, int request,
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
-    int i, err;
+    int err;
     int commas, skip;
     int response[4] = {-1, -1, -1, -1};
     char *responseStr[15] = {NULL};
@@ -1101,17 +1093,10 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    property_get(RADIO_RESET_PROP, radioResetProp, "false");
-    RLOGD("gsm.radioreset: %s", radioResetProp);
-    if (strcmp(radioResetProp, "true") == 0) {
-        at_send_command(s_ATChannels[channelID], "AT+RESET=1", NULL);
-        property_set(RADIO_RESET_PROP, "false");
-    }
-
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
     if (s_desiredRadioState[socket_id] == 0) {
-        int sim_status = getSIMStatus(false, channelID);
+        getSIMStatus(false, channelID);
 
         /* The system ask to shutdown the radio */
         err = at_send_command(s_ATChannels[channelID],
@@ -1248,7 +1233,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             }
 #endif
             property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
-            RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+            RLOGD("persist.vendor.radio.manualattach: %s", manualAttachProp);
             snprintf(cmd, sizeof(cmd), "AT+SPLTEMANUATT=%s", manualAttachProp);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
 
@@ -1413,12 +1398,6 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
         "current",
         "forbidden"
     };
-    static char *actStr[] = {
-        "GSM",
-        "GSMCompact",
-        "UTRAN",
-        "E-UTRAN"
-    };
     int err, stat, act;
     int tok = 0, count = 0, i = 0;
     char *line;
@@ -1481,7 +1460,6 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     startTmp = tmp;
 
     char *updatedNetList = (char *)alloca(count * sizeof(char) * 64);
-    int unwantedPlmnCount = 0;
     while ((line = strchr(line, '(')) && (i++ < count)) {
         line++;
         err = at_tok_nextint(&line, &stat);
@@ -1541,7 +1519,7 @@ static void requestResetRadio(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
-    int onOff, err;
+    int err;
     RIL_RadioState currentState;
     ATResponse *p_response = NULL;
 
@@ -2788,7 +2766,6 @@ static void requestShutdown(int channelID,
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
-    int onOff;
     int err;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
@@ -3689,34 +3666,34 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                     socket_id);
         }
     } else if (strStartsWith(s, "+SPPCI:")) {
-        char *tmp;
-        int cid, propNameLen, propValueLen;
-        char phy_cellid[ARRAY_SIZE];
-        line = strdup(s);
-        tmp = line;
-        at_tok_start(&tmp);
-        err = at_tok_nexthexint(&tmp, &cid);
-        if (err < 0) {
-            RLOGD("get physicel cell id fail");
-            goto out;
-        }
-        snprintf(phy_cellid, sizeof(phy_cellid), "%d", cid);
-        SetPropPara *cellIdPara = (SetPropPara *)calloc(1, sizeof(SetPropPara));
-        propNameLen = strlen(PHYSICAL_CELLID_PROP) + 1;
-        propValueLen = strlen(phy_cellid) + 1;
-        cellIdPara->socketId = socket_id;
-        cellIdPara->propName =
-                (char *)calloc(propNameLen, sizeof(char));
-        cellIdPara->propValue =
-                (char *)calloc(propValueLen, sizeof(char));
-        memcpy(cellIdPara->propName, PHYSICAL_CELLID_PROP, propNameLen);
-        memcpy(cellIdPara->propValue, phy_cellid, propValueLen);
-        cellIdPara->mutex = &s_physicalCellidMutex;
-        pthread_t tid;
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        pthread_create(&tid, &attr, (void *)setPropForAsync, (void *)cellIdPara);
+//        char *tmp;
+//        int cid, propNameLen, propValueLen;
+//        char phy_cellid[ARRAY_SIZE];
+//        line = strdup(s);
+//        tmp = line;
+//        at_tok_start(&tmp);
+//        err = at_tok_nexthexint(&tmp, &cid);
+//        if (err < 0) {
+//            RLOGD("get physicel cell id fail");
+//            goto out;
+//        }
+//        snprintf(phy_cellid, sizeof(phy_cellid), "%d", cid);
+//        SetPropPara *cellIdPara = (SetPropPara *)calloc(1, sizeof(SetPropPara));
+//        propNameLen = strlen(PHYSICAL_CELLID_PROP) + 1;
+//        propValueLen = strlen(phy_cellid) + 1;
+//        cellIdPara->socketId = socket_id;
+//        cellIdPara->propName =
+//                (char *)calloc(propNameLen, sizeof(char));
+//        cellIdPara->propValue =
+//                (char *)calloc(propValueLen, sizeof(char));
+//        memcpy(cellIdPara->propName, PHYSICAL_CELLID_PROP, propNameLen);
+//        memcpy(cellIdPara->propValue, phy_cellid, propValueLen);
+//        cellIdPara->mutex = &s_physicalCellidMutex;
+//        pthread_t tid;
+//        pthread_attr_t attr;
+//        pthread_attr_init(&attr);
+//        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+//        pthread_create(&tid, &attr, (void *)setPropForAsync, (void *)cellIdPara);
     } else if (strStartsWith(s, "+SPNWNAME:")) {
         /* NITZ operator name */
         char *tmp = NULL;
@@ -3787,24 +3764,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &response);
         if (err < 0) goto out;
-
-        snprintf(status, sizeof(status), "%d", response);
-        SetPropPara *dsdaPara = (SetPropPara *)calloc(1, sizeof(SetPropPara));
-        propNameLen = strlen(DSDA_STATUS_PROP) + 1;
-        propValueLen = strlen(status) + 1;
-        dsdaPara->socketId = socket_id;
-        dsdaPara->propName =
-                (char *)calloc(propNameLen, sizeof(char));
-        dsdaPara->propValue =
-                (char *)calloc(propValueLen, sizeof(char));
-        memcpy(dsdaPara->propName, DSDA_STATUS_PROP, propNameLen);
-        memcpy(dsdaPara->propValue, status, propValueLen);
-        dsdaPara->mutex = &s_dsdaStatusMutex;
-        pthread_t tid;
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        pthread_create(&tid, &attr, (void *)setPropForAsync, (void *)dsdaPara);
+        //TO DO :add Unsol
     } else if (strStartsWith(s, "+SPFREQSCAN:")) {
         int response = 0, rat = -1, cell_num = 0, cid = 0, bsic = 0;
         int current = 0, skip;

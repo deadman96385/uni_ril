@@ -51,9 +51,13 @@
 #define RIL_UNUSED_PARM(a)         noopRemoveWarning((void *)&(a));
 #define AT_CMD_STR(str)            (str), sizeof((str)) - 1
 
-#define MODEM_CONFIG_PROP          "persist.radio.modem.config"
-#define PRIMARY_SIM_PROP           "persist.radio.primary.sim"
-#define LTE_MANUAL_ATTACH_PROP     "persist.radio.manual.attach"
+#define MODEM_CONFIG_PROP          "persist.vendor.radio.modem.config"
+#define PRIMARY_SIM_PROP           "persist.vendor.radio.primarysim"
+#define LTE_MANUAL_ATTACH_PROP     "persist.vendor.radio.manualattach"
+#define MIFI_PRODUCT_PROP          "persist.vendor.radio.mifi"
+#define MODEM_TTY_PROP             "ro.vendor.modem.tty"
+#define MODEM_ETH_PROP             "ro.vendor.modem.eth"
+#define ENG_QOS_PROP               "persist.vendor.sys.qosstate"
 
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \

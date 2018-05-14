@@ -14,7 +14,7 @@
 #include "ril_stk_bip.h"
 #include "ril_utils.h"
 
-#define STK_BIP_MODE_PROP        "persist.radio.bip.mode"
+#define STK_BIP_MODE_PROP        "persist.vendor.radio.bipmode"
 
 bool s_stkServiceRunning[SIM_COUNT];
 static bool s_lunchOpenChannelDialog[SIM_COUNT];

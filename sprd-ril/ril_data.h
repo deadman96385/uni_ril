@@ -41,21 +41,20 @@
 #define PDP_STATE_EST_ERROR         9
 #define PDP_STATE_EST_UP_ERROR      10
 
-#define SYS_NET_ADDR                "sys.data.net.addr"
-#define SYS_NET_ACTIVATING_TYPE     "sys.data.activating.type"
-#define SYS_IPV6_LINKLOCAL          "sys.data.ipv6.linklocal"
+#define SYS_NET_ADDR                "vendor.data.net.addr"
+#define SYS_NET_ACTIVATING_TYPE     "vendor.data.activating.type"
+#define SYS_IPV6_LINKLOCAL          "vendor.data.ipv6.linklocal"
 #define DEFAULT_PUBLIC_DNS2         "204.117.214.10"
 // Due to real network limited,
 // 2409:8084:8000:0010:2002:4860:4860:8888 maybe not correct
 #define DEFAULT_PUBLIC_DNS2_IPV6    "2409:8084:8000:0010:2002:4860:4860:8888"
-#define MODEM_CONFIG                "persist.radio.modem.config"
 
 #define GSPS_IPV4_ADDR_HEADER       "192.168."
 #define DHCP_DNSMASQ_LEASES_FILE    "/data/misc/dhcp/dnsmasq.leases"
 
-#define GSPS_ETH_UP_PROP            "ril.gsps.eth.up"
-#define GSPS_ETH_DOWN_PROP          "ril.gsps.eth.down"
-#define ATTACH_ENABLE_PROP          "persist.sys.attach.enable"
+#define GSPS_ETH_UP_PROP            "vendor.ril.gsps.eth.up"
+#define GSPS_ETH_DOWN_PROP          "vendor.ril.gsps.eth.down"
+#define ATTACH_ENABLE_PROP          "persist.vendor.sys.attach.enable"
 
 #define SOCKET_NAME_EXT_DATA        "ext_data"
 

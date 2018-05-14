@@ -750,7 +750,7 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
 
 bool isLLVersion() {
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.radio.modem.config", prop, "");
+    property_get("persist.vendor.radio.modem.config", prop, "");
     if (strcmp(prop, "TL_LF_TD_W_G,TL_LF_TD_W_G") == 0 ||
         strcmp(prop, "TL_LF_W_G,TL_LF_W_G") == 0) {
         return true;

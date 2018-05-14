@@ -15,8 +15,8 @@
 #include "ril_async_cmd_handler.h"
 
 /* Property to save pin for modem assert */
-#define SIM_PIN_PROP                            "ril.sim.pin"
-#define MODEM_ASSERT_PROP                       "ril.modem.assert"
+#define SIM_PIN_PROP                            "vendor.ril.sim.pin"
+#define MODEM_ASSERT_PROP                       "vendor.ril.modem.assert"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -68,7 +68,7 @@
 #define IMSI_TOTAL_LEN                          (16 + 1)
 #define SMALL_IMSI_LEN                          (2 + 1)
 
-#define SIMLOCK_ATTEMPT_TIMES_PROP              "gsm.attempttimes.%s"
+#define SIMLOCK_ATTEMPT_TIMES_PROP              "vendor.sim.attempttimes.%s"
 
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
 RIL_AppType s_appType[SIM_COUNT];

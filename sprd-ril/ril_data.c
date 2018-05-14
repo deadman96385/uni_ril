@@ -18,11 +18,10 @@
 #include "ril_stk.h"
 #include "ril_utils.h"
 
-#define APN_DELAY_PROP          "persist.radio.apn_delay"
-#define DUALPDP_ALLOWED_PROP    "persist.sys.dualpdp.allowed"
-#define DDR_STATUS_PROP         "persist.sys.ddr.status"
-#define REUSE_DEFAULT_PDN       "persist.sys.pdp.reuse"
-#define BIP_OPENCHANNEL         "persist.sys.bip.openchannel"
+#define DUALPDP_ALLOWED_PROP    "persist.vendor.radio.dualpdp"
+#define DDR_STATUS_PROP         "persist.vendor.sys.ddr.status"
+#define REUSE_DEFAULT_PDN       "persist.vendor.sys.pdp.reuse"
+#define BIP_OPENCHANNEL         "persist.vendor.radio.openchannel"
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
@@ -815,7 +814,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
               password, cid, atoi(authtype));
     at_send_command(s_ATChannels[channelID], cmd, NULL);
     /* Set required QoS params to default */
-    property_get("persist.sys.qosstate", qosState, "0");
+    property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
                   "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -851,10 +850,8 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
 
     if (primaryCid > 0) {
         /* Check ip type after fall back  */
-        char ethPropName[ARRAY_SIZE] = {0};
-        snprintf(ethPropName, sizeof(ethPropName), "ro.modem.%s.eth", s_modem);
-        property_get(ethPropName, eth, "veth");
-        snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, primaryCid - 1);
+        property_get(MODEM_ETH_PROP, eth, "veth");
+        snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip_type", eth, primaryCid - 1);
         property_get(cmd, prop, "0");
         ipType = atoi(prop);
         RLOGD("Fallback 2 s_PDP: prop = %s, fb_ip = %d", prop, ipType);
@@ -889,12 +886,10 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
     char cmd[AT_COMMAND_LEN] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     char eth[PROPERTY_VALUE_MAX] = {0};
-    char ethPropName[ARRAY_SIZE] = {0};
 
     /* Check if need fall back or not */
-    snprintf(ethPropName, sizeof(ethPropName), "ro.modem.%s.eth", s_modem);
-    property_get(ethPropName, eth, "veth");
-    snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, cidIndex);
+    property_get(MODEM_ETH_PROP, eth, "veth");
+    snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip_type", eth, cidIndex);
     property_get(cmd, prop, "0");
     ipType = atoi(prop);
 
@@ -1079,7 +1074,6 @@ static void requestOrSendDataCallList(int channelID, int cid,
         char *address;
         char cmd[AT_COMMAND_LEN] = {0};
         char prop[PROPERTY_VALUE_MAX] = {0};
-        char ethPropName[ARRAY_SIZE] = {0};
         const int IPListSize = 180;
         const int DNSListSize = 180;
         char *iplist = NULL;
@@ -1122,14 +1116,13 @@ static void requestOrSendDataCallList(int channelID, int cid,
         err = at_tok_nextstr(&line, &out);
         if (err < 0) goto error;
 
-        snprintf(ethPropName, sizeof(ethPropName), "ro.modem.%s.eth", s_modem);
-        property_get(ethPropName, eth, "veth");
+        property_get(MODEM_ETH_PROP, eth, "veth");
 
         snprintf(cmd, sizeof(cmd), "%s%d", eth, ncid - 1);
         responses[i].ifname = alloca(strlen(cmd) + 1);
         snprintf(responses[i].ifname, strlen(cmd) + 1, "%s", cmd);
 
-        snprintf(cmd, sizeof(cmd), "net.%s%d.ip_type", eth, ncid - 1);
+        snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip_type", eth, ncid - 1);
         property_get(cmd, prop, "0");
         ipType = atoi(prop);
         if (responses[i].active > 0) {
@@ -1140,7 +1133,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         if (ipType == IPV4) {
             responses[i].type = alloca(strlen("IP") + 1);
             strncpy(responses[i].type, "IP", sizeof("IP"));
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             RLOGD("IPV4 cmd=%s, prop = %s", cmd, prop);
             responses[i].addresses = alloca(strlen(prop) + 1);
@@ -1150,7 +1143,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
 
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid - 1,
+                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.dns%d", eth, ncid - 1,
                           nn + 1);
                 property_get(cmd, prop, NULL);
                 /* Append the DNS IP address */
@@ -1162,7 +1155,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         } else if (ipType == IPV6) {
             responses[i].type = alloca(strlen("IPV6") + 1);
             strncpy(responses[i].type, "IPV6", sizeof("IPV6"));
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             RLOGD("IPV6 cmd=%s, prop = %s", cmd, prop);
             responses[i].addresses = alloca(strlen(prop) + 1);
@@ -1172,7 +1165,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
 
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth, ncid-1,
+                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_dns%d", eth, ncid-1,
                           nn + 1);
                 property_get(cmd, prop, NULL);
 
@@ -1189,13 +1182,13 @@ static void requestOrSendDataCallList(int channelID, int cid,
             iplist = alloca(IPListSize);
             separator = " ";
             iplist[0] = 0;
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             strlcat(iplist, prop, IPListSize);
             strlcat(iplist, separator, IPListSize);
             RLOGD("IPV4V6 cmd = %s, prop = %s, iplist = %s", cmd, prop, iplist);
 
-            snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip", eth, ncid - 1);
+            snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_ip", eth, ncid - 1);
             property_get(cmd, prop, NULL);
             strlcat(iplist, prop, IPListSize);
             responses[i].addresses = iplist;
@@ -1204,7 +1197,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
             separator = "";
             dnslist[0] = 0;
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.dns%d", eth, ncid - 1,
+                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.dns%d", eth, ncid - 1,
                           nn + 1);
                 property_get(cmd, prop, NULL);
 
@@ -1216,7 +1209,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                       dnslist);
             }
             for (nn = 0; nn < 2; nn++) {
-                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_dns%d", eth,
+                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_dns%d", eth,
                           ncid - 1, nn + 1);
                 property_get(cmd, prop, NULL);
 
@@ -1289,11 +1282,11 @@ static void requestOrSendDataCallList(int channelID, int cid,
                             char prop1[PROPERTY_VALUE_MAX] = {0};
                             char ipv6Address[PROPERTY_VALUE_MAX] = {0};
                             if (!strcmp(responses[i].type, "IPV4V6")) {
-                                snprintf(cmd, sizeof(cmd), "net.%s%d.ip",
+                                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip",
                                         eth, cid - 1);
                                 property_get(cmd, prop0, NULL);
 
-                                snprintf(cmd, sizeof(cmd), "net.%s%d.ipv6_ip",
+                                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_ip",
                                         eth, cid - 1);
                                 property_get(cmd, prop1, NULL);
                                 checkIpv6Address(prop1, ipv6Address, sizeof(ipv6Address));
@@ -1419,7 +1412,7 @@ static int reuseDefaultBearer(int channelID, void *data,
                                       password, cid, atoi(authtype));
                             at_send_command(s_ATChannels[channelID], cmd, NULL);
                             /* Set required QoS params to default */
-                            property_get("persist.sys.qosstate", qosState, "0");
+                            property_get(ENG_QOS_PROP, qosState, "0");
                             if (!strcmp(qosState, "0")) {
                                 snprintf(cmd, sizeof(cmd),
                                           "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -1615,7 +1608,6 @@ error:
 
 static void updateAdditionBusinessCid(int channelID) {
     char cmd[ARRAY_SIZE] = {0};
-    char ethPropName[ARRAY_SIZE] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
     char eth[PROPERTY_VALUE_MAX] = {0};
     char ipv4[PROPERTY_VALUE_MAX] = {0};
@@ -1629,21 +1621,20 @@ static void updateAdditionBusinessCid(int channelID) {
         return;
     }
 
-    snprintf(ethPropName, sizeof(ethPropName), "ro.modem.%s.eth", s_modem);
-    property_get(ethPropName, eth, "veth");
-    snprintf(prop, sizeof(prop), "net.%s%d.ip_type", eth, cidIndex);
+    property_get(MODEM_ETH_PROP, eth, "veth");
+    snprintf(prop, sizeof(prop), "vendor.net.%s%d.ip_type", eth, cidIndex);
     property_get(prop, cmd, "0");
     ipType = atoi(cmd);
 
     if (ipType & IPV4) {
-        snprintf(prop, sizeof(prop), "net.%s%d.ip", eth, cidIndex);
+        snprintf(prop, sizeof(prop), "vendor.net.%s%d.ip", eth, cidIndex);
         property_get(prop, ipv4, "");
     } else {
         strncpy(ipv4, "0.0.0.0", sizeof("0.0.0.0"));
     }
 
     if (ipType & IPV6) {
-        snprintf(prop, sizeof(prop), "net.%s%d.ipv6_ip", eth, cidIndex);
+        snprintf(prop, sizeof(prop), "vendor.net.%s%d.ipv6_ip", eth, cidIndex);
         property_get(prop, ipv6, "");
     } else {
         strncpy(ipv6, "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
@@ -1911,7 +1902,7 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     at_send_command(s_ATChannels[channelID], cmd, NULL);
 
     /* Set required QoS params to default */
-    property_get("persist.sys.qosstate", qosState, "0");
+    property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
                   "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -1960,7 +1951,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             if (ret > 0) {
                 if(ret == 2){  // esm flag = 0, both apn and protocol are empty.
                     property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
-                    RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+                    RLOGD("persist.vendor.radio.manualattach: %s", manualAttachProp);
                     if(atoi(manualAttachProp)){
                         at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
                     }
@@ -1972,7 +1963,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
             /*bug769723 CMCC version reattach on data card*/
-            property_get("ro.radio.spice", prop, "0");
+            property_get("ro.vendor.radio.spice", prop, "0");
             if (!strcmp(prop, "1")) {
                 if (socket_id == getDefaultDataCardId()) {
                     isSetReattach = true;
@@ -2331,7 +2322,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
                 /* Set required QoS params to default */
-                property_get("persist.sys.qosstate", qosState, "0");
+                property_get(ENG_QOS_PROP, qosState, "0");
                 if (!strcmp(qosState, "0")) {
                     snprintf(cmd, sizeof(cmd),
                         "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -2369,7 +2360,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
                 err = at_send_command(s_ATChannels[channelID], cmd, NULL);
 
                 /* Set required QoS params to default */
-                property_get("persist.sys.qosstate", qosState, "0");
+                property_get(ENG_QOS_PROP, qosState, "0");
                 if (!strcmp(qosState, "0")) {
                     snprintf(cmd, sizeof(cmd),
                         "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -3284,7 +3275,7 @@ int getIPV6Addr(const char *prop, int cidIndex) {
                 RLOGD("getipv6addr found fe80");
                 continue;
             }
-            snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s", prop,
+            snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ipv6_ip %s", prop,
                       cidIndex, addrstr);
             system(cmd);
             RLOGD("getipv6addr propset %s ", cmd);
@@ -3610,7 +3601,6 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
     int secondary_index = secondaryCid - 1;
     char cmd[AT_COMMAND_LEN];
     char prop[PROPERTY_VALUE_MAX];
-    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
     int count = 0;
 
     if (masterCid < 1|| masterCid >= MAX_PDP_NUM || secondaryCid <1 ||
@@ -3618,8 +3608,7 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
     // 1~11 is valid cid
         return 0;
     }
-    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-    property_get(ETH_SP, prop, "veth");
+    property_get(MODEM_ETH_PROP, prop, "veth");
     RLOGD("master ip type %d, secondary ip type %d",
              pdp_info[master_index].ip_state,
              pdp_info[secondary_index].ip_state);
@@ -3641,13 +3630,13 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
         memcpy(pdp_info[master_index].ipv6dns2addr,
                 pdp_info[secondary_index].ipv6dns2addr,
                 sizeof(pdp_info[master_index].ipv6dns2addr));
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ipv6_ip %s", prop,
                   master_index, pdp_info[master_index].ipv6laddr);
         system(cmd);
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_dns1 %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ipv6_dns1 %s", prop,
                   master_index, pdp_info[master_index].ipv6dns1addr);
         system(cmd);
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_dns2 %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ipv6_dns2 %s", prop,
                   master_index, pdp_info[master_index].ipv6dns2addr);
         system(cmd);
     } else if (pdp_info[master_index].ip_state == IPV6) {
@@ -3661,17 +3650,17 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
         memcpy(pdp_info[master_index].dns2addr,
                 pdp_info[secondary_index].dns2addr,
                 sizeof(pdp_info[master_index].dns2addr));
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip %s", prop,
                   master_index, pdp_info[master_index].ipladdr);
         system(cmd);
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns1 %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.dns1 %s", prop,
                   master_index, pdp_info[master_index].dns1addr);
         system(cmd);
-        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns2 %s", prop,
+        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.dns2 %s", prop,
                   master_index, pdp_info[secondary_index].dns2addr);
         system(cmd);
     }
-    snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d", prop,
+    snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip_type %d", prop,
               master_index, IPV4V6);
     system(cmd);
     pdp_info[master_index].ip_state = IPV4V6;
@@ -3685,7 +3674,6 @@ int dispose_data_fallback(int masterCid, int secondaryCid) {
 static int upNetInterface(int cidIndex, IPType ipType) {
     char linker[AT_COMMAND_LEN] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
-    char ETH_SP[PROPERTY_NAME_MAX] = {0};  // "ro.modem.*.eth"
     char gspsprop[PROPERTY_VALUE_MAX] = {0};
     char cmd[AT_COMMAND_LEN];
     IPType actIPType = ipType;
@@ -3697,8 +3685,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     memset(ip2, 0, sizeof(ip2));
     memset(dns1, 0, sizeof(dns1));
     memset(dns2, 0, sizeof(dns2));
-    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-    property_get(ETH_SP, prop, "veth");
+    property_get(MODEM_ETH_PROP, prop, "veth");
 
     /* set net interface name */
     snprintf(linker, sizeof(linker), "%s%d", prop, cidIndex);
@@ -3771,23 +3758,23 @@ static int upNetInterface(int cidIndex, IPType ipType) {
     property_get(BIP_OPENCHANNEL, bip, "0");
     if (strcmp(bip, "1") == 0) {
         if (ipType == IPV4) {
-            snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ip", linker);
             property_get(cmd, ip, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.dns1", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.dns1", linker);
             property_get(cmd, dns1, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.dns2", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.dns2", linker);
             property_get(cmd, dns2, "");
             in_addr_t address = inet_addr(ip);
             err = ifc_create_default_route(linker, address);
             RLOGD("ifc_create_default_route address = %d, error = %d", address, err);
         } else if (ipType == IPV6) {
-            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ipv6_ip", linker);
             property_get(cmd, ip2, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ipv6_dns1", linker);
             property_get(cmd, dns1, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns2", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ipv6_dns2", linker);
             property_get(cmd, dns2, "");
-            property_set("persist.sys.bip.ipv6_addr", ip2);
+            property_set("persist.vendor.sys.bip.ipv6_addr", ip2);
             int tableIndex = 0;
             ifc_init();
             RLOGD("linker = %s", linker);
@@ -3795,17 +3782,17 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             RLOGD("index = %d, error = %d", tableIndex, err);
             ifc_close();
             tableIndex = tableIndex + 1000;
-            sprintf(cmd, "setprop persist.sys.bip.table_index %d", tableIndex);
+            sprintf(cmd, "setprop persist.vendor.sys.bip.table_index %d", tableIndex);
             system(cmd);
             property_set("ctl.start", "stk");
         } else {
-            snprintf(cmd, sizeof(cmd),"net.%s.ip", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ip", linker);
             property_get(cmd, ip, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_ip", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ipv6_ip", linker);
             property_get(cmd, ip2, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.dns1", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.dns1", linker);
             property_get(cmd, dns1, "");
-            snprintf(cmd, sizeof(cmd),"net.%s.ipv6_dns1", linker);
+            snprintf(cmd, sizeof(cmd),"vendor.net.%s.ipv6_dns1", linker);
             property_get(cmd, dns2, "");
         }
         //snprintf(cmd, sizeof(cmd), "ip route add default via %s %s dev %s", ip, ip2, linker);
@@ -3836,7 +3823,6 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
     int ip_type_num = 0;
     int ip_type;
     int maxPDPNum = MAX_PDP_NUM;
-    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
     ATLine *p_cur = NULL;
 
     if (p_response == NULL) {
@@ -3848,8 +3834,7 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
     memset(dns1, 0, sizeof(dns1));
     memset(dns2, 0, sizeof(dns2));
 
-    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-    property_get(ETH_SP, prop, "veth");
+    property_get(MODEM_ETH_PROP, prop, "veth");
 
     for (p_cur = p_response->p_intermediates; p_cur != NULL;
          p_cur = p_cur->p_next) {
@@ -3916,14 +3901,14 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                         memcpy(pdp_info[cid - 1].ipv6dns1addr, dns1,
                                 sizeof(pdp_info[cid - 1].ipv6dns1addr));
 
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip_type %d",
                                   prop, cid - 1, IPV6);
                         system(cmd);
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ipv6_ip %s",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ipv6_ip %s",
                                   prop, cid - 1, ip);
                         system(cmd);
                         snprintf(cmd, sizeof(cmd),
-                                  "setprop net.%s%d.ipv6_dns1 %s", prop, cid - 1,
+                                  "setprop vendor.net.%s%d.ipv6_dns1 %s", prop, cid - 1,
                                   dns1);
                         system(cmd);
                         if (strlen(dns2) != 0) {
@@ -3952,7 +3937,7 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                         memcpy(pdp_info[cid - 1].ipv6dns2addr, dns2,
                                 sizeof(pdp_info[cid - 1].ipv6dns2addr));
                         snprintf(cmd, sizeof(cmd),
-                                  "setprop net.%s%d.ipv6_dns2 %s", prop, cid - 1,
+                                  "setprop vendor.net.%s%d.ipv6_dns2 %s", prop, cid - 1,
                                   dns2);
                         system(cmd);
 
@@ -3965,13 +3950,13 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                         memcpy(pdp_info[cid - 1].dns1addr, dns1,
                                 sizeof(pdp_info[cid - 1].dns1addr));
 
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip_type %d",
                                   prop, cid - 1, IPV4);
                         system(cmd);
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip %s", prop,
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip %s", prop,
                                   cid - 1, ip);
                         system(cmd);
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns1 %s",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.dns1 %s",
                                   prop, cid - 1, dns1);
                         system(cmd);
                         if (strlen(dns2) != 0) {
@@ -3991,7 +3976,7 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                         }
                         memcpy(pdp_info[cid - 1].dns2addr, dns2,
                                 sizeof(pdp_info[cid - 1].dns2addr));
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.dns2 %s",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.dns2 %s",
                                   prop, cid - 1, dns2);
                         system(cmd);
 
@@ -4005,7 +3990,7 @@ int cgcontrdp_set_cmd_rsp(ATResponse *p_response) {
                     if (ip_type_num > 1) {
                         RLOGD("cgcontrdp_set_cmd_rsp is IPV4V6, s_pdpType = %d", s_pdpType);
                         pdp_info[cid - 1].ip_state = s_pdpType;
-                        snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d",
+                        snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip_type %d",
                                  prop, cid - 1, s_pdpType);
                         system(cmd);
                         s_pdpType = IPV4V6;
@@ -4126,7 +4111,6 @@ error:
 void cgact_deact_cmd_rsp(int cid) {
     char cmd[AT_COMMAND_LEN];
     char prop[PROPERTY_VALUE_MAX];
-    char ETH_SP[PROPERTY_NAME_MAX];  // "ro.modem.*.eth"
     char ipv6_dhcpcd_cmd[AT_COMMAND_LEN] = {0};
 
     pthread_mutex_lock(&s_psServiceMutex);
@@ -4134,8 +4118,7 @@ void cgact_deact_cmd_rsp(int cid) {
     pdp_info[cid - 1].state = PDP_STATE_IDLE;
 
 //    usleep(200 * 1000);
-    snprintf(ETH_SP, sizeof(ETH_SP), "ro.modem.%s.eth", s_modem);
-    property_get(ETH_SP, prop, "veth");
+    property_get(MODEM_ETH_PROP, prop, "veth");
     downNetcard(cid, prop);
 
     if (pdp_info[cid - 1].ip_state == IPV6 ||
@@ -4145,7 +4128,7 @@ void cgact_deact_cmd_rsp(int cid) {
         property_set("ctl.stop", ipv6_dhcpcd_cmd);
     }
 
-    snprintf(cmd, sizeof(cmd), "setprop net.%s%d.ip_type %d", prop,
+    snprintf(cmd, sizeof(cmd), "setprop vendor.net.%s%d.ip_type %d", prop,
             cid - 1, UNKNOWN);
     system(cmd);
 

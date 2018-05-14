@@ -969,15 +969,15 @@ int isEccNumber(RIL_SOCKET_ID socket_id, char *dialNumber, int *catgry) {
         return numberExist;
     }
 
-    property_get("ro.ril.ecclist", eccNumberList, "");
-    tmpList = eccNumberList;
-    if (strcmp(eccNumberList, "") == 0) {
-        if (isSimPresent(socket_id) == 1) {
-            tmpList = ecc3GPP_SIM;
-        } else {
-            tmpList = ecc3GPP_NoSIM;
-        }
+    //property_get("ro.ril.ecclist", eccNumberList, "");
+    //tmpList = eccNumberList;
+    //if (strcmp(eccNumberList, "") == 0) {
+    if (isSimPresent(socket_id) == 1) {
+        tmpList = ecc3GPP_SIM;
+    } else {
+        tmpList = ecc3GPP_NoSIM;
     }
+    //}
     while ((tmpNumber = strtok_r(tmpList, ",", &outer_ptr)) != NULL) {
         if (strcmp(tmpNumber, dialNumber) == 0) {
             numberExist = 1;
