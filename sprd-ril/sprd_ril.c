@@ -1453,7 +1453,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
 
     setHwVerPorp();
-    initOperatorInfoList(&s_operatorInfoList);
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        initOperatorInfoList(&s_operatorInfoList[simId]);
+    }
     return &s_callbacks;
 }
 
