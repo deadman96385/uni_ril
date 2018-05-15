@@ -133,7 +133,7 @@ extern RIL_RegState s_CSRegStateDetail[SIM_COUNT];
 extern RIL_RegState s_PSRegStateDetail[SIM_COUNT];
 extern pthread_mutex_t s_radioPowerMutex[SIM_COUNT];
 extern SimBusy s_simBusy[SIM_COUNT];
-extern OperatorInfoList s_operatorInfoList;
+extern OperatorInfoList s_operatorInfoList[SIM_COUNT];
 extern pthread_mutex_t s_signalProcessMutex;
 extern pthread_cond_t s_signalProcessCond;
 
