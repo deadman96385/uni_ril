@@ -4860,6 +4860,9 @@ static void processCommandsCallback(int fd, short flags __unused, void *param) {
                     || pCI->requestNumber == RIL_EXT_REQUEST_SWITCH_MULTI_CALL
                     || pCI->requestNumber == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
                     /* }@ */
+                    /* SubsisyLock @{ */
+                    || pCI->requestNumber == RIL_EXT_REQUEST_ENABLE_EMERGENCY_ONLY
+                    /* }@ */
                     ) {
                 list_add_tail(cmdList->callReqList, cmd_item, socket_id);
                 pthread_mutex_lock(&(cmdList->normalDispatchMutex));

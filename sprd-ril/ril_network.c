@@ -2774,24 +2774,28 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             break;
         }
         case RIL_EXT_REQUEST_ENABLE_EMERGENCY_ONLY: {
-            RLOGD("radio state is ", s_radioState[socket_id]);
-            int value = ((int *) data)[0];
-            char cmd[AT_COMMAND_LEN];
-            p_response = NULL;
-            snprintf(cmd, sizeof(cmd), "AT+SPECCMOD=%d", value);
-            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-            if (err < 0 || p_response->success == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-            } else {
-                if (value == 1) {
-                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
+            RLOGD("radio state is %d", s_radioState[socket_id]);
+            if (RADIO_STATE_OFF != s_radioState[socket_id] && RADIO_STATE_UNAVAILABLE != s_radioState[socket_id]) {
+                int value = ((int *) data)[0];
+                char cmd[AT_COMMAND_LEN];
+                p_response = NULL;
+                snprintf(cmd, sizeof(cmd), "AT+SPECCMOD=%d", value);
+                err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 } else {
-                    err = at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
-                    err = at_send_command(s_ATChannels[channelID], "AT+SFUN=4", NULL);
-                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                    if (value == 1) {
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                    } else {
+                        err = at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
+                        err = at_send_command(s_ATChannels[channelID], "AT+SFUN=4", NULL);
+                        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                    }
                 }
+                at_response_free(p_response);
             }
-            at_response_free(p_response);
+            pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             break;
         }
         default:
