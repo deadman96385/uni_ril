@@ -35,11 +35,14 @@
 #include <sys/types.h>
 #include <libril/ril_ex.h>
 
-#include <cutils/android_filesystem_config.h>
-
+#define MAX_LIB_ARGS        16
+#if defined(PRODUCT_COMPATIBLE_PROPERTY)
+#define LIB_PATH_PROPERTY   "vendor.rild.libpath"
+#define LIB_ARGS_PROPERTY   "vendor.rild.libargs"
+#else
 #define LIB_PATH_PROPERTY   "rild.libpath"
 #define LIB_ARGS_PROPERTY   "rild.libargs"
-#define MAX_LIB_ARGS        16
+#endif
 
 static void usage(const char *argv0) {
     fprintf(stderr, "Usage: %s -l <ril impl library> [-- <args for impl library>]\n", argv0);
@@ -52,15 +55,13 @@ extern char ril_service_name[MAX_SERVICE_NAME_LENGTH];
 extern void RIL_register (const RIL_RadioFunctions *callbacks);
 extern void rilc_thread_pool ();
 
-extern void RIL_register_socket (RIL_RadioFunctions *(*rilUimInit)
+extern void RIL_register_socket (const RIL_RadioFunctions *(*rilUimInit)
         (const struct RIL_Env *, int, char **), RIL_SOCKET_TYPE socketType, int argc, char **argv);
 
 extern void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
         void *response, size_t responselen);
 
 extern void RIL_onRequestAck(RIL_Token t);
-
-extern void RIL_setServiceName(char *);
 
 #if defined(ANDROID_MULTI_SIM)
 extern void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
@@ -107,7 +108,7 @@ int main(int argc, char **argv) {
     // Pointer to ril init function in vendor ril
     const RIL_RadioFunctions *(*rilInit)(const struct RIL_Env *, int, char **);
     // Pointer to sap init function in vendor ril
-    RIL_RadioFunctions *(*rilUimInit)(const struct RIL_Env *, int, char **);
+    const RIL_RadioFunctions *(*rilUimInit)(const struct RIL_Env *, int, char **);
     const char *err_str = NULL;
 
     // functions returned by ril init function in vendor ril
@@ -148,9 +149,8 @@ int main(int argc, char **argv) {
         exit(0);
     }
     if (strncmp(clientId, "0", MAX_CLIENT_ID_LENGTH)) {
-        strncpy(ril_service_name, ril_service_name_base, MAX_SERVICE_NAME_LENGTH);
-        strncat(ril_service_name, clientId, MAX_SERVICE_NAME_LENGTH);
-        RIL_setServiceName(ril_service_name);
+        snprintf(ril_service_name, sizeof(ril_service_name), "%s%s", ril_service_name_base,
+                 clientId);
     }
 
     dlHandle = dlopen("libsprd-ril.so", RTLD_NOW);
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 
     dlerror(); // Clear any previous dlerror
     rilUimInit =
-        (RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **))
+        (const RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **))
         dlsym(dlHandle, "RIL_SAP_Init");
     err_str = dlerror();
     if (err_str) {
