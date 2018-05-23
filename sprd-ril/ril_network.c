@@ -954,6 +954,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     char cmd[AT_COMMAND_LEN] = {0};
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    char manualAttachProp[PROPERTY_VALUE_MAX] = {0};
 
     assert(datalen >= sizeof(int *));
     s_desiredRadioState[socket_id] = ((int *)data)[0];
@@ -977,6 +978,12 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
     } else if (s_desiredRadioState[socket_id] > 0 &&
                 s_radioState[socket_id] == RADIO_STATE_OFF) {
         initSIMPresentState();
+        property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+        RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+        if(!strcmp(manualAttachProp, "1") && s_isLTE && s_isFirstPowerOn){
+            at_send_command(s_ATChannels[channelID], "AT+SPMANUATTACH=1", NULL);
+            s_isFirstPowerOn = false;
+        }
         buildWorkModeCmd(cmd, sizeof(cmd));
 
 #if (SIM_COUNT == 2)
@@ -1002,7 +1009,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         if (s_isLTE) {
             at_send_command(s_ATChannels[channelID], "AT+CEMODE=1", NULL);
             p_response = NULL;
-            if (s_presentSIMCount == 1) {
+            if (s_presentSIMCount == 1 && !strcmp(manualAttachProp, "0")) {
                 err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
                                       &p_response);
                 if (err < 0 || p_response->success == 0) {
@@ -1023,7 +1030,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         } else {
 #if defined (ANDROID_MULTI_SIM)
             if (s_presentSIMCount == 2) {
-                if (s_workMode[socket_id] != GSM_ONLY) {
+                if (s_workMode[socket_id] != GSM_ONLY && !strcmp(manualAttachProp, "0")) {
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=1", NULL);
                 } else {
@@ -1031,10 +1038,14 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                             "AT+SAUTOATT=0", NULL);
                 }
             } else {
-                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+                if (!strcmp(manualAttachProp, "0")) {
+                    at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+                }
             }
 #else
-            at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+            if (!strcmp(manualAttachProp, "0")) {
+                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+            }
 #endif
         }
 

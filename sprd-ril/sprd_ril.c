@@ -113,6 +113,7 @@ const RIL_SOCKET_ID s_socketId[SIM_COUNT] = {
 
 sem_t s_sem[SIM_COUNT];
 bool s_isLTE = false;
+bool s_isFirstPowerOn = false;
 bool s_isUserdebug = false;
 int s_modemConfig = 0;
 
@@ -1014,6 +1015,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     s_modemConfig = getModemConfig();
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
+    s_isFirstPowerOn = true;
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);

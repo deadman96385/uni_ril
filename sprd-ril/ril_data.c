@@ -1607,7 +1607,9 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
         memset(old->username, 0, strlen(old->username));
         memset(old->password, 0, strlen(old->password));
     }
-    if (isApnEqual(new->apn, old->apn) &&
+    if((isStrEmpty(new->apn) && isStrEmpty(new->protocol))) {
+        ret = 2;
+    } else if (isApnEqual(new->apn, old->apn) &&
         isProtocolEqual(new->protocol, old->protocol) &&
         isStrEqual(new->username, old->username) &&
         isStrEqual(new->password, old->password) &&
@@ -1644,6 +1646,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
     int initialAttachId = 1;
     int ret = -1;
+    char manualAttachProp[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1653,12 +1656,20 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     response->password = (char *)calloc(ARRAY_SIZE, sizeof(char));
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
+    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+    RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
+
     if (data != NULL) {
         RIL_InitialAttachApn *pIAApn = (RIL_InitialAttachApn *)data;
         if (s_isLTE) {
             ret = getDataProfile(response, channelID, initialAttachId);
             ret = compareApnProfile(pIAApn, response);
             if (ret > 0) {
+                 if(ret == 2){ // esm flag = 0, both apn and protocol are empty.
+                     if(s_isLTE && !strcmp(manualAttachProp, "1")) {
+                         at_send_command(s_ATChannels[channelID], "AT+CGATT=1", NULL);
+                     }
+                 }
                 goto done;
             } else {
                 setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
@@ -1672,6 +1683,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED)) {
                 at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+            }
+            if(s_isLTE && !strcmp(manualAttachProp, "1")) {
+                at_send_command(s_ATChannels[channelID], "AT+CGATT=1", NULL);
             }
         } else {
             setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
