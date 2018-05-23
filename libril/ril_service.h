@@ -966,6 +966,8 @@ int radioCapabilityChangedInd(int slotId, int indicationType, int token,
                               RIL_Errno e, void *response, size_t responseLen);
 int earlyMediaInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
+int updateHdStateInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
 /*******************IMS EXTENSION REQUESTs' responseFunction******************/
 
 int getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
