@@ -361,15 +361,14 @@ static int freeSetDataProfileData(void *data, size_t datalen) {
             memsetString(dataProfiles[i]->protocol);
             memsetString(dataProfiles[i]->user);
             memsetString(dataProfiles[i]->password);
-            memset(dataProfiles[i], 0, sizeof(RIL_DataProfileInfo));
 
             free(dataProfiles[i]->apn);
             free(dataProfiles[i]->protocol);
             free(dataProfiles[i]->user);
             free(dataProfiles[i]->password);
-            free(dataProfiles[i]);
         }
-
+        memset(dataProfiles[0], 0, num * sizeof(RIL_DataProfileInfo));
+        free(dataProfiles[0]);
         memset(dataProfiles, 0, datalen);
         free(dataProfiles);
     } else {
@@ -383,7 +382,6 @@ static int freeSetDataProfileData(void *data, size_t datalen) {
             memsetString(dataProfiles[i]->user);
             memsetString(dataProfiles[i]->password);
             memsetString(dataProfiles[i]->mvnoMatchData);
-            memset(dataProfiles[i], 0, sizeof(RIL_DataProfileInfo_v15));
 
             free(dataProfiles[i]->apn);
             free(dataProfiles[i]->protocol);
@@ -391,9 +389,10 @@ static int freeSetDataProfileData(void *data, size_t datalen) {
             free(dataProfiles[i]->user);
             free(dataProfiles[i]->password);
             free(dataProfiles[i]->mvnoMatchData);
-            free(dataProfiles[i]);
         }
 
+        memset(dataProfiles[0], 0, num * sizeof(RIL_DataProfileInfo));
+        free(dataProfiles[0]);
         memset(dataProfiles, 0, datalen);
         free(dataProfiles);
     }
