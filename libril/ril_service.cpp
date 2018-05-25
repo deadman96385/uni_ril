@@ -58,7 +58,6 @@ typedef enum {
     OEM_SERVICE,
     RADIO_SERVICE,
     RADIOINTERACTOR_SERVICE,
-    IMS_SERVICE,
     ATC_SERVICE
 } serviceType;
 
@@ -145,9 +144,6 @@ struct RadioImpl : public IExtRadio {
     sp<IExtRadioResponse> mExtRadioResponse;
     sp<IExtRadioIndication> mExtRadioIndication;
 
-    sp<IIMSRadioResponse> mIMSRadioResponse;
-    sp<IIMSRadioIndication> mIMSRadioIndication;
-
     sp<IAtcRadioResponse> mAtcRadioResponse;
     sp<IAtcRadioIndication> mAtcRadioIndication;
 
@@ -158,10 +154,6 @@ struct RadioImpl : public IExtRadio {
     Return<void> setExtResponseFunctions(
             const ::android::sp<IExtRadioResponse>& radioResponse,
             const ::android::sp<IExtRadioIndication>& radioIndication);
-
-    Return<void> setIMSResponseFunctions(
-            const ::android::sp<IIMSRadioResponse>& radioResponse,
-            const ::android::sp<IIMSRadioIndication>& radioIndication);
 
     Return<void> setAtcResponseFunctions(
             const ::android::sp<IAtcRadioResponse>& radioResponse,
@@ -1058,9 +1050,6 @@ void checkReturnStatus(int32_t slotId, Return<void>& ret, serviceType srvType) {
             } else if (srvType == RADIOINTERACTOR_SERVICE) {
                 radioService[slotId]->mExtRadioResponse = NULL;
                 radioService[slotId]->mExtRadioIndication = NULL;
-            } else if (srvType == IMS_SERVICE) {
-                radioService[slotId]->mIMSRadioResponse = NULL;
-                radioService[slotId]->mIMSRadioIndication = NULL;
             } else {
                 oemHookService[slotId]->mOemHookResponse = NULL;
                 oemHookService[slotId]->mOemHookIndication = NULL;
@@ -9099,8 +9088,6 @@ void radio::registerService(RIL_RadioFunctions *callbacks, CommandInfo *commands
         radioService[i]->mRadioIndication = NULL;
         radioService[i]->mExtRadioResponse = NULL;
         radioService[i]->mExtRadioIndication = NULL;
-        radioService[i]->mIMSRadioResponse = NULL;
-        radioService[i]->mIMSRadioIndication = NULL;
 
         RLOGD("registerService: starting android::hardware::radio::V1_1::IRadio %s",
                 serviceNames[i]);
@@ -11653,32 +11640,6 @@ extern "C" int updateNetworkList(int slotId, char **networkList, size_t datalen,
     return ret;
 }
 
-/***************************IMS EXTENSION REQUEST*****************************/
-
-Return<void> RadioImpl::setIMSResponseFunctions(
-        const ::android::sp<IIMSRadioResponse>& radioResponse,
-       const ::android::sp<IIMSRadioIndication>& radioIndication) {
-    RLOGD("setIMSResponseFunctions");
-
-    pthread_rwlock_t *radioServiceRwlockPtr = radio::getRadioServiceRwlock(mSlotId);
-    int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
-    assert(ret == 0);
-
-    mIMSRadioResponse = radioResponse;
-    mIMSRadioIndication = radioIndication;
-    mCounterRadio[mSlotId]++;
-
-    ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
-    assert(ret == 0);
-
-    // client is connected. Send initial indications.
-//    android::onNewCommandConnect((RIL_SOCKET_ID)mSlotId);
-
-    return Void();
-}
-
-/*****************IMS EXTENSION REQUESTs' dispatchFunction********************/
-
 Return<void> RadioImpl::getIMSCurrentCalls(int32_t serial) {
 #if VDBG
     RLOGD("getIMSCurrentCalls: serial %d", serial);
@@ -12168,7 +12129,7 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
     RLOGD("getIMSCurrentCallsResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
 
@@ -12225,12 +12186,12 @@ int radio::getIMSCurrentCallsResponse(int slotId, int responseType, int serial,
             }
         }
 
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getIMSCurrentCallsResponse(responseInfo, calls);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
         free(numberTmp);
     } else {
-        RLOGE("getIMSCurrentCallsResponse: radioService[%d]->mIMSRadioResponse == NULL", slotId);
+        RLOGE("getIMSCurrentCallsResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
     }
 
     return 0;
@@ -12243,14 +12204,14 @@ int radio::setIMSVoiceCallAvailabilityResponse(int slotId, int responseType, int
     RLOGD("setIMSVoiceCallAvailabilityResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setIMSVoiceCallAvailabilityResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setIMSVoiceCallAvailabilityResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setIMSVoiceCallAvailabilityResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12264,15 +12225,15 @@ int radio::getIMSVoiceCallAvailabilityResponse(int slotId, int responseType, int
     RLOGD("getIMSVoiceCallAvailabilityResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
                 response, responseLen);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getIMSVoiceCallAvailabilityResponse(responseInfo, ret);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("getIMSVoiceCallAvailabilityResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("getIMSVoiceCallAvailabilityResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12285,15 +12246,15 @@ int radio::initISIMResponse(int slotId, int responseType, int serial,
     RLOGD("initISIMResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
                 response, responseLen);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 initISIMResponse(responseInfo, ret);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("initISIMResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("initISIMResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12307,14 +12268,14 @@ int radio::requestVolteCallMediaChangeResponse(int slotId, int responseType, int
     RLOGD("requestVolteCallMediaChangeResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 requestVolteCallMediaChangeResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("requestVolteCallMediaChangeResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("requestVolteCallMediaChangeResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12328,14 +12289,14 @@ int radio::responseVolteCallMediaChangeResponse(int slotId, int responseType, in
     RLOGD("responseVolteCallMediaChangeResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 responseVolteCallMediaChangeResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("responseVolteCallMediaChangeResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("responseVolteCallMediaChangeResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12349,14 +12310,14 @@ int radio::setIMSSmscAddressResponse(int slotId, int responseType, int serial,
     RLOGD("setIMSSmscAddressResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setIMSSmscAddressResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setIMSSmscAddressResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setIMSSmscAddressResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12370,14 +12331,14 @@ int radio::volteCallFallBackToVoiceResponse(int slotId, int responseType, int se
     RLOGD("volteCallFallBackToVoiceResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 volteCallFallBackToVoiceResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("volteCallFallBackToVoiceResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("volteCallFallBackToVoiceResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12392,14 +12353,14 @@ int radio::setIMSInitialAttachApnResponse(int slotId, int responseType, int seri
     RLOGD("setIMSInitialAttachApnResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setIMSInitialAttachApnResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setIMSInitialAttachApnResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setIMSInitialAttachApnResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12413,7 +12374,7 @@ int radio::queryCallForwardStatusResponse(int slotId, int responseType, int seri
     RLOGD("queryCallForwardStatusResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
         hidl_vec<CallForwardInfoUri> callForwardInfos;
@@ -12437,11 +12398,11 @@ int radio::queryCallForwardStatusResponse(int slotId, int responseType, int seri
             }
         }
 
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 queryCallForwardStatusResponse(responseInfo, callForwardInfos);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("queryCallForwardStatusResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("queryCallForwardStatusResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12455,14 +12416,14 @@ int radio::setCallForwardUriResponse(int slotId, int responseType, int serial,
     RLOGD("setCallForwardUriResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setCallForwardUriResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setCallForwardUriResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setCallForwardUriResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12476,14 +12437,14 @@ int radio::IMSInitialGroupCallResponse(int slotId, int responseType, int serial,
     RLOGD("IMSInitialGroupCallResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSInitialGroupCallResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSInitialGroupCallResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSInitialGroupCallResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12497,14 +12458,14 @@ int radio::IMSAddGroupCallResponse(int slotId, int responseType, int serial,
     RLOGD("IMSAddGroupCallResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSAddGroupCallResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSAddGroupCallResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSAddGroupCallResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12517,14 +12478,14 @@ int radio::enableIMSResponse(int slotId, int responseType, int serial,
     RLOGD("enableIMSResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 enableIMSResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("enableIMSResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("enableIMSResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12537,14 +12498,14 @@ int radio::disableIMSResponse(int slotId, int responseType, int serial,
     RLOGD("disableIMSResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 disableIMSResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("disableIMSResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("disableIMSResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12558,15 +12519,15 @@ int radio::getIMSBearerStateResponse(int slotId, int responseType, int serial,
     RLOGD("getIMSBearerStateResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
                 response, responseLen);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getIMSBearerStateResponse(responseInfo, ret);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("getIMSBearerStateResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("getIMSBearerStateResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12580,14 +12541,14 @@ int radio::setInitialAttachSOSApnResponse(int slotId, int responseType, int seri
     RLOGD("setInitialAttachSOSApnResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setInitialAttachSOSApnResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setInitialAttachSOSApnResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setInitialAttachSOSApnResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12600,14 +12561,14 @@ int radio::IMSHandoverResponse(int slotId, int responseType, int serial,
     RLOGD("IMSHandoverResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSHandoverResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSHandoverResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSHandoverResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12620,14 +12581,14 @@ int radio::notifyIMSHandoverStatusUpdateResponse(int slotId, int responseType, i
     RLOGD("notifyIMSHandoverStatusUpdateResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyIMSHandoverStatusUpdateResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyIMSHandoverStatusUpdateResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyIMSHandoverStatusUpdateResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12641,14 +12602,14 @@ int radio::notifyIMSNetworkInfoChangedResponse(int slotId, int responseType, int
     RLOGD("notifyIMSNetworkInfoChangedResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyIMSNetworkInfoChangedResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyIMSNetworkInfoChangedResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyIMSNetworkInfoChangedResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12662,14 +12623,14 @@ int radio::notifyIMSCallEndResponse(int slotId, int responseType, int serial,
     RLOGD("notifyIMSCallEndResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyIMSCallEndResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyIMSCallEndResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyIMSCallEndResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12683,14 +12644,14 @@ int radio::notifyVoWifiEnableResponse(int slotId, int responseType, int serial,
     RLOGD("notifyVoWifiEnableResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyVoWifiEnableResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyVoWifiEnableResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyVoWifiEnableResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12704,14 +12665,14 @@ int radio::notifyVoWifiCallStateChangedResponse(int slotId, int responseType, in
     RLOGD("notifyVoWifiCallStateChangedResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyVoWifiCallStateChangedResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyVoWifiCallStateChangedResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyVoWifiCallStateChangedResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12725,14 +12686,14 @@ int radio::notifyDataRouterUpdateResponse(int slotId, int responseType, int seri
     RLOGD("notifyDataRouterUpdateResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyDataRouterUpdateResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyDataRouterUpdateResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyDataRouterUpdateResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12746,14 +12707,14 @@ int radio::IMSHoldSingleCallResponse(int slotId, int responseType, int serial,
     RLOGD("IMSHoldSingleCallResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSHoldSingleCallResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSHoldSingleCallResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSHoldSingleCallResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12767,14 +12728,14 @@ int radio::IMSMuteSingleCallResponse(int slotId, int responseType, int serial,
     RLOGD("IMSMuteSingleCallResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSMuteSingleCallResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSMuteSingleCallResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSMuteSingleCallResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12788,14 +12749,14 @@ int radio::IMSSilenceSingleCallResponse(int slotId, int responseType, int serial
     RLOGD("IMSSilenceSingleCallResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSSilenceSingleCallResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSSilenceSingleCallResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSSilenceSingleCallResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12809,14 +12770,14 @@ int radio::IMSEnableLocalConferenceResponse(int slotId, int responseType, int se
     RLOGD("IMSEnableLocalConferenceResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 IMSEnableLocalConferenceResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSEnableLocalConferenceResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("IMSEnableLocalConferenceResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12830,14 +12791,14 @@ int radio::notifyHandoverCallInfoResponse(int slotId, int responseType, int seri
     RLOGD("notifyHandoverCallInfoResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 notifyHandoverCallInfoResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("notifyHandoverCallInfoResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("notifyHandoverCallInfoResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12851,15 +12812,15 @@ int radio::getSrvccCapbilityResponse(int slotId, int responseType, int serial,
     RLOGD("getSrvccCapbilityResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
                 response, responseLen);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getSrvccCapbilityResponse(responseInfo, ret);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("getSrvccCapbilityResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("getSrvccCapbilityResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12873,15 +12834,15 @@ int radio::getIMSPcscfAddressResponse(int slotId, int responseType, int serial,
     RLOGD("getIMSPcscfAddressResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getIMSPcscfAddressResponse(responseInfo,
                         convertCharPtrToHidlString((char *)response));
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("getIMSPcscfAddressResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("getIMSPcscfAddressResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12895,14 +12856,14 @@ int radio::setIMSPcscfAddressResponse(int slotId, int responseType, int serial,
     RLOGD("setIMSPcscfAddressResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 setIMSPcscfAddressResponse(responseInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("setIMSPcscfAddressResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("setIMSPcscfAddressResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12916,7 +12877,7 @@ int radio::getFacilityLockForAppExtResponse(int slotId, int responseType,
     RLOGD("getFacilityLockForAppExtResponse: serial %d", serial);
 #endif
 
-    if (radioService[slotId]->mIMSRadioResponse != NULL) {
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         int status = 0;
         int serviceClass = 0;
@@ -12931,11 +12892,11 @@ int radio::getFacilityLockForAppExtResponse(int slotId, int responseType,
             serviceClass = p_int[1];
         }
 
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getFacilityLockForAppExtResponse(responseInfo, status, serviceClass);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("getFacilityLockForAppExtResponse: radioService[%d]->mIMSRadioResponse == NULL",
+        RLOGE("getFacilityLockForAppExtResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
@@ -12965,7 +12926,7 @@ int radio::getImsRegAddressResponse(int slotId, int responseType, int serial,
                 data[i] = convertCharPtrToHidlString(resp[i]);
             }
         }
-        Return<void> retStatus = radioService[slotId]->mIMSRadioResponse->
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
                 getImsRegAddressResponse(responseInfo, data);
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
@@ -12981,15 +12942,15 @@ int radio::getImsRegAddressResponse(int slotId, int responseType, int serial,
 int radio::IMSCallStateChangedInd(int slotId, int indicationType, int token,
                                   RIL_Errno e, void *response,
                                   size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
 #if VDBG
         RLOGD("IMSCallStateChangedInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSCallStateChangedInd(convertIntToRadioIndicationType(indicationType));
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSCallStateChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSCallStateChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -12997,7 +12958,7 @@ int radio::IMSCallStateChangedInd(int slotId, int indicationType, int token,
 
 int radio::videoQualityInd(int slotId, int indicationType, int token,
                            RIL_Errno e, void *response, size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen % sizeof(int) != 0) {
             RLOGE("videoQualityInd: invalid response");
             return 0;
@@ -13013,11 +12974,11 @@ int radio::videoQualityInd(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("videoQualityInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 videoQualityInd(convertIntToRadioIndicationType(indicationType), data);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("videoQualityInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("videoQualityInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13025,7 +12986,7 @@ int radio::videoQualityInd(int slotId, int indicationType, int token,
 
 int radio::IMSBearerEstablished(int slotId, int indicationType, int token,
                                 RIL_Errno e, void *response, size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen != sizeof(int)) {
             RLOGE("IMSBearerEstablished: invalid response");
             return 0;
@@ -13034,11 +12995,11 @@ int radio::IMSBearerEstablished(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("IMSBearerEstablished");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSBearerEstablished(convertIntToRadioIndicationType(indicationType), state);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSBearerEstablished: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSBearerEstablished: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13046,7 +13007,7 @@ int radio::IMSBearerEstablished(int slotId, int indicationType, int token,
 
 int radio::IMSHandoverRequestInd(int slotId, int indicationType, int token,
                                  RIL_Errno e, void *response, size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen != sizeof(int)) {
             RLOGE("IMSHandoverRequestInd: invalid response");
             return 0;
@@ -13055,11 +13016,11 @@ int radio::IMSHandoverRequestInd(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("IMSHandoverRequestInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSHandoverRequestInd(convertIntToRadioIndicationType(indicationType), status);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSHandoverRequestInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSHandoverRequestInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13068,7 +13029,7 @@ int radio::IMSHandoverRequestInd(int slotId, int indicationType, int token,
 int radio::IMSHandoverStatusChangedInd(int slotId, int indicationType, int token,
                                        RIL_Errno e, void *response,
                                        size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen != sizeof(int)) {
             RLOGE("IMSHandoverStatusChangedInd: invalid response");
             return 0;
@@ -13077,11 +13038,11 @@ int radio::IMSHandoverStatusChangedInd(int slotId, int indicationType, int token
 #if VDBG
         RLOGD("IMSHandoverStatusChangedInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSHandoverStatusChangedInd(convertIntToRadioIndicationType(indicationType), status);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSHandoverStatusChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSHandoverStatusChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13090,7 +13051,7 @@ int radio::IMSHandoverStatusChangedInd(int slotId, int indicationType, int token
 int radio::IMSNetworkInfoChangedInd(int slotId, int indicationType, int token,
                                     RIL_Errno e, void *response,
                                     size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen != sizeof(IMS_NetworkInfo)) {
             RLOGE("IMSNetworkInfoChangedInd: invalid response");
             return 0;
@@ -13104,11 +13065,11 @@ int radio::IMSNetworkInfoChangedInd(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("IMSNetworkInfoChangedInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSNetworkInfoChangedInd(convertIntToRadioIndicationType(indicationType), nwInfo);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSNetworkInfoChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSNetworkInfoChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13117,7 +13078,7 @@ int radio::IMSNetworkInfoChangedInd(int slotId, int indicationType, int token,
 int radio::IMSRegisterAddressChangedInd(int slotId, int indicationType, int token,
                                         RIL_Errno e, void *response,
                                         size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen % sizeof(char *) != 0) {
             RLOGE("IMSRegisterAddressChangedInd: invalid response");
             return 0;
@@ -13134,12 +13095,12 @@ int radio::IMSRegisterAddressChangedInd(int slotId, int indicationType, int toke
            data[i] = convertCharPtrToHidlString(resp[i]);
         }
 
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSRegisterAddressChangedInd(convertIntToRadioIndicationType(indicationType),
                         data);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSRegisterAddressChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSRegisterAddressChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13147,7 +13108,7 @@ int radio::IMSRegisterAddressChangedInd(int slotId, int indicationType, int toke
 
 int radio::IMSWifiParamInd(int slotId, int indicationType, int token,
                            RIL_Errno e, void *response, size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen % sizeof(int) != 0) {
             RLOGE("IMSWifiParamInd: invalid response");
             return 0;
@@ -13163,11 +13124,11 @@ int radio::IMSWifiParamInd(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("IMSWifiParamInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSWifiParamInd(convertIntToRadioIndicationType(indicationType), data);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSWifiParamInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSWifiParamInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
@@ -13176,7 +13137,7 @@ int radio::IMSWifiParamInd(int slotId, int indicationType, int token,
 int radio::IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
                                      RIL_Errno e, void *response,
                                      size_t responseLen) {
-    if (radioService[slotId] != NULL && radioService[slotId]->mIMSRadioIndication != NULL) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
         if (response == NULL || responseLen != sizeof(int)) {
             RLOGE("IMSNetworkStateChangedInd: invalid response");
             return 0;
@@ -13185,14 +13146,34 @@ int radio::IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
 #if VDBG
         RLOGD("IMSNetworkStateChangedInd");
 #endif
-        Return<void> retStatus = radioService[slotId]->mIMSRadioIndication->
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
                 IMSNetworkStateChangedInd(convertIntToRadioIndicationType(indicationType), resp);
-        radioService[slotId]->checkReturnStatus(retStatus, IMS_SERVICE);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
-        RLOGE("IMSNetworkStateChangedInd: radioService[%d]->mIMSRadioIndication == NULL", slotId);
+        RLOGE("IMSNetworkStateChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
     }
 
     return 0;
 }
 
-/*****************************************************************************/
+int radio::DsdaStatusInd(int slotId, int indicationType, int token,
+                                     RIL_Errno e, void *response,
+                                     size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen != sizeof(int)) {
+            RLOGE("DsdaStatusInd: invalid response");
+            return 0;
+        }
+        int32_t resp = ((int32_t *)response)[0];
+#if VDBG
+        RLOGD("DsdaStatusInd");
+#endif
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                DsdaStatusInd(convertIntToRadioIndicationType(indicationType), resp);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("DsdaStatusInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}

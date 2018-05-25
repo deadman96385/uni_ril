@@ -45,9 +45,6 @@ MemoryManager s_memoryManager[] = {
 MemoryManager s_oemMemoryManager[] = {
 #include "ril_oem_mmgr.h"
 };
-MemoryManager s_imsMemoryManager[] = {
-#include "ril_ims_mmgr.h"
-};
 MemoryManager s_atcMemoryManager[] = {
 #include "ril_atc_mmgr.h"
 };

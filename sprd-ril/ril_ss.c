@@ -1328,6 +1328,22 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_SUPP_SVC_NOTIFICATION, response,
                                   sizeof(RIL_SuppSvcNotification), socket_id);
         free(response);
+    } else if (strStartsWith(s, "+SPDSDASTATUS:")) {
+        int response = 0;
+        char *tmp = NULL;
+        char status[AT_COMMAND_LEN] = {0};
+        int propNameLen, propValueLen;
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_UNSOL_DSDASTATUS, &response,
+                sizeof(response), socket_id);
     } else {
         return 0;
     }

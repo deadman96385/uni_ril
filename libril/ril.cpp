@@ -195,16 +195,6 @@ static UnsolResponseInfo s_unsolResponses[] = {
 #include "ril_unsol_commands.h"
 };
 
-/* IMS Request @{ */
-static CommandInfo s_imsCommands[] = {
-#include "ril_ims_commands.h"
-};
-
-static UnsolResponseInfo s_imsUnsolResponses[] = {
-#include "ril_ims_unsol_commands.h"
-};
-/* }@ */
-
 /* OEMSOCKET Request @{ */
 static CommandInfo s_oemCommands[] = {
 #include "ril_oem_commands.h"
@@ -267,9 +257,6 @@ addRequestToList(int serial, int slotId, int request) {
 
     if (request > 0 && request <= RIL_REQUEST_LAST) {
         pRI->pCI = &(s_commands[request]);
-    } else if (request > RIL_IMS_REQUEST_BASE && request <= RIL_IMS_REQUEST_LAST) {
-        request = request - RIL_IMS_REQUEST_BASE;
-        pRI->pCI = &(s_imsCommands[request]);
     } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
         request = request - RIL_EXT_REQUEST_BASE;
         pRI->pCI = &(s_oemCommands[request]);
@@ -819,8 +806,6 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
 
     if ((unsolResponse < RIL_UNSOL_RESPONSE_BASE)
         || (unsolResponse > RIL_UNSOL_RESPONSE_LAST
-                 && unsolResponse < RIL_IMS_UNSOL_RESPONSE_BASE)
-        || (unsolResponse > RIL_IMS_UNSOL_RESPONSE_LAST
                 && unsolResponse < RIL_EXT_UNSOL_RESPONSE_BASE)
         || (unsolResponse > RIL_EXT_UNSOL_RESPONSE_LAST
                 && unsolResponse < RIL_ATC_REQUEST_BASE)
@@ -833,10 +818,6 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
             && unsolResponse <= RIL_UNSOL_RESPONSE_LAST) {
         unsolResponseIndex = unsolResponse - RIL_UNSOL_RESPONSE_BASE;
         pURI = &(s_unsolResponses[unsolResponseIndex]);
-    } else if (unsolResponse >= RIL_IMS_UNSOL_RESPONSE_BASE
-            && unsolResponse <= RIL_IMS_UNSOL_RESPONSE_LAST) {
-        unsolResponseIndex = unsolResponse - RIL_IMS_UNSOL_RESPONSE_BASE;
-        pURI = &(s_imsUnsolResponses[unsolResponseIndex]);
     } else if (unsolResponse >= RIL_EXT_UNSOL_RESPONSE_BASE
             && unsolResponse <= RIL_EXT_UNSOL_RESPONSE_LAST) {
         unsolResponseIndex = unsolResponse - RIL_EXT_UNSOL_RESPONSE_BASE;
@@ -1395,6 +1376,7 @@ const char *requestToString(int request) {
         case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
         case RIL_UNSOL_IMS_WIFI_PARAM: return "UNSOL_IMS_WIFI_PARAM";
         case RIL_UNSOL_IMS_NETWORK_STATE_CHANGED: return "UNSOL_IMS_NETWORK_STATE_CHANGED";
+        case RIL_UNSOL_DSDASTATUS: return "UNSOL_DSDASTATUS";
         /* }@ */
         /* videophone @{ */
         case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";

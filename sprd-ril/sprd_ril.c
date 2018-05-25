@@ -432,9 +432,6 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
 done:
     if (request > 0 && request <= RIL_REQUEST_LAST) {
         pMC = &(s_memoryManager[request]);
-    } else if (request > RIL_IMS_REQUEST_BASE && request <= RIL_IMS_REQUEST_LAST) {
-        request = request - RIL_IMS_REQUEST_BASE;
-        pMC = &(s_imsMemoryManager[request]);
     } else if (request > RIL_EXT_REQUEST_BASE && request <= RIL_EXT_REQUEST_LAST) {
         request = request - RIL_EXT_REQUEST_BASE;
         pMC = &(s_oemMemoryManager[request]);
