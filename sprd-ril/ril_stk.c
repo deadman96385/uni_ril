@@ -309,8 +309,13 @@ void sendEvenLoopThread(void *param) {
     StkContext *pstkContext = NULL;
 
     if (param && ((CallbackPara *)param)->para) {
+        socket_id = (int)(((CallbackPara *)param)->socket_id);
         openchannelCid = *((int *)(((CallbackPara *)param)->para));
-        RLOGD("sendEvenLoopThread openchannelCid:%d", openchannelCid);
+        RLOGD("sendEvenLoopThread socket_id:%d openchannelCid:%d", socket_id, openchannelCid);
+    }
+    if (socket_id < 0 || socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", socket_id);
+        return;
     }
     if (openchannelCid < 0) {
         RLOGE("sendEvenLoopThread openchannelCid less than 0");
@@ -323,11 +328,6 @@ void sendEvenLoopThread(void *param) {
         return;
     }
 
-    socket_id = pstkContext->phone_id;
-    if (socket_id < 0 || socket_id >= SIM_COUNT) {
-        RLOGE("Invalid socket_id %d", socket_id);
-        return;
-    }
     pstkContext->channelEstablished = false;
     sendEventChannelStatus(pstkContext, socket_id);
 
