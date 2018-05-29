@@ -425,6 +425,7 @@ ATCmdType getCmdType(int request) {
             || request == RIL_EXT_REQUEST_SWITCH_MULTI_CALL
             || request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
             || request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER
+            || request == RIL_EXT_REQUEST_SIM_POWER_REAL
             /* }@ */
             ) {
         cmdType = AT_CMD_TYPE_NORMAL_FAST;

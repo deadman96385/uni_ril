@@ -102,7 +102,7 @@ extern "C" {
 #define MAX_CHANNELS 32
 #define MAX_RADIO_ACCESS_NETWORKS 8
 
-#define MIFI_PRODUCT_PROP   "persist.radio.mifi.product"
+#define MIFI_PRODUCT_PROP   "persist.radio.vsim.product"
 
 typedef void * RIL_Token;
 
