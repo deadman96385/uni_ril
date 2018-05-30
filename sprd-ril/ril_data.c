@@ -1968,6 +1968,9 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                     if(atoi(manualAttachProp)){
                         at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
                     }
+                } else {
+                    RLOGD("send APN information even though apn is same with network");
+                    setDataProfile(pIAApn, initialAttachId, channelID, socket_id);
                 }
                 goto done;
             } else {
