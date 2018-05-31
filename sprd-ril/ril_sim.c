@@ -3046,6 +3046,25 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
             break;
+        case RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS: {
+            p_response = NULL;
+            char *line;
+            int result;
+            err = at_send_command_singleline(s_ATChannels[channelID],
+                    "AT+SPSLENABLED?", "+SPSLENABLED:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err == 0) {
+                    err = at_tok_nextint(&line, &result);
+                }
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, &result, sizeof(result));
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
@@ -3157,6 +3176,13 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
                             socket_id);
                 }
             } else if (value == 0 || value == 2) {
+                if (at_tok_hasmore(&tmp)) {
+                    err = at_tok_nextint(&tmp, &cause);
+                    if (err < 0) goto out;
+                    if (cause == 0) {
+                        s_imsInitISIM[socket_id] = -1;
+                    }
+                }
                 RIL_requestTimedCallback(onSimPresent,
                                          (void *)&s_socketId[socket_id], NULL);
             }
