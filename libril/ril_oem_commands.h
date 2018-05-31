@@ -57,3 +57,5 @@
     {RIL_EXT_REQUEST_CALL_MEDIA_CHANGE_REQUEST_TIMEOUT, radio::callMediaChangeRequestTimeOutResponse},
     {RIL_EXT_REQUEST_SET_DUAL_VOLTE_STATE, radio::setDualVolteStateResponse},
     {RIL_EXT_REQUEST_SET_LOCAL_TONE, radio::setLocalToneResponse},
+    {RIL_EXT_REQUEST_SET_EMERGENCY_ONLY, radio::setEmergencyOnlyResponse},
+    {RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS, radio::getSubsidyLockdyStatusResponse},

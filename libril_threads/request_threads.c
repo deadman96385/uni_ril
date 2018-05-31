@@ -419,6 +419,7 @@ ATCmdType getCmdType(int request) {
             || request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY
             || request == RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY
             || request == RIL_REQUEST_GET_IMS_CURRENT_CALLS
+            || request == RIL_EXT_REQUEST_SET_EMERGENCY_ONLY
             /* }@ */
             /* OEM SOCKET REQUEST @{ */
             || request == RIL_EXT_REQUEST_VIDEOPHONE_DIAL
