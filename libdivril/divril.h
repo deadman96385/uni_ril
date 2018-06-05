@@ -25,6 +25,28 @@
 #define MUX_MDT_NUM                     2
 #define MUX_MDT_INDEX                   13
 
+#define ETH_ALEN                        6
+
+extern "C" {
+#endif
+
+int at_tok_start(char **p_cur);
+int at_tok_nextint(char **p_cur, int *p_out);
+int at_tok_nexthexint(char **p_cur, int *p_out);
+
+int at_tok_nextbool(char **p_cur, char *p_out);
+int at_tok_nextstr(char **p_cur, char **out);
+
+int at_tok_hasmore(char **p_cur);
+void skipNextComma(char **p_cur);
+void skipWhiteSpace(char **p_cur);
+int at_tok_flag_start(char **p_cur, char start_flag);
+
+int service_init(const char *client_Name);
+
+#ifdef __cplusplus
+}
+
 typedef enum {
     EMBMS,
     MDT,

@@ -1,8 +1,9 @@
-/* //vendor/sprd/proprietories-source/modemd/libdivril/divril.c
+/* //vendor/sprd/proprietories-source/modemd/libdivril/divril.cpp
 **
 **
 */
 
+#define LOG_TAG "DivRIL"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,9 +23,32 @@
 #include <netutils/ifc.h>
 #include "divril.h"
 #include <../../ril/sprd-ril/at_tok.h>
-#define LOG_TAG "DivRIL"
-
 #include <log/log.h>
+#include <utils/SystemClock.h>
+#include <inttypes.h>
+#include <hwbinder/IPCThreadState.h>
+#include <hwbinder/ProcessState.h>
+#include <hidl/HidlTransportSupport.h>
+#include <vendor/sprd/hardware/radio/flavor/1.0/IFlvRadio.h>
+#include <vendor/sprd/hardware/radio/flavor/1.0/IFlvRadioResponse.h>
+#include <vendor/sprd/hardware/radio/flavor/1.0/IFlvRadioIndication.h>
+#include <android/hardware/radio/1.1/IRadioResponse.h>
+#include <android/hardware/radio/1.1/IRadioIndication.h>
+#include <android/hardware/radio/1.1/types.h>
+#include <android/hardware/radio/deprecated/1.0/IOemHook.h>
+
+using namespace android::hardware::radio;
+using namespace android::hardware::radio::V1_0;
+using namespace android::hardware::radio::deprecated::V1_0;
+using ::android::hardware::configureRpcThreadpool;
+using ::android::hardware::joinRpcThreadpool;
+using ::android::hardware::Return;
+using ::android::hardware::hidl_string;
+using ::android::hardware::hidl_vec;
+using ::android::hardware::hidl_array;
+using ::android::hardware::Void;
+using android::sp;
+using namespace vendor::sprd::hardware::radio::flavor::V1_0;
 
 int s_fdListen[MAX_SERVICE_NUM];
 int s_fdClient[MAX_SERVICE_NUM];
@@ -62,6 +86,161 @@ static pthread_mutex_t  s_mainwriteMutex[MAX_SERVICE_NUM];
 
 static bool s_needEchoCommand = false;
 char s_deviceInfoPtr[PROPERTY_VALUE_MAX]; //mac address
+
+#define RADIO1_SERVICE_NAME         "divservice1"
+#define RADIO2_SERVICE_NAME         "divservice2"
+
+static pthread_rwlock_t radioServiceRwlock = PTHREAD_RWLOCK_INITIALIZER;
+#if (MAX_SERVICE_NUM >= 2)
+static pthread_rwlock_t radioServiceRwlock2 = PTHREAD_RWLOCK_INITIALIZER;
+#if (MAX_SERVICE_NUM >= 3)
+static pthread_rwlock_t radioServiceRwlock3 = PTHREAD_RWLOCK_INITIALIZER;
+#if (MAX_SERVICE_NUM >= 4)
+static pthread_rwlock_t radioServiceRwlock4 = PTHREAD_RWLOCK_INITIALIZER;
+#endif
+#endif
+#endif
+
+static int sendAtCmd(int serviceId, char *command);
+
+/**
+ * Copies over src to dest. If memory allocation fails, responseFunction() is called for the
+ * request with error RIL_E_NO_MEMORY.
+ * Returns true on success, and false on failure.
+ */
+bool copyHidlStringToRil(char **dest, const hidl_string &src) {
+    size_t len = src.size();
+    if (len == 0) {
+        *dest = NULL;
+        return true;
+    }
+    *dest = (char *) calloc(len + 1, sizeof(char));
+    if (*dest == NULL) {
+        return false;
+    }
+    strncpy(*dest, src.c_str(), len + 1);
+    return true;
+}
+
+hidl_string convertCharPtrToHidlString(const char *ptr) {
+    hidl_string ret;
+    if (ptr != NULL) {
+        // TODO: replace this with strnlen
+        ret.setToExternal(ptr, strlen(ptr));
+    }
+    return ret;
+}
+
+pthread_rwlock_t * getRadioServiceRwlock(int slotId) {
+    pthread_rwlock_t *radioServiceRwlockPtr = &radioServiceRwlock;
+
+    #if (MAX_SERVICE_NUM >= 2)
+    if (slotId == 2) radioServiceRwlockPtr = &radioServiceRwlock2;
+    #if (MAX_SERVICE_NUM >= 3)
+    if (slotId == 3) radioServiceRwlockPtr = &radioServiceRwlock3;
+    #if (MAX_SERVICE_NUM >= 4)
+    if (slotId == 4) radioServiceRwlockPtr = &radioServiceRwlock4;
+    #endif
+    #endif
+    #endif
+
+    return radioServiceRwlockPtr;
+}
+
+struct RadioImpl : public IFlvRadio {
+    int32_t mSlotId;
+    sp<IRadioResponse> mRadioResponse;
+    sp<IRadioIndication> mRadioIndication;
+
+    sp<IFlvRadioResponse> mFlvRadioResponse;
+    sp<IFlvRadioIndication> mFlvRadioIndication;
+
+    Return<void> setFlvResponseFunctions(
+            const ::android::sp<IFlvRadioResponse>& radioResponse,
+            const ::android::sp<IFlvRadioIndication>& radioIndication);
+
+    Return<void> sendCmdSync(int32_t serviceId,
+            const ::android::hardware::hidl_string& cmd, sendCmdSync_cb _hidl_cb);
+
+    Return<void> sendFlvCmd(int32_t serial, const ::android::hardware::hidl_string& cmd);
+};
+
+Return<void> RadioImpl::setFlvResponseFunctions(
+        const ::android::sp<IFlvRadioResponse>& radioResponse,
+       const ::android::sp<IFlvRadioIndication>& radioIndication) {
+    RLOGD("setFlvResponseFunctions");
+
+    pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(mSlotId);
+    int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
+    assert(ret == 0);
+    mFlvRadioResponse = radioResponse;
+    mFlvRadioIndication = radioIndication;
+    ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
+
+    assert(ret == 0);
+    return Void();
+}
+
+Return<void> RadioImpl::sendCmdSync(int32_t serviceId,
+        const ::android::hardware::hidl_string& cmd, sendCmdSync_cb _hidl_cb) {
+    char response[4096] = {0};
+    int responseLen = sizeof(response);
+    char *atCmd = NULL;
+    if (!copyHidlStringToRil(&atCmd, cmd.c_str())) {
+        return Void();
+    }
+    RLOGD("sendCmdSync:%s",atCmd);
+    hidl_string ret = convertCharPtrToHidlString(response);
+    _hidl_cb(ret);
+    return Void();
+}
+
+Return<void> RadioImpl::sendFlvCmd(int32_t serial,
+        const ::android::hardware::hidl_string& cmd) {
+    int serviceId = EMBMS;
+    char response[4096] = {0};
+    int responseLen = sizeof(response);
+    char *atCmd = NULL;
+    if (!copyHidlStringToRil(&atCmd, cmd.c_str())) {
+        return Void();
+    }
+    RLOGD("sendFlvCmd:%s",atCmd);
+    sendAtCmd(serviceId, atCmd);
+    return Void();
+}
+
+sp<RadioImpl> radioService[1];
+
+void registerService() {
+    using namespace android::hardware;
+    int simCount = 1;
+    const char *serviceNames[] = {
+            RADIO1_SERVICE_NAME,
+            RADIO2_SERVICE_NAME,
+    };
+
+    configureRpcThreadpool(1, true /* callerWillJoin */);
+    for (int i = 0; i < simCount; i++) {
+        pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(i);
+        int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
+        assert(ret == 0);
+
+        radioService[i] = new RadioImpl;
+        radioService[i]->mSlotId = i;
+        radioService[i]->mRadioResponse = NULL;
+        radioService[i]->mRadioIndication = NULL;
+        radioService[i]->mFlvRadioResponse = NULL;
+        radioService[i]->mFlvRadioIndication = NULL;
+
+        RLOGD("registerService: starting vendor.sprd.hardware.radio.flavor::IFlvRadio %s",
+                serviceNames[i]);
+        android::status_t status = radioService[i]->registerAsService(serviceNames[i]);
+        RLOGD("radioService registerService: status %d", status);
+        ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
+        assert(ret == 0);
+    }
+    joinRpcThreadpool();
+}
 
 int at_tok_start_flag(char **p_cur, char start_flag) {
     if (*p_cur == NULL) {
@@ -113,39 +292,30 @@ static int sendResponse(int serviceId, const void *data, size_t dataSize) {
                MAX_BUFFER_BYTES, (unsigned int)dataSize);
         return -1;
     }
-    pthread_mutex_lock(&s_mainwriteMutex[serviceId]);
-    ret = blockingWrite(fd, data, dataSize);
-    if (ret < 0) {
-        RLOGE("blockingWrite error");
-        pthread_mutex_unlock(&s_mainwriteMutex[serviceId]);
-        return ret;
+    if (radioService[serviceId]->mFlvRadioIndication != NULL) {
+        Return<void> retStatus = radioService[serviceId]->mFlvRadioIndication->
+                sendFlvCmdInd(RadioIndicationType::UNSOLICITED, convertCharPtrToHidlString((char *)data));
+    } else {
+        RLOGE("mFlvRadioIndication: radioService[%d]->mFlvRadioIndication == NULL",
+                serviceId);
     }
-
-    pthread_mutex_unlock(&s_mainwriteMutex[serviceId]);
     return 0;
 }
 
 int getMacAddrInfo(char *ptr)
 {
-    FILE *stream;
-    char buf[MAX_BUFFER_BYTES];
-    char *position = NULL;
-    char *positionEther = NULL;
-
-    memset(buf, '\0', sizeof(buf));
-    stream = popen("ip addr show up", "r");
-    fread(buf, sizeof(char), sizeof(buf), stream);
-    pclose(stream);
-    position = buf;
-
-    if ((positionEther = strstr(position, "ether"))!= NULL) {
-        positionEther += 6;
-        strncpy(ptr, positionEther, 17);
-        RLOGD("matt:wlan0 mac addr is :\n%s\n", ptr);
-        return 1;
+    char macAddr[ETH_ALEN];
+    if (ifc_init()) {
+        RLOGE("ifc_init error");
     }
-
-    return 0;
+    if (ifc_get_hwaddr("dummy0", macAddr) != 0) {
+        RLOGE("get mac addr error");
+        return 0;
+    }
+    sprintf(ptr, "%02x:%02x:%02x:%02x:%02x:%02x", macAddr[0], macAddr[1],
+                macAddr[2], macAddr[3], macAddr[4], macAddr[5]);
+    RLOGD("get mac addr: %s", ptr);
+    return 1;
 }
 
 static int strStartsWith(const char *line, const char *prefix) {
@@ -228,7 +398,6 @@ out:
 
 static void handleUnsolicited(int serviceId, ChannelInfo *chInfo) {
     char *line = chInfo->line;
-
     processUnsolResp(serviceId, line);
 }
 
@@ -536,6 +705,7 @@ static int sendAtCmd(int serviceId, char *command) {
         if (strstr(command, "ENABLE_EMBMS") != NULL) {
             char *line = command;
             int num = -1;
+            int error = -1;
             char ifname[ARRAY_SIZE] = {0};
             snprintf(ifname, sizeof(ifname), "seth_lte7");
             if (s_needEchoCommand) {
@@ -547,11 +717,12 @@ static int sendAtCmd(int serviceId, char *command) {
                 err = at_tok_nextint(&line, &num);
                 if (num == 0) {
                     RLOGD("disable seth_lte");
-                    ifc_disable(ifname);
+                    error = ifc_disable(ifname);
+                    RLOGD("end down seth_lte error = %d", error);
                     strlcat(buf, "OK", sizeof(buf));
                 } else if (num == 1) {
                     RLOGD("start ifname = %s", ifname);
-                    int error = ifc_enable(ifname);
+                    error = ifc_enable(ifname);
                     RLOGD("end start seth_lte error = %d", error);
                     if (error) {
                         goto error;
@@ -662,117 +833,6 @@ static void *readerThread(void *param) {
     return NULL;
 }
 
-static void *mainLoop(void *param) {
-    int ret;
-    int serviceId = -1;
-
-    if (param) {
-        serviceId= *((int*)param);
-    }
-
-    if (serviceId < 0 || serviceId >= MAX_SERVICE_NUM) {
-        RLOGE("serviceId=%d should be positive and less than %d, return",
-               serviceId, MAX_SERVICE_NUM);
-        return NULL;
-    }
-
-    s_fdListen[serviceId] = -1;
-
-    //s_fdListen[serviceId] = socket_local_server(socket_name,
-    //            ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-
-    if (serviceId == EMBMS) {
-        s_fdListen[serviceId] = android_get_control_socket(s_socketName[serviceId]);
-    } else if (serviceId == MDT) {
-        s_fdListen[serviceId] = socket_local_server(s_socketName[serviceId],
-                    ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-    }
-
-    if (s_fdListen[serviceId] < 0) {
-        RLOGE("Failed to get socket %s", s_socketName[serviceId]);
-        return NULL;
-    }
-
-    ret = listen(s_fdListen[serviceId], 4);
-    if (ret < 0) {
-        RLOGE("Failed to listen on control socket '%d': %s",
-                s_fdListen[serviceId], strerror(errno));
-        return NULL;
-    }
-
-    for (;;) {
-        RLOGD("[%s]mainLoop waiting for client..", s_serviceName[serviceId]);
-        if ((s_fdClient[serviceId] = accept(s_fdListen[serviceId], NULL, NULL)) == -1) {
-            sleep(1);
-            continue;
-        }
-
-#if 1
-        /* check the credential of the other side and only accept socket from
-         * specified process
-         */
-        struct ucred creds;
-        socklen_t szCreds = sizeof(creds);
-        struct passwd *pwd = NULL;
-
-        errno = 0;
-        int err;
-
-        RLOGD("[%s]mainLoop processName:%s", s_serviceName[serviceId], s_processName[serviceId]);
-        err = getsockopt(s_fdClient[serviceId], SOL_SOCKET, SO_PEERCRED, &creds, &szCreds);
-
-        if (err == 0 && szCreds > 0) {
-            errno = 0;
-            pwd = getpwuid(creds.uid);
-            if (pwd != NULL) {
-                RLOGD("[%s]pwd->pw_name: [%s]", s_serviceName[serviceId], pwd->pw_name);
-//                if (strcmp(pwd->pw_name, processName) == 0) {
-//                    is_phone_socket = 1;
-//                } else {
-//                    RLOGE("EMBMS can't accept socket from process %s", pwd->pw_name);
-//                }
-            } else {
-                RLOGE("Error on getpwuid() errno: %d", errno);
-            }
-        } else {
-            RLOGD("Error on getsockopt() errno: %d", errno);
-        }
-
-//        if (!is_phone_socket) {
-//            RLOGE("EMBMS must accept socket from %s", processName);
-//
-//            close(s_fdClient);
-//            s_fdClient = -1;
-//
-//            return NULL;
-//        }
-
-#endif
-
-        RLOGD("[%s]mainLoop accept client:%d", s_serviceName[serviceId], s_fdClient[serviceId]);
-
-        s_socketInfo[serviceId].s_fd = s_fdClient[serviceId];
-        snprintf(s_socketInfo[serviceId].name, MAX_NAME_LENGTH, "%s", s_socketName[serviceId]);
-        memset(s_socketInfo[serviceId].s_respBuffer, 0, MAX_BUFFER_BYTES + 1);
-        s_socketInfo[serviceId].s_respBufferCur = s_socketInfo[serviceId].s_respBuffer;
-        ChannelInfo *soInfo = &s_socketInfo[serviceId];
-
-        while (1) {
-            if (!readline(soInfo)) {
-                break;
-            }
-            if (soInfo->line == NULL) {
-                continue;
-            }
-            sendAtCmd(serviceId, soInfo->line);
-        }
-        close(s_fdClient[serviceId]);
-        s_fdClient[serviceId] = -1;
-    }
-
-    return NULL;
-}
-
 int service_init(const char *client_Name) {
     int ret = -1, fd = -1, index = 0, retryTimes = 0;
     int serviceId = -1;
@@ -807,6 +867,7 @@ int service_init(const char *client_Name) {
                serviceId, MAX_SERVICE_NUM);
         return -1;
     }
+    sleep(3);
 retry:
     for (index = 0; index < serviceMuxNum; index++) {
         snprintf(muxname, sizeof(muxname), "%s%d", propValue, index + serviceMuxIndex);
@@ -836,8 +897,7 @@ retry:
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     RLOGD("[%s]create readerThread", s_serviceName[serviceId]);
     ret = pthread_create(&s_readerThreadTid[serviceId], &attr, readerThread, (void *)&s_funcId[serviceId]);
-    RLOGD("[%s]create mainLoop", s_serviceName[serviceId]);
-    ret = pthread_create(&s_mainThreadTid[serviceId], &attr, mainLoop, (void *)&s_funcId[serviceId]);
-
+    RLOGD("[%s]registerService", s_serviceName[serviceId]);
+    registerService();
     return 0;
 }
