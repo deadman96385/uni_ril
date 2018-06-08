@@ -351,6 +351,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_REQUEST_STOP_NETWORK_SCAN ||
                  request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
                  request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE ||
+                 request == RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||

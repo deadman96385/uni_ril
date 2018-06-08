@@ -3358,7 +3358,8 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             }
             break;
         }
-        case RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE: {
+        case RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE:
+        case RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE: {
             if (s_isLTE) {
                 requestGetLTEPreferredNetType(channelID, data, datalen, t);
             } else {

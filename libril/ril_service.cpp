@@ -626,6 +626,8 @@ struct RadioImpl : public IExtRadio {
             const ::android::hardware::hidl_string& key,
             const ::android::hardware::hidl_string& value);
 
+    Return<void> getPreferredNetworkTypeExt(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9731,6 +9733,14 @@ Return<void> RadioImpl::setRadioPreference(int32_t serial,
             2, key.c_str(), value.c_str());
     return Void();
 }
+
+Return<void> RadioImpl::getPreferredNetworkTypeExt(int32_t serial) {
+#if VDBG
+    RLOGD("getPreferredNetworkTypeExt : serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE);
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11034,6 +11044,28 @@ int radio::setRadioPreferenceResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("setRadioPreferenceResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getPreferredNetworkTypeExtResponse(int slotId,
+                                          int responseType, int serial, RIL_Errno e,
+                                          void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getPreferredNetworkTypeExtResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int ret = responseInt(responseInfo, serial, responseType, e, response, responseLen);
+        Return<void> retStatus
+                = radioService[slotId]->mExtRadioResponse->getPreferredNetworkTypeExtResponse(
+                responseInfo, (PreferredNetworkType) ret);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getPreferredNetworkTypeExtResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
