@@ -1767,6 +1767,12 @@ typedef struct {
     int exit_cause;
 } RIL_IMSPHONE_CMCCSI;
 
+/** Used by RIL_EXT_UNSOL_VT_CAPABILITY */
+typedef struct {
+   int id;
+   char *md_cap;
+} RIL_VT_CAPABILITY;
+
 /* Used by RIL_REQUEST_VIDEOPHONE_DIAL */
 typedef struct {
     char * address;
@@ -5837,7 +5843,8 @@ typedef struct {
 #define RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED       (RIL_IMS_UNSOL_RESPONSE_BASE + 0)
 #define RIL_UNSOL_RESPONSE_VIDEO_QUALITY                (RIL_IMS_UNSOL_RESPONSE_BASE + 1)
 #define RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED       (RIL_IMS_UNSOL_RESPONSE_BASE + 2)
-#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED
+#define RIL_UNSOL_VT_CAPABILITY                         (RIL_IMS_UNSOL_RESPONSE_BASE + 3)
+#define RIL_IMS_UNSOL_RESPONSE_LAST                     RIL_UNSOL_VT_CAPABILITY
 /*****************************************************************************/
 
 
@@ -5911,7 +5918,14 @@ typedef struct {
 #define RIL_EXT_REQUEST_QUERY_COLP                  (RIL_EXT_REQUEST_BASE + 33)
 #define RIL_EXT_REQUEST_QUERY_COLR                  (RIL_EXT_REQUEST_BASE + 34)
 #define RIL_EXT_REQUEST_MMI_ENTER_SIM               (RIL_EXT_REQUEST_BASE + 35)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_MMI_ENTER_SIM
+#define RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME        (RIL_EXT_REQUEST_BASE + 36)
+#define RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS       (RIL_EXT_REQUEST_BASE + 37)
+#define RIL_EXT_REQUEST_SET_XCAP_IP_ADDR            (RIL_EXT_REQUEST_BASE + 38)
+#define RIL_EXT_REQUEST_REATTACH                    (RIL_EXT_REQUEST_BASE + 39)
+#define RIL_EXT_REQUEST_SET_VOICE_DOMAIN            (RIL_EXT_REQUEST_BASE + 40)
+#define RIL_EXT_REQUEST_SET_SMS_BEARER              (RIL_EXT_REQUEST_BASE + 41)
+#define RIL_EXT_REQUEST_SET_LOCAL_TONE              (RIL_EXT_REQUEST_BASE + 42)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_SET_LOCAL_TONE
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)

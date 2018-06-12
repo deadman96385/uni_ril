@@ -453,6 +453,7 @@ static int responseActivityData(Parcel &p, void *response, size_t responselen);
 static int responseCallListIMS(Parcel &p, void *response, size_t responselen);
 static int responseCallForwardsUri(Parcel &p, void *response, size_t responselen);
 static int responseCMCCSI(Parcel &p, void *response, size_t responselen);
+static int responseMDCAPU(Parcel &p, void *response, size_t responselen);
 /* }@ */
 
 static int responseDSCI(Parcel &p, void *response, size_t responselen);
@@ -4452,6 +4453,27 @@ static int responseCMCCSI(Parcel &p, void *response, size_t responselen) {
     return 0;
 }
 
+static int responseMDCAPU(Parcel &p, void *response, size_t responselen) {
+    if (response == NULL) {
+        RLOGE("invalid response: NULL");
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    if (responselen != sizeof(RIL_VT_CAPABILITY)) {
+        RLOGE("invalid response length was %d expected %d",
+                (int)responselen, (int)sizeof (RIL_VT_CAPABILITY));
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    RIL_VT_CAPABILITY *p_cur = (RIL_VT_CAPABILITY *) response;
+    p.writeInt32(p_cur->id);
+    writeStringToParcel(p, p_cur->md_cap);
+    startResponse;
+    closeResponse;
+
+    return 0;
+}
+
 static int responseDSCI(Parcel &p, void *response, size_t responselen) {
     if (response == NULL) {
         RLOGE("invalid response: NULL");
@@ -6650,6 +6672,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_COLP: return "QUERY_COLP";
         case RIL_EXT_REQUEST_QUERY_COLR: return "QUERY_COLR";
         case RIL_EXT_REQUEST_MMI_ENTER_SIM: return "MMI_ENTER_SIM";
+        case RIL_EXT_REQUEST_UPDATE_OPERATOR_NAME: return "UPDATE_OPERATOR_NAME";
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: return "SET_LOCAL_TONE";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -6700,6 +6724,7 @@ const char *requestToString(int request) {
         case RIL_UNSOL_RESPONSE_IMS_CALL_STATE_CHANGED: return "UNSOL_IMS_CALL_STATE_CHANGED";
         case RIL_UNSOL_RESPONSE_VIDEO_QUALITY: return "UNSOL_VIDEO_QUALITY";
         case RIL_UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED: return "UNSOL_RESPONSE_IMS_BEARER_ESTABLISTED";
+        case RIL_UNSOL_VT_CAPABILITY: return "UNSOL_VT_CAPABILITY";
         /* }@ */
         /* videophone @{ */
         case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";

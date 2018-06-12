@@ -1531,6 +1531,21 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
+        case RIL_EXT_REQUEST_SET_LOCAL_TONE: {
+            p_response = NULL;
+            int mode = ((int*)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+
+            snprintf(cmd, sizeof(cmd), "AT+SPCLSTONE=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             ret = 0;
             break;
@@ -2214,6 +2229,38 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     } else if (strStartsWith(s, "+SCSFB")) {
         RIL_requestTimedCallback(onCallCSFallBackAccept,
                     (void *)&s_socketId[socket_id], NULL);
+    } else if (strStartsWith(s, "+MDCAPU:")) {
+        /* Urc command to notify the AP that the current all volte call media
+         * description capability.
+         * +MDCAPU: <ccidx>,<md_cap>
+         * <ccidx>: int,  call index 1-7;
+         * <md_cap>:string , volte call media description for call capability
+         */
+        char *tmp;
+        RIL_VT_CAPABILITY *response;
+        response = (RIL_VT_CAPABILITY *) alloca(sizeof(RIL_VT_CAPABILITY));
+
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        err = at_tok_nextint(&tmp, &response->id);
+        if (err < 0) {
+            RLOGD("get id fail");
+            goto out;
+        }
+
+        err = at_tok_nextstr(&tmp, &response->md_cap);
+        if (err < 0) {
+            RLOGD("get VT capbility fail");
+            goto out;
+        }
+
+        RIL_onUnsolicitedResponse(RIL_UNSOL_VT_CAPABILITY, response,
+                        sizeof(RIL_VT_CAPABILITY), socket_id);
+
     } else {
         ret = 0;
     }
