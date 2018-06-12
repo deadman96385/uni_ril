@@ -2517,6 +2517,9 @@ static void requestGetCellInfoList(int channelID, void *data,
     }
 
     uint64_t curTime = ril_nano_time();
+    if (registered == 1 || registered == 5) {
+        registered = 1;
+    }
     response[0].registered = registered;
     response[0].cellInfoType = cellType;
     response[0].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
