@@ -1228,18 +1228,11 @@ static void requestGetCurrentCallsVoLTE(int channelID, void *data,
         pp_calls[i] = &(p_calls[i]);
     }
 
-    int groupCallIndex = 8;
     s_maybeAddCall = 0;
     for (countValidCalls = 0, p_cur = p_response->p_intermediates;
          p_cur != NULL; p_cur = p_cur->p_next) {
         err = callFromCLCCLineVoLTE(p_cur->line, p_calls + countValidCalls);
         p_t_calls = p_calls + countValidCalls;
-        if (p_t_calls->mpty == 2) {
-            if (groupCallIndex != 8) {
-                p_t_calls->index = groupCallIndex;
-            }
-            groupCallIndex--;
-        }
 
         if (err != 0) {
             continue;
