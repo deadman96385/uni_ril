@@ -11,6 +11,7 @@ LOCAL_SRC_FILES:= \
     RilSapSocket.cpp \
     ril_service.cpp \
     sap_service.cpp \
+    ril_ons.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog \
@@ -28,6 +29,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
     libprotobuf-c-nano-enable_malloc \
+    libtinyxml2 \
 
 LOCAL_CFLAGS += -Wno-unused-parameter
 
@@ -43,7 +45,8 @@ ifneq ($(DISABLE_RILD_OEM_HOOK),)
     LOCAL_CFLAGS += -DOEM_HOOK_DISABLED
 endif
 LOCAL_C_INCLUDES += external/nanopb-c
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include \
+    external/tinyxml2
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/../include
 LOCAL_MODULE:= librilsprd
 LOCAL_SANITIZE := integer

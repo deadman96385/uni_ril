@@ -21,7 +21,6 @@
 /* Save NITZ operator name string for UI to display right PLMN name */
 #define NITZ_OPERATOR_PROP      "persist.vendor.radio.nitz"
 #define FIXED_SLOT_PROP         "ro.vendor.radio.fixed_slot"
-#define PHONE_EXTENSION_PROP    "vendor.sim.phone_ex.start"
 #define COPS_MODE_PROP          "persist.vendor.radio.copsmode"
 /* set network type for engineer mode */
 #define ENGTEST_ENABLE_PROP     "persist.vendor.radio.engtest.enable"
@@ -91,7 +90,19 @@ pthread_mutex_t s_radioPowerMutex[SIM_COUNT] = {
 #endif
 #endif
         };
-pthread_mutex_t s_operatorInfoListMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t s_operatorInfoListMutex[SIM_COUNT] = {
+        PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 2)
+        ,PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 3)
+        ,PTHREAD_MUTEX_INITIALIZER
+#if (SIM_COUNT >= 4)
+        ,PTHREAD_MUTEX_INITIALIZER
+#endif
+#endif
+#endif
+};
+pthread_mutex_t s_operatorXmlInfoListMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t s_signalProcessMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_signalProcessCond = PTHREAD_COND_INITIALIZER;
 
@@ -107,7 +118,9 @@ int s_sessionId[SIM_COUNT] = {0};
 int s_radioAccessFamily[SIM_COUNT] = {0};
 int s_presentSIMCount = 0;
 static bool s_radioOnError[SIM_COUNT];  // 0 -- false, 1 -- true
-OperatorInfoList s_operatorInfoList;
+static char s_nitzOperatorInfo[SIM_COUNT][ARRAY_SIZE] = {{0}, {0}};
+OperatorInfoList s_operatorInfoList[SIM_COUNT];
+OperatorInfoList s_operatorXmlInfoList;
 
 int s_psOpened[SIM_COUNT] = {0};
 int rxlev[SIM_COUNT], ber[SIM_COUNT], rscp[SIM_COUNT];
@@ -850,16 +863,18 @@ error:
     at_response_free(p_response);
 }
 
-static int getOperatorName(char *plmn, char *operatorName) {
+static int getOperatorName(char *plmn, char *operatorName,
+                                OperatorInfoList *optList,
+                                pthread_mutex_t *optListMutex) {
     if (plmn == NULL || operatorName == NULL) {
         return -1;
     }
 
     int ret = -1;
-    MUTEX_ACQUIRE(s_operatorInfoListMutex);
-    OperatorInfoList *pList = s_operatorInfoList.next;
+    MUTEX_ACQUIRE(*optListMutex);
+    OperatorInfoList *pList = optList->next;
     OperatorInfoList *next;
-    while (pList != &s_operatorInfoList) {
+    while (pList != optList) {
         next = pList->next;
         if (strcmp(plmn, pList->plmn) == 0) {
             memcpy(operatorName, pList->operatorName,
@@ -869,20 +884,22 @@ static int getOperatorName(char *plmn, char *operatorName) {
         }
         pList = next;
     }
-    MUTEX_RELEASE(s_operatorInfoListMutex);
+    MUTEX_RELEASE(*optListMutex);
     return ret;
 }
 
-static void addToOperatorInfoList(char *plmn, char *operatorName) {
+static void addToOperatorInfoList(char *plmn, char *operatorName,
+                                        OperatorInfoList *optList,
+                                        pthread_mutex_t *optListMutex) {
     if (plmn == NULL || operatorName == NULL) {
         return;
     }
 
-    MUTEX_ACQUIRE(s_operatorInfoListMutex);
+    MUTEX_ACQUIRE(*optListMutex);
 
-    OperatorInfoList *pList = s_operatorInfoList.next;
+    OperatorInfoList *pList = optList->next;
     OperatorInfoList *next;
-    while (pList != &s_operatorInfoList) {
+    while (pList != optList) {
         next = pList->next;
         if (strcmp(plmn, pList->plmn) == 0) {
             RLOGD("addToOperatorInfoList: had add this operator before");
@@ -902,14 +919,45 @@ static void addToOperatorInfoList(char *plmn, char *operatorName) {
     memcpy(pNode->plmn, plmn, plmnLen);
     memcpy(pNode->operatorName, operatorName, nameLen);
 
-    OperatorInfoList *pHead = &s_operatorInfoList;
+    OperatorInfoList *pHead = optList;
     pNode->next = pHead;
     pNode->prev = pHead->prev;
     pHead->prev->next = pNode;
     pHead->prev = pNode;
-
 exit:
-    MUTEX_RELEASE(s_operatorInfoListMutex);
+    MUTEX_RELEASE(*optListMutex);
+}
+
+static int matchNITZOperatorInfo(char *updatePlmn, char *optInfo, char* plmn)
+{
+    if (plmn == NULL || updatePlmn == NULL) {
+        return -1;
+    }
+    char *ptr[3] = { NULL, NULL, NULL };
+    char *outer_ptr = NULL;
+    int i = 1;
+    int ret = -1;
+    ptr[0] = strtok_r(optInfo, ",", &outer_ptr);
+    if (ptr[0] != NULL) {
+        if (!strcmp(ptr[0], plmn)) {
+            while((ptr[i] = strtok_r(NULL, ",", &outer_ptr)) != NULL) {
+                i++;
+            }
+            if (ptr[1] != NULL) {
+                if (strcmp(ptr[1], "")) {
+                    strncpy(updatePlmn, ptr[1], strlen(ptr[1]) + 1);
+                    ret = 0;
+                }
+            } else if (ptr[2] != NULL) {
+                if (strcmp(ptr[2], "")) {
+                    strncpy(updatePlmn, ptr[2], strlen(ptr[2]) + 1);
+                    ret = 0;
+                }
+            }
+            RLOGD("match NITZ plmn:%s, Name:%s", plmn, updatePlmn);
+        }
+    }
+    return ret;
 }
 
 static void requestOperator(int channelID, void *data, size_t datalen,
@@ -920,14 +968,14 @@ static void requestOperator(int channelID, void *data, size_t datalen,
     int err;
     int i;
     int skip;
-    char prop[PROPERTY_VALUE_MAX];
+    int ret = -1;
     char *response[3];
+    char updatedPlmn[64] = {0};
+    char plmnName[64] = {0};
     ATLine *p_cur;
     ATResponse *p_response = NULL;
 
     memset(response, 0, sizeof(response));
-
-    property_get(PHONE_EXTENSION_PROP, prop, "false");
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -979,20 +1027,43 @@ static void requestOperator(int channelID, void *data, size_t datalen,
     }
 
 #if defined (RIL_EXTENSION)
-    if (strcmp(prop, "true") == 0 && response[2] != NULL) {
-        int ret = -1;
-        char updatedPlmn[64] = {0};
+    if (response[2] != NULL) {
+        if (strcmp(s_nitzOperatorInfo[socket_id], "")) {
+            ret = matchNITZOperatorInfo(plmnName, s_nitzOperatorInfo[socket_id],
+                                            response[2]);
+        }
+        if (ret < 0) {
+            ret = getOperatorName(response[2], plmnName, &s_operatorXmlInfoList,
+                                      &s_operatorXmlInfoListMutex);
+            if (ret != 0) {
+                ret = RIL_getONS(plmnName, response[2]);
+                if (0 == ret) {
+                    addToOperatorInfoList(response[2], plmnName,
+                                              &s_operatorXmlInfoList,
+                                              &s_operatorXmlInfoListMutex);
+                }
+            }
+        }
+        if (0 == ret) {
+            response[0] = plmnName;
+            response[1] = plmnName;
+            RLOGD("get Operator Name: %s", response[0]);
+        }
 
         memset(updatedPlmn, 0, sizeof(updatedPlmn));
-        ret = getOperatorName(response[2], updatedPlmn);
+        ret = getOperatorName(response[2], updatedPlmn,
+                                  &s_operatorInfoList[socket_id],
+                                  &s_operatorInfoListMutex[socket_id]);
         if (ret != 0) {
             err = updatePlmn(socket_id, (const char *)(response[2]),
                     updatedPlmn, sizeof(updatedPlmn));
-            if (err == 0 && strcmp(updatedPlmn, response[2])) {
+            if (err == 0 && strcmp(updatedPlmn, "")) {
                 RLOGD("updated plmn = %s", updatedPlmn);
                 response[0] = updatedPlmn;
                 response[1] = updatedPlmn;
-                addToOperatorInfoList(response[2], updatedPlmn);
+                addToOperatorInfoList(response[2], updatedPlmn,
+                                          &s_operatorInfoList[socket_id],
+                                          &s_operatorInfoListMutex[socket_id]);
             }
         } else {
             RLOGD("get Operator Name = %s", updatedPlmn);
@@ -1403,10 +1474,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     char *line;
     char **responses, **cur;
     char *tmp, *startTmp = NULL;
-    char prop[PROPERTY_VALUE_MAX];
     ATResponse *p_response = NULL;
-
-    property_get(PHONE_EXTENSION_PROP, prop, "false");
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
@@ -1456,7 +1524,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     // (3,"CHN-UNICOM","CUCC","46001",0),,(0-4),(0-2)
     responses = alloca(count * 4 * sizeof(char *));
     cur = responses;
-    tmp = (char *)malloc(count * sizeof(char) * 30);
+    tmp = (char *)malloc(count * sizeof(char) * 32);
     startTmp = tmp;
 
     char *updatedNetList = (char *)alloca(count * sizeof(char) * 64);
@@ -1478,23 +1546,22 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
 
         err = at_tok_nextint(&line, &act);
         if (err < 0) continue;
-        snprintf(tmp, count * sizeof(char) * 30, "%s%s%d", cur[2], " ", act);
+
+        snprintf(tmp, count * sizeof(char) * 32, "%s%s%d", cur[2], " ", act);
         RLOGD("requestNetworkList cur[2] act = %s", tmp);
         cur[2] = tmp;
 
 #if defined (RIL_EXTENSION)
-        if (strcmp(prop, "true") == 0) {
-            err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
-                                    updatedNetList, count * sizeof(char) * 64);
-            if (err == 0) {
-                RLOGD("updatedNetworkList: %s", updatedNetList);
-                cur[0] = updatedNetList;
-            }
-            updatedNetList += 64;
+        err = updateNetworkList(socket_id, cur, 4 * sizeof(char *),
+                                updatedNetList, count * sizeof(char) * 64);
+        if (err == 0) {
+            RLOGD("updatedNetworkList: %s", updatedNetList);
+            cur[0] = updatedNetList;
         }
+        updatedNetList += 64;
 #endif
         cur += 4;
-        tmp += 30;
+        tmp += 32;
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, responses,
@@ -3141,13 +3208,14 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
                      sizeof(operatorName));
     if (err == 0) {
         RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
-        MUTEX_ACQUIRE(s_operatorInfoListMutex);
-        OperatorInfoList *pList = s_operatorInfoList.next;
+        MUTEX_ACQUIRE(s_operatorInfoListMutex[socket_id]);
+        OperatorInfoList *pList = s_operatorInfoList[socket_id].next;
         OperatorInfoList *next;
-        while (pList != &s_operatorInfoList) {
+        while (pList != &s_operatorInfoList[socket_id]) {
             next = pList->next;
             if (strcmp(plmn, pList->plmn) == 0) {
-                RLOGD("find the plmn, remove if from s_operatorInfoList!");
+                RLOGD("find the plmn, remove it from s_operatorInfoList[%d]!",
+                        socket_id);
                 pList->next->prev = pList->prev;
                 pList->prev->next = pList->next;
                 pList->next = NULL;
@@ -3160,8 +3228,10 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
             }
             pList = next;
         }
-        MUTEX_RELEASE(s_operatorInfoListMutex);
-        addToOperatorInfoList(plmn, operatorName);
+        MUTEX_RELEASE(s_operatorInfoListMutex[socket_id]);
+        addToOperatorInfoList(plmn, operatorName,
+                                  &s_operatorInfoList[socket_id],
+                                  &s_operatorInfoListMutex[socket_id]);
         RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 
         RIL_onUnsolicitedResponse(
@@ -3733,6 +3803,9 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                   fullName, shortName, mcc, mnc);
 
         property_set(propName, nitzOperatorInfo);
+
+        snprintf(s_nitzOperatorInfo[socket_id], sizeof(s_nitzOperatorInfo[socket_id]),
+                "%s%s,%s,%s", mcc, mnc, fullName, shortName);
 
         if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
             RIL_onUnsolicitedResponse(

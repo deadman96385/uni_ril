@@ -131,7 +131,8 @@ extern RIL_RegState s_CSRegStateDetail[SIM_COUNT];
 extern RIL_RegState s_PSRegStateDetail[SIM_COUNT];
 extern pthread_mutex_t s_radioPowerMutex[SIM_COUNT];
 extern SimBusy s_simBusy[SIM_COUNT];
-extern OperatorInfoList s_operatorInfoList;
+extern OperatorInfoList s_operatorInfoList[SIM_COUNT];
+extern OperatorInfoList s_operatorXmlInfoList;
 extern pthread_mutex_t s_signalProcessMutex;
 extern pthread_cond_t s_signalProcessCond;
 
@@ -160,5 +161,6 @@ int cesq_unsol_rsp(char *line, RIL_SOCKET_ID socket_id, char *newLine);
 extern int updatePlmn(int slotId, const char *mncmcc, char *resp, size_t respLen);
 extern int updateNetworkList(int slotId, char **networkList, size_t datalen,
                       char *resp, size_t respLen);
+extern int RIL_getONS(char *updatePlmn, char *plmn);
 
 #endif  // RIL_NETWORK_H_
