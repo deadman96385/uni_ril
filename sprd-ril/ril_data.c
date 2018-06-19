@@ -3784,7 +3784,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
             tableIndex = tableIndex + 1000;
             sprintf(cmd, "setprop persist.vendor.sys.bip.table_index %d", tableIndex);
             system(cmd);
-            property_set("ctl.start", "stk");
+            property_set("ctl.start", "vendor.stk");
         } else {
             snprintf(cmd, sizeof(cmd),"vendor.net.%s.ip", linker);
             property_get(cmd, ip, "");
