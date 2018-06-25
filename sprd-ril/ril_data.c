@@ -1448,8 +1448,9 @@ static int reuseDefaultBearer(int channelID, void *data,
                                 pthread_mutex_lock(&s_signalBipPdpMutex);
                                 s_openchannelInfo[i].count++;
                                 s_openchannelInfo[i].pdpState = true;
-                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
+                                pthread_cond_signal(&s_signalBipPdpCond);
                                 pthread_mutex_unlock(&s_signalBipPdpMutex);
+                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
                                 requestOrSendDataCallList(channelID, cid, &t);
                                 ret = 0;
                             } else if (cgdata_err ==
