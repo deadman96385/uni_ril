@@ -1601,6 +1601,7 @@ static bool isApnEqual(char *new, char *old) {
 static bool isProtocolEqual(char *new, char *old) {
     bool ret = false;
     if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(old, "IPV4V6") == 0 ||
         strcasecmp(new, old) == 0) {
         ret = true;
     }
