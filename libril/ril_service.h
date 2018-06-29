@@ -1128,6 +1128,8 @@ int IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
 
 int DsdaStatusInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
+int updateHdStateInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
 /*****************************************************************************/
 }   // namespace radio
 

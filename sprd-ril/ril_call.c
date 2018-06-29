@@ -3152,7 +3152,24 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_EARLY_MEDIA,
                 &response, sizeof(response), socket_id);
-    } else {
+    } else if (strStartsWith(s, "+SPCAPABILITY:")) {
+        char *tmp;
+        int response = 0;
+
+        line = strdup(s);
+        tmp = line;
+
+        err = at_tok_start(&tmp);
+        if (err < 0) goto out;
+
+        skipNextComma(&tmp);
+        skipNextComma(&tmp);
+        err = at_tok_nextint(&tmp, &response);
+        if (err < 0) goto out;
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE, &response,
+                                  sizeof(response), socket_id);
+    }else {
         ret = 0;
     }
     /* unused unsolicited response
