@@ -202,18 +202,10 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
 
     // protocol
     char protocol[NAME_SIZE] = {0};
-    if (emNStrlen(pstkContext->pOCData->BearerParam) != 0) {
-        RLOGD("pstkContext->pOCData->BearerParam length: %d",
-                emNStrlen(pstkContext->pOCData->BearerParam));
-        if (strStartsWith(pstkContext->pOCData->BearerParam +
-                emNStrlen(pstkContext->pOCData->BearerParam) - 2,
-                TYPE_PACKAGE_DATA_PROTOCOL_IP)) {
-            memcpy(protocol, "IP", 2);
-        } else {
-            memcpy(protocol, "IPV4V6", 6);
-        }
+    if (pstkContext->pOCData->OtherAddressType == ADDRESS_TYPE_IPV6) {
+        memcpy(protocol, "IPV6", 4);
     } else {
-        memcpy(protocol, "IPV4V6", 6);
+        memcpy(protocol, "IP", 2);
     }
     pStrings[6] = protocol;
 
