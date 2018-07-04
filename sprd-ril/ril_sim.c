@@ -3048,6 +3048,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_POWER_REAL:
             requestSIMPower(channelID, data, NULL);
             break;
+        case RIL_REQUEST_SET_SIM_CARD_POWER:
+            requestSIMPower(channelID, data, t);
+            break;
         default:
             return 0;
     }
