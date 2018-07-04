@@ -13,6 +13,8 @@
 #include "ril_sim.h"
 #include "channel_controller.h"
 
+#include "ca_rate.h"
+
 /* Fast Dormancy disable property */
 #define RADIO_FD_DISABLE_PROP "persist.vendor.radio.fd.disable"
 /* PROP_FAST_DORMANCY value is "a,b". a is screen_off value, b is on value */
@@ -33,6 +35,10 @@ pthread_mutex_t s_vsimSocketMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_vsimSocketCond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_screenMutex = PTHREAD_MUTEX_INITIALIZER;
 struct timeval s_timevalCloseVsim = {60, 0};
+
+//test fzl
+static void handleHighRateMode();
+static void handleNormalRateMode();
 
 typedef struct {
     int socket_id1;
@@ -392,6 +398,9 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
     s_screenState = status;
 
     if (!status) {
+        RLOGD("test handleHighRateMode !");
+        handleHighRateMode();
+        RLOGD("test handleHighRateMode over!");
         /* Suspend */
         at_send_command(s_ATChannels[channelID], "AT+CCED=2,8", NULL);
         if (s_isLTE) {
@@ -414,6 +423,9 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
             at_send_command(s_ATChannels[channelID], "AT+SPVOICEPREFER=1", NULL);
         }
     } else {
+        RLOGD("test handleNormalRateMode !");
+        handleNormalRateMode();
+        RLOGD("test handleNormalRateMode over!");
         /* Resume */
         at_send_command(s_ATChannels[channelID], "AT+CCED=1,8", NULL);
         if (s_isLTE) {
@@ -1127,6 +1139,32 @@ int processPropRequests(int request, void *data, size_t datalen, RIL_Token t) {
     return 1;
 }
 
+//when high rate mode, open DVFS/Thermal/IPA/lock CUP Freq/RPS
+static void handleHighRateMode() {
+    RLOGD("handleHighRateMode START!");
+    //open RPS
+    property_set("ctl.start","rps_on");
+
+    //CPU Frequency
+    setCPUFrequency(true);
+
+    setThermal(true);
+    RLOGD("handleHighRateMode DONE!");
+}
+
+static void handleNormalRateMode() {
+    RLOGD("handleNormalRateMode START!");
+    //open RPS
+    property_set("ctl.start","rps_off");
+
+    //need auto CPU Frequency
+    setCPUFrequency(false);
+
+    //Thermal
+    setThermal(false);
+    RLOGD("handleNormalRateMode DONE!");
+}
+
 int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     char *line = NULL;
@@ -1171,6 +1209,52 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
         RIL_onUnsolicitedResponse(RIL_ATC_UNSOL_VSIM_RSIM_REQ, response,
                                   strlen(response) + 1, socket_id);
+    } else if (strStartsWith(s, "+SPLTERATEMODE:")) {
+       /*
+        * +SPLTERATEMODE:<mode>,[max],[rate]
+        *
+        * <mode>    description
+        * 0              Low/Normal rate mode
+        * 1              High rate mode
+        * <max>      Current band max rate
+        * <rate>      Latest detected rate
+        */
+        int mode, rate, max_rate;
+        int err;
+        char* tmp;
+
+        RLOGD("CA NVIOT rate URC: %s", s);
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        err = at_tok_nextint(&tmp, &mode);
+        if (err < 0) {
+            RLOGD("CA NVIOT rate -- get mode error");
+            goto out;
+        }
+
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &max_rate);
+            if (err < 0) {
+                RLOGD("CA NVIOT rate -- get max error");
+                goto out;
+            }
+        }
+
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &rate);
+            if (err < 0) {
+                RLOGD("CA NVIOT rate -- get rate error");
+                goto out;
+            }
+        }
+
+        if (mode) {
+            handleHighRateMode();
+        } else {
+            handleNormalRateMode();
+        }
     } else {
         return 0;
     }

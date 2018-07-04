@@ -25,9 +25,15 @@ LOCAL_SRC_FILES := \
     ril_stk_bip.c \
     ril_stk_parser.c \
     ril_mmgr.c \
+    ca_rate.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     liblog libcutils libutils librilsprd librilutils libnetutils
+
+LOCAL_SHARED_LIBRARIES += libhidlbase \
+                          libhidltransport \
+                          vendor.sprd.hardware.thermal@1.0 \
+                          libpowerhal_cli
 
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE
