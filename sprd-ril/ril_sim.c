@@ -3046,6 +3046,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
             break;
+        case RIL_EXT_REQUEST_SIM_POWER_REAL:
+            requestSIMPower(channelID, data, NULL);
+            break;
         default:
             return 0;
     }

@@ -604,6 +604,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setLocalTone(int32_t serial, int32_t state);
 
+    Return<void> setSimPowerReal(int32_t serial, bool enable);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9673,6 +9675,14 @@ Return<void> RadioImpl::setLocalTone(int32_t serial, int32_t state) {
     return Void();
 }
 
+Return<void> RadioImpl::setSimPowerReal(int32_t serial, bool enable) {
+#if VDBG
+    RLOGD("setSimPowerReal: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SIM_POWER_REAL, 1, BOOL_TO_INT(enable));
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10876,6 +10886,26 @@ int radio::setLocalToneResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("setLocalToneResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::setSimPowerRealResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setSimPowerRealResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setSimPowerRealResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("simPowerResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 
