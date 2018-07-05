@@ -1677,19 +1677,15 @@ static void deactivateDataConnection(int channelID, void *data,
     char prop[PROPERTY_VALUE_MAX] = {0};
     const char *p_cid = NULL;
     ATResponse *p_response = NULL;
+    bool error = false;
 
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-    if (s_isSimPresent[socket_id] != PRESENT) {
-        RLOGE("deactivateDataConnection: card is absent");
-        RIL_onRequestComplete(t, RIL_E_INVALID_CALL_ID, NULL, 0);
-        return;
-    }
 
     p_cid = ((const char **)data)[0];
     cid = atoi(p_cid);
     if (cid < 1) {
-        goto error;
+        error = true;
+        goto done;
     }
 
     RLOGD("deactivateDC s_in4G[%d]=%d, count = %d", socket_id, s_in4G[socket_id],
@@ -1702,7 +1698,8 @@ static void deactivateDataConnection(int channelID, void *data,
         goto done;
     }
     if (s_openchannelInfo[cid - 1].count != 0){
-        goto error;
+        error = true;
+        goto done;
     }
 
     secondaryCid = getFallbackCid(socket_id, cid - 1);
@@ -1720,6 +1717,7 @@ static void deactivateDataConnection(int channelID, void *data,
     putPDP(socket_id, secondaryCid - 1);
     putPDP(socket_id, cid - 1);
     at_response_free(p_response);
+
     // for ddr, power consumption
     if (isVoLteEnable() && !isExistActivePdp(socket_id)) {
         property_get(DDR_STATUS_PROP, prop, "0");
@@ -1729,13 +1727,17 @@ static void deactivateDataConnection(int channelID, void *data,
         }
     }
 done:
-    if (t != NULL) {
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (s_isSimPresent[socket_id] != PRESENT) {
+        RLOGE("deactivateDataConnection: card is absent");
+        RIL_onRequestComplete(t, RIL_E_INVALID_CALL_ID, NULL, 0);
+        return;
     }
-    return;
-error:
     if (t != NULL) {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        if (error) {
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        }
     }
     return;
 }
