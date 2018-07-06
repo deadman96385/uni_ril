@@ -309,7 +309,7 @@ void sendEvenLoopThread(void *param) {
     StkContext *pstkContext = NULL;
 
     if (param && ((CallbackPara *)param)->para) {
-        socket_id = *((int *)(((CallbackPara *)param)->socket_id));
+        socket_id = (int)(((CallbackPara *)param)->socket_id);
         openchannelCid = *((int *)(((CallbackPara *)param)->para));
         RLOGD("sendEvenLoopThread socket_id:%d openchannelCid:%d", socket_id, openchannelCid);
     }
