@@ -6601,6 +6601,8 @@ failCauseToString(RIL_Errno e) {
 #endif
 #if defined (RIL_SPRD_EXTENSION)
         case RIL_E_SMS_SAVE_FAIL_FULL: return "E_SMS_SAVE_FAIL_FULL";
+        case RIL_E_MISSING_RESOURCE: return "E_MISSING_RESOURCE";
+        case RIL_E_NO_SUCH_ELEMENT: return "E_NO_SUCH_ELEMENT";
 #endif
 #ifdef FEATURE_MULTIMODE_ANDROID
         case RIL_E_SUBSCRIPTION_NOT_AVAILABLE:return "E_SUBSCRIPTION_NOT_AVAILABLE";

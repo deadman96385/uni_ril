@@ -9401,8 +9401,10 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_OEM_HOOK_RAW
                 || request == RIL_REQUEST_OEM_HOOK_STRINGS
                 || request == RIL_REQUEST_SHUTDOWN
+                || request == RIL_REQUEST_SIM_OPEN_CHANNEL
                 || request == RIL_REQUEST_SIM_CLOSE_CHANNEL
                 || request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL
+                || request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC
                 || request == RIL_REQUEST_GET_IMS_BEARER_STATE
                 || request == RIL_REQUEST_GET_IMS_SRVCC_CAPBILITY
                 || request == RIL_REQUEST_GET_SIMLOCK_STATUS
@@ -9412,6 +9414,8 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
 #if defined (RIL_SPRD_EXTENSION)
 #if defined (RIL_SUPPORTED_OEMSOCKET)
                 || request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
+                || request == RIL_EXT_REQUEST_SIM_OPEN_CHANNEL_WITH_P2
+                || request == RIL_EXT_REQUEST_SIM_GET_ATR
 #endif
 #endif
        )) {
@@ -9437,6 +9441,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_GET_IMS_VOICE_CALL_AVAILABILITY
                 || request == RIL_REQUEST_SET_IMS_INITIAL_ATTACH_APN
                 || request == RIL_REQUEST_SIM_CLOSE_CHANNEL
+                || request == RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC
                 || request == RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL
 #if defined (RIL_SUPPORTED_OEMSOCKET)
                 || request == RIL_EXT_REQUEST_GET_HD_VOICE_STATE
