@@ -2286,7 +2286,9 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_REQUEST_DEACTIVATE_DATA_CALL:
+            pthread_mutex_lock(&s_radioPowerMutex[1-socket_id]);
             deactivateDataConnection(channelID, data, datalen, t);
+            pthread_mutex_unlock(&s_radioPowerMutex[1-socket_id]);
             break;
         case RIL_REQUEST_LAST_DATA_CALL_FAIL_CAUSE:
             requestLastDataFailCause(channelID, data, datalen, t);
