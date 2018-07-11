@@ -16,14 +16,26 @@ using ::vendor::sprd::hardware::thermal::V1_0::ExtThermalCmd;
 ::android::sp<::vendor::sprd::hardware::thermal::V1_0::IExtThermal> thm = NULL;
 
 void setCPUFrequency(bool enable) {
-    if (powerManager == NULL || sceneCANVIOT == NULL) {
-        RLOGD("powerManager OR sceneCANVIOT is NULL!");
+    if (powerManager == NULL) {
+        RLOGD("powerManager is NULL!");
         powerManager = new ::android::PowerHALManager();
+      
+        if (powerManager == NULL) {
+            RLOGE("return because : powerManager is NULL!");
+            return;
+        }
         powerManager->init();
-
+    }
+  
+    if (sceneCANVIOT == NULL) {
         sceneCANVIOT = powerManager->createPowerHintScene(LOG_TAG,
             static_cast<int>(PowerHintVendor::VENDOR_RADIO_NVIOT), "");
-        RLOGD("new powerManager and sceneCANVIOT obj!");
+        RLOGD("new seneCANVIOT obj!");
+    }
+
+    if (sceneCANVIOT == NULL) {
+        RLOGE("return because : sceneCANVIOT is NULL!");
+        return;
     }
 
     if (enable) {
@@ -44,6 +56,11 @@ void setThermal(bool enable) {
     }
 
     RLOGD("set thermal and enable = %d!", enable);
+
+    if (thm == NULL) {
+        RLOGE("return because : thm is NULL!");
+        return;
+    }
 
     if (enable) {
         thm->setExtThermal(ExtThermalCmd::THMCMD_SET_PERF_EN);
