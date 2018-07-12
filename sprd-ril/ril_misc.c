@@ -393,7 +393,6 @@ int vsimQueryVirtual(int socket_id){
 }
 
 void onSimDisabled(int channelID) {
-    int sim_status = getSIMStatus(false, channelID);
     at_send_command(s_ATChannels[channelID],
                     "AT+SFUN=5", NULL);
     setRadioState(channelID, RADIO_STATE_OFF);
@@ -601,7 +600,10 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         char *cmd = NULL;
         int socket_id = getSocketIdByChannelID(channelID);
         s_vsimInitFlag[socket_id] = false;
-
+        int sim_status = getSIMStatus(false, channelID);
+        if (sim_status != SIM_ABSENT) {
+            at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
+        }
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);

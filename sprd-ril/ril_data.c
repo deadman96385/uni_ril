@@ -1820,6 +1820,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     int ret = -1;
     bool isSetReattach = false;
     char prop[PROPERTY_VALUE_MAX] = {0};
+    char plmn[PROPERTY_VALUE_MAX] = {0};
 
     RIL_InitialAttachApn *response =
             (RIL_InitialAttachApn *)calloc(1, sizeof(RIL_InitialAttachApn));
@@ -1834,10 +1835,10 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
         if (s_isLTE) {
             ret = getDataProfile(response, channelID, initialAttachId);
             ret = compareApnProfile(pIAApn, response);
-            getProperty(socket_id, "gsm.sim.operator.numeric", prop, "");
-            RLOGD("prop = %s", prop);
+            getProperty(socket_id, "gsm.sim.operator.numeric", plmn, "");
+            RLOGD("prop = %s", plmn);
             if (ret > 0) {
-                if ((strcmp(prop, "732101") == 0) && socket_id == s_multiModeSim &&
+                if ((strcmp(plmn, "732101") == 0) && socket_id == s_multiModeSim &&
                     isStrEmpty(pIAApn->apn) && isStrEmpty(pIAApn->protocol)){
                     at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
                 }
@@ -1856,15 +1857,23 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 }
             } else {
                 isSetReattach = socket_id == s_multiModeSim;
+                property_get("persist.radio.mifi.product", prop, "false");
+                if (!strcmp(prop, "true")) {
+                    if (isSetReattach && (s_workMode[socket_id] == WCDMA_ONLY
+                            || s_workMode[socket_id] == WCDMA_AND_GSM)) {
+                        isSetReattach = false;
+                    }
+                }
             }
 
-            if (isSetReattach && ((s_in4G[socket_id] == 1 ||
+            if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_NOT_REG ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_SEARCHING ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_STATE_UNKNOWN ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED) ||
-                (strcmp(prop, "732101") == 0))) {
+                s_PSRegStateDetail[socket_id] == RIL_REG_STATE_DENIED)) {
+                at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
+            } else if ((strcmp(plmn, "732101") == 0) && socket_id == s_multiModeSim) {
                 at_send_command(s_ATChannels[channelID], "AT+SPREATTACH", NULL);
             }
         } else {
@@ -2837,7 +2846,8 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int type;
         int errCode;
         char *tmp;
-        int response[2];
+        int response[3] = {0};
+        int plmn = 0;
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
 
@@ -2851,7 +2861,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         err = at_tok_nextint(&tmp, &errCode);
         if (err < 0) goto out;
 
-        if (errCode == 336) {
+        if (at_tok_hasmore(&tmp)) {
+          err = at_tok_nextint(&tmp, &plmn);
+        }
+
+      if (errCode == 336) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
                                       0, socket_id);
         }
@@ -2878,6 +2892,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             }
             response[0] = type;
             response[1] = errCode;
+            response[2] = plmn;
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
                                             socket_id);
         }
