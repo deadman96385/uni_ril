@@ -1438,14 +1438,7 @@ static int reuseDefaultBearer(int channelID, void *data,
                             if (cgdata_err == DATA_ACTIVE_SUCCESS) {
                                 updatePDPCid(socket_id, i + 1, 1);
                                 s_openchannelCid = cid;
-                                pthread_mutex_lock(&s_signalBipPdpMutex);
-                                s_openchannelInfo[i].count++;
-                                s_openchannelInfo[i].pdpState = true;
-                                pthread_cond_signal(&s_signalBipPdpCond);
-                                pthread_mutex_unlock(&s_signalBipPdpMutex);
-                                RLOGD("reuse count = %d", s_openchannelInfo[i].count);
-                                requestOrSendDataCallList(channelID, cid, &t);
-                                ret = 0;
+                                ret = cid;
                             } else if (cgdata_err ==
                                     DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
                                 updatePDPCid(socket_id, i + 1, -1);
@@ -1456,15 +1449,13 @@ static int reuseDefaultBearer(int channelID, void *data,
                                 /*bug837360 cgdata during ps attach,pdp active fail*/
                                 ret = -2;
                             } else {
-                                ret = cid;
+                                putPDPByIndex(socket_id, i);
+                                ret = -3;
                             }
+                            break;
                         } else {
                             if (s_openchannelInfo[i].state != CLOSE) {
-                                s_openchannelCid = cid;
-                                s_openchannelInfo[i].count++;
-                                requestOrSendDataCallList(channelID, cid, &t);
-                                RLOGD("reuse count = %d", s_openchannelInfo[cid - 1].count);
-                                ret = 0;
+                            ret = cid;
                             }
                         }
                     }
@@ -1513,10 +1504,10 @@ RETRY:
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
     ret = reuseDefaultBearer(channelID, data, pdpType, t);
-    if (ret == 0) {
-        return;
-    } else if (ret > 0) {
+    if (ret > 0) {
         primaryindex = ret - 1;
+        goto done;
+    } else if (ret == -3) {
         goto error;
     } else if (ret == -2) {
         if (nRetryTimes < 5) {
@@ -1584,6 +1575,7 @@ done:
     s_openchannelInfo[primaryindex].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
+    RLOGD("s_openchannelInfo count = %d", s_openchannelInfo[primaryindex].count);
     requestOrSendDataCallList(channelID, primaryindex + 1, &t);
     return;
 
