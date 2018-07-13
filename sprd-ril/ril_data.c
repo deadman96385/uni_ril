@@ -4028,6 +4028,8 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
     const char *apn = NULL;
     apn = ((const char **)data)[2];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    RLOGD("s_dataAllowed[%d] = %d", socket_id, s_dataAllowed[socket_id]);
     if (s_dataAllowed[socket_id] != 1) {
         return -1;
     }
