@@ -10607,8 +10607,10 @@ int radio::sendCmdAsyncResponse(int slotId, int responseType, int serial,
     if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
+        char **resp = (char **) response;
+        hidl_string data = convertCharPtrToHidlString(resp[0]);
         Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
-                sendCmdAsyncResponse(responseInfo, convertCharPtrToHidlString((char *)response));
+                sendCmdAsyncResponse(responseInfo, data);
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("sendCmdAsyncResponse: radioService[%d]->mExtRadioResponse == NULL",
