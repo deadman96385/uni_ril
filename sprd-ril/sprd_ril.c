@@ -1442,6 +1442,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         s_isSimPresent[simId] = SIM_UNKNOWN;
         pthread_cond_init(&s_simBusy[simId].s_sim_busy_cond, &condAttr);
     }
+    if (SIM_COUNT == 1) {
+        s_dataAllowed[0] = 1;
+    }
 
     RLOGD("rild connect %s modem, SIM_COUNT: %d", s_modem, SIM_COUNT);
 
