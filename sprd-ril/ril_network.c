@@ -387,6 +387,22 @@ int is4G(int urcNetType, int mapNetType, RIL_SOCKET_ID socketId) {
     return s_in4G[socketId];
 }
 
+/**
+ * Eliminate unwanted CTCC PLMNs
+ * Return true if it is an unwanted PLMN
+ */
+static bool plmnFiltration(char *plmn){
+    int i;
+    char *unwantedPlmns[] = {"46003","46005","46011","45502"};
+    int length = sizeof(unwantedPlmns)/sizeof(char*);
+    for(i = 0; i < length; i++){
+        if(strcmp(unwantedPlmns[i], plmn) == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
 static void requestSignalStrength(int channelID, void *data,
                                       size_t datalen, RIL_Token t) {
     RIL_UNUSED_PARM(data);
@@ -1350,6 +1366,11 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
         err = at_tok_nextstr(&line, &(cur[2]));
         if (err < 0) continue;
 
+        if(plmnFiltration(cur[2])){
+            unwantedPlmnCount++;
+            continue;
+        }
+
         err = at_tok_nextint(&line, &act);
         if (err < 0) continue;
         snprintf(tmp, count * sizeof(char) * 30, "%s%s%d", cur[2], " ", act);
@@ -1372,7 +1393,7 @@ static void requestNetworkList(int channelID, void *data, size_t datalen,
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, responses,
-            count * 4 * sizeof(char *));
+            (count - unwantedPlmnCount) * 4 * sizeof(char *));
     at_response_free(p_response);
     free(startTmp);
     return;
