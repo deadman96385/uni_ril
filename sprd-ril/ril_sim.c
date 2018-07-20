@@ -465,6 +465,9 @@ out:
     } else if (0 == strcmp(cpinResult, "PH-INTEGRITY FAIL")) {
         ret = SIM_SIMLOCK_FOREVER;
         goto done;
+    } else if (0 == strcmp(cpinResult, "PIN1_BLOCK_PUK1_BLOCK")) {
+        ret = SIM_PERM_BLOCK;
+        goto done;
     } else if (0 != strcmp(cpinResult, "READY")) {
         /* we're treating unsupported lock types as "sim absent" */
         ret = SIM_ABSENT;
@@ -647,7 +650,11 @@ static int getCardStatus(int request, int channelID,
         // PERSOSUBSTATE_SIMLOCK_FOREVER = EXT_SIM_STATUS_BASE + 10
         {RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO,
          RIL_PERSOSUBSTATE_SIMLOCK_FOREVER, NULL, NULL, 0,
-         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN}
+         RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN},
+         // SIM_PERM_BLOCK = EXT_SIM_STATUS_BASE + 11
+         { RIL_APPTYPE_SIM, RIL_APPSTATE_PUK,
+         RIL_PERSOSUBSTATE_UNKNOWN, NULL, NULL, 0,
+         RIL_PINSTATE_ENABLED_PERM_BLOCKED, RIL_PINSTATE_UNKNOWN }
     };
     static RIL_AppStatus ims_app_status_array[] = {
         {RIL_APPTYPE_ISIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_READY,
