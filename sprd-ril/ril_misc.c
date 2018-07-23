@@ -455,14 +455,12 @@ static void requestGetHardwareConfig(void *data, size_t datalen, RIL_Token t) {
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &hwCfg, sizeof(hwCfg));
 }
 
-int vsimQueryVirtual(int socket_id){
-    RLOGD("vsimQueryVirtual, phoneId: %d", socket_id);
+int vsimQueryVirtual(int channelID) {
+    RLOGD("vsimQueryVirtual");
     int err = -1;
-    int channelID = -1;
     int vsimMode = -1;
     char *line = NULL;
     ATResponse *p_response = NULL;
-    channelID = getChannel(socket_id);
     err = at_send_command_singleline(s_ATChannels[channelID],
             "AT+VIRTUALSIMINIT?", "+VIRTUALSIMINIT:", &p_response);
     if (err < 0 || p_response->success == 0) {
@@ -474,18 +472,24 @@ int vsimQueryVirtual(int socket_id){
         err = at_tok_nextint(&line, &vsimMode);
     }
     at_response_free(p_response);
-    if (vsimMode > 0) {
-        at_send_command(s_ATChannels[channelID],"AT+RSIMRSP=\"ERRO\",1,", NULL);
-    }
-    putChannel(channelID);
+//    if (vsimMode > 0) {
+//        at_send_command(s_ATChannels[channelID],"AT+RSIMRSP=\"ERRO\",1,", NULL);
+//    }
 
     return vsimMode;
 }
 
 void onSimDisabled(int channelID) {
-    int sim_status = getSIMStatus(false, channelID);
-    at_send_command(s_ATChannels[channelID],
-                    "AT+SFUN=5", NULL);
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    int i;
+    at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
+    for (i = 0; i < MAX_PDP; i++) {
+        if (s_dataAllowed[socket_id] &&
+                s_PDP[socket_id][i].state == PDP_BUSY) {
+            RLOGD("s_PDP[%d].state = %d", i, s_PDP[socket_id][i].state);
+            putPDP(socket_id, i);
+        }
+    }
     setRadioState(channelID, RADIO_STATE_OFF);
 }
 
@@ -506,7 +510,8 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
                    RIL_Token t, char *atResp, int responseLen) {
     RIL_UNUSED_PARM(datalen);
 
-    int i, err;
+    int i;
+    int err  = -1;
     char *ATcmd = (char *)data;
     char buf[MAX_AT_RESPONSE] = {0};
     char *cmd;
@@ -556,9 +561,15 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);
-        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-        if (err >= 0 && p_response->success != 0) {
-            onSimDisabled(channelID);
+        int simState = getSIMStatus(RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS, channelID);
+        if (simState != SIM_ABSENT) {
+            at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err >= 0 && p_response->success != 0) {
+                onSimDisabled(channelID);
+            }
+        } else {
+            RLOGD("no vsim!!");
         }
     }  else if (strStartsWith(ATcmd, "VSIM_TIMEOUT")) {
         int time = -1;
@@ -638,7 +649,8 @@ static void requestVsimCmd(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(data);
     RIL_UNUSED_PARM(datalen);
 
-    int i, err;
+    int i;
+    int err = -1;
     char *ATcmd = (char *)data;
     char buf[MAX_AT_RESPONSE] = {0};
     char *cmd;
@@ -665,9 +677,15 @@ static void requestVsimCmd(int channelID, void *data, size_t datalen,
         //send AT
         cmd = ATcmd;
         at_tok_start(&cmd);
-        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-        if (err >= 0 && p_response->success != 0) {
-            onSimDisabled(channelID);
+        int simState = getSIMStatus(RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS, channelID);
+        if (simState != SIM_ABSENT) {
+            at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err >= 0 && p_response->success != 0) {
+                onSimDisabled(channelID);
+            }
+        } else {
+            RLOGD("no vsim!!");
         }
     }  else if (strStartsWith(ATcmd, "VSIM_TIMEOUT")) {
         int time = -1;

@@ -1989,6 +1989,14 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 }
             } else {
                 isSetReattach = socket_id == s_multiModeSim;
+                property_get(MIFI_PRODUCT_PROP, prop, "0");
+                if (strcmp(prop, "0") != 0) {
+                    if (isSetReattach && (s_workMode[socket_id] == WCDMA_ONLY
+                            || s_workMode[socket_id] == WCDMA_AND_GSM
+                            || s_workMode[socket_id] == GSM_ONLY)) {
+                        isSetReattach = false;
+                    }
+                }
             }
             if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_NOT_SEARCHING ||

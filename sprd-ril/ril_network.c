@@ -1162,6 +1162,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             RLOGE("sim enable false,radio power on failed");
             goto error;
         }
+        initWorkMode();
         buildWorkModeCmd(cmd, sizeof(cmd));
 
 #if (SIM_COUNT == 2)
