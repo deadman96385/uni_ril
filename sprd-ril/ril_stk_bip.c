@@ -864,26 +864,40 @@ int createSocket(StkContext *pstkContext) {
         RLOGD("[stk] create udp socket");
         switch(transTypeTag) {
             case AF_INET:
+                addr.sin_port = htons(port);
                 if ((pstkContext->udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
                     RLOGE("socket create error");
                     return -1;
                 }
+                if (setsockopt(pstkContext->udpSocket, SOL_SOCKET, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
+                    RLOGE("setsockopt error errno = %s", strerror(errno));
+                    close(pstkContext->udpSocket);
+                    pstkContext->udpSocket = -1;
+                }
                 break;
             case AF_INET6:
+                addr6.sin6_port = htons(port);
                 if ((pstkContext->udpSocket = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
                     RLOGE("socket create error");
                     return -1;
                 }
+                char srcAddress[128] = {0};
+                char cmd[128] = {0};
+                sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                RLOGD("createSocket cmd:%s", cmd);
+                property_get(cmd, srcAddress, "");
+                RLOGD("createSocket srcAddress:%s", srcAddress);
+                if (inet_pton(AF_INET6, srcAddress, &srcAddr6.sin6_addr) <= 0) {
+                    RLOGE("socket inet_pton srcAddress error errno = %s", strerror(errno));
+                    return -1;
+                }
+                int err = bind(pstkContext->udpSocket, (const struct sockaddr*)&srcAddr6, sizeof(struct sockaddr_in6));
+                RLOGD("createSocket bind error =%d", err);
                 break;
             default:
                 return -1;
         }
         RLOGD("createSocket pstkContext->udpSocket:%d", pstkContext->udpSocket);
-        if (setsockopt(pstkContext->udpSocket, SOL_SOCKET, SO_BINDTODEVICE, ifName, strlen(ifName)) < 0){
-            RLOGE("setsockopt error  errno = %s", strerror(errno));
-            close(pstkContext->udpSocket);
-            pstkContext->udpSocket = -1;
-        }
         fdSocketId = pstkContext->udpSocket;
         RLOGD("createSocket fdSocketId:%d", fdSocketId);
     } else {
