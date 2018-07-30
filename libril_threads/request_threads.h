@@ -14,6 +14,7 @@ typedef enum {
     AT_CMD_TYPE_NORMAL_SLOW,
     AT_CMD_TYPE_NORMAL_FAST,
     AT_CMD_TYPE_DATA,
+    AT_CMD_TYPE_NETWORK,
     AT_CMD_TYPE_OTHER,
 } ATCmdType;
 
@@ -74,6 +75,7 @@ typedef struct RequestListNode {
 typedef struct {
     pthread_t slowDispatchTid;
     pthread_t normalDispatchTid;
+    pthread_t networkDispatchTid;
     pthread_t otherDispatchTid;
 
     threadpool_t *p_threadpool;
@@ -81,14 +83,17 @@ typedef struct {
     RequestListNode *callReqList;
     RequestListNode *simReqList;
     RequestListNode *slowReqList;
+    RequestListNode *networkReqList;
     RequestListNode *otherReqList;
 
     pthread_mutex_t listMutex;
     pthread_mutex_t normalDispatchMutex;
     pthread_mutex_t slowDispatchMutex;
+    pthread_mutex_t networkDispatchMutex;
     pthread_mutex_t otherDispatchMutex;
     pthread_cond_t slowDispatchCond;
     pthread_cond_t normalDispatchCond;
+    pthread_cond_t networkDispatchCond;
     pthread_cond_t otherDispatchCond;
 } RequestThreadInfo;
 
