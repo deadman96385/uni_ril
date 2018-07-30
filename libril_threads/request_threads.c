@@ -444,6 +444,12 @@ ATCmdType getCmdType(int request) {
     } else if (isLLVersion() && s_simCount > 1
             && request == RIL_REQUEST_DEACTIVATE_DATA_CALL) {
         cmdType = AT_CMD_TYPE_DATA;
+    } else if (request == RIL_REQUEST_VOICE_REGISTRATION_STATE ||
+               request == RIL_REQUEST_DATA_REGISTRATION_STATE ||
+               request == RIL_REQUEST_OPERATOR ||
+               request == RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE||
+               request == RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL) {
+        cmdType = AT_CMD_TYPE_NETWORK;
     }
     return cmdType;
 }
@@ -509,6 +515,37 @@ static void *normalDispatch(void *param) {
                     p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
             RLOGI("-->normalDispatch [%d] free one command", tid);
             request_list_remove(cmd_item, socket_id);
+            free(cmd_item->p_reqInfo);
+            free(cmd_item);
+        }
+    }
+}
+
+static void *networkDispatch(void *param) {
+    RequestListNode *cmd_item;
+    pid_t tid = gettid();
+
+    RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
+    pthread_mutex_t *networkDispatchMutex =
+            &(s_requestThread[socket_id].networkDispatchMutex);
+    pthread_cond_t *networkDispatchCond =
+            &(s_requestThread[socket_id].networkDispatchCond);
+    RequestListNode *network_list = s_requestThread[socket_id].networkReqList;
+
+    while (1) {
+        pthread_mutex_lock(networkDispatchMutex);
+        if (network_list->next == network_list) {
+            pthread_cond_wait(networkDispatchCond, networkDispatchMutex);
+        }
+        pthread_mutex_unlock(networkDispatchMutex);
+
+        for (cmd_item = network_list->next; cmd_item != network_list;
+                cmd_item = network_list->next) {
+            RequestInfo *p_reqInfo = cmd_item->p_reqInfo;
+            processRequest(p_reqInfo->request, p_reqInfo->data,
+                    p_reqInfo->datalen, p_reqInfo->token, p_reqInfo->socket_id);
+            RLOGI("-->networkDispatch [%d] free one command", tid);
+            request_list_remove(cmd_item, socket_id);  /* remove list node first, then free it */
             free(cmd_item->p_reqInfo);
             free(cmd_item);
         }
@@ -638,6 +675,11 @@ void enqueueRequest(int request, void *data, size_t datalen, RIL_Token t,
         pthread_mutex_lock(&s_dataDispatchMutex);
         pthread_cond_signal(&s_dataDispatchCond);
         pthread_mutex_unlock(&s_dataDispatchMutex);
+    } else if (cmdType == AT_CMD_TYPE_NETWORK) {
+        request_list_add_tail(cmdList->networkReqList, p_reqNode, socket_id);
+        pthread_mutex_lock(&(cmdList->networkDispatchMutex));
+        pthread_cond_signal(&(cmdList->networkDispatchCond));
+        pthread_mutex_unlock(&(cmdList->networkDispatchMutex));
     } else {
         request_list_add_tail(cmdList->otherReqList, p_reqNode, socket_id);
         pthread_mutex_lock(&(cmdList->otherDispatchMutex));
@@ -676,15 +718,18 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
         pthread_mutex_init(&p_requestThread->listMutex, NULL);
         pthread_mutex_init(&p_requestThread->normalDispatchMutex, NULL);
         pthread_mutex_init(&p_requestThread->slowDispatchMutex, NULL);
+        pthread_mutex_init(&p_requestThread->networkDispatchMutex, NULL);
         pthread_mutex_init(&p_requestThread->otherDispatchMutex, NULL);
         pthread_cond_init(&p_requestThread->slowDispatchCond, NULL);
         pthread_cond_init(&p_requestThread->normalDispatchCond, NULL);
+        pthread_cond_init(&p_requestThread->networkDispatchCond, NULL);
         pthread_cond_init(&p_requestThread->otherDispatchCond, NULL);
 
         request_list_init(&(s_requestThread[simId].slowReqList));
         request_list_init(&(s_requestThread[simId].otherReqList));
         request_list_init(&(s_requestThread[simId].callReqList));
         request_list_init(&(s_requestThread[simId].simReqList));
+        request_list_init(&(s_requestThread[simId].networkReqList));
 
         s_requestThread[simId].p_threadpool = thread_pool_init(threadNumber, 10000);
         if (s_requestThread[simId].p_threadpool->thr_max == threadNumber) {
@@ -703,6 +748,13 @@ const RIL_TheadsFunctions *requestThreadsInit(RIL_RequestFunctions *requestFunct
         &attr, normalDispatch, (void *)&s_socketId[simId]);
         if (ret < 0) {
             RLOGE("Failed to create normal dispatch thread errno: %s", strerror(errno));
+            return NULL;
+        }
+
+        ret = pthread_create(&(s_requestThread[simId].networkDispatchTid),
+        &attr, networkDispatch, (void *)&s_socketId[simId]);
+        if (ret < 0) {
+            RLOGE("Failed to create network dispatch thread errno: %s", strerror(errno));
             return NULL;
         }
 
