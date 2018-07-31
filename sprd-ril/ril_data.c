@@ -1975,7 +1975,6 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             }
             if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_NOT_SEARCHING ||
-                s_PSRegStateDetail[socket_id] == RIL_REG_ROAMING ||
                 s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_SEARCHING ||
                 s_PSRegStateDetail[socket_id] == RIL_UNKNOWN ||
                 s_PSRegStateDetail[socket_id] == RIL_REG_DENIED)) {
