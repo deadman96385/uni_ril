@@ -16707,9 +16707,9 @@ static int forwardFromCCFCLineUri(char *line, RIL_CallForwardInfoUri *p_forward)
             if (at_tok_hasmore(&line)) {
                 err = at_tok_nextint(&line, &p_forward->timeSeconds);
                 if (err < 0){
+                    p_forward->timeSeconds = 0;
                     RILLOGE("invalid CCFCU timeSeconds\n");
                 }
-                p_forward->timeSeconds = 0;
             }
             if (at_tok_hasmore(&line)) {
                 err = at_tok_nextstr(&line, &p_forward->ruleset);
@@ -16911,9 +16911,9 @@ static int forwardFromCCFCULine(char *line, RIL_CallForwardInfo *p_forward)
             if (at_tok_hasmore(&line)) {
                 err = at_tok_nextint(&line, &p_forward->timeSeconds);
                 if (err < 0){
+                    p_forward->timeSeconds = 0;
                     RILLOGE("invalid CCFCU timeSeconds\n");
                 }
-                p_forward->timeSeconds = 0;
             }
         }
     }
