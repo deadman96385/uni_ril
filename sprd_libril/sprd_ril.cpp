@@ -261,9 +261,6 @@ static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI);
 
 static int responseInts(Parcel &p, void *response, size_t responselen);
 static int responseStrings(Parcel &p, void *response, size_t responselen);
-#if defined (UNISOC_9820E_IOT_LTE_MODULE)
-static int ATC_responseString(Parcel &p, void *response, size_t responselen);
-#endif
 static int responseString(Parcel &p, void *response, size_t responselen);
 static int responseVoid(Parcel &p, void *response, size_t responselen);
 static int responseCallList(Parcel &p, void *response, size_t responselen);
@@ -2814,27 +2811,6 @@ static int responseStrings(Parcel &p, void *response, size_t responselen) {
     return 0;
 }
 
-/* SPRD: add for atcid */
-#if defined (UNISOC_9820E_IOT_LTE_MODULE)
-static int ATC_responseString(Parcel &p, void *response, size_t responselen){
-    RILLOGI("ATC_responseString enter.");
-    if (response == NULL) {
-        p.writeInt32 (0);
-    } else {
-        int numStrings;
-        char **p_cur = (char **) response;
-
-        numStrings = responselen / sizeof(char *);
-        RILLOGI( "ATC_responseString responselen = %d, numStrings = %d.", responselen,  numStrings );
-        p.writeInt32 (numStrings);
-        for (int i = 0 ; i < numStrings ; i++) {
-            writeStringToParcel (p, p_cur[i]);
-        }
-
-    }
-    return 0;
-}
-#endif
 
 /**
  * NULL strings are accepted
@@ -6927,6 +6903,10 @@ requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_LTE_CTCC_SIMTYPE: return "QUERY_LTE_CTCC_SIMTYPE";
         case RIL_EXT_REQUEST_QUERY_LTE_CTCC_MMEI: return "QUERY_LTE_CTCC_MMEI";
         case RIL_EXT_REQUEST_QUERY_DCE_SOFTWARE_VERSION: return "QUERY_DCE_SOFTWARE_VERSION";
+        /*SPRD: ADD for VSIM @{ */
+        case RIL_EXT_REQUEST_UPDATE_PLMN: return "UPDATE_PLMN";
+        case RIL_EXT_REQUEST_QUERY_PLMN: return "QUERY_PLMN";
+        /* @} */
 #endif  // RIL_SUPPORTED_OEMSOCKET
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
@@ -7059,6 +7039,7 @@ requestToString(int request) {
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
         case RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED: return "UNSOL_ECC_NETWORKLIST_CHANGED";
         case RIL_EXT_UNSOL_EARLY_MEDIA: return "UNSOL_EARLY_MEDIA";
+        case RIL_EXT_UNSOL_SPUCOPS_LIST: return "UNSOL_SPUCOPS_LIST";
 #endif  // RIL_SUPPORTED_OEMSOCKET
         case RIL_UNSOL_RESPONSE_VIDEO_QUALITY:return "RIL_UNSOL_RESPONSE_VIDEO_QUALITY";
         case RIL_UNSOL_VT_CAPABILITY: return "UNSOL_VT_CAPABILITY";

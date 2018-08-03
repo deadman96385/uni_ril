@@ -54,7 +54,6 @@ void RilATCISocket::printList() {
     RLOGD("Printing socket list");
     while(NULL != current) {
         RLOGD("SocketName:%s",(current->socket->name == NULL)? "NULL" : current->socket->name);
-        RLOGD("Socket id:%d",current->socket->id);
         current = current->next;
     }
 }

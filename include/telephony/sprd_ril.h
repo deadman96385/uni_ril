@@ -1953,6 +1953,40 @@ typedef struct {
     int enabled;
 } RIL_DataProfileInfo;
 
+typedef enum {
+    LWG_G = 0,
+    LWG_WG = 1,
+    W_G = 2,
+    LWG_LWG = 3,
+    LG_G = 4,
+    WG_WG = 5,
+} ModemConfig;
+
+typedef enum {
+    SIM_ABSENT = 0,
+    SIM_NOT_READY = 1,
+    SIM_READY = 2, /* SIM_READY means the radio state is RADIO_STATE_SIM_READY */
+    SIM_PIN = 3,
+    SIM_PUK = 4,
+    SIM_NETWORK_PERSONALIZATION = 5,
+    SIM_BLOCK = 6,
+    SIM_PIN2 = 7,
+    SIM_PUK2 = 8,
+    //Added for bug#213435 sim lock begin
+    SIM_SIM_PERSONALIZATION = 9,
+    SIM_NETWORK_SUBSET_PERSONALIZATION = 10,
+    SIM_CORPORATE_PERSONALIZATION = 11,
+    SIM_SERVICE_PROVIDER_PERSONALIZATION = 12,
+    //Added for bug#213435 sim lock end
+    //Added for bug#242159 begin
+    SIM_LOCK_FOREVER = 13,
+    SIM_NETWORK_PUK = 14,
+    SIM_NETWORK_SUBSET_PUK = 15,
+    SIM_CORPORATE_PUK = 16,
+    SIM_SERVICE_PROVIDER_PUK = 17,
+    SIM_SIM_PUK = 18
+    //Added for bug#242159 end
+} SIM_Status;
 /**
  * RIL_REQUEST_GET_SIM_STATUS
  *
@@ -6181,14 +6215,19 @@ typedef struct {
 #define RIL_EXT_REQUEST_QUERY_LTE_CTCC_SIMTYPE      (RIL_EXT_REQUEST_BASE + 14)
 #define RIL_EXT_REQUEST_QUERY_LTE_CTCC_MMEI         (RIL_EXT_REQUEST_BASE + 15)
 #define RIL_EXT_REQUEST_QUERY_DCE_SOFTWARE_VERSION  (RIL_EXT_REQUEST_BASE + 16)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_QUERY_DCE_SOFTWARE_VERSION
+/*SPRD: ADD for VSIM @{ */
+#define RIL_EXT_REQUEST_UPDATE_PLMN                 (RIL_EXT_REQUEST_BASE + 17)
+#define RIL_EXT_REQUEST_QUERY_PLMN                  (RIL_EXT_REQUEST_BASE + 18)
+/*@} */
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_QUERY_PLMN
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 6500
 #define RIL_EXT_UNSOL_RIL_CONNECTED                 (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
 #define RIL_EXT_UNSOL_BAND_INFO                     (RIL_EXT_UNSOL_RESPONSE_BASE + 1)
 #define RIL_EXT_UNSOL_ECC_NETWORKLIST_CHANGED       (RIL_EXT_UNSOL_RESPONSE_BASE + 2)
 #define RIL_EXT_UNSOL_EARLY_MEDIA                   (RIL_EXT_UNSOL_RESPONSE_BASE + 3)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_EARLY_MEDIA
+#define RIL_EXT_UNSOL_SPUCOPS_LIST                  (RIL_EXT_UNSOL_RESPONSE_BASE + 4)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_SPUCOPS_LIST
 #endif
 /*****************************************************************************/
 

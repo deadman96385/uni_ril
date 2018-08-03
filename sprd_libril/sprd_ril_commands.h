@@ -264,6 +264,7 @@
     ,{RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR, dispatchStrings, responseVoid}
     ,{RIL_REQUEST_IMS_REGADDR, dispatchVoid, responseStrings}
     /* @} */
+
 #if defined (RIL_SUPPORTED_OEMSOCKET)
     ,{RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts}
     ,{RIL_EXT_REQUEST_SIM_GET_ATR, dispatchVoid, responseString}
@@ -281,6 +282,10 @@
     ,{RIL_EXT_REQUEST_QUERY_LTE_CTCC_SIMTYPE, dispatchVoid, responseInts}
     ,{RIL_EXT_REQUEST_QUERY_LTE_CTCC_MMEI, dispatchVoid, responseString}
     ,{RIL_EXT_REQUEST_QUERY_DCE_SOFTWARE_VERSION, dispatchVoid, responseString}
+     /*SPRD: ADD for VSIM @{ */
+    ,{RIL_EXT_REQUEST_UPDATE_PLMN, dispatchInts, responseVoid}
+    ,{RIL_EXT_REQUEST_QUERY_PLMN, dispatchInts, responseString}
+    /* @} */
 #endif
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
