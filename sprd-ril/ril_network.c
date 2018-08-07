@@ -928,16 +928,18 @@ exit:
     MUTEX_RELEASE(*optListMutex);
 }
 
-static int matchNITZOperatorInfo(char *updatePlmn, char *optInfo, char* plmn)
+static int matchNITZOperatorInfo(char *updatePlmn, const char *optInfo, char* plmn)
 {
     if (plmn == NULL || updatePlmn == NULL) {
         return -1;
     }
+    char operatorInfo[ARRAY_SIZE] = {0};
     char *ptr[3] = { NULL, NULL, NULL };
     char *outer_ptr = NULL;
     int i = 1;
     int ret = -1;
-    ptr[0] = strtok_r(optInfo, ",", &outer_ptr);
+    snprintf(operatorInfo, sizeof(operatorInfo), "%s", optInfo);
+    ptr[0] = strtok_r(operatorInfo, ",", &outer_ptr);
     if (ptr[0] != NULL) {
         if (!strcmp(ptr[0], plmn)) {
             while((ptr[i] = strtok_r(NULL, ",", &outer_ptr)) != NULL) {
@@ -954,7 +956,7 @@ static int matchNITZOperatorInfo(char *updatePlmn, char *optInfo, char* plmn)
                     ret = 0;
                 }
             }
-            RLOGD("match NITZ plmn:%s, Name:%s", plmn, updatePlmn);
+            RLOGD("match NITZ plmn: %s, Name: %s", plmn, updatePlmn);
         }
     }
     return ret;
@@ -3809,6 +3811,7 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         snprintf(s_nitzOperatorInfo[socket_id], sizeof(s_nitzOperatorInfo[socket_id]),
                 "%s%s,%s,%s", mcc, mnc, fullName, shortName);
+        RLOGD("s_nitzOperatorInfo[%d] = %s", socket_id, s_nitzOperatorInfo[socket_id]);
 
         if (s_radioState[socket_id] == RADIO_STATE_SIM_READY) {
             RIL_onUnsolicitedResponse(
