@@ -261,6 +261,9 @@ static void dispatchImsNetworkInfo(Parcel& p, RequestInfo *pRI);
 
 static int responseInts(Parcel &p, void *response, size_t responselen);
 static int responseStrings(Parcel &p, void *response, size_t responselen);
+#if defined (UNISOC_9820E_IOT_LTE_MODULE)
+static int ATC_responseString(Parcel &p, void *response, size_t responselen);
+#endif
 static int responseString(Parcel &p, void *response, size_t responselen);
 static int responseVoid(Parcel &p, void *response, size_t responselen);
 static int responseCallList(Parcel &p, void *response, size_t responselen);
@@ -2811,6 +2814,27 @@ static int responseStrings(Parcel &p, void *response, size_t responselen) {
     return 0;
 }
 
+/* SPRD: add for atcid */
+#if defined (UNISOC_9820E_IOT_LTE_MODULE)
+static int ATC_responseString(Parcel &p, void *response, size_t responselen){
+    RILLOGI("ATC_responseString enter.");
+    if (response == NULL) {
+        p.writeInt32 (0);
+    } else {
+        int numStrings;
+        char **p_cur = (char **) response;
+
+        numStrings = responselen / sizeof(char *);
+        RILLOGI( "ATC_responseString responselen = %d, numStrings = %d.", responselen,  numStrings );
+        p.writeInt32 (numStrings);
+        for (int i = 0 ; i < numStrings ; i++) {
+            writeStringToParcel (p, p_cur[i]);
+        }
+
+    }
+    return 0;
+}
+#endif
 
 /**
  * NULL strings are accepted
@@ -5348,6 +5372,7 @@ static void listenCallback (int fd, short flags, void *param) {
         return;
     }
 
+#ifndef UNISOC_9820E_IOT_LTE_MODULE
     /* check the credential of the other side and only accept socket from
      * phone process
      */
@@ -5385,7 +5410,7 @@ static void listenCallback (int fd, short flags, void *param) {
 
       return;
     }
-
+#endif
 #if 0
     ret = fcntl(s_fdCommand, F_SETFL, O_NONBLOCK);
 
@@ -7024,6 +7049,8 @@ requestToString(int request) {
         case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
         case RIL_UNSOL_IMS_WIFI_PARAM: return "RIL_UNSOL_IMS_WIFI_PARAM";
         /* @} */
+        /* SPRD: add for atcid */
+        case RIL_UNSOL_URC_STRING: return "RIL_UNSOL_URC_STRING";
 #if defined (RIL_SUPPORTED_OEMSOCKET)
         case RIL_EXT_UNSOL_RIL_CONNECTED: return "UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";

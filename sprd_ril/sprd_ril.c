@@ -13622,6 +13622,10 @@ error:
  */
 static void onUnsolicited (const char *s, const char *sms_pdu)
 {
+#if defined (UNISOC_9820E_IOT_LTE_MODULE)
+    RILLOGI( "[unsl] URC STRING = %s, strlen = %d.", s, strlen(s)+1 );
+    RIL_onUnsolicitedResponse (RIL_UNSOL_URC_STRING, (void *)s, strlen(s)+1);
+#endif
     char *line = NULL;
     int err;
 
