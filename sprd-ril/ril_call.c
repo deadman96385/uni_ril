@@ -1170,6 +1170,11 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
         case 127: // INTERWORKING_UNSPECIFIED
             response = CALL_FAIL_NORMAL_UNSPECIFIED;
             break;
+            /* Multi terminal,one answer the call, the other terminal does not display the missed call. */
+        case 1024:
+        case 13:
+            response = CALL_FAIL_OEM_CAUSE_1;
+            break;
         default:
             response = CALL_FAIL_ERROR_UNSPECIFIED;
             break;
