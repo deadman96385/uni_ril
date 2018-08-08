@@ -6516,9 +6516,10 @@ static void requestScreeState(int channelID, int status, RIL_Token t)
              * and the FWK does not use the response,
              * so report the 0 response
              */
-            int response = s_ims_registered;
+            //add for unisoc 907338
+            /*int response = s_ims_registered;
             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
-                            &response, sizeof(response));
+                            &response, sizeof(response));*/
         }
         if(isExistActivePdp() && !strcmp(prop, "0")){
             at_send_command(ATch_type[channelID], "AT*FDY=1,5", NULL);
