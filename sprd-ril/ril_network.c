@@ -3300,7 +3300,7 @@ void requestStartNetworkScan(int channelID, void *data, size_t datalen,
 
         RLOGD("network scan: bands = %s, channels = %s  i = %d", bands, channels, i);
         if (i > 0) {
-            snprintf(cmd, sizeof(cmd), "%s%d,\"%s\",\"%s\"", cmd, access, bands, channels);
+            snprintf(cmd, sizeof(cmd), "%s,%d,\"%s\",\"%s\"", cmd, access, bands, channels);
         } else {
             snprintf(cmd, sizeof(cmd), "AT+SPFREQSCAN=%d,\"%s\",\"%s\"", access, bands, channels);
         }
