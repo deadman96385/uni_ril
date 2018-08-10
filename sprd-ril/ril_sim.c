@@ -2972,7 +2972,7 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestSIMOpenChannelWITHP2(channelID, data, datalen, t);
             break;
         case RIL_EXT_REQUEST_SIM_POWER:
-            requestSIMPower(channelID, data, NULL);
+            requestSIMPower(channelID, data, t);
             break;
         default:
             return 0;
@@ -3096,6 +3096,11 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
             } else if (value == 0 || value == 2) {
                 RIL_requestTimedCallback(onSimPresent,
                                          (void *)&s_socketId[socket_id], NULL);
+                if (value == 0) {
+                    RIL_onUnsolicitedResponse(
+                           RIL_EXT_UNSOL_SIMMGR_SIM_STATUS_CHANGED, NULL, 0,
+                           socket_id);
+                }
             }
         }
     }
