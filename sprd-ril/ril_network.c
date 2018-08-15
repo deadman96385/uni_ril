@@ -2410,7 +2410,7 @@ static void requestGetCellInfoList(int channelID, void *data,
     RIL_UNUSED_PARM(datalen);
 
     int err, i;
-    int mcc, mnc, lac = 0;
+    int mcc, mnc, mnc_digit, lac = 0;
     int sig2G = 0, sig3G = 0;
     int pci = 0, cid = 0;
     int arfcn = INT_MAX, bsic = INT_MAX, psc =INT_MAX;
@@ -2448,7 +2448,7 @@ static void requestGetCellInfoList(int channelID, void *data,
 
     mcc = atoi(plmn) / 100;
     mnc = atoi(plmn) - mcc * 100;
-
+    mnc_digit = strlen(plmn) - 3;
     if (netType == 7 || netType == 16) {
         cellType = RIL_CELL_INFO_TYPE_LTE;
     } else if (netType == 0 || netType == 1 || netType == 3) {
@@ -2597,6 +2597,7 @@ static void requestGetCellInfoList(int channelID, void *data,
         }
 
         response[0].CellInfo.lte.cellIdentityLte.mnc = mnc;
+        response[0].CellInfo.lte.cellIdentityLte.mnc_digit = mnc_digit;
         response[0].CellInfo.lte.cellIdentityLte.mcc = mcc;
         response[0].CellInfo.lte.cellIdentityLte.ci  = cid;
         response[0].CellInfo.lte.cellIdentityLte.pci = pci;
@@ -2684,6 +2685,7 @@ static void requestGetCellInfoList(int channelID, void *data,
 
         response[0].CellInfo.gsm.cellIdentityGsm.mcc = mcc;
         response[0].CellInfo.gsm.cellIdentityGsm.mnc = mnc;
+        response[0].CellInfo.gsm.cellIdentityGsm.mnc_digit = mnc_digit;
         response[0].CellInfo.gsm.cellIdentityGsm.lac = lac;
         response[0].CellInfo.gsm.cellIdentityGsm.cid = cid;
         response[0].CellInfo.gsm.cellIdentityGsm.arfcn = arfcn;
@@ -2769,6 +2771,7 @@ static void requestGetCellInfoList(int channelID, void *data,
 
         response[0].CellInfo.wcdma.cellIdentityWcdma.mcc = mcc;
         response[0].CellInfo.wcdma.cellIdentityWcdma.mnc = mnc;
+        response[0].CellInfo.wcdma.cellIdentityWcdma.mnc_digit = mnc_digit;
         response[0].CellInfo.wcdma.cellIdentityWcdma.lac = lac;
         response[0].CellInfo.wcdma.cellIdentityWcdma.cid = cid;
         response[0].CellInfo.wcdma.cellIdentityWcdma.psc = psc;
@@ -3270,34 +3273,40 @@ void requestStartNetworkScan(int channelID, void *data, size_t datalen,
         memset(channels, 0, sizeof(channels));
         access = p_scanRequest->specifiers[i].radio_access_network;
         p_accessSpecifier = &(p_scanRequest->specifiers[i]);
-
-        switch (access) {
-        case GERAN:
-            snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.geran_bands[0]);
-            for (j = 1; j < p_accessSpecifier->bands_length; j++) {
-                snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.geran_bands[j]);
+        if (p_accessSpecifier->bands_length <= 0) {
+            snprintf(bands, sizeof(bands), "");
+        } else {
+            switch (access) {
+            case GERAN:
+                snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.geran_bands[0]);
+                for (j = 1; j < p_accessSpecifier->bands_length; j++) {
+                    snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.geran_bands[j]);
+                }
+                break;
+            case UTRAN:
+                snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.utran_bands[0]);
+                for (j = 1; j < p_accessSpecifier->bands_length; j++) {
+                    snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.utran_bands[j]);
+                }
+                break;
+            case EUTRAN:
+                snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.eutran_bands[0]);
+                for (j = 1; j < p_accessSpecifier->bands_length; j++) {
+                    snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.eutran_bands[j]);
+                }
+                break;
+            default:
+                break;
             }
-            break;
-        case UTRAN:
-            snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.utran_bands[0]);
-            for (j = 1; j < p_accessSpecifier->bands_length; j++) {
-                snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.utran_bands[j]);
-            }
-            break;
-        case EUTRAN:
-            snprintf(bands, sizeof(bands), "%d", p_accessSpecifier->bands.eutran_bands[0]);
-            for (j = 1; j < p_accessSpecifier->bands_length; j++) {
-                snprintf(bands, sizeof(bands), "%s,%d", bands, p_accessSpecifier->bands.eutran_bands[j]);
-            }
-            break;
-        default:
-            break;
         }
-        snprintf(channels, sizeof(channels), "%d", p_accessSpecifier->channels[0]);
-        for (k = 1; k < p_accessSpecifier->channels_length; k++) {
-            snprintf(channels, sizeof(channels), "%s,%d", channels, p_accessSpecifier->channels[k]);
+        if (p_accessSpecifier->channels_length <= 0) {
+            snprintf(channels, sizeof(channels), "");
+        } else {
+            snprintf(channels, sizeof(channels), "%d", p_accessSpecifier->channels[0]);
+            for (k = 1; k < p_accessSpecifier->channels_length; k++) {
+                snprintf(channels, sizeof(channels), "%s,%d", channels, p_accessSpecifier->channels[k]);
+            }
         }
-
         RLOGD("network scan: bands = %s, channels = %s  i = %d", bands, channels, i);
         if (i > 0) {
             snprintf(cmd, sizeof(cmd), "%s,%d,\"%s\",\"%s\"", cmd, access, bands, channels);
@@ -3538,6 +3547,196 @@ static void setPropForAsync(void *param) {
     free(propPara);
 }
 
+static void processNetworkScanResults(char *line, RIL_SOCKET_ID socket_id) {
+    int err = -1;
+    int rat = -1, cell_num = 0, bsic = 0;
+    int current = 0, skip;
+    char *tmp = NULL;
+    int rsrp = 0, rsrq = 0;
+    RIL_NetworkScanResult *scanResult = NULL;
+
+    tmp = line;
+    if (tmp == NULL) {
+        RLOGE("Invalid param, return");
+        return;
+    }
+
+    // +SPFREQSCAN: 255 /+SPFREQSCAN: 254 --complete
+    // +SPFREQSCAN: 0-2-1,20,9,11,460,44,2,1-5,512,9,11,460,44,2,1
+    // +SPFREQSCAN: 1-1-2,10700,200,9,-27,460,44,2,1
+    // +SPFREQSCAN: 2-1-1,9596,0,62,-96,460,44,2,1
+    // +SPFREQSCAN: 3-3-0,0,38000,-8600,-1500,460,44,2,1-2,2,38200,-12100,-1500,460,44,2,2-6,6,1250,-12100,-1500,460,44,2,2
+    // GSM: 0-cell_num-cid,arfcn,basic,rssi,mcc,mnc,mnc_digit,lac-cid,….
+    // WCDMA：1-cell_num-cid,uarfcn,psc,rssi,ecio,mcc,mnc,mnc_digital,lac-cid…
+    // TD：2-cell_num-cid,uarfcn,psc,rssi,rscp,mcc,mnc,mnc_digit,lac-cid…
+    // LTE：3-cell_num-cid,pcid,arfcn, rsrp,rsrq, mcc,mnc,mnc_digit,tac-cid…
+    rat = atoi(tmp);
+    RLOGD("network scan rat = %d", rat);
+    scanResult = (RIL_NetworkScanResult *)calloc(1, sizeof(RIL_NetworkScanResult));
+    if (rat < 0 || rat == 255 || rat == 254) {
+        scanResult->status = COMPLETE;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_NETWORK_SCAN_RESULT, scanResult,
+                                  sizeof(RIL_NetworkScanResult), socket_id);
+        goto out;
+    }
+    strsep(&tmp, "-");
+    if (tmp == NULL) {
+        RLOGE("network scan param error");
+        scanResult->status = COMPLETE;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_NETWORK_SCAN_RESULT, scanResult,
+                                  sizeof(RIL_NetworkScanResult), socket_id);
+        goto out;
+    } else {
+        cell_num = atoi(tmp);
+        RLOGD("network scan cell_num = %d", cell_num);
+    }
+    scanResult->status = PARTIAL;
+    scanResult->network_infos = (RIL_CellInfo_v12 *)calloc(cell_num, sizeof(RIL_CellInfo_v12));
+    scanResult->network_infos_length = cell_num;
+
+    switch (rat) {
+    case 0:  // GSM
+        for (current = 0; current < cell_num; current++) {
+            tmp = strchr(tmp, '-');
+            tmp++;
+            scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_GSM;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.cid);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.arfcn);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &bsic);
+            if (err < 0) goto out;
+            scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.bsic = (uint8_t)bsic;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.signalStrengthGsm.signalStrength);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.mcc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.mnc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.mnc_digit);
+            if (err < 0) goto out;
+
+            scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.lac = atoi(tmp);
+
+        }
+        break;
+    case 1:  // WCDMA
+        for (current = 0; current < cell_num; current++) {
+            scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_WCDMA;
+            tmp = strchr(tmp, '-');
+            tmp++;
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.cid);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.uarfcn);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.psc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.signalStrengthWcdma.signalStrength);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp,&skip);  // ecio
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.mcc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.mnc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.mnc_digit);
+            if (err < 0) goto out;
+
+            scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.lac = atoi(tmp);
+        }
+        break;
+    case 2:  // TD
+        for (current = 0; current < cell_num; current++) {
+            scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_CDMA;
+            tmp = strchr(tmp, '-');
+            tmp++;
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.cid);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &skip);  // uarfcn
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &skip);  // psc
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &skip);  // rssi
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.signalStrengthTdscdma.rscp);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.mcc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.mnc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.mnc_digit);
+            if (err < 0) goto out;
+
+            scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.lac = atoi(tmp);
+        }
+        break;
+    case 3: //LTE
+        for (current = 0; current < cell_num; current++) {
+            scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_LTE;
+            tmp = strchr(tmp, '-');
+            tmp++;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.ci);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.pci);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.earfcn);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &rsrp);
+            if (err < 0) goto out;
+            scanResult->network_infos[current].CellInfo.lte.signalStrengthLte.rsrp = rsrp / (-100);
+
+            err = at_tok_nextint(&tmp, &rsrq);
+            if (err < 0) goto out;
+            scanResult->network_infos[current].CellInfo.lte.signalStrengthLte.rsrq = rsrq / (-100);
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.mcc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.mnc);
+            if (err < 0) goto out;
+
+            err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.mnc_digit);
+            if (err < 0) goto out;
+
+            scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.tac = atoi(tmp);
+        }
+        break;
+    default:
+        break;
+    }
+
+    RIL_onUnsolicitedResponse(RIL_UNSOL_NETWORK_SCAN_RESULT, scanResult,
+                              sizeof(RIL_NetworkScanResult), socket_id);
+
+out:
+    free(scanResult->network_infos);
+    free(scanResult);
+}
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     char *line = NULL;
     int err;
@@ -3846,185 +4045,17 @@ int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         if (err < 0) goto out;
         //TO DO :add Unsol
     } else if (strStartsWith(s, "+SPFREQSCAN:")) {
-        int response = 0, rat = -1, cell_num = 0, cid = 0, bsic = 0;
-        int current = 0, skip;
         char *tmp = NULL;
-        RIL_NetworkScanResult *scanResult = NULL;
 
-        // +SPFREQSCAN: 255 --unvalid
-        // +SPFREQSCAN: 0-2-1,20,9,11,460,44,2,1-5,512,9,11,460,44,2,1
-        // +SPFREQSCAN: 1-1-2,10700,200,9,-27,460,44,2,1
-        // +SPFREQSCAN: 2-1-1,9596,0,62,-96,460,44,2,1
-        // +SPFREQSCAN: 3-3-0,0,38000,-8600,-1500,460,44,2,1-2,2,38200,-12100,-1500,460,44,2,2-6,6,1250,-12100,-1500,460,44,2,2
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
         skipWhiteSpace(&tmp);
-
-        response = atoi(tmp);
-        if (response < 0 || response == 255) {
-            RIL_onUnsolicitedResponse(RIL_UNSOL_NETWORK_SCAN_RESULT, NULL,
-                                      0, socket_id);
+        if (tmp == NULL) {
+            RLOGE("network scan param is NULL");
             goto out;
         }
-
-        rat = atoi(strsep(&tmp,"-"));
-        cell_num = atoi(strsep(&tmp,"-"));
-        scanResult = (RIL_NetworkScanResult *) calloc (1, sizeof(RIL_NetworkScanResult));
-        scanResult->network_infos = (RIL_CellInfo_v12 *) calloc (cell_num, sizeof(RIL_CellInfo_v12));
-        scanResult->network_infos_length = cell_num;
-
-        switch (rat) {
-        case 0: //GSM
-            for (current = 0; current < cell_num; current++) {
-                scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_GSM;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.cid);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.arfcn);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &bsic);
-                if (err < 0) goto out;
-                scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.bsic = (uint8_t)bsic;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.signalStrengthGsm.signalStrength);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.mcc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.mnc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//mnc_digit;
-                if (err < 0) goto out;
-
-                scanResult->network_infos[current].CellInfo.gsm.cellIdentityGsm.lac = atoi(tmp);
-
-                if (current < cell_num - 1) {
-                    tmp = strchr(tmp, '-');
-                    tmp++;
-                }
-            }
-            break;
-        case 1: //WCDMA
-            for (current = 0; current < cell_num; current++) {
-                scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_WCDMA;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.cid);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.uarfcn);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.psc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.signalStrengthWcdma.signalStrength);//rscp
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp,&skip);//ecio
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.mcc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.mnc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//mnc_digit
-                if (err < 0) goto out;
-
-                scanResult->network_infos[current].CellInfo.wcdma.cellIdentityWcdma.lac = atoi(tmp);
-
-                if (current < cell_num - 1) {
-                    tmp = strchr(tmp, '-');
-                    tmp++;
-                }
-            }
-            break;
-        case 2: //TD
-            for (current = 0; current < cell_num; current++) {
-                scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_CDMA;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.cid);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//uarfcn
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//psc
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//rssi
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.signalStrengthTdscdma.rscp);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.mcc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.mnc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//mnc_digit
-                if (err < 0) goto out;
-
-                scanResult->network_infos[current].CellInfo.tdscdma.cellIdentityTdscdma.lac = atoi(tmp);
-
-                if (current < cell_num - 1) {
-                    tmp = strchr(tmp, '-');
-                    tmp++;
-                }
-            }
-            break;
-        case 3: //LTE
-            for (current = 0; current < cell_num; current++) {
-                scanResult->network_infos[current].cellInfoType = RIL_CELL_INFO_TYPE_LTE;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos[current].CellInfo.lte.cellIdentityLte.ci);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.cellIdentityLte.pci);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.cellIdentityLte.earfcn);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.signalStrengthLte.rsrp);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.signalStrengthLte.rsrq);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.cellIdentityLte.mcc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &scanResult->network_infos->CellInfo.lte.cellIdentityLte.mnc);
-                if (err < 0) goto out;
-
-                err = at_tok_nextint(&tmp, &skip);//mnc_digit
-                if (err < 0) goto out;
-
-                scanResult->network_infos->CellInfo.lte.cellIdentityLte.tac = atoi(tmp);
-
-                if (current < cell_num - 1) {
-                    tmp = strchr(tmp, '-');
-                    tmp++;
-                }
-            }
-            break;
-        default:
-            break;
-        }
-
-        RIL_onUnsolicitedResponse(RIL_UNSOL_NETWORK_SCAN_RESULT, scanResult,
-                                  sizeof(RIL_NetworkScanResult), socket_id);
-        free(scanResult->network_infos);
-        free(scanResult);
+        processNetworkScanResults(tmp, socket_id);
     } else {
         return 0;
     }

@@ -8418,6 +8418,9 @@ int radio::voiceRadioTechChangedInd(int slotId,
 
 void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<CellInfo>& records) {
     int num = responseLen / sizeof(RIL_CellInfo_v12);
+    int mnc_digit = 0;
+    char mnc_str[32] = {0};
+    char strFormat[32] = {0};
     records.resize(num);
 
     RIL_CellInfo_v12 *rillCellInfo = (RIL_CellInfo_v12 *) response;
@@ -8439,8 +8442,17 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                 CellInfoGsm *cellInfoGsm = &records[i].gsm[0];
                 cellInfoGsm->cellIdentityGsm.mcc =
                         std::to_string(rillCellInfo->CellInfo.gsm.cellIdentityGsm.mcc);
-                cellInfoGsm->cellIdentityGsm.mnc =
-                        std::to_string(rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc);
+                mnc_digit = rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc_digit;
+                if (mnc_digit == 2 || mnc_digit == 3) {
+                    snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
+                    snprintf(mnc_str, mnc_digit + 1, strFormat,
+                            rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc);
+                    cellInfoGsm->cellIdentityGsm.mnc = convertCharPtrToHidlString(mnc_str);
+                } else {
+                    RLOGE("cellInfoList gsm mnc digit is invalid %d", mnc_digit);
+                    cellInfoGsm->cellIdentityGsm.mnc =
+                            std::to_string(rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc);
+                }
                 cellInfoGsm->cellIdentityGsm.lac =
                         rillCellInfo->CellInfo.gsm.cellIdentityGsm.lac;
                 cellInfoGsm->cellIdentityGsm.cid =
@@ -8463,8 +8475,17 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                 CellInfoWcdma *cellInfoWcdma = &records[i].wcdma[0];
                 cellInfoWcdma->cellIdentityWcdma.mcc =
                         std::to_string(rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mcc);
-                cellInfoWcdma->cellIdentityWcdma.mnc =
-                        std::to_string(rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc);
+                mnc_digit = rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc_digit;
+                if (mnc_digit == 2 || mnc_digit == 3) {
+                    snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
+                    snprintf(mnc_str, mnc_digit + 1, strFormat,
+                            rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc);
+                    cellInfoWcdma->cellIdentityWcdma.mnc = convertCharPtrToHidlString(mnc_str);
+                } else {
+                    RLOGE("cellInfoList wcdma mnc digit is invalid %d", mnc_digit);
+                    cellInfoWcdma->cellIdentityWcdma.mnc =
+                            std::to_string(rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc);
+                }
                 cellInfoWcdma->cellIdentityWcdma.lac =
                         rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.lac;
                 cellInfoWcdma->cellIdentityWcdma.cid =
@@ -8511,8 +8532,17 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                 CellInfoLte *cellInfoLte = &records[i].lte[0];
                 cellInfoLte->cellIdentityLte.mcc =
                         std::to_string(rillCellInfo->CellInfo.lte.cellIdentityLte.mcc);
-                cellInfoLte->cellIdentityLte.mnc =
-                        std::to_string(rillCellInfo->CellInfo.lte.cellIdentityLte.mnc);
+                mnc_digit = rillCellInfo->CellInfo.lte.cellIdentityLte.mnc_digit;
+                if (mnc_digit == 2 || mnc_digit == 3) {
+                    snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
+                    snprintf(mnc_str, mnc_digit + 1, strFormat,
+                           rillCellInfo->CellInfo.lte.cellIdentityLte.mnc);
+                    cellInfoLte->cellIdentityLte.mnc = convertCharPtrToHidlString(mnc_str);
+                } else {
+                    RLOGE("cellInfoList lte mnc digit is invalid %d", mnc_digit);
+                    cellInfoLte->cellIdentityLte.mnc =
+                            std::to_string(rillCellInfo->CellInfo.lte.cellIdentityLte.mnc);
+                }
                 cellInfoLte->cellIdentityLte.ci =
                         rillCellInfo->CellInfo.lte.cellIdentityLte.ci;
                 cellInfoLte->cellIdentityLte.pci =
@@ -8541,8 +8571,17 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                 CellInfoTdscdma *cellInfoTdscdma = &records[i].tdscdma[0];
                 cellInfoTdscdma->cellIdentityTdscdma.mcc =
                         std::to_string(rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mcc);
-                cellInfoTdscdma->cellIdentityTdscdma.mnc =
-                        std::to_string(rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc);
+                mnc_digit = rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc_digit;
+                if (mnc_digit == 2 || mnc_digit == 3) {
+                    snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
+                    snprintf(mnc_str, mnc_digit + 1, strFormat,
+                           rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc);
+                    cellInfoTdscdma->cellIdentityTdscdma.mnc = convertCharPtrToHidlString(mnc_str);
+                } else {
+                    RLOGE("cellInfoList td mnc digit is invalid %d", mnc_digit);
+                    cellInfoTdscdma->cellIdentityTdscdma.mnc =
+                            std::to_string(rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc);
+                }
                 cellInfoTdscdma->cellIdentityTdscdma.lac =
                         rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.lac;
                 cellInfoTdscdma->cellIdentityTdscdma.cid =
@@ -8954,12 +8993,6 @@ int radio::networkScanResultInd(int slotId,
             RLOGE("networkScanResultInd: invalid response");
             return 0;
         }
-        RLOGD("networkScanResultInd");
-
-#if VDBG
-        RLOGD("networkScanResultInd");
-#endif
-
         RIL_NetworkScanResult *networkScanResult = (RIL_NetworkScanResult *) response;
 
         V1_1::NetworkScanResult result;
