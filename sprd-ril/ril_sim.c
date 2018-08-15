@@ -1138,12 +1138,31 @@ static void requestChangeSimPin2(int channelID, void *data, size_t datalen,
     int err, ret;
     int remaintime = 3;
     char *cmd = NULL;
+    char *cpinLine = NULL, *cpinResult = NULL;
     const char **strings = (const char **)data;
     ATResponse *p_response = NULL;
 
     if (datalen == 3 * sizeof(char *)) {
-        ret = asprintf(&cmd, "AT+CPWD=\"P2\",\"%s\",\"%s\"", strings[0],
-                        strings[1]);
+        err = at_send_command_singleline(s_ATChannels[channelID], "AT+CPIN?",
+                                        "+CPIN:", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto error;
+        }
+        cpinLine = p_response->p_intermediates->line;
+        err = at_tok_start(&cpinLine);
+        if (err < 0) goto error;
+
+        err = at_tok_nextstr(&cpinLine, &cpinResult);
+        if (err < 0) goto error;
+
+        if (0 == strcmp(cpinResult, "SIM PIN")) {
+            ret = asprintf(&cmd, "ATD**042*%s*%s*%s#", strings[0], strings[1],
+                            strings[1]);
+        } else {
+            ret = asprintf(&cmd, "AT+CPWD=\"P2\",\"%s\",\"%s\"", strings[0],
+                            strings[1]);
+        }
+        AT_RESPONSE_FREE(p_response);
     } else {
         goto error;
     }
