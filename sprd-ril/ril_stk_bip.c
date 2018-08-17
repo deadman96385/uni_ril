@@ -211,7 +211,7 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
 
     int sendChannelID = getChannel(socket_id);
     pstkContext->openchannelCid =
-            requestSetupDataConnection(sendChannelID, pStrings, countStrings);
+            requestSetupDataConnection(sendChannelID, pStrings, countStrings * sizeof(char *));
     RLOGD("SetupStkConnect pstkContext->openchannelCid: %d",
             pstkContext->openchannelCid);
     putChannel(sendChannelID);
