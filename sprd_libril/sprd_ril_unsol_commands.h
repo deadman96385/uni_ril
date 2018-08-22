@@ -111,9 +111,7 @@
     ,{RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE, responseStrings, WAKE_PARTIAL}
     ,{RIL_UNSOL_IMS_WIFI_PARAM, responseInts, WAKE_PARTIAL}
     /* @} */
-#if defined (UNISOC_9820E_IOT_LTE_MODULE)
-    ,{RIL_UNSOL_URC_STRING, ATC_responseString, WAKE_PARTIAL}
-#endif
+    ,{RIL_UNSOL_URC_STRING, responseString, WAKE_PARTIAL}
 #if defined (RIL_SUPPORTED_OEMSOCKET)
     ,{RIL_EXT_UNSOL_RIL_CONNECTED, responseVoid, WAKE_PARTIAL}
     ,{RIL_EXT_UNSOL_BAND_INFO, responseString, WAKE_PARTIAL}
