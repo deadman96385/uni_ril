@@ -3266,11 +3266,11 @@ void requestStartNetworkScan(int channelID, void *data, size_t datalen,
     RIL_UNUSED_PARM(datalen);
 
     uint32_t i, j, k;
-    int type, interval, access;
+    int type, interval, access, err;
     char bands[AT_COMMAND_LEN] = {0};
     char channels[AT_COMMAND_LEN] = {0};
     char cmd[AT_COMMAND_LEN] = {0};
-
+    ATResponse *p_response = NULL;
     memset(cmd, 0, sizeof(cmd));
 
     RIL_NetworkScanRequest *p_scanRequest = (RIL_NetworkScanRequest *)data;
@@ -3326,8 +3326,13 @@ void requestStartNetworkScan(int channelID, void *data, size_t datalen,
         }
     }
 
-    at_send_command(s_ATChannels[channelID], cmd, NULL);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+    AT_RESPONSE_FREE(p_response);
 }
 
 void requestStopNetworkScan(int channelID, void *data, size_t datalen,
