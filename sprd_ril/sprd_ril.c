@@ -4272,6 +4272,33 @@ static void resetModem(void * param)
     return;
 }
 
+static void clearPinInProp()
+{
+    extern int s_sim_num;
+    char sim_prop[128];
+    char prop[PROPERTY_VALUE_MAX] = { 0 };
+
+    if (s_sim_num == 0) {
+        snprintf(RIL_SP_SIM_PIN_PROPERTY, sizeof(RIL_SP_SIM_PIN_PROPERTY),
+                "ril.%s.sim.pin", s_modem);
+        strcpy(sim_prop, RIL_SP_SIM_PIN_PROPERTY);
+    } else {
+        char tmp[128] = { 0 };
+        snprintf(RIL_SP_SIM_PIN_PROPERTYS, sizeof(RIL_SP_SIM_PIN_PROPERTYS),
+                "ril.%s.sim.pin", s_modem);
+        strcpy(tmp, RIL_SP_SIM_PIN_PROPERTYS);
+        strcat(tmp, "%d");
+        snprintf(RIL_SP_SIM_PIN_PROPERTYS, sizeof(RIL_SP_SIM_PIN_PROPERTYS),
+                 tmp, s_sim_num);
+        strcpy(sim_prop, RIL_SP_SIM_PIN_PROPERTYS);
+    }
+    property_get(sim_prop, prop, "");
+    if (strlen(prop) >= 4 || strlen(prop) <= 8) {
+        RLOGD("this card opened sim pin");
+        property_set(sim_prop, "");
+    }
+}
+
 static void onSimAbsent(void *param)
 {
     int channelID;
@@ -4288,7 +4315,7 @@ static void onSimAbsent(void *param)
         setRadioState(channelID, RADIO_STATE_SIM_LOCKED_OR_ABSENT);
     }
     putChannel(channelID);
-
+    clearPinInProp();
     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                     NULL, 0);
     if (*sim_state == SIM_DROP)
@@ -6463,6 +6490,7 @@ static void onSimHotplug(void *param)
     int err;
 
     RILLOGE("onSimHotplug");
+    clearPinInProp();
     channelID = getChannel();
     err = at_send_command(ATch_type[channelID], "AT+RESET=1" , NULL);
     if (err < 0) {
