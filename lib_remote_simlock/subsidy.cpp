@@ -4,12 +4,6 @@
 
 //using namespace android;
 
-#ifdef SUBSIDYLOCK_JNI_ENABLED_64
-#define LIB_CACULATE_PATH "/vendor/lib64/libatci.so"
-#else
-#define LIB_CACULATE_PATH "/vendor/lib/libatci.so"
-#endif
-
 typedef const char* (*ATC_FUNC)(int, const char*);
 
 const char* sendCommand(int phoneId, const char* atCmd)
@@ -18,7 +12,7 @@ const char* sendCommand(int phoneId, const char* atCmd)
     const char *error;
     ATC_FUNC atc_func = NULL;
 
-    handle = dlopen(LIB_CACULATE_PATH, RTLD_NOW);
+    handle = dlopen("libatci.so", RTLD_NOW);
     if (!handle) {
         ALOGE ("dlopen error :%s\n", dlerror());
         return NULL;
