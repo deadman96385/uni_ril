@@ -4257,6 +4257,33 @@ static void resetModem(void * param)
     return;
 }
 
+static void clearPinInProp()
+{
+    extern int s_sim_num;
+    char sim_prop[128];
+    char prop[PROPERTY_VALUE_MAX] = { 0 };
+
+    if (s_sim_num == 0) {
+        snprintf(RIL_SP_SIM_PIN_PROPERTY, sizeof(RIL_SP_SIM_PIN_PROPERTY),
+                "ril.%s.sim.pin", s_modem);
+        strcpy(sim_prop, RIL_SP_SIM_PIN_PROPERTY);
+    } else {
+        char tmp[128] = { 0 };
+        snprintf(RIL_SP_SIM_PIN_PROPERTYS, sizeof(RIL_SP_SIM_PIN_PROPERTYS),
+                "ril.%s.sim.pin", s_modem);
+        strcpy(tmp, RIL_SP_SIM_PIN_PROPERTYS);
+        strcat(tmp, "%d");
+        snprintf(RIL_SP_SIM_PIN_PROPERTYS, sizeof(RIL_SP_SIM_PIN_PROPERTYS),
+                tmp, s_sim_num);
+        strcpy(sim_prop, RIL_SP_SIM_PIN_PROPERTYS);
+    }
+    property_get(sim_prop, prop, "");
+    if (strlen(prop) >= 4 || strlen(prop) <= 8) {
+        RLOGD("this card opened sim pin");
+        property_set(sim_prop, "");
+    }
+}
+
 static void onSimAbsent(void *param)
 {
     int channelID;
@@ -4274,6 +4301,7 @@ static void onSimAbsent(void *param)
     }
     putChannel(channelID);
 
+    clearPinInProp();
     RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                     NULL, 0);
     if (*sim_state == SIM_DROP)
@@ -4299,6 +4327,26 @@ static void onSimPresent(void *param)
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,
                                         NULL, 0);
     }
+}
+
+static void onSimHotplug(void *param)
+{
+    int channelID;
+    int err;
+
+    RILLOGE("onSimHotplug");
+    clearPinInProp();
+    channelID = getChannel();
+    err = at_send_command(ATch_type[channelID], "AT+RESET=1" , NULL);
+    if (err < 0) {
+        goto error;
+    }
+    putChannel(channelID);
+    return;
+
+error:
+    RILLOGE("onSimHotplug fail");
+    putChannel(channelID);
 }
 
 void sendCallStateChanged(void *param)
@@ -13494,14 +13542,17 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                             RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
                         }
                         if(cause == 34) { //sim removed
-                            sim_state = SIM_REMOVE;
-                            RIL_requestTimedCallback (onSimAbsent, (char *)&sim_state, NULL);
+                            RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
                         }
                         if(cause == 1)  //no sim card
                             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED,NULL, 0);
                     }
                 } else if (value == 100 || value == 4) {
-                    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
+                    if (value == 100) {
+                        RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
+                    } else {
+                        RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
+                    }
                 } else if (value == 0 || value == 2) {
                     if (!strcmp(s_modem,"t") && isSvLte() && !s_init_sim_ready) {
                         // in svlte, if usim, t/g modem should be set as non-autoattach. It will be used by SsdaGsmDataConnectionTracker.java
