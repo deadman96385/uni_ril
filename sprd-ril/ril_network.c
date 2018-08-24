@@ -2416,8 +2416,18 @@ static void requestGetCellInfoList(int channelID, void *data,
     err = at_tok_nextint(&line, &netType);
     if (err < 0) goto error;
 
-    mcc = atoi(plmn) / 100;
-    mnc = atoi(plmn) - mcc * 100;
+    if (plmn != NULL) {
+        if (strlen(plmn) == 5) {
+            mcc = atoi(plmn) / 100;
+            mnc = atoi(plmn) - mcc * 100;
+        } else if (strlen(plmn) == 6) {
+            mcc = atoi(plmn) / 1000;
+            mnc = atoi(plmn) - mcc * 1000;
+        } else {
+            RLOGE("Invalid plmn");
+        }
+    }
+
 
     if (netType == 7 || netType == 16) {
         cellType = RIL_CELL_INFO_TYPE_LTE;
