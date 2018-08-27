@@ -8,6 +8,7 @@
 #ifndef RIL_SMS_H_
 #define RIL_SMS_H_
 
+void onModemReset_Sms();
 int processSmsRequests(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,

@@ -154,6 +154,25 @@ static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
 int initISIM(int channelID);
 
+void onModemReset_Sim() {
+    RIL_SOCKET_ID socket_id  = 0;
+    s_presentSIMCount = 0;
+
+    for (socket_id = RIL_SOCKET_1; socket_id < RIL_SOCKET_NUM; socket_id++) {
+        s_isSimPresent[socket_id] = 0;
+        s_imsInitISIM[socket_id] = -1;
+        s_simSessionId[socket_id] = -1;
+        s_appType[socket_id] = 0;
+
+        if (s_simBusy[socket_id].s_sim_busy) {
+            pthread_mutex_lock(&s_simBusy[socket_id].s_sim_busy_mutex);
+            s_simBusy[socket_id].s_sim_busy = false;
+            pthread_cond_signal(&s_simBusy[socket_id].s_sim_busy_cond);
+            pthread_mutex_unlock(&s_simBusy[socket_id].s_sim_busy_mutex);
+        }
+    }
+}
+
 static int getSimlockRemainTimes(int channelID, SimUnlockType type) {
     int err, result;
     int remaintime = 3;

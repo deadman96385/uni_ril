@@ -131,6 +131,13 @@ typedef enum {
 } ATChannelId;
 #endif
 
+typedef struct {
+    int openedATChs;
+    int readerClosed;
+    pthread_t readerTid;
+    fd_set readerSet;
+} ReaderThread;
+
 #define AT_ERROR_GENERIC            -1
 #define AT_ERROR_COMMAND_PENDING    -2
 #define AT_ERROR_CHANNEL_CLOSED     -3

@@ -21,11 +21,17 @@ typedef struct cmd_table {
     int timeout;  // timeout for response
 } cmd_table;
 
-extern int s_modemdFd;
-extern int s_ATTableSize;
-extern const cmd_table s_ATTimeoutTable[];
+typedef enum {
+    MODEM_ALIVE,
+    MODEM_OFFLINE,
+} ModemState;
 
-void detectATNoResponse();
+extern int s_ATTableSize;
+extern int s_fdModemBlockWrite;
+extern const cmd_table s_ATTimeoutTable[];
+extern ModemState s_modemState;
+
+void *detectModemState();
 void *signal_process();
 
 void reWriteIntermediate(ATResponse *sp_response, char *newLine);

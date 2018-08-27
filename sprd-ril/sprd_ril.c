@@ -64,7 +64,7 @@ RIL_RadioState s_radioState[SIM_COUNT] = {
 #endif
         };
 
-static pthread_mutex_t s_radioStateMutex[SIM_COUNT] = {
+pthread_mutex_t s_radioStateMutex[SIM_COUNT] = {
         PTHREAD_MUTEX_INITIALIZER
 #if (SIM_COUNT >= 2)
         , PTHREAD_MUTEX_INITIALIZER
@@ -77,7 +77,7 @@ static pthread_mutex_t s_radioStateMutex[SIM_COUNT] = {
 #endif
 };
 
-static pthread_cond_t s_radioStateCond[SIM_COUNT] = {
+pthread_cond_t s_radioStateCond[SIM_COUNT] = {
         PTHREAD_COND_INITIALIZER
 #if (SIM_COUNT >= 2)
         , PTHREAD_COND_INITIALIZER
@@ -167,11 +167,6 @@ void *noopRemoveWarning(void *a) {
     return a;
 }
 
-void list_init(ListNode *node) {
-    node->next = node;
-    node->prev = node;
-}
-
 void initOperatorInfoList(OperatorInfoList *node) {
     node->next = node;
     node->prev = node;
@@ -247,6 +242,11 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
 
     RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
 
+    if (s_modemState != MODEM_ALIVE) {
+        RLOGE("Modem is not alive, return radio_not_avaliable");
+        RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+        goto done;
+    }
     /**
      * Ignore all requests except !(requests)
      * when RADIO_STATE_UNAVAILABLE.
@@ -615,6 +615,16 @@ void initVaribales(RIL_SOCKET_ID socket_id) {
     RLOGD("s_modemConfig = %d", s_modemConfig);
 
     initPrimarySim();
+}
+
+void resetGlobalVariables() {
+    onModemReset_Sim();
+    onModemReset_Network();
+    onModemReset_Data();
+    onModemReset_Call();
+    onModemReset_Sms();
+    onModemReset_Ss();
+    onModemReset_Stk();
 }
 
 /**
@@ -1161,14 +1171,13 @@ static void initializeCallback(void *param) {
 
     putChannel(channelID);
 
-    list_init(&s_DTMFList[socket_id]);
     sem_post(&(s_sem[socket_id]));
 }
 
 static void waitForClose(RIL_SOCKET_ID socket_id) {
     pthread_mutex_lock(&s_radioStateMutex[socket_id]);
 
-    while (s_closed[socket_id] == 0) {
+    while (s_closed[socket_id] == 0 || s_modemState != MODEM_ALIVE) {
         pthread_cond_wait(&s_radioStateCond[socket_id],
                             &s_radioStateMutex[socket_id]);
     }
@@ -1297,6 +1306,9 @@ static void *mainLoop(void *param) {
         fd = -1;
         s_closed[socket_id] = 0;
         init_channels(socket_id);
+        if (socket_id == RIL_SOCKET_1) {
+            resetGlobalVariables();
+        }
 
  again:
         for (channelID = firstChannel; channelID < lastChannel; channelID++) {
@@ -1463,8 +1475,19 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     at_set_on_reader_closed(onATReaderClosed);
     //at_set_on_timeout(onATTimeout);
 
-    detectATNoResponse();
     ps_service_init();
+
+    for (simId = 0; simId < SIM_COUNT; simId++) {
+        list_init(&s_DTMFList[simId]);
+        initOperatorInfoList(&s_operatorInfoList[simId]);
+    }
+    initOperatorInfoList(&s_operatorXmlInfoList);
+
+    pthread_t tid;
+    ret = pthread_create(&tid, &attr, detectModemState, NULL);
+    if (ret < 0) {
+        RLOGE("Failed to create detectModemState");
+    }
 
     for (simId = 0; simId < SIM_COUNT; simId++) {
         sem_init(&(s_sem[simId]), 0, 1);
@@ -1473,7 +1496,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         sem_wait(&(s_sem[simId]));
     }
 
-    pthread_t tid;
     ret = pthread_create(&tid, &attr, startAsyncCmdHandlerLoop, NULL);
     ret = pthread_create(&tid, &attr, signal_process, NULL);
     if (ret < 0) {
@@ -1481,10 +1503,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     }
 
     setHwVerPorp();
-    for (simId = 0; simId < SIM_COUNT; simId++) {
-        initOperatorInfoList(&s_operatorInfoList[simId]);
-    }
-    initOperatorInfoList(&s_operatorXmlInfoList);
+
     return &s_callbacks;
 }
 

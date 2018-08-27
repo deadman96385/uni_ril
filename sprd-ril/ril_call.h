@@ -74,10 +74,14 @@ typedef struct Srvccpendingrequest {
 
 extern ListNode s_DTMFList[SIM_COUNT];
 
+void onModemReset_Call();
+
 int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID);
 int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 
 int all_calls(int channelID, int do_mute);
+
+void list_init(ListNode *node);
 
 #endif  // RIL_CALL_H_

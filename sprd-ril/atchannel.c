@@ -40,6 +40,8 @@
 #define HANDSHAKE_TIMEOUT_MSEC  250
 #define NUM_ELEMS(x)            (sizeof(x) / sizeof(x[0]))
 
+int s_fdReaderLoopWakeupRead[SIM_COUNT];
+int s_fdReaderLoopWakeupWrite[SIM_COUNT];
 int s_atTimeoutCount[MAX_AT_CHANNELS];
 struct ATChannels s_ATChannel[MAX_AT_CHANNELS];
 static pthread_mutex_t s_ATChannelMutex[MAX_AT_CHANNELS];
@@ -48,14 +50,7 @@ static pthread_cond_t s_ATChannelCond[MAX_AT_CHANNELS];
 extern PDP_INFO pdp_info[MAX_PDP_NUM];
 extern int s_psOpened[SIM_COUNT];
 
-typedef struct {
-    int openedATChs;
-    int readerClosed;
-    pthread_t readerTid;
-    fd_set ATchFd;
-} ReaderThread;
-
-static ReaderThread s_readerThread[SIM_COUNT];
+ReaderThread s_readerThread[SIM_COUNT];
 
 #if AT_DEBUG
 void  AT_DUMP(const char *prefix, const char *buff, int len) {
@@ -428,6 +423,12 @@ static void onReaderClosed(RIL_SOCKET_ID socket_id) {
 
         s_onReaderClosed(socket_id);
     }
+
+    close(s_fdReaderLoopWakeupWrite[socket_id]);
+    close(s_fdReaderLoopWakeupRead[socket_id]);
+    s_fdReaderLoopWakeupWrite[socket_id] = -1;
+    s_fdReaderLoopWakeupRead[socket_id] = -1;
+
 }
 
 static void *readerLoop(void *arg) {
@@ -449,7 +450,7 @@ static void *readerLoop(void *arg) {
 
     for (;;) {
         do {
-            rfds = s_readerThread[socket_id].ATchFd;
+            rfds = s_readerThread[socket_id].readerSet;
             ret = select(open_ATchs + 1, &rfds, NULL, NULL, NULL);
         } while (ret == -1 && errno == EINTR);
         if (ret > 0) {
@@ -490,6 +491,13 @@ static void *readerLoop(void *arg) {
                         }
                     }
                  }
+            }
+
+            if (FD_ISSET(s_fdReaderLoopWakeupRead[socket_id], &rfds)) {
+                char buf[ARRAY_SIZE] = {0};
+                read(s_fdReaderLoopWakeupRead[socket_id], buf, sizeof(buf));
+                RLOGE("Modem Abnormal, stop sim%d readerLoop", socket_id);
+                break;
             }
         }
     }
@@ -619,9 +627,25 @@ void init_channels(RIL_SOCKET_ID socket_id) {
         s_ATChannel[channel].s_fd = -1;
     }
 
-    FD_ZERO(&(s_readerThread[socket_id].ATchFd));
+    FD_ZERO(&(s_readerThread[socket_id].readerSet));
 
     s_readerThread[socket_id].openedATChs = -1;
+
+    /* for notify readerLoop to get out of select, process modem assert */
+    int filedes[2];
+    if (pipe(filedes) < 0) {
+        RLOGE("Error in pipe() errno:%d", errno);
+    }
+    s_fdReaderLoopWakeupRead[socket_id] = filedes[0];
+    s_fdReaderLoopWakeupWrite[socket_id] = filedes[1];
+
+    fcntl(s_fdReaderLoopWakeupRead[socket_id], F_SETFL, O_NONBLOCK);
+
+    int *open_ATchs = &s_readerThread[socket_id].openedATChs;
+
+    FD_SET(s_fdReaderLoopWakeupRead[socket_id], &s_readerThread[socket_id].readerSet);
+    *open_ATchs = s_fdReaderLoopWakeupRead[socket_id] > (*open_ATchs) ?
+            s_fdReaderLoopWakeupRead[socket_id] : (*open_ATchs);
 }
 
 /**
@@ -664,7 +688,7 @@ struct ATChannels *at_open(int fd, int channelID, char *name,
 
     int *open_ATchs = &s_readerThread[socket_id].openedATChs;
 
-    FD_SET(fd, &s_readerThread[socket_id].ATchFd);
+    FD_SET(fd, &s_readerThread[socket_id].readerSet);
     *open_ATchs = fd > (*open_ATchs) ? fd : (*open_ATchs);
     pthread_mutex_init(&s_ATChannelMutex[channelID], NULL);
 
@@ -702,7 +726,7 @@ void at_close(struct ATChannels *ATch) {
         close(ATch->s_fd);
     }
 
-    FD_CLR(ATch->s_fd, &s_readerThread[socket_id].ATchFd);
+    FD_CLR(ATch->s_fd, &s_readerThread[socket_id].readerSet);
     if (ATch->name) {
         free(ATch->name);
     }
@@ -731,6 +755,7 @@ void stop_reader(RIL_SOCKET_ID socket_id) {
 
     /* the reader thread should eventually die */
 }
+
 
 ATResponse * at_response_new() {
     return (ATResponse *)calloc(1, sizeof(ATResponse));
@@ -828,6 +853,11 @@ static int at_send_command_full_nolock(struct ATChannels *ATch,
         }
     }
 
+    if (s_readerThread[socket_id].readerClosed > 0) {
+        err = AT_ERROR_CHANNEL_CLOSED;
+        goto error;
+    }
+
     if (pp_outResponse == NULL) {
         at_response_free(ATch->sp_response);
     } else {
@@ -837,11 +867,6 @@ static int at_send_command_full_nolock(struct ATChannels *ATch,
     }
 
     ATch->sp_response = NULL;
-
-    if (s_readerThread[socket_id].readerClosed > 0) {
-        err = AT_ERROR_CHANNEL_CLOSED;
-        goto error;
-    }
 
     err = 0;
 
@@ -892,16 +917,8 @@ static int at_send_command_full(struct ATChannels *ATch,
         if (s_atTimeoutCount[ATch->channelID] > BLOCKED_MAX_COUNT ||
                 strcmp(command, "AT+SFUN=4") == 0) {
             s_atTimeoutCount[ATch->channelID] = 0;
-            char blockStr[ARRAY_SIZE];
-            snprintf(blockStr, sizeof(blockStr), "%s", "Modem Blocked");
-            if (s_modemdFd < 0) {
-                detectATNoResponse();
-            }
-            if (s_modemdFd > 0) {
-                int ret = write(s_modemdFd, blockStr, strlen(blockStr) + 1);
-                RLOGE("write %d bytes to client:%d modemd is blocked",
-                      ret, s_modemdFd);
-            }
+            RLOGE("Info detectModemState to send Modem Blocked to modemd");
+            write(s_fdModemBlockWrite, " ", 1);
         }
     } else {
         s_atTimeoutCount[ATch->channelID] = 0;

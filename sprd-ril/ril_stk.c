@@ -36,6 +36,41 @@ pthread_mutex_t s_bipChannelMutex[SIM_COUNT] = {
         #endif
 };
 
+void freeStkContextList(StkContextList *stkContextList);
+
+void onModemReset_Stk() {
+    RIL_SOCKET_ID socket_id = RIL_SOCKET_1;
+
+    for (socket_id = RIL_SOCKET_1; socket_id < RIL_SOCKET_NUM; socket_id++) {
+        s_stkServiceRunning[socket_id] = false;
+        s_lunchOpenChannelDialog[socket_id] = false;
+
+        free(s_stkUnsolResponse[socket_id]);
+        s_stkUnsolResponse[socket_id] = NULL;
+
+        StkContextList *pList = s_stkContextList[socket_id];
+        StkContextList *next = NULL;
+        while (pList != NULL) {
+            next = pList->next;
+
+            pList->next->prev = pList->prev;
+            pList->prev->next = pList->next;
+            pList->next = NULL;
+            pList->prev = NULL;
+
+            freeStkContextList(pList);
+
+            pList = next;
+        }
+        s_stkContextList[socket_id] = NULL;
+
+        s_curBipChannelID[socket_id] = 0;
+        for (int i = 0; i < MAX_BIP_CHANNELS; i++) {
+            s_bipState[socket_id][i] = BIP_CHANNEL_IDLE;
+        }
+    }
+}
+
 void freeStkContextList(StkContextList *stkContextList) {
     if (stkContextList == NULL) return;
 

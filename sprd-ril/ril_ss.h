@@ -8,6 +8,7 @@
 #ifndef RIL_SS_H_
 #define RIL_SS_H_
 
+void onModemReset_Ss();
 int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
                          int channelID);
 int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s);

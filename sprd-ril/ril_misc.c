@@ -763,6 +763,9 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
     }
 
     if (err < 0 || p_response->success == 0) {
+        if (err == AT_ERROR_CHANNEL_CLOSED) {
+            goto error;
+        }
         if (p_response != NULL) {
             strlcat(buf, p_response->finalResponse, sizeof(buf));
             strlcat(buf, "\r\n", sizeof(buf));

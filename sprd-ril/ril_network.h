@@ -136,6 +136,7 @@ extern OperatorInfoList s_operatorXmlInfoList;
 extern pthread_mutex_t s_signalProcessMutex;
 extern pthread_cond_t s_signalProcessCond;
 
+void onModemReset_Network();
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID);
 int processNetworkUnsolicited(RIL_SOCKET_ID socket_id, const char *s);

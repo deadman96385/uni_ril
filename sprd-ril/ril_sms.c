@@ -10,6 +10,10 @@
 #include "ril_utils.h"
 #include "ril_sim.h"
 
+void onModemReset_Sms() {
+    ;
+}
+
 static void requestSendSMS(int channelID, void *data, size_t datalen,
                               RIL_Token t) {
     RIL_UNUSED_PARM(datalen);

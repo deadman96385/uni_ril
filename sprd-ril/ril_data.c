@@ -132,6 +132,39 @@ static int getMaxPDPNum(void) {
     return isLte() ? MAX_PDP : MAX_PDP / 2;
 }
 
+void onModemReset_Data() {
+    int i = 0;
+    RIL_SOCKET_ID socket_id  = 0;
+
+    s_failCount = 0;
+    s_manualSearchNetworkId =-1;
+    s_setNetworkId = -1;
+    s_activePDN = 0;
+    s_swapCard = 0;
+    s_openchannelCid = -1;
+    s_addedIPCid = -1;
+
+    for (socket_id = RIL_SOCKET_1; socket_id < RIL_SOCKET_NUM; socket_id++) {
+        s_LTEDetached[socket_id] = 0;
+        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+        for (i = 0; i < MAX_PDP; i++) {
+            putPDP(socket_id, i);
+        }
+    }
+
+    for (i = 0; i < 6; i++) {
+        s_openchannelInfo[i].cid = -1;
+        s_openchannelInfo[i].state = CLOSE;
+        s_openchannelInfo[i].pdpState = false;
+        s_openchannelInfo[i].count = 0;
+    }
+
+    memset(pdp_info, 0, sizeof(pdp_info));
+    for (i = 0; i < MAX_PDP_NUM; i++) {
+        pdp_info[i].state = PDP_STATE_IDLE;
+    }
+}
+
 static int getPDP(RIL_SOCKET_ID socket_id) {
     int ret = -1;
     int i;

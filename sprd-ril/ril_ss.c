@@ -23,6 +23,10 @@
 int s_ussdError[SIM_COUNT];
 int s_ussdRun[SIM_COUNT];
 
+void onModemReset_Ss() {
+    ;
+}
+
 void convertStringToHex(char *outString, char *inString, int len) {
     const char *hex = "0123456789ABCDEF";
     int i = 0;

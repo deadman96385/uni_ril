@@ -130,6 +130,29 @@ int rssi[SIM_COUNT], berr[SIM_COUNT];
 void setWorkMode();
 void initWorkMode();
 
+void onModemReset_Network() {
+    RIL_SOCKET_ID socket_id  = 0;
+
+    for (socket_id = RIL_SOCKET_1; socket_id < RIL_SOCKET_NUM; socket_id++) {
+        s_PSRegStateDetail[socket_id] = RIL_UNKNOWN;
+        s_PSRegState[socket_id] = STATE_OUT_OF_SERVICE;
+        s_in4G[socket_id] = 0;
+        s_in2G[socket_id] = 0;
+        s_imsRegistered[socket_id] = 0;
+
+        // signal process related
+        s_psOpened[socket_id] = 0;
+        rxlev[socket_id] = 0;
+        ber[socket_id] = 0;
+        rscp[socket_id] = 0;
+        ecno[socket_id] = 0;
+        rsrq[socket_id] = 0;
+        rsrp[socket_id] = 0;
+        rssi[socket_id] = 0;
+        berr[socket_id] = 0;
+    }
+}
+
 // for L+W product
 bool isPrimaryCardWorkMode(int workMode) {
     if (workMode == GSM_ONLY || workMode == WCDMA_ONLY ||

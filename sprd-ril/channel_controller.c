@@ -5,7 +5,6 @@
 #include "channel_controller.h"
 
 int s_ATTableSize = 0;
-int s_modemdFd = -1;
 
 const cmd_table s_ATTimeoutTable[] = {
         {AT_CMD_STR("AT+CREG"), 15},
@@ -74,25 +73,115 @@ const cmd_table s_ATTimeoutTable[] = {
         {AT_CMD_STR("AT"), 50},  // default 50s timeout
     };
 
-void detectATNoResponse() {
-    int retryTimes = 0;
+int s_fdModemBlockRead;
+int s_fdModemBlockWrite;
+ModemState s_modemState = MODEM_ALIVE;
+extern int s_fdReaderLoopWakeupWrite[SIM_COUNT];
+extern pthread_mutex_t s_radioStateMutex[SIM_COUNT];
+extern pthread_cond_t s_radioStateCond[SIM_COUNT];
+extern ReaderThread s_readerThread[SIM_COUNT];
+
+void *detectModemState() {
+    int num = 0;
+    int filedes[2];
+    int nfds = 0;
+    int fdModemd = -1;
+    fd_set rfds, readFds;
+    char buf[ARRAY_SIZE * 5] = {0};
     const char socketName[ARRAY_SIZE] = "modemd";
 
     s_ATTableSize = NUM_ELEMS(s_ATTimeoutTable);
 
-    s_modemdFd = socket_local_client(socketName,
+    if (pipe(filedes) < 0) {
+        RLOGE("Error in pipe() errno:%d", errno);
+    }
+    s_fdModemBlockRead = filedes[0];
+    s_fdModemBlockWrite = filedes[1];
+    fcntl(s_fdModemBlockRead, F_SETFL, O_NONBLOCK);
+
+    FD_SET(s_fdModemBlockRead, &readFds);
+    if (s_fdModemBlockRead >= nfds) {
+        nfds = s_fdModemBlockRead + 1;
+    }
+
+RECONNECT:
+    fdModemd = socket_local_client(socketName,
             ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
-    while (s_modemdFd < 0 && retryTimes < 3) {
-        retryTimes++;
+    while (fdModemd < 0) {
         sleep(1);
-        s_modemdFd = socket_local_client(socketName,
+        fdModemd = socket_local_client(socketName,
                 ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
     }
-    if (s_modemdFd <= 0) {
-        RLOGE("Failed to connect to socket %s", socketName);
-        return;
+    RLOGD("Connect to modemd socket success!");
+
+    fcntl(fdModemd, F_SETFL, O_NONBLOCK);
+    FD_SET(fdModemd, &readFds);
+    if (fdModemd >= nfds) {
+        nfds = fdModemd + 1;
     }
-    RLOGD("connect to modemd socket success!");
+
+    for (;;) {
+        do {
+            memcpy(&rfds, &readFds, sizeof(fd_set));
+            num = select(nfds, &rfds, NULL, NULL, NULL);
+        } while (num == -1 && errno == EINTR);
+
+        if (num > 0) {
+            if (FD_ISSET(s_fdModemBlockRead, &rfds)) {  // from at_send_command in RIL
+                memset(buf, 0, sizeof(buf));
+                read(s_fdModemBlockRead, buf, sizeof(buf));
+                RLOGE("Modem blocked, info modemd");
+                if (fdModemd >= 0) {
+                    int ret = write(fdModemd, "Modem Blocked",
+                            sizeof("Modem Blocked"));
+                    RLOGE("Write %d bytes to client: %d modemd is blocked",
+                          ret, fdModemd);
+                } else {
+                    RLOGE("Failed to connect to modemd, reconnect");
+                    goto RECONNECT;
+                }
+            }
+            if (FD_ISSET(fdModemd, &rfds)) {  // from modemd
+                memset(buf, 0, sizeof(buf));
+                int readNum =  read(fdModemd, buf, sizeof(buf));
+                RLOGE("%s", buf);
+                if (readNum <= 0) {
+                    close(fdModemd);
+                    fdModemd = -1;
+                    goto RECONNECT;
+                }
+                if (strstr(buf, "Modem Blocked") ||
+                        strstr(buf, "Modem Assert")) {
+                    s_modemState = MODEM_OFFLINE;
+                    RLOGE("Modem Assert or Blocked, Info readerLoop to get out of select");
+                    write(s_fdReaderLoopWakeupWrite[RIL_SOCKET_1], " ", 1);
+#if (SIM_COUNT >= 2)
+                    write(s_fdReaderLoopWakeupWrite[RIL_SOCKET_2], " ", 1);
+#endif
+                } else if (strstr(buf, "Modem Reset")) {
+                    if (s_readerThread[RIL_SOCKET_1].readerClosed == 0) {
+                        s_modemState = MODEM_OFFLINE;
+                        RLOGE("Modem Reset, Info readerLoop to get out of select");
+                        write(s_fdReaderLoopWakeupWrite[RIL_SOCKET_1], " ", 1);
+                    }
+#if (SIM_COUNT >= 2)
+                    if (s_readerThread[RIL_SOCKET_2].readerClosed == 0) {
+                        write(s_fdReaderLoopWakeupWrite[RIL_SOCKET_2], " ", 1);
+                    }
+#endif
+                } else if (strstr(buf, "Modem HandShake Success")) {
+                    RLOGD("Modem Alive and HandShake Success, restart readerLoop");
+                    for (int simCount = 0; simCount < SIM_COUNT; simCount++) {
+                        pthread_mutex_lock(&s_radioStateMutex[simCount]);
+                        s_modemState = MODEM_ALIVE;
+                        pthread_cond_broadcast(&s_radioStateCond[simCount]);
+                        pthread_mutex_unlock(&s_radioStateMutex[simCount]);
+                    }
+                }
+            }
+        }
+    }
+    return NULL;
 }
 
 /**

@@ -18,8 +18,9 @@ enum BipChannelState {
 typedef struct _BipClient{
     char *response;
     RIL_SOCKET_ID socket_id;
-}BipClient;
+} BipClient;
 
+void onModemReset_Stk();
 int processStkRequests(int request, void *data, size_t datalen, RIL_Token t,
         int channelID);
 int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s);

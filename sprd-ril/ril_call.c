@@ -69,6 +69,43 @@ static int s_videoCallId[SIM_COUNT] = {
 #endif
 };
 
+void list_remove(RIL_SOCKET_ID socket_id, ListNode *item);
+
+void onModemReset_Call() {
+    RIL_SOCKET_ID socket_id = RIL_SOCKET_1;
+
+    for (socket_id = RIL_SOCKET_1; socket_id < RIL_SOCKET_NUM; socket_id++) {
+        s_callFailCause[socket_id] = CALL_FAIL_ERROR_UNSPECIFIED;
+        s_videoCallId[socket_id] = -1;
+        s_maybeAddCall = 0;
+
+        ListNode *pList = s_DTMFList[socket_id].next;
+        ListNode *next = NULL;
+        while (pList != &s_DTMFList[socket_id]) {
+            next = pList->next;
+            list_remove(socket_id, pList);
+            free(pList);
+            pList = next;
+        }
+        list_init(&s_DTMFList[socket_id]);
+
+        if (s_srvccPendingRequest[socket_id] != NULL) {
+            SrvccPendingRequest *request = NULL;
+            do {
+                request = s_srvccPendingRequest[socket_id];
+                s_srvccPendingRequest[socket_id] = request->p_next;
+                free(request->cmd);
+                free(request);
+            } while (s_srvccPendingRequest[socket_id] != NULL);
+        }
+    }
+}
+
+void list_init(ListNode *node) {
+    node->next = node;
+    node->prev = node;
+}
+
 void list_add_tail(RIL_SOCKET_ID socket_id, ListNode *head, ListNode *item) {
     pthread_mutex_lock(&s_listMutex[socket_id]);
     item->next = head;
