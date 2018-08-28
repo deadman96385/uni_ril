@@ -2305,7 +2305,7 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_ALLOW_DATA: {
             RLOGD("s_manualSearchNetworkId = %d,s_setNetworkId = %d",
                    s_manualSearchNetworkId,s_setNetworkId );
-            if (s_manualSearchNetworkId >= 0 || s_setNetworkId >= 0) {
+            if (s_modemConfig != LWG_LWG && (s_manualSearchNetworkId >= 0 || s_setNetworkId >= 0)) {
                 RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 break;
             }
