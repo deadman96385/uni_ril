@@ -1218,61 +1218,15 @@ static void deactivateDataConnection(int channelID, void *data, size_t datalen, 
         }
     } else {
         RILLOGD("Try to deactivated modem ..., cid=%d", cid);
+        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+        err = at_send_command(ATch_type[channelID], cmd, &p_response);
         secondary_cid = getFallbackCid(cid-1);
         RILLOGD( "Try to deactivated secondary_cid= %d", secondary_cid);
-        if (in4G) {
-            queryAllActivePDNInfos(channelID);
-            if (activePDN == 1) {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-                RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
-                err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                if (err < 0 || p_response->success == 0) {
-                    RILLOGD("last dataconnection data off failed!");
-                }
-                goto done;
-            } else if (activePDN > 1 && pdn[cid - 1].nCid != -1 ) {
-                if(initialAttachApn != NULL && initialAttachApn->apn != NULL &&
-                    (!strcasecmp(pdn[cid - 1].strApn, initialAttachApn->apn) ||
-                        !strcasecmp(strtok(pdn[cid - 1].strApn, "."), initialAttachApn->apn))) {
-                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-                    RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
-                    err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                    if (err < 0 || p_response->success == 0) {
-                        RILLOGD("last dataconnection data off failed!");
-                       }
-                    goto done;
-                }
+        if (secondary_cid != -1) {
+            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondary_cid);
+            err = at_send_command(ATch_type[channelID], cmd, &p_response);
         }
-    }
 
-       if ((getPDPCid(cid-1) != -1) ||(secondary_cid != -1)) {
-            if ((getPDPCid(cid-1) != -1) &&(secondary_cid != -1)) {
-                if (in4G && (activePDN == 2)){
-                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d,%d", cid, 0);
-                    RILLOGD("deactivateLastDataConnection cmd = %s", cmd);
-                    err = at_send_command(ATch_type[channelID], cmd, &p_response);
-                    if (err < 0 || p_response->success == 0) {
-                        RILLOGD("last dataconnection data off failed!");
-                    }
-                }else{
-                    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
-                    if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                        goto error;
-                    }
-                    RILLOGD("dual pdp, need do cgact again");
-                }
-                RILLOGD("dual pdp,need do cgact again");
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", secondary_cid);
-                if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                    goto error;
-                }
-            } else {
-                snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", (getPDPCid(cid-1) != -1) ? cid:secondary_cid);
-                if (deactivateLteDataConnection(channelID, cmd) < 0) {
-                    goto error;
-                }
-            }
-        }
 done:
         putPDP(secondary_cid - 1);
         putPDP(cid - 1);
