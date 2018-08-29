@@ -18,7 +18,6 @@
 #include "ril_stk.h"
 #include "ril_utils.h"
 
-#define DUALPDP_ALLOWED_PROP    "persist.vendor.radio.dualpdp"
 #define DDR_STATUS_PROP         "persist.vendor.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.vendor.sys.pdp.reuse"
 #define BIP_OPENCHANNEL         "persist.vendor.radio.openchannel"
@@ -932,15 +931,21 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
     property_get(cmd, prop, "0");
     ipType = atoi(prop);
 
-    char isDualpdpAllowed[PROPERTY_VALUE_MAX];
-    memset(isDualpdpAllowed, 0, sizeof(isDualpdpAllowed));
-    property_get(DUALPDP_ALLOWED_PROP, isDualpdpAllowed, "false");
+    char carrier[PROPERTY_VALUE_MAX];
+    bool isDualpdpAllowed = false;
+    memset(carrier, 0, sizeof(carrier));
+    property_get(OVERSEA_VERSION, carrier, "unknown");
+    RLOGD("checkNeedFallBack ro.carrier = %s", carrier);
+
+    if(!strcmp(carrier, "claro") || !strcmp(carrier, "telcel")){
+        isDualpdpAllowed = true;
+    }
 
     if (!strcmp(pdp_type, "IPV4V6") && ipType != IPV4V6) {
         fbCause = getSPACTFBcause(channelID);
         RLOGD("requestSetupDataCall fall Back Cause = %d", fbCause);
         if (fbCause == 52 &&
-                ((strcmp(isDualpdpAllowed, "true")) || cidIndex == 0)) {
+                (!isDualpdpAllowed || cidIndex == 0)) {
             if (ipType == IPV4) {
                 ret = "IPV6";
             } else if (ipType == IPV6) {
