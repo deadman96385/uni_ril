@@ -1998,8 +1998,8 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
             RLOGD("get_data_profile s_PSRegStateDetail=%d, s_in4G=%d",
                    s_PSRegStateDetail[socket_id], s_in4G[socket_id]);
             /*bug769723 CMCC version reattach on data card*/
-            property_get("ro.vendor.radio.spice", prop, "0");
-            if (!strcmp(prop, "1")) {
+            property_get(OVERSEA_VERSION, prop, "unknown");
+            if (!strcmp(prop, "cmcc")) {
                 if (socket_id == getDefaultDataCardId()) {
                     isSetReattach = true;
                 }

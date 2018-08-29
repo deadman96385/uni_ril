@@ -339,9 +339,16 @@ error:
 int getFastDormancyTime(int screeState) {
     int screenOffValue = 2, screenOnValue = 5, fastDormancyTime = 0, err;
     char fastDormancyPropValue[PROPERTY_VALUE_MAX] = {0};
+    char overseaProp[PROPERTY_VALUE_MAX] = {0};
     char *p_fastDormancy = NULL;
 
     property_get(PROP_FAST_DORMANCY, fastDormancyPropValue, "");
+    property_get(OVERSEA_VERSION, overseaProp, "unknown");
+    if (!strcmp(overseaProp, "orange")) {
+        screenOnValue = 8;
+        screenOffValue = 5;
+        goto done;
+    }
     if (strcmp(fastDormancyPropValue, "")) {
         p_fastDormancy = fastDormancyPropValue;
         err = at_tok_nextint(&p_fastDormancy, &screenOffValue);

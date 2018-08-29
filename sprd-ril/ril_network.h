@@ -11,7 +11,7 @@
 #define SIG_POOL_SIZE           10
 #define MODEM_WORKMODE_PROP     "persist.vendor.radio.modem.workmode"
 #define MODEM_CAPABILITY        "persist.vendor.radio.modem.capability"
-#define OVERSEA_VERSION         "ro.vendor.radio.flavor"
+#define OVERSEA_VERSION         "ro.carrier"
 
 /*  LTE PS registration state */
 typedef enum {
