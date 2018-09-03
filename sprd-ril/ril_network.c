@@ -1061,16 +1061,16 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             if (s_presentSIMCount == 2) {
                 if (s_workMode[socket_id] != GSM_ONLY) {
                     at_send_command(s_ATChannels[channelID],
-                            "AT+SAUTOATT=1", NULL);
+                            "AT+SAUTOATT=0", NULL);
                 } else {
                     at_send_command(s_ATChannels[channelID],
                             "AT+SAUTOATT=0", NULL);
                 }
             } else {
-                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=0", NULL);
             }
 #else
-            at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1", NULL);
+            at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=0", NULL);
 #endif
         }
 

@@ -24,7 +24,7 @@ static int s_GSCid;
 static int s_ethOnOff;
 static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
-static int s_autoDetach = 1;  /* whether support auto detach */
+static int s_autoDetach = 0;  /* whether support auto detach */
 /* Last PDP fail cause, obtained by *ECAV */
 static int s_lastPDPFailCause[SIM_COUNT] = {
         PDP_FAIL_ERROR_UNSPECIFIED
@@ -868,6 +868,8 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d, %d", cid,
                       primaryCid);
         } else {
+            err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
+                                  &p_response);
             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", cid);
         }
     }
@@ -1872,11 +1874,11 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
             RLOGD("setRadioCapability is on going, return!!");
             goto error;
         }
-        err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
+/*        err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                               &p_response);
         if (err < 0 || p_response->success == 0) {
             goto error;
-        }
+        }*/
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
