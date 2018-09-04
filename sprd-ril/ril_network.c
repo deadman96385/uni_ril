@@ -1299,7 +1299,12 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                     if (socket_id != s_multiModeSim) {
                         RLOGD("socket_id = %d, s_dataAllowed = %d", socket_id,
                               s_dataAllowed[socket_id]);
-                        snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+                        if (s_modemConfig == WG_WG) {
+                            RLOGD("switch data card according to allow data");
+                            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,%d", socket_id,s_dataAllowed[socket_id]);
+                        } else {
+                            snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+                        }
                         at_send_command(s_ATChannels[channelID], cmd, NULL);
                     }
                 }
