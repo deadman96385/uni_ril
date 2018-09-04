@@ -8447,7 +8447,8 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
                     snprintf(mnc_str, mnc_digit + 1, strFormat,
                             rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc);
-                    cellInfoGsm->cellIdentityGsm.mnc = convertCharPtrToHidlString(mnc_str);
+                    // Unisoc modify for bug928371
+                    cellInfoGsm->cellIdentityGsm.mnc = mnc_str;
                 } else {
                     RLOGE("cellInfoList gsm mnc digit is invalid %d", mnc_digit);
                     cellInfoGsm->cellIdentityGsm.mnc =
@@ -8480,7 +8481,8 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
                     snprintf(mnc_str, mnc_digit + 1, strFormat,
                             rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc);
-                    cellInfoWcdma->cellIdentityWcdma.mnc = convertCharPtrToHidlString(mnc_str);
+                    // Unisoc modify for bug928371
+                    cellInfoWcdma->cellIdentityWcdma.mnc = mnc_str;
                 } else {
                     RLOGE("cellInfoList wcdma mnc digit is invalid %d", mnc_digit);
                     cellInfoWcdma->cellIdentityWcdma.mnc =
@@ -8537,7 +8539,8 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
                     snprintf(mnc_str, mnc_digit + 1, strFormat,
                            rillCellInfo->CellInfo.lte.cellIdentityLte.mnc);
-                    cellInfoLte->cellIdentityLte.mnc = convertCharPtrToHidlString(mnc_str);
+                    // Unisoc modify for bug928371
+                    cellInfoLte->cellIdentityLte.mnc = mnc_str;
                 } else {
                     RLOGE("cellInfoList lte mnc digit is invalid %d", mnc_digit);
                     cellInfoLte->cellIdentityLte.mnc =
@@ -8576,7 +8579,8 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
                     snprintf(mnc_str, mnc_digit + 1, strFormat,
                            rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc);
-                    cellInfoTdscdma->cellIdentityTdscdma.mnc = convertCharPtrToHidlString(mnc_str);
+                    // Unisoc modify for bug928371
+                    cellInfoTdscdma->cellIdentityTdscdma.mnc = mnc_str;
                 } else {
                     RLOGE("cellInfoList td mnc digit is invalid %d", mnc_digit);
                     cellInfoTdscdma->cellIdentityTdscdma.mnc =
