@@ -24,14 +24,8 @@
 /* single channel call, no need to distinguish sim1 and sim2*/
 int s_maybeAddCall = 0;
 int s_screenState = 1;
-bool s_vsimInitFlag[SIM_COUNT] = {false, false};
 static pthread_mutex_t s_screenMutex = PTHREAD_MUTEX_INITIALIZER;
 struct timeval s_timevalCloseVsim = {60, 0};
-
-typedef struct {
-    int socket_id1;
-    int socket_id2;
-} VirtualCardPara;
 
 static void requestBasebandVersion(int channelID, void *data, size_t datalen,
                                    RIL_Token t) {
@@ -931,6 +925,7 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
         RIL_onUnsolicitedResponse(RIL_ATC_UNSOL_VSIM_RSIM_REQ, response,
                                   strlen(response) + 1, socket_id);
+        free(response);
     } else {
         return 0;
     }
