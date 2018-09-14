@@ -55,6 +55,7 @@
 #define GSPS_ETH_UP_PROP            "vendor.ril.gsps.eth.up"
 #define GSPS_ETH_DOWN_PROP          "vendor.ril.gsps.eth.down"
 #define ATTACH_ENABLE_PROP          "persist.vendor.sys.attach.enable"
+#define ALLOW_DATA_SOCKET_ID        "vendor.ril.allow_data.socket_id"
 
 #define SOCKET_NAME_EXT_DATA        "ext_data"
 

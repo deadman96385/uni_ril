@@ -2183,6 +2183,11 @@ void requestAllowData(int channelID, void *data, size_t datalen,
                          RIL_Token t) {
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_dataAllowed[socket_id] = ((int *)data)[0];
+    if (s_dataAllowed[socket_id] == 1) {
+        char propValue[PROPERTY_VALUE_MAX] = {0};
+        snprintf(propValue, sizeof(propValue), "%d", socket_id);
+        property_set(ALLOW_DATA_SOCKET_ID, propValue);
+    }
     RLOGD("s_desiredRadioState[%d] = %d, s_autoDetach = %d", socket_id,
           s_desiredRadioState[socket_id], s_autoDetach);
     if (s_desiredRadioState[socket_id] > 0 && isAttachEnable() &&

@@ -1302,10 +1302,14 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                         if (s_modemConfig == WG_WG) {
                             RLOGD("switch data card according to allow data");
                             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,%d", socket_id,s_dataAllowed[socket_id]);
+                            at_send_command(s_ATChannels[channelID], cmd, NULL);
+                            if (s_dataAllowed[socket_id] == 1) {
+                                at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",NULL);
+                            }
                         } else {
                             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,0", socket_id);
+                            at_send_command(s_ATChannels[channelID], cmd, NULL);
                         }
-                        at_send_command(s_ATChannels[channelID], cmd, NULL);
                     }
                 }
             }

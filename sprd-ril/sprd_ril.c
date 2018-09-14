@@ -1389,6 +1389,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
     pthread_attr_t attr;
     pthread_condattr_t condAttr;
     char prop[PROPERTY_VALUE_MAX];
+    char allowDataProp[PROPERTY_VALUE_MAX] = {0};
     s_rilEnv = env;
     void *dlHandle = NULL;
     const RIL_TheadsFunctions *(*rilThreadsInit)(const RIL_RequestFunctions *, int, int);
@@ -1414,6 +1415,13 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
             free((char *)s_modem);
             usage(argv[0]);
         }
+    }
+
+    property_get(ALLOW_DATA_SOCKET_ID, allowDataProp, "-1");
+    simId = atoi(allowDataProp);
+    if (simId < SIM_COUNT && simId >= 0) {
+        RLOGD("allow data simId is %d", simId );
+        s_dataAllowed[simId] = 1;
     }
 
     signal(SIGPIPE, SIG_IGN);
