@@ -4631,6 +4631,9 @@ int radio::setupDataCallResponse(int slotId,
             convertRilDataCallToHal((RIL_Data_Call_Response_v11 *) response, result);
         }
 
+        if (e != RIL_E_RADIO_NOT_AVAILABLE) {
+            responseInfo.error = RadioError::NONE;
+        }
         Return<void> retStatus = radioService[slotId]->mRadioResponse->setupDataCallResponse(
                 responseInfo, result);
         radioService[slotId]->checkReturnStatus(retStatus);
