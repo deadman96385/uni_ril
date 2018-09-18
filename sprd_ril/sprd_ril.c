@@ -14345,7 +14345,13 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                     }
                 } else if (value == 100 || value == 4) {
                     if (value == 100) {
-                        RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
+                        char prop[PROPERTY_VALUE_MAX] = {0};
+                        property_get("persist.radio.vsim.product", prop, "0");
+                        if (strcmp(prop, "1")) {
+                            RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
+                        } else {
+                            RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
+                        }
                     } else {
                         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
                     }
