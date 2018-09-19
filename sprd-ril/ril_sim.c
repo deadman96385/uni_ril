@@ -67,7 +67,7 @@
 #define IMSI_VAL_NUM                            8
 #define IMSI_TOTAL_LEN                          (16 + 1)
 #define SMALL_IMSI_LEN                          (2 + 1)
-
+#define READ_BINERY                             176
 #define SIMLOCK_ATTEMPT_TIMES_PROP              "vendor.sim.attempttimes.%s"
 
 static pthread_mutex_t s_remainTimesMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -1404,22 +1404,15 @@ static bool isISIMFileId(int fileId) {
             fileId == 0x6f07  || fileId == 0x6f09 || fileId == 0x6fe5);
 }
 
-static void requestSIM_IO(int channelID, void *data, size_t datalen,
-                             RIL_Token t) {
-    RIL_UNUSED_PARM(datalen);
-
+int readSimRecord(int channelID, RIL_SIM_IO_v6 *data, RIL_SIM_IO_Response *sr) {
     int err;
     char *cmd = NULL;
     char *line = NULL;
     char pad_data = '0';
-    RIL_SIM_IO_v6 *p_args;
     ATResponse *p_response = NULL;
-    RIL_SIM_IO_Response sr;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    memset(&sr, 0, sizeof(sr));
-
-    p_args = (RIL_SIM_IO_v6 *)data;
+    RIL_SIM_IO_v6 *p_args = data;
     bool isISIMfile = isISIMFileId(p_args->fileid);
 
     /* FIXME handle pin2 */
@@ -1476,28 +1469,32 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
     err = at_tok_start(&line);
     if (err < 0) goto error;
 
-    err = at_tok_nextint(&line, &(sr.sw1));
+    err = at_tok_nextint(&line, &(sr->sw1));
     if (err < 0) goto error;
 
-    err = at_tok_nextint(&line, &(sr.sw2));
+    err = at_tok_nextint(&line, &(sr->sw2));
     if (err < 0) goto error;
 
     if (at_tok_hasmore(&line)) {
-        err = at_tok_nextstr(&line, &(sr.simResponse));
-        if (err < 0) goto error;
+        char *simResponse = NULL;
+        err = at_tok_nextstr(&line, &simResponse);
+        if (err < 0 || simResponse == NULL) goto error;
+
+        sr->simResponse = (char *)calloc(strlen(simResponse) + 1, sizeof(char));
+        snprintf(sr->simResponse, strlen(simResponse) + 1, "%s", simResponse);
     }
 
     if (s_appType[socket_id] == RIL_APPTYPE_USIM &&
         (p_args->command == COMMAND_GET_RESPONSE)) {
         RLOGD("usim card, change to sim format");
-        if (sr.simResponse != NULL) {
+        if (sr->simResponse != NULL) {
             RLOGD("sr.simResponse NOT NULL, convert to sim");
             unsigned char *byteUSIM = NULL;
             // simResponse could not be odd, ex "EF3EF0"
-            int usimLen = strlen(sr.simResponse) / 2;
+            int usimLen = strlen(sr->simResponse) / 2;
             byteUSIM = (unsigned char *)malloc(usimLen + sizeof(char));
             memset(byteUSIM, 0, usimLen + sizeof(char));
-            convertHexToBin(sr.simResponse, strlen(sr.simResponse),
+            convertHexToBin(sr->simResponse, strlen(sr->simResponse),
                     (char *)byteUSIM);
             if (byteUSIM[RESPONSE_DATA_FCP_FLAG] != TYPE_FCP) {
                 RLOGE("wrong fcp flag, unable to convert to sim ");
@@ -1511,27 +1508,82 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
             unsigned char hexUSIM[RESPONSE_EF_SIZE * 2 + TYPE_CHAR_SIZE] = {0};
             memset(hexUSIM, 0, RESPONSE_EF_SIZE * 2 + TYPE_CHAR_SIZE);
             if (NULL != convertUsimToSim(byteUSIM, usimLen, hexUSIM)) {
-                memset(sr.simResponse, 0, usimLen * 2);
-                strncpy(sr.simResponse, (char *)hexUSIM,
+                memset(sr->simResponse, 0, usimLen * 2);
+                strncpy(sr->simResponse, (char *)hexUSIM,
                         RESPONSE_EF_SIZE * 2);
             }
             if (byteUSIM != NULL) {
                 free(byteUSIM);
                 byteUSIM = NULL;
             }
-            if (sr.simResponse == NULL) {
+            if (sr->simResponse == NULL) {
                  RLOGE("unable convert to sim, return error");
                  goto error;
              }
         }
     }
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &sr, sizeof(sr));
     at_response_free(p_response);
+    return 0;
+
+error:
+    at_response_free(p_response);
+    return -1;
+}
+static void requestSIM_IO(int channelID, void *data, size_t datalen,
+                             RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err;
+    RIL_SIM_IO_v6 *p_args;
+    RIL_SIM_IO_Response *sr = NULL;
+    p_args = (RIL_SIM_IO_v6 *)data;
+    sr = (RIL_SIM_IO_Response *)calloc(1, sizeof(RIL_SIM_IO_Response));
+
+    if (p_args->command == READ_BINERY && p_args->p3 > 255 ) {
+        //if p3 = 780,need send 4 times CRSM
+        //1:P1 = 0, P2 = 0, P3 = 255
+        //2:P1 = 0, P2 = 255, P3 = 255
+        //3:P1 = 1, P2 = 254, P3 = 255
+        //4:P1 = 2, P2 = 253, P3 = 15 (780-765)
+        int p3 = p_args->p3;
+        int times, i, total = 0;
+        char *simResponse = (char *)calloc(p3 * 2 + 1, sizeof(char));
+        if (p3 % 255 == 0) {
+            times = p3 / 255;
+        } else {
+            times = p3 / 255 + 1;
+        }
+        for (i = 0; i < times; i++) {
+            p_args->p1 = total >> 8;
+            p_args->p2 = total & 0xff;
+            p_args->p3 = (p3-total) >= 255 ? 255 : p3 % 255;
+            total += p_args->p3;
+            RLOGD("p1 = %d,p2 = %d,p3 = %d", p_args->p1, p_args->p2, p_args->p3);
+            err = readSimRecord(channelID, p_args, sr);
+            if (err < 0) goto error;
+            if (sr->sw1 != 0x90 && sr->sw1 != 0x91 && sr->sw1 != 0x9e
+                    && sr->sw1 != 0x9f) {
+                goto done;
+            }
+            strncat(simResponse, sr->simResponse, p_args->p3 * 2);
+            free(sr->simResponse);
+        }
+        sr->simResponse = simResponse;
+        RLOGD("simResponse = %s",sr->simResponse);
+    } else {
+        err = readSimRecord(channelID, p_args, sr);
+        if (err < 0) goto error;
+    }
+done:
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, sr, sizeof(RIL_SIM_IO_Response));
+    free(sr->simResponse);
+    free(sr);
     return;
 
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-    at_response_free(p_response);
+    free(sr->simResponse);
+    free(sr);
 }
 
 static void requestTransmitApduBasic(int channelID, void *data,
