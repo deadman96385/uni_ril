@@ -2086,7 +2086,6 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
                 err = at_send_command(s_ATChannels[channelID], "AT+CGATT=1",
                                        &p_response);
                 if (err < 0 || p_response->success == 0) {
-                    at_send_command(s_ATChannels[channelID], "AT+SGFD", NULL);
                     goto error;
                 }
             } else {
