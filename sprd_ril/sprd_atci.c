@@ -238,9 +238,8 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
     char *pdu;
     char *response[1]={NULL};
 
-    if(request == RIL_REQUEST_SEND_CMD) {
-
-        if(at_cmd == NULL) {
+    if (request == RIL_REQUEST_SEND_CMD) {
+        if (at_cmd == NULL) {
             RILLOGE("Invalid AT command");
             return;
         }
@@ -257,7 +256,7 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
                 response[0] = "ERROR";
                 sOnRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char *));
             }
-            return;
+            goto done;
          } else if (strStartsWith(at_cmd, "VSIM_INIT")) {
              char *cmd = NULL;
              RILLOGD("wait for vsim socket connect");
@@ -281,8 +280,9 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
              at_tok_start(&cmd);
              int sim_status = getSIMStatus(channelID);
              if (sim_status != SIM_ABSENT) {
-             	at_send_command(ATch_type[channelID], "AT+RSIMRSP=\"ERRO\",2,", &p_response);
+                 at_send_command(ATch_type[channelID], "AT+RSIMRSP=\"ERRO\",2,", NULL);
              }
+
              err = at_send_command(ATch_type[channelID], cmd, &p_response);
              if (err < 0 || p_response->success == 0) {
                  if (p_response != NULL) {
@@ -313,9 +313,8 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
                  response[0] = buf;
                  sOnRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char *));
              }
-             at_response_free(p_response);
-             return;
-        }else if (strStartsWith(at_cmd, "VSIM_TIMEOUT")) {
+             goto done;
+        } else if (strStartsWith(at_cmd, "VSIM_TIMEOUT")) {
             int time = -1;
             char *cmd = NULL;
             cmd = at_cmd;
@@ -330,7 +329,7 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
                 response[0] = "ERROR";
                 sOnRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char *));
             }
-            return;
+            goto done;
         } else {
             err = at_send_command_multiline(ATch_type[channelID], at_cmd, "", &p_response);
         }
@@ -351,18 +350,23 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
             response[0] = buf;
             sOnRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char*));
         }
+
+done:
         at_response_free(p_response);
         putChannel(channelID);
         return;
 error:
-    memset(buf, 0 ,sizeof(buf));
-    strlcat(buf, "ERROR", sizeof(buf));
-    strlcat(buf, "\r\n", sizeof(buf));
-    response[0] = buf;
-    sOnRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
-                                  sizeof(char *));
-    at_response_free(p_response);
-    putChannel(channelID);
+        memset(buf, 0 ,sizeof(buf));
+        strlcat(buf, "ERROR", sizeof(buf));
+        strlcat(buf, "\r\n", sizeof(buf));
+        response[0] = buf;
+        sOnRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                                      sizeof(char *));
+        at_response_free(p_response);
+        putChannel(channelID);
+    } else {
+        RLOGE("Invaild Request: %d", request);
+        sOnRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     }
 }
 

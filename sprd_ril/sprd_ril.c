@@ -14347,8 +14347,8 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
                     if (value == 100) {
                         char prop[PROPERTY_VALUE_MAX] = {0};
                         property_get("persist.radio.vsim.product", prop, "0");
-                        if (strcmp(prop, "1")) {
-                            RIL_requestTimedCallback (onSimHotplug, NULL, NULL);
+                        if (strcmp(prop, "0") == 0) {
+                            RIL_requestTimedCallback(onSimHotplug, NULL, NULL);
                         } else {
                             RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
                         }
