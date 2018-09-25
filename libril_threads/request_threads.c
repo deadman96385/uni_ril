@@ -410,6 +410,7 @@ ATCmdType getCmdType(int request) {
             || request == RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE
             || request == RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE
             || request == RIL_REQUEST_SET_RADIO_CAPABILITY
+            || request == RIL_REQUEST_SEND_DEVICE_STATE
             /* IMS @{ */
             || request == RIL_REQUEST_IMS_CALL_RESPONSE_MEDIA_CHANGE
             || request == RIL_REQUEST_IMS_CALL_REQUEST_MEDIA_CHANGE
