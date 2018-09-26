@@ -926,6 +926,8 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         RIL_onUnsolicitedResponse(RIL_ATC_UNSOL_VSIM_RSIM_REQ, response,
                                   strlen(response) + 1, socket_id);
         free(response);
+    } else if (strStartsWith(s, "+SPNWIMEI:")) {
+        RLOGD("sim%d, %s", socket_id, s);
     } else {
         return 0;
     }
