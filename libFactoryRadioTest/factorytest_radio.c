@@ -10,6 +10,7 @@
 #include <utils/Log.h>
 #include <time.h>
 #include "cutils/properties.h"
+#include <pthread.h>
 #include "at_tok.h"
 
 #define LOG_TAG  "FACTORYTESTRADIO"
@@ -21,6 +22,7 @@ static const char *s_at_sim = "AT+SIMTEST";
 #define AT_BUFFER_SIZE  512
 static char s_ATBuffer[AT_BUFFER_SIZE];
 static char *s_ATBufferCur = s_ATBuffer;
+static bool s_threadStarted = false;
 
 #define MAX_AT_CHANNEL_NAME_LENGHT (32)
 #define MAX_PHONE_MUM (2)
@@ -209,6 +211,54 @@ int sendATCmd(int fd, char* cmd, char* buf, unsigned int buf_len, int wait) {
     return ret;
 }
 
+void *readURCThread() {
+    int fd0 = -1;
+    int fd3 = -1;
+    int fd = -1;
+    fd_set readfs;
+    fd_set rdfds;
+    char buffer[AT_BUFFER_SIZE];
+    int count = 0;
+    int ret = -1;
+
+    fd0 = open("/dev/stty_lte0", O_RDWR | O_NONBLOCK);
+    fd3 = open("/dev/stty_lte3", O_RDWR | O_NONBLOCK);
+    ALOGD("read urc fd0 = %d, fd3 = %d", fd0, fd3);
+
+    FD_ZERO(&readfs);
+    FD_SET(fd0, &readfs);
+    FD_SET(fd3, &readfs);
+    pthread_detach(pthread_self());
+
+    for (;;) {
+        do {
+            rdfds = readfs;
+            ret = select((fd0>fd3)?(fd0 + 1):(fd3 + 1), &rdfds, NULL, NULL, NULL);
+        } while (ret == -1 && errno == EINTR);
+
+        if (ret <= 0) {
+            ALOGD("modem error !");
+            s_threadStarted = false;
+            return NULL;
+        }
+
+        if (FD_ISSET(fd0, &rdfds)) {
+            fd = fd0;
+        } else if (FD_ISSET(fd3, &rdfds)) {
+            fd = fd3;
+        }
+
+        ALOGD("read urc fd = %d", fd);
+        do {
+            count = read(fd, buffer, AT_BUFFER_SIZE);
+        } while (count < 0 && errno == EINTR);
+
+        ALOGD("URC: %d, line = %s", fd, buffer);
+    }
+
+    return NULL;
+}
+
 //AT+TELTEST=p1,p2,str   p1 is dial(1)/hold(0); p2 is sim1/2; str is number
 static int TestMakeCall (char *req, char *rsp) {
     ALOGD("test CALL start: req = %s\n", req);
@@ -224,6 +274,8 @@ static int TestMakeCall (char *req, char *rsp) {
     char* cmd[32] = {0};
     time_t startTime, nowTime;
     int mode = -1;
+    pthread_t tid;
+    pthread_attr_t attr;
 
     ptr = strdup(req) ;
     ret = at_tok_flag_start(&ptr, '=');
@@ -260,7 +312,6 @@ static int TestMakeCall (char *req, char *rsp) {
         return -1;
     }
 
-    sendATCmd(fdCall, "AT+SFUN=2", NULL, 0, 0);     //open sim card
     sendATCmd(fdCall, "AT+SFUN=5", NULL, 0, 0);     //close protocol
     usleep(3000 * 1000);
     if (isLteOnly(simNum)){
@@ -271,6 +322,18 @@ static int TestMakeCall (char *req, char *rsp) {
 
     ret = sendATCmd(fdCall, "AT+SFUN=4", NULL, 0, 100); //open protocol stack and wait 100s,if exceed more than 20s,we regard rregistering network fail
     startTime = time(NULL);
+
+    if (!s_threadStarted) {
+        ALOGD("start to read urc");
+        pthread_attr_init(&attr);
+        s_threadStarted = true;
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+        if (pthread_create(&tid, &attr, readURCThread, NULL) < 0) {
+            ALOGE("Failed to create read urc thread!");
+            s_threadStarted = false;
+        }
+    }
 
     for (;;) {
         sendATCmd(fdCall, "AT+CREG?", tmp, sizeof(tmp), 0);
@@ -302,6 +365,7 @@ static int TestMakeCall (char *req, char *rsp) {
     sendATCmd(fdCall, "AT+SSAM=1", NULL, 0, 0);  //open speaker
     sleep(5);
 
+    close(fdCall);
     return ret;
 }
 
@@ -349,12 +413,12 @@ static int TestCheckSIM (char *req, char *rsp) {
     }
     ALOGD("get sim%d, state = %d", simNum, simState);
 
+    close(fd);
     return (simState == 0)?0:-1;
 }
 
 void register_this_module_ext(struct eng_callback *reg, int *num) {
     int moudles_num = 0;
-
     ALOGI("register_this_module_ext");
 
     sprintf((reg + moudles_num)->at_cmd, "%s", s_at_call);
