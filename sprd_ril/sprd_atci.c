@@ -114,14 +114,15 @@ int closeVirtual(int socket_id){
 
 static void closeVirtualThread(void *param) {
     RILLOGD("closeVsimCard");
-    int socket_id = *((int *)param);
-    if ((s_vsimClientFd < 0) && (socket_id == 1)) {
+    int vsimMode = *((int *)param);
+    if ((s_vsimClientFd < 0) && (vsimMode >= 1)) {
         if (modem == 0) {
             closeVirtual(RIL_SOCKET_1);
         } else if (modem == 1) {
             closeVirtual(RIL_SOCKET_2);
         }
     }
+    free(param);
 }
 
 void *listenVsimSocketThread() {
@@ -163,15 +164,15 @@ void *listenVsimSocketThread() {
             s_vsimListenLoop = false;
             s_vsimClientFd = -1;
 
-            int vsimMode = -1;
+            int *vsimMode = (int *)calloc(1, sizeof(int));
             if (modem == 0) {
-                vsimMode = vsimQueryVirtual(RIL_SOCKET_1);
+                *vsimMode = vsimQueryVirtual(RIL_SOCKET_1);
             } else {
-                vsimMode = vsimQueryVirtual(RIL_SOCKET_2);
+                *vsimMode = vsimQueryVirtual(RIL_SOCKET_2);
             }
 
             RIL_requestTimedCallback(closeVirtualThread,
-                        (void *)&vsimMode, &s_timevalCloseVsim);
+                        (void *)vsimMode, &s_timevalCloseVsim);
         }
         RILLOGD("vsim read %s",error);
     } while (s_vsimClientFd > 0);
