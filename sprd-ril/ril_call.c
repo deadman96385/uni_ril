@@ -542,6 +542,7 @@ static void requestDial(int channelID, void *data, size_t datalen,
     int ret;
     char *cmd = NULL;
     const char *clir = NULL;
+    ATResponse *p_response = NULL;
 
     RIL_Dial *p_dial = NULL;
     p_dial = (RIL_Dial *)data;
@@ -566,16 +567,20 @@ static void requestDial(int channelID, void *data, size_t datalen,
         goto error;
     }
 
-    err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-    free(cmd);
-    if (err != 0) goto error;
 
-    /* success or failure is ignored by the upper layer here.
-       it will call GET_CURRENT_CALLS and determine success that way */
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    free(cmd);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    /* failure is  not ignored by the upper layer here */
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
     return;
 error:
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
 }
 
 static void requestHangup(int channelID, void *data, size_t datalen,
