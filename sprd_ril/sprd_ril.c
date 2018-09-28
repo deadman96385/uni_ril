@@ -7651,7 +7651,7 @@ out:
 error:
     at_response_free(p_response);
 }
-
+#ifndef USE_ATC_CHANNEL_RESP
 void requestSendAT(int channelID, char *data, size_t datalen, RIL_Token t)
 {
     char *at_cmd = (char *)data;
@@ -7731,6 +7731,87 @@ error:
                           sizeof(char *));
     at_response_free(p_response);
 }
+#else
+void requestSendAT(int channelID, char *data, size_t datalen, RIL_Token t)
+{
+    char *at_cmd = (char *)data;
+    int i, err;
+    ATResponse *p_response = NULL;
+    char buf[MAX_AT_RESPONSE] = {0};
+    ATLine *p_cur = NULL;
+    char *cmd;
+    char *pdu;
+    char *response=NULL;
+
+    if(at_cmd == NULL) {
+        RILLOGE("Invalid AT command");
+        return;
+    }
+
+    // AT+SNVM=1,2118,01
+    if (!strncasecmp(at_cmd, "AT+SNVM=1", strlen("AT+SNVM=1"))) {
+        cmd = at_cmd;
+        skipNextComma(&at_cmd);
+        pdu = strchr(at_cmd, ',');
+        if (pdu == NULL) {
+            RILLOGE("SNVM: cmd is %s pdu is NULL !", cmd);
+            strlcat(buf, "\r\n", sizeof(buf));
+            response = buf;
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE,response, sizeof(char*));
+            return;
+        }
+
+        *pdu = '\0';
+        pdu ++;
+        RILLOGD("SNVM: cmd %s, pdu %s", cmd, pdu);
+        err = at_send_command_snvm(ATch_type[channelID], cmd, pdu, "", &p_response);
+    } else if (!strncasecmp(at_cmd, "AT+SPSLEEPLOG", strlen("AT+SPSLEEPLOG"))) {
+        pthread_t tid;
+        do {
+            RILLOGD("Create dump sleep log thread");
+        } while (pthread_create(&tid, NULL, (void*) dump_sleep_log, NULL) < 0);
+        RILLOGD("Create dump sleep log thread success");
+        err = at_send_command(ATch_type[channelID], "AT+SPSLEEPLOG", &p_response);
+    }  else {
+        err = at_send_command_multiline(ATch_type[channelID], at_cmd, "", &p_response);
+    }
+
+    if (err < 0 || p_response->success == 0) {
+        if (p_response != NULL) {
+            strlcat(buf, p_response->finalResponse, sizeof(buf));
+            strlcat(buf, "\r\n", sizeof(buf));
+            response = buf;
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(char*));
+        } else {
+            goto error;
+        }
+    } else {
+        p_cur = p_response->p_intermediates;
+        for (i=0; p_cur != NULL; p_cur = p_cur->p_next,i++) {
+            strlcat(buf, p_cur->line, sizeof(buf));
+            strlcat(buf, "\r\n", sizeof(buf));
+        }
+        strlcat(buf, p_response->finalResponse, sizeof(buf));
+        strlcat(buf, "\r\n", sizeof(buf));
+        response = buf;
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char*));
+        if(!strncasecmp(at_cmd, "AT+SFUN=5", strlen("AT+SFUN=5"))){
+            setRadioState(channelID, RADIO_STATE_OFF);
+        }
+    }
+    at_response_free(p_response);
+    return;
+
+error:
+    memset(buf, 0 ,sizeof(buf));
+    strlcat(buf, "ERROR", sizeof(buf));
+    strlcat(buf, "\r\n", sizeof(buf));
+    response = buf;
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response,
+                          sizeof(char *));
+    at_response_free(p_response);
+}
+#endif
 
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
 static char* strReplace(char *str, char flag)
