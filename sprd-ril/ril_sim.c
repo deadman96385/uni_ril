@@ -17,6 +17,7 @@
 /* Property to save pin for modem assert */
 #define SIM_PIN_PROP                            "vendor.ril.sim.pin"
 #define MODEM_ASSERT_PROP                       "vendor.ril.modem.assert"
+#define AUTO_SAVE_PIN                           "persist.vendor.radio.mdrec.simpin.cache"
 #define FACILITY_LOCK_REQUEST                   "2"
 
 #define TYPE_FCP                                0x62
@@ -153,6 +154,16 @@ static pthread_mutex_t s_simStatusMutex[SIM_COUNT] = {
 static void setSIMPowerOff(void *param);
 static int queryFDNServiceAvailable(int channelID);
 int initISIM(int channelID);
+
+static bool needCacheSimPin() {
+    bool ret = false;
+    char prop[PROPERTY_VALUE_MAX] = { 0 };
+    property_get(AUTO_SAVE_PIN, prop, "0");
+    if (0 == strcmp(prop, "1")) {
+        ret = true;
+    }
+    return ret;
+}
 
 void onModemReset_Sim() {
     RIL_SOCKET_ID socket_id  = 0;
@@ -415,36 +426,37 @@ SimStatus getSIMStatus(int request, int channelID) {
     }
 
     if (0 == strcmp(cpinResult, "SIM PIN")) {
-        char modemAssertProp[PROPERTY_VALUE_MAX];
+        if (needCacheSimPin()) {
+            char modemAssertProp[PROPERTY_VALUE_MAX];
 
-        getProperty(socket_id, MODEM_ASSERT_PROP, modemAssertProp, "0");
-        if (strcmp(modemAssertProp, "1") == 0) {
-            setProperty(socket_id, MODEM_ASSERT_PROP, "0");
+            getProperty(socket_id, MODEM_ASSERT_PROP, modemAssertProp, "0");
+            if (strcmp(modemAssertProp, "1") == 0) {
+                setProperty(socket_id, MODEM_ASSERT_PROP, "0");
 
-            char cmd[AT_COMMAND_LEN];
-            char pin[PROPERTY_VALUE_MAX];
-            char encryptedPin[PROPERTY_VALUE_MAX];
-            ATResponse *p_resp = NULL;
+                char cmd[AT_COMMAND_LEN];
+                char pin[PROPERTY_VALUE_MAX];
+                char encryptedPin[PROPERTY_VALUE_MAX];
+                ATResponse *p_resp = NULL;
 
-            memset(pin, 0, sizeof(pin));
-            getProperty(socket_id, SIM_PIN_PROP, encryptedPin, "");
-            decryptPin(pin, (unsigned char *)encryptedPin);
+                memset(pin, 0, sizeof(pin));
+                getProperty(socket_id, SIM_PIN_PROP, encryptedPin, "");
+                decryptPin(pin, (unsigned char *) encryptedPin);
 
-            if (strlen(pin) != 4) {
-                goto out;
-            } else {
-                snprintf(cmd, sizeof(cmd), "AT+CPIN=%s", pin);
-                err = at_send_command(s_ATChannels[channelID], cmd, &p_resp);
-                if (err < 0 || p_resp->success == 0) {
-                    at_response_free(p_resp);
+                if (strlen(pin) != 4) {
                     goto out;
+                } else {
+                    snprintf(cmd, sizeof(cmd), "AT+CPIN=%s", pin);
+                    err = at_send_command(s_ATChannels[channelID], cmd, &p_resp);
+                    if (err < 0 || p_resp->success == 0) {
+                        at_response_free(p_resp);
+                        goto out;
+                    }
+                    at_response_free(p_resp);
+                    ret = SIM_NOT_READY;
+                    goto done;
                 }
-                at_response_free(p_resp);
-                ret = SIM_NOT_READY;
-                goto done;
             }
         }
-
 out:
         ret = SIM_PIN;
         goto done;
@@ -973,7 +985,7 @@ static void requestEnterSimPin(int channelID, void *data, size_t datalen,
             goto out;
         }
 
-        if (pin != NULL) {
+        if ((pin != NULL) && needCacheSimPin()) {
             unsigned char encryptedPin[ARRAY_SIZE];
             memset(encryptedPin, 0, sizeof(encryptedPin));
             encryptPin(strlen(pin), (char *)pin, encryptedPin);
@@ -1132,14 +1144,16 @@ static void requestChangeSimPin(int channelID, void *data, size_t datalen,
         goto error;
     } else {
         /* add for modem reboot */
-        const char *pin = NULL;
-        pin = strings[1];
-        unsigned char encryptedPin[ARRAY_SIZE];
+        if (needCacheSimPin()) {
+            const char *pin = NULL;
+            pin = strings[1];
+            unsigned char encryptedPin[ARRAY_SIZE];
 
-        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-        memset(encryptedPin, 0, sizeof(encryptedPin));
-        encryptPin(strlen(pin), (char *)pin, encryptedPin);
-        setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+            memset(encryptedPin, 0, sizeof(encryptedPin));
+            encryptPin(strlen(pin), (char *) pin, encryptedPin);
+            setProperty(socket_id, SIM_PIN_PROP, (const char *) encryptedPin);
+        }
     }
 
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -1308,14 +1322,15 @@ static void requestFacilityLock(int request, int channelID, char **data,
             goto error;
         } else if (!strcmp(data[0], "SC")) {
             /* add for modem reboot */
-            char *pin = NULL;
-            pin = data[2];
-            unsigned char encryptedPin[ARRAY_SIZE];
+            if (needCacheSimPin()) {
+                char *pin = NULL;
+                pin = data[2];
+                unsigned char encryptedPin[ARRAY_SIZE];
+                memset(encryptedPin, 0, sizeof(encryptedPin));
+                encryptPin(strlen(pin), pin, encryptedPin);
 
-            memset(encryptedPin, 0, sizeof(encryptedPin));
-            encryptPin(strlen(pin), pin, encryptedPin);
-            setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
-
+                setProperty(socket_id, SIM_PIN_PROP, (const char *)encryptedPin);
+            }
             getSimlockRemainTimes(channelID, UNLOCK_PIN);
         } else if (!strcmp(data[0], "FD")) {
             getSimlockRemainTimes(channelID, UNLOCK_PIN2);
