@@ -483,6 +483,13 @@ char* getPDNAPN(int index) {
     else
         return pdn[index].strApn;
 }
+char *getPDNAttachAPN(int index) {
+    if (index >= MAX_PDP_CP || index < 0) {
+        return NULL;
+    } else {
+        return pdn[index].strAttachApn;
+    }
+}
 static void queryAllActivePDNInfos(int channelID) {
     int err = 0;
     int skip, active;
@@ -3592,7 +3599,15 @@ static char* checkNeedFallBack(int channelID,char * pdp_type,int cidIndex) {
     }
     return ret;
 }
-
+static bool isProtocolEqual(char *new, char *old) {
+    bool ret = false;
+    if (strcasecmp(new, "IPV4V6") == 0 ||
+        strcasecmp(old, "IPV4V6") == 0 ||
+        strcasecmp(new, old) == 0) {
+        ret = true;
+    }
+    return ret;
+}
 static void requestSetupDataCall(int channelID, void *data, size_t datalen, RIL_Token t)
 {
     const char *apn = NULL;
@@ -3658,7 +3673,9 @@ RETRY:
                     }
                     if (i < MAX_PDP
                             && (!strcasecmp(getPDNAPN(i), apn)
-                                    || !strcasecmp(strApnName, apn)) && (getPDPState(i) == PDP_IDLE)) {
+                                    || !strcasecmp(strApnName, apn) || !strcasecmp(apn, getPDNAttachAPN(i)))
+                            && (getPDPState(i) == PDP_IDLE)
+                            && isProtocolEqual(pdp_type, getPDNIPType(i))) {
                         RILLOGD("Using default PDN");
                         primaryindex = i;
                         getPDPByIndex(i);
