@@ -227,6 +227,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
         request == RIL_REQUEST_GET_ACTIVITY_INFO ||
         request == RIL_REQUEST_SET_CARRIER_RESTRICTIONS||
         request == RIL_REQUEST_GET_CARRIER_RESTRICTIONS ||
+        request == RIL_REQUEST_START_KEEPALIVE ||
+        request == RIL_REQUEST_STOP_KEEPALIVE ||
         request == RIL_REQUEST_STOP_LCE) {
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
         goto done;
@@ -810,7 +812,6 @@ void initModemProp(int channelID) {
     int err;
     int modemCap = -1; // modem max capability
     bool isOversea = true;
-
     property_get(MODEM_CAPABILITY, modemCapbility, "");
     property_get(MODEM_CONFIG_PROP, modemConfig, "");
     property_get(MODEM_WORKMODE_PROP, workmode, "");
