@@ -664,11 +664,9 @@ static void requestStoreSmsToSim(int channelID, void *data,
         char prop[ARRAY_SIZE];
         property_get(MIFI_PRODUCT_PROP, prop, "false");
         RLOGD("mifi product prop = %s", prop);
-        if (strcmp(prop, "false") == 0) {
-            at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
-        } else {
-            at_send_command(s_ATChannels[channelID], "AT+CNMI=3,0,2,1,1", NULL);
-        }
+	RLOGD("recovery rcv sms support for SUNELAN");
+        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+
         snprintf(cmd, sizeof(cmd), "AT+CPMS=\"%s\",\"%s\",\"ME\"", memoryRD,
                 memoryWS);
     }

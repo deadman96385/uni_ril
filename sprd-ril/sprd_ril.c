@@ -570,11 +570,13 @@ static void onSIMReady(int channelID) {
     char prop[ARRAY_SIZE];
     property_get(MIFI_PRODUCT_PROP, prop, "false");
     RLOGD("mifi product prop = %s", prop);
-    if (strcmp(prop, "false") == 0) {
-        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
-    } else {
-        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,0,2,1,1", NULL);
-    }
+    RLOGD("add rcv sms support for SUNELAN");
+    at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+//    if (strcmp(prop, "false") == 0) {
+//        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
+//    } else {
+//        at_send_command(s_ATChannels[channelID], "AT+CNMI=3,0,2,1,1", NULL);
+//    }
 }
 
 void setRadioState(int channelID, RIL_RadioState newState) {
