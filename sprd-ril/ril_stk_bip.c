@@ -989,7 +989,7 @@ static void *createSocketThread(void *param) {
         pstkContext->channelStatus.channelId = 0;
         pstkContext->channelStatus.linkStatus = false;
         pstkContext->channelStatus.mode_info = CHANNEL_MODE_NO_FURTHER_INFO;
-        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
+        sendChannelResponse(pstkContext, BIP_ERROR, socket_id);
         pstkContext->channelEstablished = false;
     }
 
@@ -1064,7 +1064,7 @@ static void *openChannelThread(void *param) {
         }
     } else {
         RLOGD("[stk] SetupStkConnect fail");
-        sendChannelResponse(pstkContext, BEYOND_TERMINAL_CAPABILITY, socket_id);
+        sendChannelResponse(pstkContext, BIP_ERROR, socket_id);
     }
     return NULL;
 }
