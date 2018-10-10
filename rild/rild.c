@@ -44,45 +44,12 @@
 #define LIB_ARGS_PROPERTY   "rild.libargs"
 #endif
 
+#define PHONE_COUNT_PROPERTY    "persist.vendor.radio.phone_count"
+
 static void usage(const char *argv0) {
     fprintf(stderr, "Usage: %s -l <ril impl library> [-- <args for impl library>]\n", argv0);
     exit(EXIT_FAILURE);
 }
-
-extern char ril_service_name_base[MAX_SERVICE_NAME_LENGTH];
-extern char ril_service_name[MAX_SERVICE_NAME_LENGTH];
-
-extern void RIL_register (const RIL_RadioFunctions *callbacks);
-extern void rilc_thread_pool ();
-
-extern void RIL_register_socket (const RIL_RadioFunctions *(*rilUimInit)
-        (const struct RIL_Env *, int, char **), RIL_SOCKET_TYPE socketType, int argc, char **argv);
-
-extern void RIL_onRequestComplete(RIL_Token t, RIL_Errno e,
-        void *response, size_t responselen);
-
-extern void RIL_onRequestAck(RIL_Token t);
-
-#if defined(ANDROID_MULTI_SIM)
-extern void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
-        size_t datalen, RIL_SOCKET_ID socket_id);
-#else
-extern void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
-        size_t datalen);
-#endif
-
-extern void RIL_requestTimedCallback (RIL_TimedCallback callback,
-        void *param, const struct timeval *relativeTime);
-
-
-static struct RIL_Env s_rilEnv = {
-    RIL_onRequestComplete,
-    RIL_onUnsolicitedResponse,
-    RIL_requestTimedCallback,
-    RIL_onRequestAck
-};
-
-extern void RIL_startEventLoop();
 
 static int make_argv(char * args, char ** argv) {
     // Note: reserve argv[0]
@@ -116,6 +83,18 @@ int main(int argc, char **argv) {
     // flat to indicate if -- parameters are present
     unsigned char hasLibArgs = 0;
 
+    // handle for ril lib
+    void *rilDlHandle = NULL;
+    const struct RIL_Env *(*rilStartEventLoop)();
+    const struct RIL_Env *rilEnv = NULL;
+    void (*rilRegister)(const RIL_RadioFunctions *);
+    void (*rilcThreadPool)();
+    void (*rilRegisterSocket)(const RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **),
+            RIL_SOCKET_TYPE, int, char **);
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    const char *rilLibName = NULL;
+    const char *vendorRilLibName = NULL;
+
     int i;
     // ril/socket id received as -c parameter, otherwise set to 0
     const char *clientId = NULL;
@@ -146,20 +125,59 @@ int main(int argc, char **argv) {
         RLOGE("Max Number of rild's supported is: %d", MAX_RILDS);
         exit(0);
     }
-    if (strncmp(clientId, "0", MAX_CLIENT_ID_LENGTH)) {
-        snprintf(ril_service_name, sizeof(ril_service_name), "%s%s", ril_service_name_base,
-                 clientId);
+
+    property_get(PHONE_COUNT_PROPERTY, prop, "2");
+    RLOGD("phone count: %s", prop);
+    if (strcmp(prop, "1") == 0) {
+        rilLibName = "librilsprd-single.so";
+        vendorRilLibName = "libsprd-ril-single.so";
+    } else {
+        rilLibName = "librilsprd.so";
+        vendorRilLibName = "libsprd-ril.so";
     }
 
-    dlHandle = dlopen("libsprd-ril.so", RTLD_NOW);
+    rilDlHandle = dlopen(rilLibName, RTLD_NOW);
+    if (rilDlHandle == NULL) {
+        RLOGE("dlopen failed: %s", dlerror());
+        exit(EXIT_FAILURE);
+    }
 
+    dlHandle = dlopen(vendorRilLibName, RTLD_NOW);
     if (dlHandle == NULL) {
         RLOGE("dlopen failed: %s", dlerror());
         exit(EXIT_FAILURE);
     }
 
-    RIL_startEventLoop();
+    rilStartEventLoop = (const struct RIL_Env *(*)())dlsym(rilDlHandle, "RIL_startEventLoop");
+    if (rilStartEventLoop == NULL) {
+        RLOGE("RIL_startEventLoop not defined or exported in librilsprd.so or librilsprd-single.so");
+        exit(EXIT_FAILURE);
+    }
 
+    dlerror(); // Clear any previous dlerror
+    rilRegister = (void (*)(const RIL_RadioFunctions *))dlsym(rilDlHandle, "RIL_register");
+    if (rilRegister == NULL) {
+        RLOGE("RIL_register not defined or exported in librilsprd.so or librilsprd-single.so");
+        exit(EXIT_FAILURE);
+    }
+
+    dlerror(); // Clear any previous dlerror
+    rilcThreadPool = (void (*)())dlsym(rilDlHandle, "rilc_thread_pool");
+    if (rilcThreadPool == NULL) {
+        RLOGE("rilc_thread_pool not defined or exported in librilsprd.so or librilsprd-single.so");
+        exit(EXIT_FAILURE);
+    }
+
+    dlerror(); // Clear any previous dlerror
+    rilRegisterSocket = (void (*)())dlsym(rilDlHandle, "RIL_register_socket");
+    if (rilRegisterSocket == NULL) {
+        RLOGE("RIL_register_socket not defined or exported in librilsprd.so or librilsprd-single.so");
+        exit(EXIT_FAILURE);
+    }
+
+    rilEnv = rilStartEventLoop();
+
+    dlerror(); // Clear any previous dlerror
     rilInit =
         (const RIL_RadioFunctions *(*)(const struct RIL_Env *, int, char **))
         dlsym(dlHandle, "RIL_Init");
@@ -196,21 +214,21 @@ int main(int argc, char **argv) {
     // Make sure there's a reasonable argv[0]
     rilArgv[0] = argv[0];
 
-    funcs = rilInit(&s_rilEnv, argc, rilArgv);
+    funcs = rilInit(rilEnv, argc, rilArgv);
     RLOGD("RIL_Init rilInit completed");
 
-    RIL_register(funcs);
+    rilRegister(funcs);
 
     RLOGD("RIL_Init RIL_register completed");
 
     if (rilUimInit) {
         RLOGD("RIL_register_socket started");
-        RIL_register_socket(rilUimInit, RIL_SAP_SOCKET, argc, rilArgv);
+        rilRegisterSocket(rilUimInit, RIL_SAP_SOCKET, argc, rilArgv);
     }
 
     RLOGD("RIL_register_socket completed");
 
-    rilc_thread_pool();
+    rilcThreadPool();
 
     RLOGD("RIL_Init starting sleep loop");
     while (true) {

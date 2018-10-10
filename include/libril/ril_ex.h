@@ -29,14 +29,6 @@ int blockingWrite_helper(int fd, void *data, size_t len);
 
 enum SocketWakeType {DONT_WAKE, WAKE_PARTIAL};
 
-typedef enum {
-    RIL_TELEPHONY_SOCKET,
-    RIL_SAP_SOCKET,
-    RIL_ATCI_SOCKET,
-    RIL_IMS_SOCKET,
-    RIL_OEM_SOCKET
-} RIL_SOCKET_TYPE;
-
 typedef struct SocketListenParam {
     RIL_SOCKET_ID socket_id;
     int fdListen;

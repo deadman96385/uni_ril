@@ -49,11 +49,7 @@
 #include <ril_service.h>
 #include <sap_service.h>
 
-extern "C" void
-RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responselen);
 
-extern "C" void
-RIL_onRequestAck(RIL_Token t);
 namespace android {
 
 #define PHONE_PROCESS "radio"
@@ -162,16 +158,6 @@ static void grabPartialWakeLock();
 void releaseWakeLock();
 static void wakeTimeoutCallback(void *);
 
-#ifdef RIL_SHLIB
-#if defined(ANDROID_MULTI_SIM)
-extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
-                                size_t datalen, RIL_SOCKET_ID socket_id);
-#else
-extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
-                                size_t datalen);
-#endif
-#endif
-
 #if defined(ANDROID_MULTI_SIM)
 #define RIL_UNSOL_RESPONSE(a, b, c, d) RIL_onUnsolicitedResponse((a), (b), (c), (d))
 #define CALL_ONREQUEST(a, b, c, d, e) s_callbacks.onRequest((a), (b), (c), (d), (e))
@@ -185,6 +171,13 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
 static UserCallbackInfo * internalRequestTimedCallback
     (RIL_TimedCallback callback, void *param,
         const struct timeval *relativeTime);
+
+static struct RIL_Env s_rilEnv = {
+    RIL_onRequestComplete,
+    RIL_onUnsolicitedResponse,
+    RIL_requestTimedCallback,
+    RIL_onRequestAck
+};
 
 /** Index == requestNumber */
 static CommandInfo s_commands[] = {
@@ -425,7 +418,7 @@ eventLoop(void *param) {
     return NULL;
 }
 
-extern "C" void
+extern "C" const struct RIL_Env *
 RIL_startEventLoop(void) {
     /* spin up eventLoop thread and wait for it to get started */
     s_started = 0;
@@ -447,6 +440,7 @@ RIL_startEventLoop(void) {
 
 done:
     pthread_mutex_unlock(&s_startupMutex);
+    return &s_rilEnv;
 }
 
 // Used for testing purpose only.

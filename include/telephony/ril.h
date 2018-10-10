@@ -119,6 +119,14 @@ typedef enum {
 } RIL_SOCKET_ID;
 
 typedef enum {
+    RIL_TELEPHONY_SOCKET,
+    RIL_SAP_SOCKET,
+    RIL_ATCI_SOCKET,
+    RIL_IMS_SOCKET,
+    RIL_OEM_SOCKET
+} RIL_SOCKET_TYPE;
+
+typedef enum {
     RIL_E_SUCCESS = 0,
     RIL_E_RADIO_NOT_AVAILABLE = 1,     /* If radio did not start or is resetting */
     RIL_E_GENERIC_FAILURE = 2,
@@ -7557,7 +7565,7 @@ typedef struct {
 } RIL_StkCallControlResult;
 /* @} */
 
-#ifdef RIL_SHLIB
+//#ifdef RIL_SHLIB
 struct RIL_Env {
     /**
      * "t" is parameter passed in on previous call to RIL_Notification
@@ -7642,7 +7650,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
  */
 const RIL_RadioFunctions *RIL_SAP_Init(const struct RIL_Env *env, int argc, char **argv);
 
-#else /* RIL_SHLIB */
+//#else /* RIL_SHLIB */
 
 /**
  * Call this once at startup to register notification routine
@@ -7650,6 +7658,9 @@ const RIL_RadioFunctions *RIL_SAP_Init(const struct RIL_Env *env, int argc, char
  * @param callbacks user-specifed callback function
  */
 void RIL_register(const RIL_RadioFunctions *callbacks);
+
+void RIL_register_socket(const RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),
+        RIL_SOCKET_TYPE socketType, int argc, char **argv);
 
 void rilc_thread_pool();
 
@@ -7717,7 +7728,9 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
 void RIL_requestTimedCallback(RIL_TimedCallback callback,
                                void *param, const struct timeval *relativeTime);
 
-#endif /* RIL_SHLIB */
+const struct RIL_Env *RIL_startEventLoop();
+
+//#endif /* RIL_SHLIB */
 
 #ifdef __cplusplus
 }
