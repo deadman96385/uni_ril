@@ -38,7 +38,7 @@ const cmd_table s_ATTimeoutTable[] = {
         {AT_CMD_STR("AT+CGMR"), 5},
         {AT_CMD_STR("AT+CGDCONT?"), 5},
         {AT_CMD_STR("AT+CGDCONT="), 5},
-        {AT_CMD_STR("AT+CGDATA="), 120},
+        {AT_CMD_STR("AT+CGDATA="), 155},
         {AT_CMD_STR("AT+CGACT?"), 5},
         {AT_CMD_STR("AT+CGACT=1"), 600},
         {AT_CMD_STR("AT+CGACT=0"), 50},
