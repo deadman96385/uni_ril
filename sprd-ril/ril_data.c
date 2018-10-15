@@ -2730,7 +2730,8 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         char *tmp;
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
-        int response[2];
+        int response[3] = {0};
+        int plmn = 0;
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -2740,6 +2741,10 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &errCode);
         if (err < 0) goto out;
+
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &plmn);
+        }
 
         if (errCode == 336) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
@@ -2760,6 +2765,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
         response[0] = type;
         response[1] = errCode;
+        response[2] = plmn;
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, &response, sizeof(response),
                                 socket_id);
     } else if (strStartsWith(s, "+SPSWAPCARD:")) {
