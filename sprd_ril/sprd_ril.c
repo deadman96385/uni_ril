@@ -13168,7 +13168,7 @@ out:
     } else if (0 == strcmp (cpinResult, "SIM PUK2")) {
         ret = SIM_PUK2;
         goto done;
-    } else if (0 == strcmp (cpinResult, "BLOCK")) {
+    } else if (0 == strcmp (cpinResult, "PIN1_BLOCK_PUK1_BLOCK")) {
         ret = SIM_BLOCK;
         goto done;
     } else if (0 == strcmp (cpinResult, "PH-NET PIN")) {
@@ -13277,15 +13277,9 @@ static int getCardStatus(int channelID, RIL_CardStatus_v6 **pp_card_status)
         /* SIM_NETWORK_PERSONALIZATION = 5 */
         { RIL_APPTYPE_SIM, RIL_APPSTATE_SUBSCRIPTION_PERSO, RIL_PERSOSUBSTATE_SIM_NETWORK,
             NULL, NULL, 0, RIL_PINSTATE_ENABLED_NOT_VERIFIED, RIL_PINSTATE_UNKNOWN },
-#if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
         /* SIM_BLOCK = 6 */
         { RIL_APPTYPE_SIM, RIL_APPSTATE_PUK, RIL_PERSOSUBSTATE_UNKNOWN,
             NULL, NULL, 0, RIL_PINSTATE_ENABLED_PERM_BLOCKED, RIL_PINSTATE_UNKNOWN },
-#elif defined (RIL_SPRD_EXTENSION)
-        /* SIM_BLOCK = 6 */
-        { RIL_APPTYPE_SIM, RIL_APPSTATE_BLOCKED, RIL_PERSOSUBSTATE_UNKNOWN,
-            NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_UNKNOWN },
-#endif
         /* SIM_PIN2 = 7 */
         { RIL_APPTYPE_SIM, RIL_APPSTATE_READY, RIL_PERSOSUBSTATE_UNKNOWN,
             NULL, NULL, 0, RIL_PINSTATE_UNKNOWN, RIL_PINSTATE_ENABLED_NOT_VERIFIED },
