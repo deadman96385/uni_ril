@@ -9156,11 +9156,11 @@ pthread_rwlock_t * radio::getRadioServiceRwlock(int slotId) {
     pthread_rwlock_t *radioServiceRwlockPtr = &radioServiceRwlock;
 
     #if (SIM_COUNT >= 2)
-    if (slotId == 2) radioServiceRwlockPtr = &radioServiceRwlock2;
+    if (slotId == 1) radioServiceRwlockPtr = &radioServiceRwlock2;
     #if (SIM_COUNT >= 3)
-    if (slotId == 3) radioServiceRwlockPtr = &radioServiceRwlock3;
+    if (slotId == 2) radioServiceRwlockPtr = &radioServiceRwlock3;
     #if (SIM_COUNT >= 4)
-    if (slotId == 4) radioServiceRwlockPtr = &radioServiceRwlock4;
+    if (slotId == 3) radioServiceRwlockPtr = &radioServiceRwlock4;
     #endif
     #endif
     #endif
