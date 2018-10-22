@@ -6220,7 +6220,8 @@ typedef enum {
 #define RIL_EXT_REQUEST_UPDATE_PLMN                 (RIL_EXT_REQUEST_BASE + 17)
 #define RIL_EXT_REQUEST_QUERY_PLMN                  (RIL_EXT_REQUEST_BASE + 18)
 /*@} */
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_QUERY_PLMN
+#define RIL_EXT_REQUEST_UPDATE_CLIP                (RIL_EXT_REQUEST_BASE + 19)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_UPDATE_CLIP
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 6500
 #define RIL_EXT_UNSOL_RIL_CONNECTED                 (RIL_EXT_UNSOL_RESPONSE_BASE + 0)

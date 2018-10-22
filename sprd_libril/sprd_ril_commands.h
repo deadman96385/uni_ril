@@ -282,6 +282,7 @@
     ,{RIL_EXT_REQUEST_UPDATE_PLMN, dispatchInts, responseVoid}
     ,{RIL_EXT_REQUEST_QUERY_PLMN, dispatchInts, responseString}
     /* @} */
+    ,{RIL_EXT_REQUEST_UPDATE_CLIP, dispatchInts, responseVoid}
 #endif
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)

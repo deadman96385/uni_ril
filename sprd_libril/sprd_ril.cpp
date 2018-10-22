@@ -6908,6 +6908,7 @@ requestToString(int request) {
         case RIL_EXT_REQUEST_UPDATE_PLMN: return "UPDATE_PLMN";
         case RIL_EXT_REQUEST_QUERY_PLMN: return "QUERY_PLMN";
         /* @} */
+        case RIL_EXT_REQUEST_UPDATE_CLIP: return "UPDATE_CLIP";
 #endif  // RIL_SUPPORTED_OEMSOCKET
 #endif
 #if defined (GLOBALCONFIG_RIL_SAMSUNG_LIBRIL_INTF_EXTENSION)
