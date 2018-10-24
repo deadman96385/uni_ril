@@ -1959,7 +1959,7 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
     response->password = (char *)calloc(ARRAY_SIZE, sizeof(char));
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+    property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
     RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
 
     if (data != NULL) {

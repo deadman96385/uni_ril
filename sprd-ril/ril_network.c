@@ -1164,7 +1164,7 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
         }
         initWorkMode();
 
-        property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "1");
+        property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
         RLOGD("persist.radio.manual.attach: %s", manualAttachProp);
         if(!strcmp(manualAttachProp, "1") && s_isFirstPowerOn[socket_id] && (s_roModemConfig == LWG_LWG || socket_id == s_multiModeSim)){
             at_send_command(s_ATChannels[channelID], "AT+SPMANUATTACH=1", NULL);
