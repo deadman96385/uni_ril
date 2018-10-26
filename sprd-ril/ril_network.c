@@ -1242,7 +1242,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
                 return;
             } else {
-                if (socket_id != s_multiModeSim) {
+                getProperty(1 - socket_id, SIM_ENABLED_PROP, simEnabledProp, "1");
+                if (socket_id != s_multiModeSim && !strcmp(simEnabledProp, "1")) {
                     if (s_radioState[1 - socket_id] == RADIO_STATE_OFF ||
                             s_radioState[1 - socket_id] == RADIO_STATE_UNAVAILABLE) {
                         int *data = (int *)calloc(1, sizeof(int));
