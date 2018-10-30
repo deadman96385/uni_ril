@@ -1064,6 +1064,27 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_SET_LOCATION_INFO: {
+            p_response = NULL;
+            char cmd[64] = {0};
+            char *longitude = ((char **)data)[0];
+            char *latitude = ((char **)data)[1];
+            if ((longitude == NULL) || (latitude == NULL) ||
+                (strlen(longitude) > 20) || (strlen(latitude) > 20)) {
+                RLOGE("The length of longitude or latitude is too long");
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                break;
+            }
+            snprintf(cmd, sizeof(cmd), "AT+SPLOCINFO=\"%s\",\"%s\"", longitude, latitude);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }

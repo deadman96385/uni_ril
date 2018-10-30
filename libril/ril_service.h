@@ -929,6 +929,10 @@ int setRadioPowerFallbackResponse(int slotId, int responseType, int serial,
 
 int getCnapResponse(int slotId, int responseType, int serial,
                               RIL_Errno e, void *response, size_t responseLen);
+
+int setLocationInfoResponse(int slotId, int responseType, int serial,
+                            RIL_Errno e, void *response, size_t responseLen);
+
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 
 int vsimSendCmdResponse(int slotId, int responseType, int serial,

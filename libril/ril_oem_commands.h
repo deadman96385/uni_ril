@@ -99,3 +99,5 @@
     {RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE, radio::getPreferredNetworkTypeExtResponse},
     {RIL_EXT_REQUEST_RADIO_POWER_FALLBACK, radio::setRadioPowerFallbackResponse},
     {RIL_EXT_REQUEST_GET_CNAP, radio::getCnapResponse},
+    {RIL_EXT_REQUEST_SET_LOCATION_INFO, radio::setLocationInfoResponse},
+

@@ -632,6 +632,10 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> getCnap(int32_t serial);
 
+    Return<void> setLocationInfo(int32_t serial,
+            const ::android::hardware::hidl_string& longitude,
+            const ::android::hardware::hidl_string& latitude);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9799,6 +9803,7 @@ Return<void> RadioImpl::setRadioPowerFallback(int32_t serial, bool enabled) {
     return Void();
 }
 
+
 Return<void> RadioImpl::getCnap(int32_t serial) {
 #if VDBG
     RLOGD("getCNAP: serial %d", serial);
@@ -9806,6 +9811,18 @@ Return<void> RadioImpl::getCnap(int32_t serial) {
     dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_CNAP);
     return Void();
 }
+
+Return<void> RadioImpl::setLocationInfo(int32_t serial,
+        const ::android::hardware::hidl_string& longitude,
+        const ::android::hardware::hidl_string& latitude) {
+#if VDBG
+    RLOGD("setLocationInfo : serial %d", serial);
+#endif
+    dispatchStrings(serial, mSlotId, RIL_EXT_REQUEST_SET_LOCATION_INFO, true,
+            2, longitude.c_str(), latitude.c_str());
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11144,7 +11161,6 @@ int radio::setRadioPowerFallbackResponse(int slotId, int responseType, int seria
 #if VDBG
     RLOGD("setRadioPowerFallbackResponse: serial %d", serial);
 #endif
-
     if (radioService[slotId]->mExtRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
         populateResponseInfo(responseInfo, serial, responseType, e);
@@ -11184,6 +11200,26 @@ int radio::getCnapResponse(int slotId, int responseType, int serial,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("getCNAPResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+}
+
+int radio::setLocationInfoResponse(int slotId,
+                               int responseType, int serial, RIL_Errno e,
+                               void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setLocationInfoResponse : serial %d", serial);
+#endif
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setLocationInfoResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setLocationInfoResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
     }
 
     return 0;
