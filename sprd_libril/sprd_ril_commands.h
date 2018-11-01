@@ -260,7 +260,7 @@
     ,{RIL_REQUEST_SET_VOWIFI_PCSCF_ADDR, dispatchStrings, responseVoid}
     ,{RIL_REQUEST_IMS_REGADDR, dispatchVoid, responseStrings}
     /* @} */
-
+    ,{RIL_REQUEST_GET_CEID, dispatchVoid, responseString}
 #if defined (RIL_SUPPORTED_OEMSOCKET)
     ,{RIL_EXT_REQUEST_GET_HD_VOICE_STATE, dispatchVoid, responseInts}
     ,{RIL_EXT_REQUEST_SIM_GET_ATR, dispatchVoid, responseString}

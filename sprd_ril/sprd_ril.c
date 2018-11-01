@@ -9746,6 +9746,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 || request == RIL_REQUEST_SET_SPEED_MODE
                 || request == RIL_REQUEST_DELETE_SMS_ON_SIM
                 || request == RIL_REQUEST_GET_IMSI
+                || request == RIL_REQUEST_GET_CEID
                 || request == RIL_REQUEST_QUERY_FACILITY_LOCK
                 || request == RIL_REQUEST_SET_FACILITY_LOCK
                 || request == RIL_REQUEST_SET_FACILITY_LOCK_FOR_USER//SPRD: add for one key simlock
@@ -11665,6 +11666,41 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
                 }
                 break;
             }
+
+        case RIL_REQUEST_GET_CEID:
+        {
+            /*
+            AT+CEID
+            +CEID: 908106031C0102345678
+            OK
+            */
+            char *line;
+            p_response = NULL;
+            char *response;
+            err = at_send_command_singleline(ATch_type[channelID], "AT+CEID","+CEID:", &p_response);
+            if (err < 0 || p_response->success == 0) {
+                goto error;
+            }
+
+            line = p_response->p_intermediates->line;
+            RILLOGD("getCEID: err=%d line=%s", err, line);
+
+            err = at_tok_start(&line);
+            if( err < 0 ) goto error;
+
+            err = at_tok_nextstr( &line, &response );
+            if (err < 0) goto error;
+
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response)+1 );
+            at_response_free(p_response);
+            break;
+
+error:
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            break;
+        }
+
         case RIL_REQUEST_GET_SIM_CAPACITY:
             {
                 char *line, *skip;
