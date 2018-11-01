@@ -1435,12 +1435,16 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env,
         }
     }
 
+#if defined (ANDROID_MULTI_SIM)
     property_get(ALLOW_DATA_SOCKET_ID, allowDataProp, "-1");
     simId = atoi(allowDataProp);
     if (simId < SIM_COUNT && simId >= 0) {
         RLOGD("allow data simId is %d", simId );
         s_dataAllowed[simId] = 1;
     }
+#else
+    s_dataAllowed[0] = 1;
+#endif
 
     signal(SIGPIPE, SIG_IGN);
 
