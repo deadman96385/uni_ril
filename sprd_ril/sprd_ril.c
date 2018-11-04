@@ -14006,7 +14006,7 @@ error:
         at_response_free(p_response);
     putChannel(channelID);
 }
-
+int s_sim_num;
 /**
  * Called by atchannel when an unsolicited line appears
  * This is called on atchannel's reader thread. AT commands may
@@ -14036,13 +14036,13 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
 		if (modem == 1) {
             socket_id = 2;//sim1
 		}
-
+        RILLOGD("RSIMREQ use s_sim_num = %d and modem = %d ", s_sim_num, modem);
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
         skipWhiteSpace(&tmp);
         response = (char *)calloc((strlen(tmp) + 5), sizeof(char));
-        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
+        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", s_sim_num, tmp);
         sendVsimReq(response);
     } else
     
@@ -16457,7 +16457,6 @@ void setHwVerPorp() {
 #ifdef RIL_SHLIB
 
 pthread_t s_tid_mainloop;
-int s_sim_num;
 
 const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **argv)
 {
