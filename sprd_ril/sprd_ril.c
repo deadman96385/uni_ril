@@ -14084,17 +14084,13 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
     if (strStartsWith(s, "%RSIMREQ:")) {
         char *tmp;
         char *response = NULL;
-		int socket_id = 1; //sim0
-		if (modem == 1) {
-            socket_id = 2;//sim1
-		}
 
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
         skipWhiteSpace(&tmp);
         response = (char *)calloc((strlen(tmp) + 5), sizeof(char));
-        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", socket_id, tmp);
+        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", modem, tmp);
         sendVsimReq(response);
     } else
     
@@ -16531,7 +16527,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
                 break;
             case 'n':
                 s_sim_num = atoi(optarg);
-                modem = *optarg;
+                modem = s_sim_num;
                 break;
             default:
                 usage(argv[0]);
