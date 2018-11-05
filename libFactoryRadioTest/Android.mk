@@ -29,17 +29,11 @@ LOCAL_MODULE := libFactoryRadioTest
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_PROPRIETARY_MODULE := true
+LOCAL_MODULE_RELATIVE_PATH := npidevice
 
 LOCAL_C_INCLUDES += \
     vendor/sprd/proprietories-source/engmode \
     vendor/sprd/proprietories-source/ril/sprd-ril
-
-RADIO_NPI_FILE := /vendor/lib/libFactoryRadioTest.so
-SYMLINK := $(TARGET_OUT_VENDOR)/lib/npidevice/libFactoryRadioTest.so
-LOCAL_POST_INSTALL_CMD := $(hide) \
-    mkdir -p $(TARGET_OUT_VENDOR)/lib/npidevice; \
-    rm -rf $(SYMLINK) ;\
-    ln -sf $(RADIO_NPI_FILE) $(SYMLINK);
 
 include $(BUILD_SHARED_LIBRARY)
 
