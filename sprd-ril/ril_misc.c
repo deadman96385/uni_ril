@@ -36,10 +36,6 @@ pthread_cond_t s_vsimSocketCond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t s_screenMutex = PTHREAD_MUTEX_INITIALIZER;
 struct timeval s_timevalCloseVsim = {60, 0};
 
-//test fzl
-static void handleHighRateMode();
-static void handleNormalRateMode();
-
 typedef struct {
     int socket_id1;
     int socket_id2;
@@ -405,9 +401,6 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
     s_screenState = status;
 
     if (!status) {
-        RLOGD("test handleHighRateMode !");
-        handleHighRateMode();
-        RLOGD("test handleHighRateMode over!");
         /* Suspend */
         at_send_command(s_ATChannels[channelID], "AT+CCED=2,8", NULL);
         if (s_isLTE) {
@@ -430,9 +423,6 @@ static void requestScreeState(int channelID, int status, RIL_Token t) {
             at_send_command(s_ATChannels[channelID], "AT+SPVOICEPREFER=1", NULL);
         }
     } else {
-        RLOGD("test handleNormalRateMode !");
-        handleNormalRateMode();
-        RLOGD("test handleNormalRateMode over!");
         /* Resume */
         at_send_command(s_ATChannels[channelID], "AT+CCED=1,8", NULL);
         if (s_isLTE) {
