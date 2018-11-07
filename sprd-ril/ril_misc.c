@@ -1143,7 +1143,7 @@ int processPropRequests(int request, void *data, size_t datalen, RIL_Token t) {
 static void handleHighRateMode() {
     RLOGD("handleHighRateMode START!");
     //open RPS
-    property_set("ctl.start","rps_on");
+    property_set("ctl.start","vendor.rps_on");
 
     //CPU Frequency
     setCPUFrequency(true);
@@ -1155,7 +1155,7 @@ static void handleHighRateMode() {
 static void handleNormalRateMode() {
     RLOGD("handleNormalRateMode START!");
     //open RPS
-    property_set("ctl.start","rps_off");
+    property_set("ctl.start","vendor.rps_off");
 
     //need auto CPU Frequency
     setCPUFrequency(false);
