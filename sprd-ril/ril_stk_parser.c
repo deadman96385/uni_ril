@@ -511,7 +511,7 @@ void processOpenChannel(ComprehensionTlv *comprehensionTlv,
                 } else {
                     pStr = comprehensionTlv->tTlv.value;
                     if (pStr != NULL) {
-                        unsigned char temp[ARRAY_SIZE / 4] = {0};
+                        unsigned char temp[MAX_BUFFER_BYTES / 4] = {0};
                         convertUcsToUtf8((unsigned char *)(++pStr), (length - 1), temp);
                         memcpy(openChannelData->LoginStr, temp, strlen((const char *)temp) + 1);
                         RLOGD("LoginStr: %s", openChannelData->LoginStr);
@@ -528,7 +528,7 @@ void processOpenChannel(ComprehensionTlv *comprehensionTlv,
                 } else {
                     pStr = comprehensionTlv->tTlv.value;
                     if (pStr != NULL) {
-                        unsigned char temp[ARRAY_SIZE / 4] = {0};
+                        unsigned char temp[MAX_BUFFER_BYTES / 4] = {0};
                         convertUcsToUtf8((unsigned char *)(++pStr), (length - 1), temp);
                         memcpy(openChannelData->PwdStr, temp, strlen((const char *)temp) + 1);
                         RLOGD("PwdStr: %s", openChannelData->PwdStr);

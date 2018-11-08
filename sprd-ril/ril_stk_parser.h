@@ -288,8 +288,8 @@ typedef struct {
     char BearerParam[ARRAY_SIZE];
     char OtherAddressType;
     unsigned char OtherAddress[ARRAY_SIZE];
-    unsigned char LoginStr[ARRAY_SIZE / 4];
-    unsigned char PwdStr[ARRAY_SIZE / 4];
+    unsigned char LoginStr[MAX_BUFFER_BYTES / 4];
+    unsigned char PwdStr[MAX_BUFFER_BYTES / 4];
     unsigned char transportType;
     int portNumber;
     unsigned char DataDstAddressType;
