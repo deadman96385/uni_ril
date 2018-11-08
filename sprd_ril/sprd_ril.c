@@ -3101,6 +3101,9 @@ static void requestOrSendDataCallList(int channelID, int cid, RIL_Token *t)
                         RILLOGD("called by SetupDataCall! fallback cid : %d", fb_cid);
                         if (IsLte && bLteDetached) {
                             RILLOGD("requestOrSendDataCallList: Lte detached in the past2.");
+                            char cmd[30];
+                            snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", cid);
+                            err = at_send_command(ATch_type[channelID], cmd, NULL);
                             putPDP(fb_cid -1);
                             putPDP(cid-1);
                             s_lastPdpFailCause = PDP_FAIL_ERROR_UNSPECIFIED;
