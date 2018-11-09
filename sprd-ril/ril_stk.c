@@ -953,6 +953,8 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                }
            }
            case CLOSE_CHANNEL:
+                RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
+                       strlen(response) + 1, socket_id);
            case RECEIVE_DATA:
            case SEND_DATA:
            case GET_CHANNEL_STATUS:
