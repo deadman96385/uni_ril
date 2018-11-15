@@ -209,11 +209,25 @@ static void requestSetCallForward(int channelID, RIL_CallForwardInfo *data,
 
 error:
     if (p_response != NULL &&
-            !strcmp(p_response->finalResponse, "+CME ERROR: 21")) {
-        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
-    } else {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        line = p_response->finalResponse;
+        err = at_tok_start(&line);
+        if (err < 0) goto error1;
+        err = at_tok_nextint(&line, &errNum);
+        if (err < 0) goto error1;
+        if (errNum == 70 || errNum == 254 || errNum == 128) {
+            RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        } else if (errNum == 21) {
+            RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        }
     }
+
+error1:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
 }
 
@@ -566,8 +580,7 @@ error:
             if (err < 0) goto error1;
             err = at_tok_nextint(&line, &errNum);
             if (err < 0) goto error1;
-            if (errNum == 70 || errNum == 254 || errNum == 128 ||
-                errNum == 254) {
+            if (errNum == 70 || errNum == 254 || errNum == 128) {
                 RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
                 at_response_free(p_response);
                 return;
@@ -706,11 +719,25 @@ static void requestSetCallForwardU(int channelID, RIL_CallForwardInfo *data,
 
 error:
     if (p_response != NULL &&
-            !strcmp(p_response->finalResponse, "+CME ERROR: 21")) {
-        RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
-    } else {
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        strStartsWith(p_response->finalResponse, "+CME ERROR:")) {
+        line = p_response->finalResponse;
+        err = at_tok_start(&line);
+        if (err < 0) goto error1;
+        err = at_tok_nextint(&line, &errNum);
+        if (err < 0) goto error1;
+        if (errNum == 70 || errNum == 254 || errNum == 128) {
+            RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        } else if (errNum == 21) {
+            RIL_onRequestComplete(t, RIL_E_INVALID_STATE, NULL, 0);
+            at_response_free(p_response);
+            return;
+        }
     }
+
+error1:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
 }
 
@@ -783,8 +810,7 @@ error:
         if (err < 0) goto error1;
         err = at_tok_nextint(&line, &errNum);
         if (err < 0) goto error1;
-        if (errNum == 70 || errNum == 254 || errNum == 128 ||
-            errNum == 254) {
+        if (errNum == 70 || errNum == 254 || errNum == 128) {
             RIL_onRequestComplete(t, RIL_E_FDN_CHECK_FAILURE, NULL, 0);
             at_response_free(p_response);
             return;
