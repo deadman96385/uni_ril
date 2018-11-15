@@ -3788,6 +3788,10 @@ static int upNetInterface(int cidIndex, IPType ipType) {
                   actIPType == IPV4 ? "IPV4" : "IPV6", isAutoTest);
         sendCmdToExtData(cmd);
 
+        if (ifc_set_noarp(linker)) {
+            RLOGE("ifc_set_noarp %s fail: %s\n", linker, strerror(errno));
+        }
+
         /* config ip addr */
         if (actIPType != IPV4) {
             property_set(SYS_NET_ACTIVATING_TYPE, "IPV6");
@@ -3798,10 +3802,6 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         }
         if (err != 0) {
             RLOGE("ifc_add_address %s fail: %s\n", linker, strerror(errno));
-        }
-
-        if (ifc_set_noarp(linker)) {
-            RLOGE("ifc_set_noarp %s fail: %s\n", linker, strerror(errno));
         }
 
         /* up the net interface */
@@ -3880,7 +3880,7 @@ static int upNetInterface(int cidIndex, IPType ipType) {
         //system(cmd);
         //snprintf(cmd, sizeof(cmd), "ndc resolver setnetdns %s \"\" %s %s", linker, dns1, dns2);
         //RLOGD("cmd = %s", cmd);
-        system(cmd);
+        //system(cmd);
     }
     property_set(GSPS_ETH_UP_PROP, "0");
 
