@@ -918,6 +918,7 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int ret = -1;
         int typePos = 0;
         int channelId = -1;
+        int cmdType = 0;
         char *tmp = NULL;;
         char *response = NULL;
         BipClient *pBipClient = NULL;
@@ -939,7 +940,12 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
            typePos = 12;
         }
 
-        switch (checkStkProCmdType(&(response[typePos]))) {
+        cmdType = checkStkProCmdType(&(response[typePos]));
+        if (cmdType == CLOSE_CHANNEL) {
+            RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
+                   strlen(response) + 1, socket_id);
+        }
+        switch (cmdType) {
            case OPEN_CHANNEL: {
                property_get(STK_BIP_MODE_PROP, bipMode, "single");
                RLOGD("getBipChannel bipMode: %s", bipMode);
@@ -953,8 +959,6 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                }
            }
            case CLOSE_CHANNEL:
-                RIL_onUnsolicitedResponse(RIL_UNSOL_STK_PROACTIVE_COMMAND, response,
-                       strlen(response) + 1, socket_id);
            case RECEIVE_DATA:
            case SEND_DATA:
            case GET_CHANNEL_STATUS:
