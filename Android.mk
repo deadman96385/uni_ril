@@ -15,4 +15,10 @@
 #
 
 common_ril_dirs := sprd_libril sprd_ril sprd_rild librilutils
+
+ifeq ($(MBIM_DEVICE_MODULE),true)
+common_ril_dirs += \
+    mbim-device
+endif
+
 include $(call all-named-subdir-makefiles,$(common_ril_dirs))
