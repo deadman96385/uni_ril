@@ -100,6 +100,6 @@
     {RIL_EXT_REQUEST_RADIO_POWER_FALLBACK, radio::setRadioPowerFallbackResponse},
     {RIL_EXT_REQUEST_GET_CNAP, radio::getCnapResponse},
     {RIL_EXT_REQUEST_SET_LOCATION_INFO, radio::setLocationInfoResponse},
-
     {RIL_EXT_REQUEST_GET_SPECIAL_RATCAP, radio::getSpecialRatcapResponse},
     {RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION, radio::getVideoResolutionResponse},
+    {RIL_EXT_REQUEST_GET_IMS_PANI_INFO, radio::getImsPaniInfoResponse},
