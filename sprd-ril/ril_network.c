@@ -3258,8 +3258,8 @@ void requestUpdateOperatorName(int channelID, void *data, size_t datalen,
     memset(operatorName, 0, sizeof(operatorName));
     err = updatePlmn(socket_id, (const char *)plmn, operatorName,
                      sizeof(operatorName));
-    if (err == 0) {
-        RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
+    RLOGD("updated plmn = %s, opeatorName = %s", plmn, operatorName);
+    if ((err == 0) && strcmp(operatorName, "")) {
         MUTEX_ACQUIRE(s_operatorInfoListMutex[socket_id]);
         OperatorInfoList *pList = s_operatorInfoList[socket_id].next;
         OperatorInfoList *next;
