@@ -10,6 +10,86 @@
 #include "ril_utils.h"
 #include "ril_sim.h"
 
+#define BIT0 (1 << 0)
+#define BIT1 (1 << 1)
+#define BIT2 (1 << 2)
+#define BIT3 (1 << 3)
+#define BIT4 (1 << 4)
+#define BIT5 (1 << 5)
+#define BIT6 (1 << 6)
+#define BIT7 (1 << 7)
+
+#define TP_VPF_NOT_PRESENT  0x00
+#define TP_VPF_ENHANCE      0x01
+#define TP_VPF_RELATIVE     0x10
+#define TP_VPF_ABSOLUTE     0x11
+
+int is_long_sms(char *pdu, int *max_num, int *seq_num)
+{
+    char *p = pdu;
+    int tp_vp, tp_udhl;
+    char elem_id;
+    int elem_length;
+    int addr_length;
+
+    //first octet
+    if(!(*p & BIT6)) {
+        return 0;
+    } else {
+        switch(*p & (BIT4 | BIT3)) {
+            case TP_VPF_RELATIVE:
+                tp_vp = 1;
+                break;
+            case TP_VPF_ENHANCE:
+            case TP_VPF_ABSOLUTE:
+                tp_vp = 7;
+                break;
+            case TP_VPF_NOT_PRESENT:
+            default:
+                tp_vp = 0;
+        }
+        //TP_DA
+        p += 2;
+        //TP_PID
+        addr_length =  (*p + 1)/2;
+        p += (addr_length + 2);
+        //TP_VP
+        p += 2;
+        //TP_UDL
+        p += tp_vp;
+        //TP_UDHL
+        p += 1;
+        tp_udhl = *p;
+        //the first element
+        p += 1;
+        while(tp_udhl >= 5) {
+            elem_id = *p;
+            if(0x00 != elem_id && 0x08 != elem_id) {
+                //element identifier octet
+                p += 1;
+                elem_length = *p;
+                //the next element identifier octet
+                p += (elem_length + 1);
+            } else {
+                //element identifier octet
+                p += 1;
+                elem_length = *p;
+                if(0x00 == elem_id)
+                    p += 2;
+                else if(0x08 == elem_id)
+                    p += 3;
+                //max number of concatenated sms
+                *max_num = *p;
+                //sequence number of current sms
+                *seq_num = *(p+1);
+                return 1;
+            }
+            tp_udhl -= (elem_length + 2);
+        }
+        return 0;
+    }
+}
+
 static void requestSendSMS(int channelID, void *data, size_t datalen,
                               RIL_Token t) {
     RIL_UNUSED_PARM(datalen);
@@ -22,6 +102,9 @@ static void requestSendSMS(int channelID, void *data, size_t datalen,
     char *line = NULL;
     RIL_SMS_Response response;
     ATResponse *p_response = NULL;
+
+    int max_num, seq_num;
+    char *pdu_bin;
 
     memset(&response, 0, sizeof(RIL_SMS_Response));
     smsc = ((const char **)data)[0];
@@ -39,6 +122,22 @@ static void requestSendSMS(int channelID, void *data, size_t datalen,
     if (smsc == NULL) {
         smsc = "00";
     }
+
+    pdu_bin = (char *)malloc(tpLayerLength);
+    if(!convertHexToBin(pdu, strlen(pdu), pdu_bin)) {
+        if(is_long_sms(pdu_bin, &max_num, &seq_num)) {
+            RLOGD("is a long sms, max_num = %d, seq_num = %d", max_num, seq_num);
+            if(seq_num == 1) {
+                at_send_command( s_ATChannels[channelID], "AT+CMMS=2", NULL);
+            } else if(seq_num == max_num) {
+                at_send_command( s_ATChannels[channelID], "AT+CMMS=0", NULL);
+            }
+        } else {
+            RLOGD("is not a long sms");
+            at_send_command( s_ATChannels[channelID], "AT+CMMS=0", NULL);
+        }
+    }
+    free(pdu_bin);
 
     ret = asprintf(&cmd1, "AT+CMGS=%d", tpLayerLength);
     if (ret < 0) {
