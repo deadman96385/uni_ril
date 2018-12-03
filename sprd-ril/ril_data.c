@@ -1436,13 +1436,7 @@ static int reuseDefaultBearer(int channelID, void *data,
                             getPDPByIndex(socket_id, i);
                             cgact_deact_cmd_rsp(cid);
                             AT_RESPONSE_FREE(p_response);
-                            if (strcmp(type, "IP") == 0) {
-                                s_pdpType = IPV4;
-                            } else if (strcmp(type, "IPV6") == 0){
-                                s_pdpType = IPV6;
-                            } else {
-                                s_pdpType = IPV4V6;
-                            }
+
                             char newCmd[AT_COMMAND_LEN] = {0};
                             char qosState[PROPERTY_VALUE_MAX] = {0};
                             snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
@@ -1538,7 +1532,13 @@ RETRY:
     } else {
         pdpType = "IP";
     }
-
+    if (strcmp(pdpType, "IP") == 0) {
+        s_pdpType = IPV4;
+    } else if (strcmp(pdpType, "IPV6") == 0){
+        s_pdpType = IPV6;
+    } else {
+        s_pdpType = IPV4V6;
+    }
     s_LTEDetached[socket_id] = false;
     /* check if reuse default bearer or not */
     ret = reuseDefaultBearer(channelID, data, pdpType, t);
