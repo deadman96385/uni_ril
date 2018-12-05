@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/modemd/libdivril/divril.h
+/* //vendor/sprd/proprietories-source/ril/libdivril/divril.h
  **
  **
  */

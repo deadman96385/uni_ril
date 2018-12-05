@@ -1,4 +1,4 @@
-/* //vendor/sprd/proprietories-source/modemd/libdivril/divril.cpp
+/* //vendor/sprd/proprietories-source/ril/libdivril/divril.cpp
 **
 **
 */
@@ -131,15 +131,15 @@ hidl_string convertCharPtrToHidlString(const char *ptr) {
     return ret;
 }
 
-pthread_rwlock_t * getRadioServiceRwlock(int slotId) {
+pthread_rwlock_t * getRadioServiceRwlock(int serviceId) {
     pthread_rwlock_t *radioServiceRwlockPtr = &radioServiceRwlock;
 
     #if (MAX_SERVICE_NUM >= 2)
-    if (slotId == 2) radioServiceRwlockPtr = &radioServiceRwlock2;
+    if (serviceId == 2) radioServiceRwlockPtr = &radioServiceRwlock2;
     #if (MAX_SERVICE_NUM >= 3)
-    if (slotId == 3) radioServiceRwlockPtr = &radioServiceRwlock3;
+    if (serviceId == 3) radioServiceRwlockPtr = &radioServiceRwlock3;
     #if (MAX_SERVICE_NUM >= 4)
-    if (slotId == 4) radioServiceRwlockPtr = &radioServiceRwlock4;
+    if (serviceId == 4) radioServiceRwlockPtr = &radioServiceRwlock4;
     #endif
     #endif
     #endif
@@ -148,7 +148,7 @@ pthread_rwlock_t * getRadioServiceRwlock(int slotId) {
 }
 
 struct RadioImpl : public IFlvRadio {
-    int32_t mSlotId;
+    int32_t mServiceId;
     sp<IRadioResponse> mRadioResponse;
     sp<IRadioIndication> mRadioIndication;
 
@@ -170,7 +170,7 @@ Return<void> RadioImpl::setFlvResponseFunctions(
        const ::android::sp<IFlvRadioIndication>& radioIndication) {
     RLOGD("setFlvResponseFunctions");
 
-    pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(mSlotId);
+    pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(mServiceId);
     int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
     assert(ret == 0);
     mFlvRadioResponse = radioResponse;
@@ -204,41 +204,38 @@ Return<void> RadioImpl::sendFlvCmd(int32_t serial,
     if (!copyHidlStringToRil(&atCmd, cmd.c_str())) {
         return Void();
     }
-    RLOGD("sendFlvCmd:%s",atCmd);
+    RLOGD("sendFlvCmd:%s", atCmd);
     sendAtCmd(serviceId, atCmd);
     return Void();
 }
 
 sp<RadioImpl> radioService[1];
 
-void registerService() {
+void registerService(int serviceId) {
     using namespace android::hardware;
-    int simCount = 1;
     const char *serviceNames[] = {
             RADIO1_SERVICE_NAME,
             RADIO2_SERVICE_NAME,
     };
 
     configureRpcThreadpool(1, true /* callerWillJoin */);
-    for (int i = 0; i < simCount; i++) {
-        pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(i);
-        int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
-        assert(ret == 0);
+    pthread_rwlock_t *radioServiceRwlockPtr = getRadioServiceRwlock(serviceId);
+    int ret = pthread_rwlock_wrlock(radioServiceRwlockPtr);
+    assert(ret == 0);
 
-        radioService[i] = new RadioImpl;
-        radioService[i]->mSlotId = i;
-        radioService[i]->mRadioResponse = NULL;
-        radioService[i]->mRadioIndication = NULL;
-        radioService[i]->mFlvRadioResponse = NULL;
-        radioService[i]->mFlvRadioIndication = NULL;
+    radioService[serviceId] = new RadioImpl;
+    radioService[serviceId]->mServiceId = serviceId;
+    radioService[serviceId]->mRadioResponse = NULL;
+    radioService[serviceId]->mRadioIndication = NULL;
+    radioService[serviceId]->mFlvRadioResponse = NULL;
+    radioService[serviceId]->mFlvRadioIndication = NULL;
 
-        RLOGD("registerService: starting vendor.sprd.hardware.radio.flavor::IFlvRadio %s",
-                serviceNames[i]);
-        android::status_t status = radioService[i]->registerAsService(serviceNames[i]);
-        RLOGD("radioService registerService: status %d", status);
-        ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
-        assert(ret == 0);
-    }
+    RLOGD("registerService: starting vendor.sprd.hardware.radio.flavor::IFlvRadio %s",
+           serviceNames[serviceId]);
+    android::status_t status = radioService[serviceId]->registerAsService(serviceNames[serviceId]);
+    RLOGD("radioService registerService: status %d", status);
+    ret = pthread_rwlock_unlock(radioServiceRwlockPtr);
+    assert(ret == 0);
     joinRpcThreadpool();
 }
 
@@ -833,6 +830,118 @@ static void *readerThread(void *param) {
     return NULL;
 }
 
+static void *mainLoop(void *param) {
+    int ret;
+    int serviceId = -1;
+
+    if (param) {
+        serviceId= *((int*)param);
+    }
+
+    if (serviceId < 0 || serviceId >= MAX_SERVICE_NUM) {
+        RLOGE("serviceId=%d should be positive and less than %d, return",
+               serviceId, MAX_SERVICE_NUM);
+        return NULL;
+    }
+
+    s_fdListen[serviceId] = -1;
+
+    //s_fdListen[serviceId] = socket_local_server(socket_name,
+    //            ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+
+    if (serviceId == EMBMS) {
+        registerService(serviceId);
+        return NULL;
+    } else if (serviceId == MDT) {
+        s_fdListen[serviceId] = socket_local_server(s_socketName[serviceId],
+                    ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
+    }
+
+    if (s_fdListen[serviceId] < 0) {
+        RLOGE("Failed to get socket %s", s_socketName[serviceId]);
+        return NULL;
+    }
+
+    ret = listen(s_fdListen[serviceId], 4);
+    if (ret < 0) {
+        RLOGE("Failed to listen on control socket '%d': %s",
+                s_fdListen[serviceId], strerror(errno));
+        return NULL;
+    }
+
+    for (;;) {
+        RLOGD("[%s]mainLoop waiting for client..", s_serviceName[serviceId]);
+        if ((s_fdClient[serviceId] = accept(s_fdListen[serviceId], NULL, NULL)) == -1) {
+            sleep(1);
+            continue;
+        }
+
+#if 1
+        /* check the credential of the other side and only accept socket from
+         * specified process
+         */
+        struct ucred creds;
+        socklen_t szCreds = sizeof(creds);
+        struct passwd *pwd = NULL;
+
+        errno = 0;
+        int err;
+
+        RLOGD("[%s]mainLoop processName:%s", s_serviceName[serviceId], s_processName[serviceId]);
+        err = getsockopt(s_fdClient[serviceId], SOL_SOCKET, SO_PEERCRED, &creds, &szCreds);
+
+        if (err == 0 && szCreds > 0) {
+            errno = 0;
+            pwd = getpwuid(creds.uid);
+            if (pwd != NULL) {
+                RLOGD("[%s]pwd->pw_name: [%s]", s_serviceName[serviceId], pwd->pw_name);
+//                if (strcmp(pwd->pw_name, processName) == 0) {
+//                    is_phone_socket = 1;
+//                } else {
+//                    RLOGE("EMBMS can't accept socket from process %s", pwd->pw_name);
+//                }
+            } else {
+                RLOGE("Error on getpwuid() errno: %d", errno);
+            }
+        } else {
+            RLOGD("Error on getsockopt() errno: %d", errno);
+        }
+
+//        if (!is_phone_socket) {
+//            RLOGE("EMBMS must accept socket from %s", processName);
+//
+//            close(s_fdClient);
+//            s_fdClient = -1;
+//
+//            return NULL;
+//        }
+
+#endif
+
+        RLOGD("[%s]mainLoop accept client:%d", s_serviceName[serviceId], s_fdClient[serviceId]);
+
+        s_socketInfo[serviceId].s_fd = s_fdClient[serviceId];
+        snprintf(s_socketInfo[serviceId].name, MAX_NAME_LENGTH, "%s", s_socketName[serviceId]);
+        memset(s_socketInfo[serviceId].s_respBuffer, 0, MAX_BUFFER_BYTES + 1);
+        s_socketInfo[serviceId].s_respBufferCur = s_socketInfo[serviceId].s_respBuffer;
+        ChannelInfo *soInfo = &s_socketInfo[serviceId];
+
+        while (1) {
+            if (!readline(soInfo)) {
+                break;
+            }
+            if (soInfo->line == NULL) {
+                continue;
+            }
+            sendAtCmd(serviceId, soInfo->line);
+        }
+        close(s_fdClient[serviceId]);
+        s_fdClient[serviceId] = -1;
+    }
+
+    return NULL;
+}
+
 int service_init(const char *client_Name) {
     int ret = -1, fd = -1, index = 0, retryTimes = 0;
     int serviceId = -1;
@@ -867,7 +976,7 @@ int service_init(const char *client_Name) {
                serviceId, MAX_SERVICE_NUM);
         return -1;
     }
-    sleep(3);
+    // sleep(3);
 retry:
     for (index = 0; index < serviceMuxNum; index++) {
         snprintf(muxname, sizeof(muxname), "%s%d", propValue, index + serviceMuxIndex);
@@ -897,7 +1006,7 @@ retry:
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     RLOGD("[%s]create readerThread", s_serviceName[serviceId]);
     ret = pthread_create(&s_readerThreadTid[serviceId], &attr, readerThread, (void *)&s_funcId[serviceId]);
-    RLOGD("[%s]registerService", s_serviceName[serviceId]);
-    registerService();
+    RLOGD("[%s]create mainLoop", s_serviceName[serviceId]);
+    ret = pthread_create(&s_mainThreadTid[serviceId], &attr, mainLoop, (void *)&s_funcId[serviceId]);
     return 0;
 }
