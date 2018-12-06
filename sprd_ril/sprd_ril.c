@@ -120,6 +120,7 @@ char RIL_SP_SIM_PIN_PROPERTYS[128]; // ril.*.sim.pin* --ril.*.sim.pin1 or ril.*.
 int s_isuserdebug = 0;
 
 int modem;
+int s_sim_num;
 int s_multiSimMode = 0;
 int g_csfb_processing = 0;
 static const char * s_modem = NULL;
@@ -14093,7 +14094,7 @@ static void onUnsolicited (const char *s, const char *sms_pdu)
         at_tok_start(&tmp);
         skipWhiteSpace(&tmp);
         response = (char *)calloc((strlen(tmp) + 5), sizeof(char));
-        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", modem, tmp);
+        snprintf(response, strlen(tmp) + 4, "%d,%s\r\n", s_sim_num, tmp);
         sendVsimReq(response);
     } else
     
@@ -16508,7 +16509,6 @@ void setHwVerPorp() {
 #ifdef RIL_SHLIB
 
 pthread_t s_tid_mainloop;
-int s_sim_num;
 
 const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **argv)
 {
@@ -16530,7 +16530,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
                 break;
             case 'n':
                 s_sim_num = atoi(optarg);
-                modem = s_sim_num;
+                modem = *optarg;
                 break;
             default:
                 usage(argv[0]);
