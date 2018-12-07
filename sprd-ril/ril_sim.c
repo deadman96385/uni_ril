@@ -2452,42 +2452,6 @@ static void requestInitISIM(int channelID, void *data, size_t datalen,
     /* 7 means the number of data from fwk, represents 7 AT commands value */
     if (datalen == 7 * sizeof(char *) && strings[0] != NULL &&
         strlen(strings[0]) > 0) {
-        if (response == 0) {
-            memset(cmd, 0, sizeof(cmd));
-            RLOGD("requestInitISIM impu = \"%s\"", strings[2]);
-            snprintf(cmd, sizeof(cmd), "AT+IMPU=\"%s\"", strings[2]);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-            memset(cmd, 0, sizeof(cmd));
-            RLOGD("requestInitISIM impi = \"%s\"", strings[3]);
-            snprintf(cmd, sizeof(cmd), "AT+IMPI=\"%s\"", strings[3]);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-            memset(cmd, 0, sizeof(cmd));
-            RLOGD("requestInitISIM domain = \"%s\"", strings[4]);
-            snprintf(cmd, sizeof(cmd), "AT+DOMAIN=\"%s\"", strings[4]);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-            memset(cmd, 0, sizeof(cmd));
-            RLOGD("requestInitISIM xcap = \"%s\"", strings[5]);
-            snprintf(cmd, sizeof(cmd), "AT+XCAPRTURI=\"%s\"", strings[5]);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-            memset(cmd, 0, sizeof(cmd));
-            RLOGD("requestInitISIM bsf = \"%s\"", strings[6]);
-            snprintf(cmd, sizeof(cmd), "AT+BSF=\"%s\"", strings[6]);
-            err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-        }
-        memset(cmd, 0, sizeof(cmd));
-        RLOGD("requestInitISIM instanceId = \"%s\"", strings[1]);
-        snprintf(cmd, sizeof(cmd), "AT+INSTANCEID=\"%s\"", strings[1]);
-        err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-        memset(cmd, 0, sizeof(cmd));
-        RLOGD("requestInitISIM confuri = \"%s\"", strings[0]);
-        snprintf(cmd, sizeof(cmd), "AT+CONFURI=0,\"%s\"", strings[0]);
-        err = at_send_command(s_ATChannels[channelID], cmd, NULL);
-
         RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(int));
     } else {
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);

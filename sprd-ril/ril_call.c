@@ -1571,6 +1571,44 @@ error:
     at_response_free(p_response);
 }
 
+static void requestGetVideoResolution(int channelID, void *data, size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    ATResponse *p_response = NULL;
+    int temp = 0;
+    int response = 0;
+    char *line = NULL;
+    char *resTemp = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPVOLTEENG=106,0",
+                                    "+SPVOLTEENG:", &p_response);
+
+    if(err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &temp);
+    if (err < 0) goto error;
+    err = at_tok_nextstr(&line, &resTemp);
+    if (err < 0) goto error;
+
+    response = resTemp[0] - '0';
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return;
+}
+
 int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -2261,6 +2299,9 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION:
+            requestGetVideoResolution(channelID, data, datalen, t);
+            break;
         default:
             ret = 0;
             break;

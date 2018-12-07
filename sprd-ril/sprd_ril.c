@@ -351,6 +351,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
                  request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE ||
                  request == RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE ||
+                 request == RIL_EXT_REQUEST_GET_SPECIAL_RATCAP ||
+                 request == RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||
@@ -1179,6 +1181,9 @@ static void initializeCallback(void *param) {
             }
         }
     }
+
+    //add for openning wihtelist function to CP
+    at_send_command(s_ATChannels[channelID], "AT+SPVOLTEENG=119,1,\"1\"", NULL);
 
     initModemProp(channelID);
 

@@ -932,6 +932,11 @@ int getCnapResponse(int slotId, int responseType, int serial,
 
 int setLocationInfoResponse(int slotId, int responseType, int serial,
                             RIL_Errno e, void *response, size_t responseLen);
+int getSpecialRatcapResponse(int slotId, int responseType, int serial,
+                             RIL_Errno e, void *response, size_t responseLen);
+
+int getVideoResolutionResponse(int slotId, int responseType, int serial,
+                               RIL_Errno e, void *response, size_t responseLen);
 
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 

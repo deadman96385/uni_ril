@@ -636,6 +636,10 @@ struct RadioImpl : public IExtRadio {
             const ::android::hardware::hidl_string& longitude,
             const ::android::hardware::hidl_string& latitude);
 
+    Return<void> getSpecialRatcap(int32_t serial);
+
+    Return<void> getVideoResolution(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9823,6 +9827,22 @@ Return<void> RadioImpl::setLocationInfo(int32_t serial,
     return Void();
 }
 
+Return<void> RadioImpl::getSpecialRatcap(int32_t serial) {
+#if VDBG
+    RLOGD("setSpecialRatcap: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_SPECIAL_RATCAP);
+    return Void();
+}
+
+Return<void> RadioImpl::getVideoResolution(int32_t serial) {
+#if VDBG
+    RLOGD("setVideoResolution: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11219,6 +11239,49 @@ int radio::setLocationInfoResponse(int slotId,
         radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
     } else {
         RLOGE("setLocationInfoResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getSpecialRatcapResponse(int slotId, int responseType, int serial,
+                                    RIL_Errno e, void *response,
+                                    size_t responseLen) {
+#if VDBG
+    RLOGD("getSpecialRatcapResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
+                response, responseLen);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getSpecialRatcapResponse(responseInfo, ret);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getSpecialRatcapResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getVideoResolutionResponse(int slotId, int responseType, int serial,
+                                      RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getVideoResolutionResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
+                response, responseLen);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getVideoResolutionResponse(responseInfo, ret);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getVideoResolutionResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
     }
 

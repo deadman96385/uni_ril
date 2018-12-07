@@ -101,3 +101,5 @@
     {RIL_EXT_REQUEST_GET_CNAP, radio::getCnapResponse},
     {RIL_EXT_REQUEST_SET_LOCATION_INFO, radio::setLocationInfoResponse},
 
+    {RIL_EXT_REQUEST_GET_SPECIAL_RATCAP, radio::getSpecialRatcapResponse},
+    {RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION, radio::getVideoResolutionResponse},

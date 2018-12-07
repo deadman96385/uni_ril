@@ -912,6 +912,40 @@ error:
     at_response_free(p_response);
 }
 
+static void requestGetSpecialRATCAP(int channelID, void *data, size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    ATResponse *p_response = NULL;
+    char *line = NULL;
+    int response = 0;
+    int err = -1;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPOPRCAP=1,2",
+                                    "+SPOPRCAP:", &p_response);
+
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &response);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &response);//only need the second
+    if (err < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return;
+}
+
 int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
                         int channelID) {
     int err;
@@ -1085,6 +1119,9 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_SPECIAL_RATCAP:
+            requestGetSpecialRATCAP(channelID, data, datalen, t);
+            break;
         default:
             return 0;
     }
