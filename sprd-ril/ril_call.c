@@ -1217,6 +1217,10 @@ void requestLastCallFailCause(int channelID, void *data, size_t datalen,
         case 13:
             response = CALL_FAIL_OEM_CAUSE_1;
             break;
+            /* When it is registing vowifi,it dial call fial and redial call by vowifi */
+        case 501:
+            response = CALL_FAIL_OEM_CAUSE_2;
+            break;
         default:
             response = CALL_FAIL_ERROR_UNSPECIFIED;
             break;
