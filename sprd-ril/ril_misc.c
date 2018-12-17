@@ -548,7 +548,20 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
         cmd = ATcmd;
         at_tok_start(&cmd);
         err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    } else if (strStartsWith(ATcmd, "VSIM_EXIT")) {
+    } else if (strStartsWith(ATcmd, "VSIM_RESET")) {
+		RLOGD("try to reset modem via vsim interface");
+		char blockStr[ARRAY_SIZE];
+		snprintf(blockStr, sizeof(blockStr), "%s", "Modem Blocked");
+		if (s_modemdFd < 0) {
+			detectATNoResponse();
+		}
+		if (s_modemdFd > 0) {
+			int ret = write(s_modemdFd, blockStr, strlen(blockStr) + 1);
+			RLOGE("write %d bytes to client:%d modemd is blocked",
+				  ret, s_modemdFd);
+		}
+        return;
+	} else if (strStartsWith(ATcmd, "VSIM_EXIT")) {
         char *cmd = NULL;
         int socket_id = getSocketIdByChannelID(channelID);
 
