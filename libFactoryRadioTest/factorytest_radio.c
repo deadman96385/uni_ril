@@ -300,6 +300,7 @@ static int TestMakeCall (char *req, char *rsp) {
     if (0 == operate) {
         sendATCmd (fdCall, "ATH", NULL, 0, 0);//hang up
         sendATCmd (fdCall, "AT", NULL, 0, 0);
+        close(fdCall);
         return 0;
     }
 
@@ -309,6 +310,7 @@ static int TestMakeCall (char *req, char *rsp) {
         strcpy(cmd, "ATD10086;");
     } else {
         ALOGE("number = %s error!\n", number);
+        close(fdCall);
         return -1;
     }
 
@@ -355,6 +357,7 @@ static int TestMakeCall (char *req, char *rsp) {
         nowTime = time(NULL);
         if (nowTime - startTime > TEL_TIMEOUT ) {
             ALOGE("mmitest tel test failed");
+            close(fdCall);
             return -1;
         }
     }
