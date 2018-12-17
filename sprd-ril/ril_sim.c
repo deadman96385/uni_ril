@@ -1597,6 +1597,7 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
             if (err < 0) goto error;
             if (sr->sw1 != 0x90 && sr->sw1 != 0x91 && sr->sw1 != 0x9e
                     && sr->sw1 != 0x9f) {
+                sr->simResponse = simResponse;
                 goto done;
             }
             strncat(simResponse, sr->simResponse, p_args->p3 * 2);

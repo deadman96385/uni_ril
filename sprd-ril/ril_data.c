@@ -530,10 +530,11 @@ static int getSPACTFBcause(int channelID) {
     } else {
         line = p_response->p_intermediates->line;
         err = at_tok_start(&line);
-        if (err < 0) return cause;
+        if (err < 0) goto error;
         err = at_tok_nextint(&line, &cause);
-        if (err < 0) return cause;
+        if (err < 0) goto error;
     }
+error:
     at_response_free(p_response);
     return cause;
 }
@@ -1387,6 +1388,7 @@ error:
                                   socket_id);
     }
     at_response_free(p_response);
+    at_response_free(p_newResponse);
 }
 
 /*
