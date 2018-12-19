@@ -1727,6 +1727,27 @@ retry:
     sscanf(&(sr.simResponse[len - 4]), "%02x%02x", &(sr.sw1), &(sr.sw2));
     sr.simResponse[len - 4] = '\0';
 
+    // Handle status word 6c and 61, REF(ISO/IEC 7816-4):
+    // 6cxx means xx data available for GET RESPONSE;
+    // 61xx means expected data length (p3 or le) should be xx;
+    // Add for OMAPI, if there is data follow with 61xx, report to Apk without retry;
+    if (sr.sw1 == 0x6c) {
+        p_args->p3 = sr.sw2;
+        at_response_free(p_response);
+        RLOGD("Received APDU sw1 6c. Retry with GET RESPONSE.");
+        goto retry;
+    } else if (sr.sw1 == 0x61
+            && (strlen(sr.simResponse) == 0)) {
+        p_args->p1 = 0x00;
+        p_args->p2 = 0x00;
+        p_args->p3 = sr.sw2;
+        p_args->instruction = 0xc0;
+        p_args->data = NULL;
+        at_response_free(p_response);
+        RLOGD("Received APDU sw1 61 without data. Retry with correct Le.");
+        goto retry;
+    }
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, &sr, sizeof(sr));
     at_response_free(p_response);
 
