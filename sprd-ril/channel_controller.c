@@ -71,6 +71,7 @@ const cmd_table s_ATTimeoutTable[] = {
         {AT_CMD_STR("AT+CGEQREQ"), 5},
         {AT_CMD_STR("AT+CGEREP"), 5},
         {AT_CMD_STR("AT+COPS=1"), 90},
+        {AT_CMD_STR("AT+CNAP?"), 5},
         {AT_CMD_STR("AT"), 50},  // default 50s timeout
     };
 

@@ -603,6 +603,7 @@ struct RadioImpl : public IExtRadio {
     Return<void> setDualVolteState(int32_t serial, int32_t state);
 
     Return<void> setLocalTone(int32_t serial, int32_t state);
+    Return<void> queryCnap(int32_t serial);
 
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
@@ -9673,6 +9674,15 @@ Return<void> RadioImpl::setLocalTone(int32_t serial, int32_t state) {
     return Void();
 }
 
+Return<void> RadioImpl::queryCnap(int32_t serial) {
+#if VDBG
+    RLOGD("queryCNAP: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_CNAP);
+    return Void();
+}
+
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -10881,6 +10891,38 @@ int radio::setLocalToneResponse(int slotId, int responseType, int serial,
 
     return 0;
 }
+
+int radio::queryCnapResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("queryCNAPResponse: serial %d", serial);
+#endif
+
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        int n = -1, m = -1;
+        int numInts = responseLen / sizeof(int);
+        if (response == NULL || numInts != 2) {
+            RLOGE("queryCNAPResponse Invalid response: NULL");
+            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            int *pInt = (int *) response;
+            n = pInt[0];
+            m = pInt[1];
+        }
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->queryCnapResponse(responseInfo,
+                n, m);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("queryCNAPResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
+    }
+
+    return 0;
+
+}
+
 
 /**************SPRD EXTENSION UNSOL RESPONSEs' responsFunction****************/
 
