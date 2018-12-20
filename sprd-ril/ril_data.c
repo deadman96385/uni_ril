@@ -1319,38 +1319,6 @@ static void requestOrSendDataCallList(int channelID, int cid,
                     } else {
                         RIL_onRequestComplete(*t, RIL_E_SUCCESS, &responses[i],
                                 sizeof(RIL_Data_Call_Response_v11));
-                        /* send IP for volte addtional business */
-                        if (islte && (s_roModemConfig == LWG_LWG ||
-                                      socket_id == s_multiModeSim)) {
-                            char cmd[AT_COMMAND_LEN] = {0};
-                            char prop0[PROPERTY_VALUE_MAX] = {0};
-                            char prop1[PROPERTY_VALUE_MAX] = {0};
-                            char ipv6Address[PROPERTY_VALUE_MAX] = {0};
-                            if (!strcmp(responses[i].type, "IPV4V6")) {
-                                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ip",
-                                        eth, cid - 1);
-                                property_get(cmd, prop0, NULL);
-
-                                snprintf(cmd, sizeof(cmd), "vendor.net.%s%d.ipv6_ip",
-                                        eth, cid - 1);
-                                property_get(cmd, prop1, NULL);
-                                checkIpv6Address(prop1, ipv6Address, sizeof(ipv6Address));
-                                snprintf(cmd, sizeof(cmd),
-                                          "AT+XCAPIP=%d,\"%s,[%s]\"", cid,
-                                          prop0, ipv6Address);
-                            } else if (!strcmp(responses[i].type, "IP")) {
-                                snprintf(cmd, sizeof(cmd),
-                                    "AT+XCAPIP=%d,\"%s,[FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF]\"",
-                                    cid, responses[i].addresses);
-                            } else {
-                                checkIpv6Address(responses[i].addresses, ipv6Address, sizeof(ipv6Address));
-                                snprintf(cmd, sizeof(cmd),
-                                        "AT+XCAPIP=%d,\"0.0.0.0,[%s]\"", cid,
-                                        ipv6Address);
-                            }
-                            at_send_command(s_ATChannels[channelID], cmd, NULL);
-                            s_addedIPCid = responses[i].cid;
-                        }
                     }
                 } else {
                     putPDP(socket_id, getFallbackCid(socket_id, cid - 1) - 1);
