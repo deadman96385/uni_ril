@@ -1297,32 +1297,28 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
             snprintf(cmd, sizeof(cmd), "AT+CEMODE=%d", cemode);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
             p_response = NULL;
-            if (s_presentSIMCount == 1 && socket_id == s_multiModeSim) {
-                if (s_roModemConfig == LWG_LWG) {
+
+            if (s_roModemConfig == LWG_LWG) {
+                RLOGD("socket_id = %d, s_multiModeSim = %d", socket_id,
+                        s_multiModeSim);
+                if (socket_id == s_multiModeSim) {
                     snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
                     at_send_command(s_ATChannels[channelID], cmd, NULL);
-                } else {
-                    err = at_send_command(s_ATChannels[channelID], "AT+SAUTOATT=1",
-                                          &p_response);
+                }
+            } else {
+                if (s_presentSIMCount == 1 && socket_id == s_multiModeSim) {
+                    err = at_send_command(s_ATChannels[channelID],
+                            "AT+SAUTOATT=1", &p_response);
                     if (err < 0 || p_response->success == 0) {
                         RLOGE("GPRS auto attach failed!");
                     }
                     AT_RESPONSE_FREE(p_response);
                 }
-            }
 #if defined (ANDROID_MULTI_SIM)
-            else {
-                if (s_roModemConfig == LWG_LWG) {
-                    RLOGD("socket_id = %d, s_multiModeSim = %d", socket_id,
-                           s_multiModeSim);
-                    if (socket_id == s_multiModeSim) {
-                        snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
-                        at_send_command(s_ATChannels[channelID], cmd, NULL);
-                    }
-                } else {
+                else {
                     if (socket_id != s_multiModeSim) {
                         RLOGD("socket_id = %d, s_dataAllowed = %d", socket_id,
-                              s_dataAllowed[socket_id]);
+                                s_dataAllowed[socket_id]);
                         if (s_modemConfig == WG_WG) {
                             RLOGD("switch data card according to allow data");
                             snprintf(cmd, sizeof(cmd), "AT+SPSWITCHDATACARD=%d,%d", socket_id,s_dataAllowed[socket_id]);
@@ -1336,8 +1332,8 @@ static void requestRadioPower(int channelID, void *data, size_t datalen,
                         }
                     }
                 }
-            }
 #endif
+            }
             property_get(LTE_MANUAL_ATTACH_PROP, manualAttachProp, "0");
             RLOGD("persist.vendor.radio.manualattach: %s", manualAttachProp);
             snprintf(cmd, sizeof(cmd), "AT+SPLTEMANUATT=%s", manualAttachProp);
