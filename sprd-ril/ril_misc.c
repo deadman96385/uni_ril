@@ -1185,18 +1185,29 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
     if (strStartsWith(s, "+CTZV:")) {
         /* NITZ time */
-        char *response;
-        char *tmp;
-        char *raw_str;
+        char *response = NULL;
+        char *tmp = NULL;
+        char *tmp_response = NULL;
 
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
 
-        err = at_tok_nextstr(&tmp, &response);
+        err = at_tok_nextstr(&tmp, &tmp_response);
         if (err != 0) {
             RLOGE("invalid NITZ line %s\n", s);
         } else {
+            if (strstr(tmp_response, "//,::")) {
+                char strTm[ARRAY_SIZE/2] = {0}, tmpRsp[ARRAY_SIZE] = {0};
+                time_t now = time(NULL);
+                struct tm *curtime = gmtime(&now);
+
+                strftime(strTm, sizeof(strTm), "%y/%m/%d,%H:%M:%S", curtime);
+                snprintf(tmpRsp, sizeof(tmpRsp), "%s%s", strTm, tmp_response + strlen("//,::"));
+                response = tmpRsp;
+            } else {
+                response = tmp_response;
+            }
             RIL_onUnsolicitedResponse(RIL_UNSOL_NITZ_TIME_RECEIVED, response,
                                       strlen(response) + 1, socket_id);
         }
