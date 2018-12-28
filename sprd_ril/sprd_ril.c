@@ -16548,7 +16548,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     }
 
     //modem = *s_modem;
-    RILLOGD("rild connect %s modem, current is rild%d\n", s_modem, s_sim_num);
+    RILLOGD("rild connect %s modem, current is rild%d,modemcoun= %c\n", s_modem, s_sim_num,modem);
 
     snprintf(SP_SIM_NUM, sizeof(SP_SIM_NUM), "ro.modem.%s.count", s_modem);
     property_get(SP_SIM_NUM, phoneCount, "");

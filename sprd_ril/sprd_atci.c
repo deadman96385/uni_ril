@@ -49,6 +49,7 @@ bool s_vsimInitFlag = false;
 pthread_mutex_t s_vsimSocketMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_vsimSocketCond = PTHREAD_COND_INITIALIZER;
 struct timeval s_timevalCloseVsim = {60, 0};
+extern int s_sim_num;
 
 static const struct RIL_Env *atch_rilenv;
 #define sOnRequestComplete(t, e, response, responselen) atch_rilenv->OnRequestComplete(t,e, response, responselen)
@@ -116,9 +117,9 @@ static void closeVirtualThread(void *param) {
     RILLOGD("closeVsimCard");
     int vsimMode = *((int *)param);
     if ((s_vsimClientFd < 0) && (vsimMode >= 1)) {
-        if (modem == 0) {
+        if (s_sim_num == 0) {
             closeVirtual(RIL_SOCKET_1);
-        } else if (modem == 1) {
+        } else if (s_sim_num == 1) {
             closeVirtual(RIL_SOCKET_2);
         }
     }
@@ -165,7 +166,7 @@ void *listenVsimSocketThread() {
             s_vsimClientFd = -1;
 
             int *vsimMode = (int *)calloc(1, sizeof(int));
-            if (modem == 0) {
+            if (s_sim_num == 0) {
                 *vsimMode = vsimQueryVirtual(RIL_SOCKET_1);
             } else {
                 *vsimMode = vsimQueryVirtual(RIL_SOCKET_2);
@@ -202,7 +203,7 @@ void* sendVsimReqThread(void *cmd) {
             RILLOGE("Failed to write cmd to vsim!error = %s", strerror(errno));
             close(s_vsimClientFd);
             s_vsimClientFd = -1;
-            if (modem == 0) {
+            if (s_sim_num == 0) {
                 vsimQueryVirtual(RIL_SOCKET_1);
             } else {
                 vsimQueryVirtual(RIL_SOCKET_2);
