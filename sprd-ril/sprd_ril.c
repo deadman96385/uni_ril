@@ -48,6 +48,7 @@
 #define BUILD_TYPE_PROP         "ro.build.type"
 #define MTBF_ENABLE_PROP        "persist.vendor.sys.mtbf.enable"
 #define VOLTE_MODE_PROP         "persist.vendor.radio.volte.mode"
+#define IMEI_SV_PROP            "ro.vendor.radio.imeisv"
 
 struct ATChannels *s_ATChannels[MAX_AT_CHANNELS];
 
@@ -994,6 +995,50 @@ error:
         property_set(MODEM_WORKMODE_PROP, "14,10");
     }
 }
+
+void updateIMEISV(int channelID) {
+    char propIMEISV[PROPERTY_VALUE_MAX] = {0};
+    property_get(IMEI_SV_PROP, propIMEISV, "");
+
+    if (strcmp(propIMEISV, "") != 0) {
+        int err = -1;
+        int svProp = atoi(propIMEISV);
+        int svModem = -1;
+        char *sv = NULL;
+        ATResponse *p_response = NULL;
+
+        if (svProp < 0 || svProp > 99) {
+            RLOGE("Invalid SV property: %s", propIMEISV);
+            return;
+        }
+
+        err = at_send_command_singleline(s_ATChannels[channelID], "AT+SGMR=0,0,2",
+                                         "+SGMR:", &p_response);
+        if (err < 0 || p_response->success == 0) {
+            RLOGE("Failed to get IMEI SV.");
+        } else {
+            char *line = p_response->p_intermediates->line;
+
+            err = at_tok_start(&line);
+            if (err >= 0) {
+                at_tok_nextstr(&line, &sv);
+            }
+        }
+
+        if (sv != NULL) {
+            svModem = atoi(sv);
+        }
+
+        if (svProp != svModem) {
+            char cmd[AT_COMMAND_LEN] = {0};
+            snprintf(cmd, sizeof(cmd), "AT+SGMR=0,1,2,\"%d\"", svProp);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        } else {
+            RLOGD("Software versions are the same, no need to set again.");
+        }
+        AT_RESPONSE_FREE(p_response);
+    }
+}
 /**
  * Initialize everything that can be configured while we're still in
  * AT+CFUN=0
@@ -1156,6 +1201,12 @@ static void initializeCallback(void *param) {
             at_send_command_singleline(s_ATChannels[channelID],
                     "AT+SPCAPABILITY=32,1,1", "+SPCAPABILITY:", NULL);
         }
+    }
+    /* @} */
+
+    /* for bug989047 To update IMEI SV serial number. @{ */
+    if (RIL_SOCKET_1 == socket_id) {
+        updateIMEISV(channelID);
     }
     /* @} */
 
