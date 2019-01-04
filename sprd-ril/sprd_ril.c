@@ -394,6 +394,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_UPDATE_ECCLIST ||
                  request == RIL_EXT_REQUEST_GET_BAND_INFO ||
                  request == RIL_EXT_REQUEST_SET_BAND_INFO_MODE ||
+                 request == RIL_EXT_REQUEST_RADIO_POWER_FALLBACK ||
                  request == RIL_EXT_REQUEST_SET_SPECIAL_RATCAP ||
                  request == RIL_EXT_REQUEST_SIMMGR_GET_SIM_STATUS ||
                  request == RIL_EXT_REQUEST_SEND_CMD ||

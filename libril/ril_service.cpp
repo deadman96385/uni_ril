@@ -628,6 +628,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> getPreferredNetworkTypeExt(int32_t serial);
 
+    Return<void> setRadioPowerFallback(int32_t serial, bool enabled);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9786,6 +9788,14 @@ Return<void> RadioImpl::getPreferredNetworkTypeExt(int32_t serial) {
     dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE);
     return Void();
 }
+
+Return<void> RadioImpl::setRadioPowerFallback(int32_t serial, bool enabled) {
+#if VDBG
+    RLOGD("setRadioPowerFallback: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_RADIO_POWER_FALLBACK, 1, BOOL_TO_INT(enabled));
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11118,6 +11128,27 @@ int radio::getPreferredNetworkTypeExtResponse(int slotId,
 
     return 0;
 }
+
+int radio::setRadioPowerFallbackResponse(int slotId, int responseType, int serial,
+                                     RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("setRadioPowerFallbackResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setRadioPowerFallbackResponse(responseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setRadioPowerFallbackResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 int radio::vsimSendCmdResponse(int slotId, int responseType, int serial,
                                      RIL_Errno e, void *response, size_t responseLen) {
