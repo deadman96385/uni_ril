@@ -97,4 +97,5 @@
     {RIL_REQUEST_EXT_QUERY_FACILITY_LOCK, radio::getFacilityLockForAppExtResponse},
     {RIL_REQUEST_IMS_REGADDR, radio::getImsRegAddressResponse},
     {RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE, radio::getPreferredNetworkTypeExtResponse},
+    {RIL_EXT_REQUEST_RADIO_POWER_FALLBACK, radio::setRadioPowerFallbackResponse},
 

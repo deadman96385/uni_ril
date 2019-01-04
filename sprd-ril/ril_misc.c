@@ -1050,6 +1050,20 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestVsimCmd(channelID, (const char *)data, datalen, t);
             break;
         }
+        case RIL_EXT_REQUEST_RADIO_POWER_FALLBACK: {
+            p_response = NULL;
+            int mode = ((int *)data)[0];
+            char cmd[AT_COMMAND_LEN] = {0};
+            snprintf(cmd, sizeof(cmd), "AT+SPPOWERFB=%d", mode);
+            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+            if (err < 0 || p_response->success == 0) {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
