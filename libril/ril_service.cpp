@@ -8422,6 +8422,7 @@ int radio::voiceRadioTechChangedInd(int slotId,
 void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<CellInfo>& records) {
     int num = responseLen / sizeof(RIL_CellInfo_v12);
     int mnc_digit = 0;
+    char mcc_str[32] = {0};
     char mnc_str[32] = {0};
     char strFormat[32] = {0};
     records.resize(num);
@@ -8443,8 +8444,9 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
             case RIL_CELL_INFO_TYPE_GSM: {
                 records[i].gsm.resize(1);
                 CellInfoGsm *cellInfoGsm = &records[i].gsm[0];
-                cellInfoGsm->cellIdentityGsm.mcc =
-                        std::to_string(rillCellInfo->CellInfo.gsm.cellIdentityGsm.mcc);
+                snprintf(mcc_str, sizeof(mcc_str), "%03d",
+                        rillCellInfo->CellInfo.gsm.cellIdentityGsm.mcc);
+                cellInfoGsm->cellIdentityGsm.mcc = mcc_str;
                 mnc_digit = rillCellInfo->CellInfo.gsm.cellIdentityGsm.mnc_digit;
                 if (mnc_digit == 2 || mnc_digit == 3) {
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
@@ -8477,8 +8479,9 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
             case RIL_CELL_INFO_TYPE_WCDMA: {
                 records[i].wcdma.resize(1);
                 CellInfoWcdma *cellInfoWcdma = &records[i].wcdma[0];
-                cellInfoWcdma->cellIdentityWcdma.mcc =
-                        std::to_string(rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mcc);
+                snprintf(mcc_str, sizeof(mcc_str), "%03d",
+                        rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mcc);
+                cellInfoWcdma->cellIdentityWcdma.mcc = mcc_str;
                 mnc_digit = rillCellInfo->CellInfo.wcdma.cellIdentityWcdma.mnc_digit;
                 if (mnc_digit == 2 || mnc_digit == 3) {
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
@@ -8535,8 +8538,9 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
             case RIL_CELL_INFO_TYPE_LTE: {
                 records[i].lte.resize(1);
                 CellInfoLte *cellInfoLte = &records[i].lte[0];
-                cellInfoLte->cellIdentityLte.mcc =
-                        std::to_string(rillCellInfo->CellInfo.lte.cellIdentityLte.mcc);
+                snprintf(mcc_str, sizeof(mcc_str), "%03d",
+                        rillCellInfo->CellInfo.lte.cellIdentityLte.mcc);
+                cellInfoLte->cellIdentityLte.mcc = mcc_str;
                 mnc_digit = rillCellInfo->CellInfo.lte.cellIdentityLte.mnc_digit;
                 if (mnc_digit == 2 || mnc_digit == 3) {
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
@@ -8575,8 +8579,9 @@ void convertRilCellInfoListToHal(void *response, size_t responseLen, hidl_vec<Ce
             case RIL_CELL_INFO_TYPE_TD_SCDMA: {
                 records[i].tdscdma.resize(1);
                 CellInfoTdscdma *cellInfoTdscdma = &records[i].tdscdma[0];
-                cellInfoTdscdma->cellIdentityTdscdma.mcc =
-                        std::to_string(rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mcc);
+                snprintf(mcc_str, sizeof(mcc_str), "%03d",
+                        rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mcc);
+                cellInfoTdscdma->cellIdentityTdscdma.mcc = mcc_str;
                 mnc_digit = rillCellInfo->CellInfo.tdscdma.cellIdentityTdscdma.mnc_digit;
                 if (mnc_digit == 2 || mnc_digit == 3) {
                     snprintf(strFormat, sizeof(strFormat), "%s%dd", "%0", mnc_digit);
