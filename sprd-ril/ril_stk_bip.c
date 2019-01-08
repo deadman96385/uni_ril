@@ -586,6 +586,15 @@ void onCmdResponse(StkContext *pstkContext, CatResponseMessageSprd *pResMsg, int
         }
         case BIP_ERROR: {
             switch (type) {
+                case OPEN_CHANNEL:
+                    RLOGD("< %d > OPEN_CHANNEL BIP_ERROR", socket_id);
+                    respId = OCRD_SPRD;
+                    pResp->bearerType = pResMsg->BearerType;
+                    pResp->bearerParam = pResMsg->BearerParam;
+                    pResp->bufferSize = pResMsg->bufferSize;
+                    pResp->channelId = pResMsg->ChannelId;
+                    pResp->linkStatus = pResMsg->LinkStatus;
+                    break;
                 case SEND_DATA:
                     RLOGD("< %d > SEND_DATA BIP_ERROR", socket_id);
                     respId = SDRD_SPRD;
@@ -617,7 +626,8 @@ int sendChannelResponse(StkContext *pstkContext, int resCode, int socket_id) {
     pResMsg->channelData = NULL;
 
     pstkContext->cmdInProgress = false;
-    if (resCode == BEYOND_TERMINAL_CAPABILITY) {
+    if (resCode == BEYOND_TERMINAL_CAPABILITY
+               || resCode == BIP_ERROR) {
         endConnectivity(pstkContext, socket_id);
         pstkContext->connectType = -1;
         if (pstkContext->tcpSocket != -1) {
