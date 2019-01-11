@@ -172,7 +172,7 @@ int endConnectivity(StkContext *pstkContext, int socket_id) {
 
 int SetupStkConnect(StkContext *pstkContext, int socket_id) {
     RLOGD("[stk] SetupStkConnect");
-    int countStrings = 7;
+    int countStrings = 8;
     char **pStrings = NULL;
 
     pStrings = (char **)calloc(countStrings, sizeof(char *));
@@ -208,7 +208,9 @@ int SetupStkConnect(StkContext *pstkContext, int socket_id) {
         memcpy(protocol, "IP", 2);
     }
     pStrings[6] = protocol;
-
+    unsigned char bearerType[NAME_SIZE] = {0};
+    snprintf(bearerType, sizeof(bearerType), "%d", pstkContext->pOCData->BearerType);
+    pStrings[7] = bearerType;
     int sendChannelID = getChannel(socket_id);
     pstkContext->openchannelCid =
             requestSetupDataConnection(sendChannelID, pStrings, countStrings * sizeof(char *));
@@ -841,8 +843,9 @@ int createSocket(StkContext *pstkContext) {
 
                 char srcAddress[128] = {0};
                 char cmd[128] = {0};
-                sprintf(cmd, "net.%s.ipv6_ip", ifName);
-                RLOGD("createSocket cmd:%s", cmd);
+                //sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                sprintf(cmd, "vendor.net.%s.ipv6_ip", ifName);
+                RLOGD("createSocket vendor cmd:%s", cmd);
                 property_get(cmd, srcAddress, "");
                 RLOGD("createSocket srcAddress:%s", srcAddress);
                 if (inet_pton(AF_INET6, srcAddress, &srcAddr6.sin6_addr) <= 0) {
@@ -883,8 +886,9 @@ int createSocket(StkContext *pstkContext) {
                 }
                 char srcAddress[128] = {0};
                 char cmd[128] = {0};
-                sprintf(cmd, "net.%s.ipv6_ip", ifName);
-                RLOGD("createSocket cmd:%s", cmd);
+                //sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                sprintf(cmd, "vendor.net.%s.ipv6_ip", ifName);
+                RLOGD("createSocket vendor cmd:%s", cmd);
                 property_get(cmd, srcAddress, "");
                 RLOGD("createSocket srcAddress:%s", srcAddress);
                 if (inet_pton(AF_INET6, srcAddress, &srcAddr6.sin6_addr) <= 0) {
