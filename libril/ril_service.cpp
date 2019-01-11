@@ -630,6 +630,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> setRadioPowerFallback(int32_t serial, bool enabled);
 
+    Return<void> getCnap(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9796,6 +9798,14 @@ Return<void> RadioImpl::setRadioPowerFallback(int32_t serial, bool enabled) {
     dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_RADIO_POWER_FALLBACK, 1, BOOL_TO_INT(enabled));
     return Void();
 }
+
+Return<void> RadioImpl::getCnap(int32_t serial) {
+#if VDBG
+    RLOGD("getCNAP: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_CNAP);
+    return Void();
+}
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11144,6 +11154,36 @@ int radio::setRadioPowerFallbackResponse(int slotId, int responseType, int seria
     } else {
         RLOGE("setRadioPowerFallbackResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
+    }
+
+    return 0;
+}
+
+int radio::getCnapResponse(int slotId, int responseType, int serial,
+                             RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getCNAPResponse: serial %d", serial);
+#endif
+
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        int active = -1, status = -1;
+        int numInts = responseLen / sizeof(int);
+        if (response == NULL || numInts != 2) {
+            RLOGE("getCNAPResponse Invalid response: NULL");
+            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            int *pInt = (int *)response;
+            active = pInt[0];
+            status = pInt[1];
+        }
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->getCnapResponse(
+                responseInfo, active, status);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getCNAPResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
     }
 
     return 0;

@@ -1234,6 +1234,34 @@ int processSSRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_CNAP: {
+            int response[2] = {0};
+            p_response = NULL;
+
+            err = at_send_command_singleline(s_ATChannels[channelID], "AT+CNAP?",
+                                            "+CNAP: ", &p_response);
+            if (err >= 0 && p_response->success) {
+                char *line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err >= 0) {
+                    err = at_tok_nextint(&line, &response[0]);
+                    if (err >= 0) {
+                        err = at_tok_nextint(&line, &response[1]);
+                    }
+                }
+                if (err >= 0) {
+                    RLOGD("CNAP respone %d, %d", response[0], response[1]);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, response,
+                                          sizeof(response));
+                } else {
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                }
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            }
+            at_response_free(p_response);
+            break;
+        }
         default:
             return 0;
     }
