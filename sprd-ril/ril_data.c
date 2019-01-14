@@ -2823,6 +2823,66 @@ error:
     free(response);
 }
 
+static void getSysinfo(void *param)
+{
+    ATResponse *p_response = NULL;
+    int err,skip,sysmode;
+    int channelID;
+    int *response; 
+    int new_response[3];
+    char *line;
+    CallbackPara *cbPara = (CallbackPara *)param;
+    if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
+        RLOGE("Invalid socket_id %d", cbPara->socket_id);
+        FREEMEMORY(cbPara->para);
+        FREEMEMORY(cbPara);
+        return;
+    } else {
+        RLOGD("getSysinfo response socket_id = %d ", cbPara->socket_id);
+    }
+
+
+    RLOGD("get sys info");
+    channelID = getChannel(cbPara->socket_id);
+    if (cbPara->para != NULL) {
+        response = (int *)cbPara->para;
+        new_response[0] = response[0];
+        new_response[1] = response[1];
+        RLOGD("getSysinfo response= %d %d", response[0],response[1]);
+
+    }
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT^SYSINFO",
+                                                 "^SYSINFO:", &p_response);
+    RLOGD("get sys info err = %d", err);
+    if (err != 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &skip);//srv_status
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &skip);//srv_domain
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &skip);//roam_status
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &sysmode);//sys_mode
+    if (err < 0) goto error;
+    RLOGD("getSysinfo:sysmode = %d",sysmode);
+    new_response[2] = sysmode;
+    RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, new_response, sizeof(new_response),
+                                            cbPara->socket_id);
+
+error:
+    RLOGD("getSysinfo finally");
+    putChannel(channelID);
+    at_response_free(p_response);
+    free(cbPara);
+
+}
+
+
 int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     int err;
     int ret = 1;
@@ -3003,11 +3063,12 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         }
     } else if (strStartsWith(s, "+SPERROR:")) {
         int type;
-        int errCode;
+        int errCode,sys_mode;
         char *tmp;
-        int response[2];
+        int response[3];
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
+        CallbackPara *cbPara;
 
         line = strdup(s);
         tmp = line;
@@ -3044,10 +3105,20 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (type == 1) {
                 setProperty(socket_id, "ril.sim.ps.reject", "1");
             }
+            RLOGD("add getsysinfo for cus use RIL_requestTimedCallback");          
             response[0] = type;
             response[1] = errCode;
-            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
-                                            socket_id);
+//            sys_mode = getSysinfo(socket_id);
+//           response[2] = sys_mode;
+//            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
+//                                          socket_id);
+            cbPara = (CallbackPara *)malloc(sizeof(CallbackPara));
+            if (cbPara != NULL) {
+                cbPara->para = &response;
+                cbPara->socket_id = socket_id;
+            }
+            RIL_requestTimedCallback (getSysinfo, (CallbackPara *)cbPara, NULL);
+
         }
     } else if (strStartsWith(s, "+SPSWAPCARD:")) {
         int id = 0;
