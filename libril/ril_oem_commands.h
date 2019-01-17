@@ -60,3 +60,4 @@
     {RIL_EXT_REQUEST_UPDATE_PLMN, radio::updatePlmnPriorityResponse},
     {RIL_EXT_REQUEST_QUERY_PLMN, radio::queryPlmnResponse},
     {RIL_EXT_REQUEST_SIM_POWER_REAL, radio::setSimPowerRealResponse},
+    {RIL_EXT_REQUEST_RESET_MODEM, radio::resetModemResponse},    

@@ -887,6 +887,12 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             requestVsimCmd(channelID, (const char *)data, datalen, t);
             break;
         }
+	case RIL_EXT_REQUEST_RESET_MODEM: {
+	    RLOGD("RIL_EXT_REQUEST_RESET_MODEM!!!");
+	    at_send_command(s_ATChannels[channelID], "AT+RESET=1", NULL);
+    	    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+	    break;
+		}
         default:
             return 0;
     }

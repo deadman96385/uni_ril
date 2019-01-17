@@ -1325,6 +1325,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_QUERY_PLMN: return "QUERY_PLMN";
         case RIL_EXT_REQUEST_SIM_POWER_REAL: return "REQUEST_SIM_POWER_REAL";
         case RIL_ATC_REQUEST_VSIM_SEND_CMD: return "REQUEST_VSIM_SEND_CMD";
+	case RIL_EXT_REQUEST_RESET_MODEM: return "RESET_MODEM";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";

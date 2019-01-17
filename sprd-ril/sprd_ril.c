@@ -280,7 +280,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_EXT_REQUEST_GET_SIM_STATUS ||
           request == RIL_EXT_REQUEST_SHUTDOWN ||
           request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
-          request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
+          request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
+          request == RIL_EXT_REQUEST_RESET_MODEM)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -394,7 +395,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_SHUTDOWN ||
                  request == RIL_EXT_REQUEST_SET_VOICE_DOMAIN ||
                  request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
-                 request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
+                 request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
+                 request == RIL_EXT_REQUEST_RESET_MODEM)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
