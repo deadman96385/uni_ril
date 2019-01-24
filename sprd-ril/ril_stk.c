@@ -989,6 +989,11 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                 break;
         }
 
+        RLOGD("socket_id =%d,s_isSimPresent =%d,s_stkServiceRunning =%d",socket_id,
+              s_isSimPresent[socket_id],s_stkServiceRunning[socket_id]);
+        if (s_isSimPresent[socket_id] == SIM_ABSENT && s_stkServiceRunning[socket_id]) {
+            s_stkServiceRunning[socket_id] = false;
+        }
         if (false == s_stkServiceRunning[socket_id]) {
             s_stkUnsolResponse[socket_id] =
                           (char *)calloc((strlen(response) + 1), sizeof(char));
