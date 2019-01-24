@@ -1379,6 +1379,7 @@ const char *requestToString(int request) {
         case RIL_UNSOL_IMS_NETWORK_STATE_CHANGED: return "UNSOL_IMS_NETWORK_STATE_CHANGED";
         case RIL_UNSOL_DSDASTATUS: return "UNSOL_DSDASTATUS";
         case RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE: return "UNSOL_UPDATE_HD_VOICE_STATE";
+        case RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE: return "UNSOL_IMS_CSFB_VENDOR_CAUSE";
         /* }@ */
         /* videophone @{ */
         case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";

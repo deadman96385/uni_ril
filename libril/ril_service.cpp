@@ -13489,3 +13489,27 @@ int radio::updateHdStateInd(int slotId, int indicationType,
 
     return 0;
 }
+
+int radio::IMSCsfbVendorCauseInd(int slotId, int indicationType, int token,
+                                    RIL_Errno e, void *response,
+                                    size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen == 0) {
+            RLOGE("IMSCsfbVendorCauseInd: invalid response");
+            return 0;
+        }
+
+#if VDBG
+        RLOGD("IMSCsfbVendorCauseInd");
+#endif
+
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                IMSCsfbVendorCauseInd(convertIntToRadioIndicationType(indicationType),
+                                      convertCharPtrToHidlString((char *)response));
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("IMSCsfbVendorCauseInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
