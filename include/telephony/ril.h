@@ -7314,7 +7314,8 @@ typedef enum {
 #define RIL_UNSOL_IMS_NETWORK_STATE_CHANGED         (RIL_EXT_UNSOL_RESPONSE_BASE + 29)
 #define RIL_UNSOL_DSDASTATUS                        (RIL_EXT_UNSOL_RESPONSE_BASE + 30)
 #define RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE         (RIL_EXT_UNSOL_RESPONSE_BASE + 31)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE
+#define RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE         (RIL_EXT_UNSOL_RESPONSE_BASE + 32)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE
 /*****************************************************************************/
 
 

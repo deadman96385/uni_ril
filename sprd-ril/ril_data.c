@@ -3025,6 +3025,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             if (s_ussdRun[socket_id] == 1) {
                  s_ussdError[socket_id] = 1;
             }
+        } else if (type == 15) {
+            char imsResponse[32] = {0};
+            snprintf(imsResponse, sizeof(imsResponse), "%d", errCode);
+            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE, imsResponse,
+                                                      sizeof(imsResponse), socket_id);
         } else {
             if (type == 1) {
                 setProperty(socket_id, "ril.sim.ps.reject", "1");
