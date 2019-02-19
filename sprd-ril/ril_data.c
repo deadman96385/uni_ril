@@ -2060,12 +2060,6 @@ static void attachGPRS(int channelID, void *data, size_t datalen,
 
     if (islte) {
         if (s_roModemConfig == LWG_LWG) {
-            if(s_modemConfig == LWG_LWG){
-                char numToStr[ARRAY_SIZE];
-                snprintf(numToStr, sizeof(numToStr), "%d", socket_id);
-                property_set(PRIMARY_SIM_PROP, numToStr);
-                s_multiModeSim = socket_id;
-            }
             snprintf(cmd, sizeof(cmd), "AT+SPSWDATA");
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
@@ -2123,6 +2117,11 @@ static void detachGPRS(int channelID, void *data, size_t datalen,
     int state = PDP_IDLE;
     ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    if (s_autoDetach == 1 && t != NULL) {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        return;
+    }
 
     if (islte) {
         for (i = 0; i < MAX_PDP; i++) {
@@ -2186,35 +2185,43 @@ error:
     return;
 }
 
+
+void saveDataCardProp(int socket_id) {
+    char propValue[PROPERTY_VALUE_MAX] = {0};
+    snprintf(propValue, sizeof(propValue), "%d", socket_id);
+    property_set(ALLOW_DATA_SOCKET_ID, propValue);
+    /* bug1009443 PDP could not be activated after airplane mode on @{ */
+    if(s_modemConfig == LWG_LWG){
+        property_set(PRIMARY_SIM_PROP, propValue);
+        s_multiModeSim = socket_id;
+        RLOGD("s_multiModeSim = %d", s_multiModeSim);
+    }
+    /* }@ */
+}
+
 void requestAllowData(int channelID, void *data, size_t datalen,
                          RIL_Token t) {
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     s_dataAllowed[socket_id] = ((int *)data)[0];
-    if (s_dataAllowed[socket_id] == 1) {
-        char propValue[PROPERTY_VALUE_MAX] = {0};
-        snprintf(propValue, sizeof(propValue), "%d", socket_id);
-        property_set(ALLOW_DATA_SOCKET_ID, propValue);
-    }
+
     RLOGD("s_desiredRadioState[%d] = %d, s_autoDetach = %d", socket_id,
           s_desiredRadioState[socket_id], s_autoDetach);
     if (s_desiredRadioState[socket_id] > 0 && isAttachEnable() &&
             !(s_radioState[socket_id] == RADIO_STATE_OFF ||
               s_radioState[socket_id] == RADIO_STATE_UNAVAILABLE)) {
-        if (s_dataAllowed[socket_id]) {
+        if (s_dataAllowed[socket_id] == 1) {
+            saveDataCardProp(socket_id);
             attachGPRS(channelID, data, datalen, t);
         } else {
-            if (s_autoDetach == 1) {
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-            } else {
-                detachGPRS(channelID, data, datalen, t);
-            }
+            detachGPRS(channelID, data, datalen, t);
         }
     } else {
-        if (s_dataAllowed[socket_id] == 0) {
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-        } else {
+        if (s_dataAllowed[socket_id] == 1) {
             RLOGD("Failed allow data due to radiooff or engineer mode disable");
+            saveDataCardProp(socket_id);
             RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+        } else {
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
         }
     }
 }
