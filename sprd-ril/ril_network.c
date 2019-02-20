@@ -2161,8 +2161,8 @@ static void requestGetLTEPreferredNetType(int channelID,
                 type = NT_LTE_FDD_TD_LTE_GSM;
                 break;
             case TD_LTE_AND_LTE_FDD_WCDMA:
-                RLOGD("ENGTEST:requestGetLTEPreferredNetType 24");
-                type = NETWORK_MODE_LTE_WCDMA;
+                RLOGD("ENGTEST_ENABLE_PROP is case 24");
+                type = NT_LTE_FDD_TD_LTE_WCDMA;
                 break;
             default:
                 break;
