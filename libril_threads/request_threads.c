@@ -388,6 +388,7 @@ ATCmdType getCmdType(int request) {
         || request == RIL_REQUEST_QUERY_FACILITY_LOCK
         || request == RIL_REQUEST_SET_FACILITY_LOCK
         || request == RIL_REQUEST_QUERY_CALL_FORWARD_STATUS
+        || request == RIL_REQUEST_QUERY_CALL_FORWARD_STATUS_URI
         || request == RIL_REQUEST_SET_CALL_FORWARD
         || request == RIL_REQUEST_GET_CLIR
         || request == RIL_REQUEST_SET_CLIR
