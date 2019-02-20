@@ -2160,6 +2160,9 @@ static void requestGetLTEPreferredNetType(int channelID,
             case TD_LTE_AND_LTE_FDD_AND_GSM:
                 type = NT_LTE_FDD_TD_LTE_GSM;
                 break;
+            case TD_LTE_AND_LTE_FDD_WCDMA:
+                type = NT_LTE_FDD_TD_LTE_WCDMA;
+                break;
             default:
                 break;
         }
