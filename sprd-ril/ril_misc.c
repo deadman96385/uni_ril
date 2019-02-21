@@ -1246,6 +1246,7 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         char *response = NULL;
         char *tmp = NULL;
         char *tmp_response = NULL;
+        char tmpRsp[ARRAY_SIZE] = {0};
 
         line = strdup(s);
         tmp = line;
@@ -1256,7 +1257,7 @@ int processMiscUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGE("invalid NITZ line %s\n", s);
         } else {
             if (strstr(tmp_response, "//,::")) {
-                char strTm[ARRAY_SIZE/2] = {0}, tmpRsp[ARRAY_SIZE] = {0};
+                char strTm[ARRAY_SIZE/2] = {0};
                 time_t now = time(NULL);
                 struct tm *curtime = gmtime(&now);
 

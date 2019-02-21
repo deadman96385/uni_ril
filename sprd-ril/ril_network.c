@@ -3032,6 +3032,7 @@ again:
             goto error;
         }
     }
+    AT_RESPONSE_FREE(p_response);
     return 1;
 
 error:
