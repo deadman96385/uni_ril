@@ -2829,7 +2829,7 @@ static void getSysinfo(void *param)
     int err,skip,sysmode;
     int channelID;
     int *response; 
-    int new_response[3];
+    int new_response[4];
     char *line;
     CallbackPara *cbPara = (CallbackPara *)param;
     if ((int)cbPara->socket_id < 0 || (int)cbPara->socket_id >= SIM_COUNT) {
@@ -2848,7 +2848,8 @@ static void getSysinfo(void *param)
         response = (int *)cbPara->para;
         new_response[0] = response[0];
         new_response[1] = response[1];
-        RLOGD("getSysinfo response= %d %d", response[0],response[1]);
+        new_response[2] = response[2];
+        RLOGD("getSysinfo response= %d %d %d", response[0],response[1],response[2]);
 
     }
     err = at_send_command_singleline(s_ATChannels[channelID], "AT^SYSINFO",
@@ -2870,7 +2871,7 @@ static void getSysinfo(void *param)
     err = at_tok_nextint(&line, &sysmode);//sys_mode
     if (err < 0) goto error;
     RLOGD("getSysinfo:sysmode = %d",sysmode);
-    new_response[2] = sysmode;
+    new_response[3] = sysmode;
     RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, new_response, sizeof(new_response),
                                             cbPara->socket_id);
 
@@ -3065,11 +3066,14 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         int type;
         int errCode,sys_mode;
         char *tmp;
-        int response[3];
+        int response[4];
+        int plmn = 0;
+		char *splmn = NULL;
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
         CallbackPara *cbPara;
-
+        
+        RLOGD("SPERROR:%s", s);
         line = strdup(s);
         tmp = line;
         at_tok_start(&tmp);
@@ -3080,6 +3084,12 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         err = at_tok_nextint(&tmp, &errCode);
         if (err < 0) goto out;
 
+        if(at_tok_hasmore(&tmp)) {
+            err = at_tok_nextstr(&tmp, &splmn);
+            plmn = atoi(splmn);
+            RLOGD("SPERROR: splmn = %s,plmn = %d",splmn,plmn);
+        }
+		
         if (errCode == 336) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
                                       0, socket_id);
@@ -3108,6 +3118,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             RLOGD("add getsysinfo for cus use RIL_requestTimedCallback");          
             response[0] = type;
             response[1] = errCode;
+            response[2] = plmn;
 //            sys_mode = getSysinfo(socket_id);
 //           response[2] = sys_mode;
 //            RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
