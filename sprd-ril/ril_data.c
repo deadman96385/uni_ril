@@ -2845,11 +2845,11 @@ static void getSysinfo(void *param)
     RLOGD("get sys info");
     channelID = getChannel(cbPara->socket_id);
     if (cbPara->para != NULL) {
-        response = (int *)cbPara->para;
+        response = (int *)(cbPara->para);
         new_response[0] = response[0];
         new_response[1] = response[1];
         new_response[2] = response[2];
-        RLOGD("getSysinfo response= %d %d %d", response[0],response[1],response[2]);
+        RLOGD("getSysinfo new response= %d %d %d", response[0],response[1],response[2]);
 
     }
     err = at_send_command_singleline(s_ATChannels[channelID], "AT^SYSINFO",
@@ -2874,7 +2874,7 @@ static void getSysinfo(void *param)
     new_response[3] = sysmode;
     RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, new_response, sizeof(new_response),
                                             cbPara->socket_id);
-
+	
 error:
     RLOGD("getSysinfo finally");
     putChannel(channelID);
@@ -3125,7 +3125,8 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 //                                          socket_id);
             cbPara = (CallbackPara *)malloc(sizeof(CallbackPara));
             if (cbPara != NULL) {
-                cbPara->para = &response;
+                cbPara->para =(int *)malloc(4*sizeof(int));
+                memcpy(cbPara->para,&response,4*sizeof(int));
                 cbPara->socket_id = socket_id;
             }
             RIL_requestTimedCallback (getSysinfo, (CallbackPara *)cbPara, NULL);
