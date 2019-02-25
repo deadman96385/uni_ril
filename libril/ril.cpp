@@ -6893,6 +6893,7 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SIM_POWER: return "SIM_POWER";
         case RIL_EXT_REQUEST_UPDATE_PLMN: return "UPDATE_PLMN";
         case RIL_EXT_REQUEST_QUERY_PLMN: return "QUERY_PLMN";
+        case RIL_EXT_REQUEST_RESET_MODEM: return "RESET_MODEM";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
