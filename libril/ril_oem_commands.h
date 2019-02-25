@@ -48,3 +48,4 @@
     {RIL_EXT_REQUEST_SIM_POWER, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_UPDATE_PLMN, dispatchInts, responseVoid},
     {RIL_EXT_REQUEST_QUERY_PLMN, dispatchInts, responseString},
+    {RIL_EXT_REQUEST_RESET_MODEM, dispatchVoid, responseVoid},
