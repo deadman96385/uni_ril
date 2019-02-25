@@ -6006,7 +6006,8 @@ typedef enum {
 #define RIL_EXT_REQUEST_SIM_POWER                   (RIL_EXT_REQUEST_BASE + 43)
 #define RIL_EXT_REQUEST_UPDATE_PLMN                 (RIL_EXT_REQUEST_BASE + 44)
 #define RIL_EXT_REQUEST_QUERY_PLMN                  (RIL_EXT_REQUEST_BASE + 45)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_QUERY_PLMN
+#define RIL_EXT_REQUEST_RESET_MODEM                 (RIL_EXT_REQUEST_BASE + 46)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_RESET_MODEM
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
