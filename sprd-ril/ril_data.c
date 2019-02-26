@@ -491,8 +491,13 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                 if (err >= 0) {
                     if (failCause == 288) {
                         ret = DATA_ACTIVE_NEED_RETRY;
-                    } else if (failCause == 128) {  // 128: network reject
+                    } else if (failCause == 128 || failCause == 28 || failCause == 35) {  // 128: network reject
                         ret = DATA_ACTIVE_NEED_FALLBACK;
+                        if (failCause == 128){
+                            s_lastPDPFailCause[socket_id] = PDP_FAIL_UNKNOWN_PDP_ADDRESS_TYPE;
+                        } else if (failCause == 38 || failCause == 35){
+                            s_lastPDPFailCause[socket_id] = PDP_FAIL_NETWORK_FAILURE;
+                        }
                     } else if (failCause == 253) {
                         ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
                     } else {
@@ -883,6 +888,9 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
     if (ret != DATA_ACTIVE_SUCCESS) {
+        if (ret == DATA_ACTIVE_NEED_FALLBACK) {
+                return ret;
+        }
         putPDP(socket_id, cid - 1);
         return ret;
     }
@@ -958,57 +966,86 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
 }
 
 static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
-    bool ret = false;
-    int err = 0;
-    char *line;
-    char cmd[AT_COMMAND_LEN] = {0};
-    char newCmd[AT_COMMAND_LEN] = {0};
-    const char *apn = NULL;
     ATResponse *p_response = NULL;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    char *line;
+    int err = 0;
+    int failCause = 0;
+    const char *apn = NULL;
+    const char *username = NULL;
+    const char *password = NULL;
+    const char *authtype = NULL;
+    char cmd[128] = {0};
+    int fb_ip_type = -1;
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    char eth[PROPERTY_VALUE_MAX] = {0};
+    char qosState[PROPERTY_VALUE_MAX] = {0};
 
     apn = ((const char **)data)[2];
+    username = ((const char **)data)[3];
+    password = ((const char **)data)[4];
+    authtype = ((const char **)data)[5];
 
-    // active IPV4
-    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0",
-            index + 1, apn);
-    err = cgdcont_set_cmd_req(cmd, newCmd);
-    if (err == 0) {
-        err = at_send_command(s_ATChannels[channelID], newCmd, &p_response);
-    }
-    if (err < 0 || p_response->success == 0) {
-        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-        goto error;
-    }
-    AT_RESPONSE_FREE(p_response);
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
 
-    if (s_isLTE) {
-        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index + 1);
-    } else {
-        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
-    }
-    cgdata_set_cmd_req(cmd);
+    //IPV4
+    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0", index+1, apn);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    cgdata_set_cmd_rsp(p_response, index, 0, channelID);
-    if (errorHandlingForCGDATA(channelID, p_response, err,index) !=
-            DATA_ACTIVE_SUCCESS) {
+    if (err < 0 || p_response->success == 0){
+    RLOGD("active IPV4  error, try to active IPV6");
+        goto retryIPV6;
+    }
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto retryIPV6;
+    }else{
+        goto done;
+    }
+
+retryIPV6:
+
+    RLOGD("try to active IPV6");
+    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IPV6\",\"%s\",\"\",0,0", index+1, apn);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0){
         goto error;
     }
 
-    updatePDPCid(socket_id, index + 1, 1);
-    // active IPV6
-    index = getPDP(socket_id);
-    if (index < 0 || getPDPCid(socket_id, index) >= 0) {
-        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
-        putPDP(socket_id, index);
-    } else {
-        activeSpeciedCidProcess(channelID, data, index + 1, "IPV6", 0);
-    }
-    ret = true;
+    snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username, password,index+1,atoi(authtype));
+    at_send_command(s_ATChannels[channelID], cmd, NULL);
 
-error:
+    /* Set required QoS params to default */
+    property_get(ENG_QOS_PROP, qosState, "0");
+    if(!strcmp(qosState, "0")) {
+        snprintf(cmd, sizeof(cmd), "AT+CGEQREQ=%d,0,0,0,0,0,2,0,\"0\",\"0e0\",3,0,0", index+1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", index + 1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+    }
+
+    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RLOGD("both V4 and V6 are failed");
+        goto error;
+    }
+
+done:
+    RLOGD("doIPV4_IPV6_Fallback done");
+    updatePDPCid(socket_id, index + 1, 1);
     at_response_free(p_response);
-    return ret;
+    return true;
+error:
+    RLOGD("doIPV4_IPV6_Fallback error");
+    at_response_free(p_response);
+    return false;
 }
 
 /*
@@ -1537,7 +1574,7 @@ RETRY:
             nRetryTimes++;
             goto RETRY;
         }
-    } else if ( ret == DATA_ACTIVE_NEED_FALLBACK) {
+    } else if ((ret == DATA_ACTIVE_NEED_FALLBACK) && !strcmp(pdpType, "IPV4V6")) {
         if (doIPV4_IPV6_Fallback(channelID, index, data) == false) {
             goto error;
         } else {
