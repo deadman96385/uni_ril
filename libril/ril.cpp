@@ -1250,6 +1250,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_SET_IMS_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
         case RIL_REQUEST_EXT_QUERY_FACILITY_LOCK: return "EXT_QUERY_FACILITY_LOCK";
         case RIL_REQUEST_IMS_REGADDR: return "IMS_REGADDR";
+        case RIL_EXT_REQUEST_GET_IMS_PANI_INFO: return "GET_IMS_PANI_INFO";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */

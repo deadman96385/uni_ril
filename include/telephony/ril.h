@@ -2352,6 +2352,7 @@ typedef enum {
 
 typedef struct {
     int      type;
+    int      age;
     char *   info;
 } IMS_NetworkInfo;
 /* @} */
@@ -7281,6 +7282,8 @@ typedef enum {
 #define RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE  (RIL_EXT_REQUEST_BASE + 94)
 #define RIL_EXT_REQUEST_RADIO_POWER_FALLBACK        (RIL_EXT_REQUEST_BASE + 95)
 #define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_RADIO_POWER_FALLBACK
+#define RIL_EXT_REQUEST_GET_IMS_PANI_INFO           (RIL_EXT_REQUEST_BASE + 100)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_GET_IMS_PANI_INFO
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)

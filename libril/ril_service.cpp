@@ -710,6 +710,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> getImsRegAddress(int32_t serial);
 
+    Return<void> getImsPaniInfo(int32_t serial);
+
     Return<void> vsimSendCmd(int32_t serial, int32_t phoneId, const ::android::hardware::hidl_string& cmd);
 };
 
@@ -12221,6 +12223,14 @@ Return<void> RadioImpl::getImsRegAddress(int32_t serial) {
     return Void();
 }
 
+Return<void> RadioImpl::getImsPaniInfo(int32_t serial) {
+#if VDBG
+    RLOGD("getImsPaniInfo: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_IMS_PANI_INFO);
+    return Void();
+}
+
 Return<void> RadioImpl::vsimSendCmd(int32_t serial, int32_t phoneId,
         const ::android::hardware::hidl_string& cmd) {
 #if VDBG
@@ -13047,6 +13057,37 @@ int radio::getImsRegAddressResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::getImsPaniInfoResponse(int slotId, int responseType, int serial,
+                                    RIL_Errno e, void *response,
+                                    size_t responseLen) {
+#if VDBG
+    RLOGD("getImsPaniInfoResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        ImsNetworkInfo resp = {};
+
+        if (response == NULL || responseLen % sizeof(IMS_NetworkInfo) != 0) {
+            RLOGE("getImsPaniInfoResponse Invalid response: NULL");
+            if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+        } else {
+            IMS_NetworkInfo *pNetInfo = (IMS_NetworkInfo *)response;
+            resp.type = pNetInfo->type;
+            resp.age = pNetInfo->age;
+            resp.info = convertCharPtrToHidlString(pNetInfo->info);
+        }
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getImsPaniInfoResponse(responseInfo, resp);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getImsPaniInfoResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
 /****************IMS EXTENSION UNSOL RESPONSEs' responseFunction**************/
 
 int radio::IMSCallStateChangedInd(int slotId, int indicationType, int token,
