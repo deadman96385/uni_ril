@@ -32,11 +32,11 @@ extern void  AT_DUMP(const char* prefix, const char*  buff, int  len);
 #endif
 
 extern int modem;
-#define RILLOGI(fmt, args...) ALOGI("[%c] " fmt, modem,  ## args)
-#define RILLOGD(fmt, args...) ALOGD("[%c] " fmt, modem,  ## args)
-#define RILLOGV(fmt, args...) ALOGV("[%c] " fmt, modem,  ## args)
-#define RILLOGW(fmt, args...) ALOGW("[%c] " fmt, modem,  ## args)
-#define RILLOGE(fmt, args...) ALOGE("[%c] " fmt, modem,  ## args)
+#define RILLOGI(fmt, args...) ALOGI("[%d] " fmt, modem,  ## args)
+#define RILLOGD(fmt, args...) ALOGD("[%d] " fmt, modem,  ## args)
+#define RILLOGV(fmt, args...) ALOGV("[%d] " fmt, modem,  ## args)
+#define RILLOGW(fmt, args...) ALOGW("[%d] " fmt, modem,  ## args)
+#define RILLOGE(fmt, args...) ALOGE("[%d] " fmt, modem,  ## args)
 
 extern int s_multiSimMode;
 

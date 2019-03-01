@@ -131,7 +131,7 @@ void *listenVsimSocketThread() {
 
     //sim0: modem = 0; sim1: modem = 1.
     memset(socket_name, 0, sizeof(char) * 20);
-    snprintf(socket_name, sizeof(socket_name), "vsim_socket_%c", modem);
+    snprintf(socket_name, sizeof(socket_name), "vsim_socket_%d", modem);
     RILLOGD("Start to listen %s", socket_name);
 
     if (s_vsimServerFd < 0) {
@@ -267,6 +267,8 @@ static void onRequest (int request, void *data, size_t datalen, RIL_Token t) {
              }
              pthread_mutex_unlock(&s_vsimSocketMutex);
              RILLOGD("vsim socket connected");
+             setRadioState (channelID, RADIO_STATE_OFF);
+             RILLOGD("vsim init  setRadioState RADIO_STATE_OFF");
              //send AT
              cmd = at_cmd;
              at_tok_start(&cmd);
