@@ -1399,6 +1399,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SPUCOPS_LIST: return "UNSOL_SPUCOPS_LIST";
         case RIL_ATC_UNSOL_VSIM_RSIM_REQ: return "UNSOL_VSIM_RSIM_REQ";
 //        case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
+        case RIL_EXT_UNSOL_IMS_ERROR_CAUSE: return "UNSOL_IMS_ERROR_CAUSE";
         default: return "<unknown request>";
     }
 }

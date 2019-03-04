@@ -3265,7 +3265,36 @@ int processCallUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE, &response,
                                   sizeof(response), socket_id);
-    }else {
+    } else if (strStartsWith(s, "+SPIMSREASON:")) {
+        int type, errCode;
+        char *tmp;
+        char *info;
+
+        line = strdup(s);
+        tmp = line;
+        at_tok_start(&tmp);
+
+        IMS_ErrorCause *response =
+                (IMS_ErrorCause *)alloca(sizeof(IMS_ErrorCause));
+        err = at_tok_nextint(&tmp, &response->type);
+        if (err < 0) {
+            RLOGE("get type fail");
+            goto out;
+        }
+        err = at_tok_nextint(&tmp, &response->errCode);
+        if (err < 0) {
+            RLOGE("get errCode fail");
+            goto out;
+        }
+        err = at_tok_nextstr(&tmp, &response->errDescription);
+        if (err < 0) {
+            RLOGE("get errDescription fail");
+            goto out;
+        }
+
+        RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_IMS_ERROR_CAUSE, response,
+                                  sizeof(IMS_ErrorCause), socket_id);
+    } else {
         ret = 0;
     }
     /* unused unsolicited response

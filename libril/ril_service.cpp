@@ -13344,3 +13344,32 @@ int radio::IMSCsfbVendorCauseInd(int slotId, int indicationType, int token,
 
     return 0;
 }
+
+int radio::IMSErrorCauseInd(int slotId, int indicationType, int token,
+                                    RIL_Errno e, void *response,
+                                    size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL ||  responseLen != sizeof(IMS_ErrorCause)) {
+            RLOGE("IMSErrorCauseInd: invalid response");
+            return 0;
+        }
+        ImsErrorCauseInfo errorCauseInfo = {};
+        IMS_ErrorCause *pInfo = (IMS_ErrorCause *)response;
+        errorCauseInfo.type = pInfo->type;
+        errorCauseInfo.errCode = pInfo->errCode;
+        errorCauseInfo.errDescription = convertCharPtrToHidlString(pInfo->errDescription);
+
+#if VDBG
+        RLOGD("IMSErrorCauseInd");
+#endif
+
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                IMSErrorCauseInd(convertIntToRadioIndicationType(indicationType),
+                        errorCauseInfo);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("IMSErrorCauseInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
