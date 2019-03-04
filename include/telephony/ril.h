@@ -2355,6 +2355,12 @@ typedef struct {
     int      age;
     char *   info;
 } IMS_NetworkInfo;
+
+typedef struct {
+    int        type;
+    int        errCode;
+    char *    errDescription;
+} IMS_ErrorCause;
 /* @} */
 
 typedef enum {
@@ -7322,7 +7328,8 @@ typedef enum {
 #define RIL_UNSOL_DSDASTATUS                        (RIL_EXT_UNSOL_RESPONSE_BASE + 30)
 #define RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE         (RIL_EXT_UNSOL_RESPONSE_BASE + 31)
 #define RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE         (RIL_EXT_UNSOL_RESPONSE_BASE + 32)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE
+#define RIL_EXT_UNSOL_IMS_ERROR_CAUSE               (RIL_EXT_UNSOL_RESPONSE_BASE + 33)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_IMS_ERROR_CAUSE
 /*****************************************************************************/
 
 
