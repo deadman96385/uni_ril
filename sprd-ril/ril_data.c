@@ -21,7 +21,7 @@
 #define DDR_STATUS_PROP         "persist.vendor.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.vendor.sys.pdp.reuse"
 #define BIP_OPENCHANNEL         "persist.vendor.radio.openchannel"
-#define IS_BOOTS    "persist.vendor.radio.phone_count"
+#define IS_BOOTS    "persist.vendor.support.boots.retry"
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
