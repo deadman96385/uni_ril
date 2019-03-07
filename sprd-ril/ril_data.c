@@ -21,6 +21,7 @@
 #define DDR_STATUS_PROP         "persist.vendor.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.vendor.sys.pdp.reuse"
 #define BIP_OPENCHANNEL         "persist.vendor.radio.openchannel"
+#define IS_BOOTS    "persist.vendor.radio.phone_count"
 
 int s_failCount = 0;
 int s_dataAllowed[SIM_COUNT];
@@ -363,6 +364,16 @@ int isExistActivePdp(RIL_SOCKET_ID socket_id) {
     return 0;
 }
 
+static bool isBoots() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get(IS_BOOTS, prop, "0");
+    RLOGD("isBoots: prop = %s", prop);
+    if (strcmp(prop, "0") == 0) {
+        return false;
+    }
+    return true;
+}
+
 static void convertFailCause(RIL_SOCKET_ID socket_id, int cause) {
     int failCause = cause;
 
@@ -491,12 +502,14 @@ static int errorHandlingForCGDATA(int channelID, ATResponse *p_response,
                 if (err >= 0) {
                     if (failCause == 288) {
                         ret = DATA_ACTIVE_NEED_RETRY;
-                    } else if (failCause == 128 || failCause == 28 || failCause == 35) {  // 128: network reject
+                    } else if (failCause == 128 || (isBoots() && (failCause == 28 || failCause == 35 || failCause == 38))) {  // 128: network reject
                         ret = DATA_ACTIVE_NEED_FALLBACK;
-                        if (failCause == 128){
-                            s_lastPDPFailCause[socket_id] = PDP_FAIL_UNKNOWN_PDP_ADDRESS_TYPE;
-                        } else if (failCause == 38 || failCause == 35){
-                            s_lastPDPFailCause[socket_id] = PDP_FAIL_NETWORK_FAILURE;
+                        if (isBoots()) {
+                            if (failCause == 28){
+                                s_lastPDPFailCause[socket_id] = PDP_FAIL_UNKNOWN_PDP_ADDRESS_TYPE;
+                            } else if (failCause == 38 || failCause == 35){
+                                s_lastPDPFailCause[socket_id] = PDP_FAIL_NETWORK_FAILURE;
+                            }
                         }
                     } else if (failCause == 253) {
                         ret = DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID;
@@ -888,7 +901,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     ret = errorHandlingForCGDATA(channelID, p_response, err, cid);
     AT_RESPONSE_FREE(p_response);
     if (ret != DATA_ACTIVE_SUCCESS) {
-        if (ret == DATA_ACTIVE_NEED_FALLBACK) {
+        if (isBoots() && ret == DATA_ACTIVE_NEED_FALLBACK) {
                 return ret;
         }
         putPDP(socket_id, cid - 1);
@@ -966,86 +979,144 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
 }
 
 static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
-    ATResponse *p_response = NULL;
-    char *line;
+    RLOGD("doIPV4_IPV6_Fallback isBoots = %d", isBoots());
+
+    if (isBoots()) {
+        ATResponse *p_response = NULL;
+        char *line;
+        int err = 0;
+        int failCause = 0;
+        const char *apn = NULL;
+        const char *username = NULL;
+        const char *password = NULL;
+        const char *authtype = NULL;
+        char cmd[128] = {0};
+        int fb_ip_type = -1;
+        char prop[PROPERTY_VALUE_MAX] = {0};
+        char eth[PROPERTY_VALUE_MAX] = {0};
+        char qosState[PROPERTY_VALUE_MAX] = {0};
+    
+        apn = ((const char **)data)[2];
+        username = ((const char **)data)[3];
+        password = ((const char **)data)[4];
+        authtype = ((const char **)data)[5];
+    
+        RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    
+        //IPV4
+        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+    
+        snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0", index+1, apn);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0){
+        RLOGD("active IPV4  error, try to active IPV6");
+            goto retryIPV6;
+        }
+    
+        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            goto retryIPV6;
+        }else{
+            goto done;
+        }
+    
+    retryIPV6:
+    
+        RLOGD("try to active IPV6");
+        snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+    
+        snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IPV6\",\"%s\",\"\",0,0", index+1, apn);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0){
+            goto error;
+        }
+    
+        snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username, password,index+1,atoi(authtype));
+        at_send_command(s_ATChannels[channelID], cmd, NULL);
+    
+        /* Set required QoS params to default */
+        property_get(ENG_QOS_PROP, qosState, "0");
+        if(!strcmp(qosState, "0")) {
+            snprintf(cmd, sizeof(cmd), "AT+CGEQREQ=%d,0,0,0,0,0,2,0,\"0\",\"0e0\",3,0,0", index+1);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", index + 1);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
+    
+        snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            RLOGD("both V4 and V6 are failed");
+            goto error;
+        }
+    
+    done:
+        RLOGD("doIPV4_IPV6_Fallback done");
+        updatePDPCid(socket_id, index + 1, 1);
+        at_response_free(p_response);
+        return true;
+    error:
+        RLOGD("doIPV4_IPV6_Fallback error");
+        at_response_free(p_response);
+        return false;
+    }else {
+    bool ret = false;
     int err = 0;
-    int failCause = 0;
+    char *line;
+    char cmd[AT_COMMAND_LEN] = {0};
+    char newCmd[AT_COMMAND_LEN] = {0};
     const char *apn = NULL;
-    const char *username = NULL;
-    const char *password = NULL;
-    const char *authtype = NULL;
-    char cmd[128] = {0};
-    int fb_ip_type = -1;
-    char prop[PROPERTY_VALUE_MAX] = {0};
-    char eth[PROPERTY_VALUE_MAX] = {0};
-    char qosState[PROPERTY_VALUE_MAX] = {0};
-
-    apn = ((const char **)data)[2];
-    username = ((const char **)data)[3];
-    password = ((const char **)data)[4];
-    authtype = ((const char **)data)[5];
-
+    ATResponse *p_response = NULL;
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
-
-    //IPV4
-    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
-    at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0", index+1, apn);
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    if (err < 0 || p_response->success == 0){
-    RLOGD("active IPV4  error, try to active IPV6");
-        goto retryIPV6;
+    	
+    apn = ((const char **)data)[2];
+    	
+    // active IPV4
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IP\",\"%s\",\"\",0,0",
+    		index + 1, apn);
+    err = cgdcont_set_cmd_req(cmd, newCmd);
+    if (err == 0) {
+    	err = at_send_command(s_ATChannels[channelID], newCmd, &p_response);
     }
-
-    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
     if (err < 0 || p_response->success == 0) {
-        goto retryIPV6;
-    }else{
-        goto done;
+        s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+    	at_response_free(p_response);
+        return ret;
     }
-
-retryIPV6:
-
-    RLOGD("try to active IPV6");
-    snprintf(cmd, sizeof(cmd), "AT+CGACT=0,%d", index+1);
-    at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"IPV6\",\"%s\",\"\",0,0", index+1, apn);
+    AT_RESPONSE_FREE(p_response);
+    	
+    if (s_isLTE) {
+    	snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d", index + 1);
+    	} else {
+    	snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
+    }
+    cgdata_set_cmd_req(cmd);
     err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    if (err < 0 || p_response->success == 0){
-        goto error;
+    cgdata_set_cmd_rsp(p_response, index, 0, channelID);
+    if (errorHandlingForCGDATA(channelID, p_response, err,index) !=
+    		DATA_ACTIVE_SUCCESS) {
+    	at_response_free(p_response);
+        return ret;
     }
-
-    snprintf(cmd, sizeof(cmd), "AT+CGPCO=0,\"%s\",\"%s\",%d,%d", username, password,index+1,atoi(authtype));
-    at_send_command(s_ATChannels[channelID], cmd, NULL);
-
-    /* Set required QoS params to default */
-    property_get(ENG_QOS_PROP, qosState, "0");
-    if(!strcmp(qosState, "0")) {
-        snprintf(cmd, sizeof(cmd), "AT+CGEQREQ=%d,0,0,0,0,0,2,0,\"0\",\"0e0\",3,0,0", index+1);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
-        snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", index + 1);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
-    }
-
-    snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"PPP\",%d", index + 1);
-    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-    if (err < 0 || p_response->success == 0) {
-        RLOGD("both V4 and V6 are failed");
-        goto error;
-    }
-
-done:
-    RLOGD("doIPV4_IPV6_Fallback done");
+    	
     updatePDPCid(socket_id, index + 1, 1);
+    // active IPV6
+    index = getPDP(socket_id);
+    if (index < 0 || getPDPCid(socket_id, index) >= 0) {
+    	s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
+    	putPDP(socket_id, index);
+    } else {
+    	activeSpeciedCidProcess(channelID, data, index + 1, "IPV6", 0);
+    }
+    ret = true;
+    	
     at_response_free(p_response);
-    return true;
-error:
-    RLOGD("doIPV4_IPV6_Fallback error");
-    at_response_free(p_response);
-    return false;
+    return ret;
+
+    }
 }
 
 /*
