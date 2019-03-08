@@ -17,7 +17,6 @@
 #include "channel_controller.h"
 #include "ril_stk.h"
 #include "ril_utils.h"
-#include "ril_stk_bip.h"
 
 #define DDR_STATUS_PROP         "persist.vendor.sys.ddr.status"
 #define REUSE_DEFAULT_PDN       "persist.vendor.sys.pdp.reuse"
@@ -4191,18 +4190,13 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
     int cid = 0;
     const char *pdpType = "IP";
     const char *apn = NULL;
-    int bearer = 0;
-    const char * p_bearerType = NULL;
     apn = ((const char **)data)[2];
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     if (s_dataAllowed[socket_id] != 1) {
         return -1;
     }
-    if (datalen > 7 * sizeof(char *)) {
+    if (datalen > 6 * sizeof(char *)) {
         pdpType = ((const char **)data)[6];
-        p_bearerType = ((const char **)data)[7];
-        bearer = atoi(p_bearerType);
-        RLOGD("bearer = %d", bearer);
     } else {
         pdpType = "IP";
     }
@@ -4214,9 +4208,9 @@ int requestSetupDataConnection(int channelID, void *data, size_t datalen) {
             cid = getPDNCid(i);
             if (cid == (i + 1)) {
                 RLOGD("s_PDP[%d].state = %d", i, getPDPState(socket_id, i));
-                if ((bearer == BEARER_TYPE_DEFAULT) || (getPDPState(socket_id, i) == PDP_BUSY &&
+                if (getPDPState(socket_id, i) == PDP_BUSY &&
                     isApnEqual((char *)apn, getPDNAPN(i)) &&
-                    isBipProtocolEqual((char *)pdpType, getPDNIPType(i)))) {
+                    isBipProtocolEqual((char *)pdpType, getPDNIPType(i))) {
                     if (!(s_openchannelInfo[i].pdpState)) {
                         pthread_mutex_lock(&s_signalBipPdpMutex);
                         pthread_cond_wait(&s_signalBipPdpCond, &s_signalBipPdpMutex);
