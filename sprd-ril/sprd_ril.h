@@ -54,7 +54,7 @@
 #define MODEM_CONFIG_PROP          "persist.vendor.radio.modem.config"
 #define PRIMARY_SIM_PROP           "persist.vendor.radio.primarysim"
 #define LTE_MANUAL_ATTACH_PROP     "persist.vendor.radio.manualattach"
-#define MIFI_PRODUCT_PROP          "persist.vendor.radio.mifi"
+#define VSIM_PRODUCT_PROP          "persist.vendor.radio.vsim.product"
 #define MODEM_TTY_PROP             "ro.vendor.modem.tty"
 #define MODEM_ETH_PROP             "ro.vendor.modem.eth"
 #define ENG_QOS_PROP               "persist.vendor.sys.qosstate"

@@ -432,6 +432,7 @@ ATCmdType getCmdType(int request) {
             || request == RIL_EXT_REQUEST_SIMMGR_SIM_POWER
             || request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE
             || request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE
+            || request == RIL_EXT_REQUEST_SIM_POWER_REAL
             /* }@ */
             ) {
         cmdType = AT_CMD_TYPE_NORMAL_FAST;

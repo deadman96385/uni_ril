@@ -284,7 +284,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
           request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
           request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
-          request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE)) {
+          request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE ||
+          request == RIL_EXT_REQUEST_RESET_MODEM)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -404,7 +405,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_SHUTDOWN ||
                  request == RIL_EXT_REQUEST_SET_VOICE_DOMAIN ||
                  request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
-                 request == RIL_ATC_REQUEST_VSIM_SEND_CMD)) {
+                 request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
+                 request == RIL_EXT_REQUEST_RESET_MODEM)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -740,9 +742,9 @@ static void onSIMReady(int channelID) {
      */
 
     char prop[ARRAY_SIZE];
-    property_get(MIFI_PRODUCT_PROP, prop, "false");
-    RLOGD("mifi product prop = %s", prop);
-    if (strcmp(prop, "false") == 0) {
+    property_get(VSIM_PRODUCT_PROP, prop, "0");
+    RLOGD("vsim product prop = %s", prop);
+    if (strcmp(prop, "1") != 0) {
         at_send_command(s_ATChannels[channelID], "AT+CNMI=3,2,2,1,1", NULL);
     } else {
         at_send_command(s_ATChannels[channelID], "AT+CNMI=3,0,2,1,1", NULL);

@@ -103,3 +103,4 @@
     {RIL_EXT_REQUEST_GET_SPECIAL_RATCAP, radio::getSpecialRatcapResponse},
     {RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION, radio::getVideoResolutionResponse},
     {RIL_EXT_REQUEST_GET_IMS_PANI_INFO, radio::getImsPaniInfoResponse},
+    {RIL_EXT_REQUEST_RESET_MODEM, radio::resetModemResponse},

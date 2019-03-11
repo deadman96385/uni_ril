@@ -938,6 +938,9 @@ int getSpecialRatcapResponse(int slotId, int responseType, int serial,
 int getVideoResolutionResponse(int slotId, int responseType, int serial,
                                RIL_Errno e, void *response, size_t responseLen);
 
+int resetModemResponse(int slotId, int responseType, int serial,
+                              RIL_Errno e, void *response, size_t responseLen);
+
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 
 int vsimSendCmdResponse(int slotId, int responseType, int serial,

@@ -2069,6 +2069,14 @@ static void requestSetInitialAttachAPN(int channelID, void *data,
                 }
             } else {
                 isSetReattach = socket_id == s_multiModeSim;
+                property_get(VSIM_PRODUCT_PROP, prop, "0");
+                if (strcmp(prop, "0") != 0) {
+                    if (isSetReattach && (s_workMode[socket_id] == WCDMA_ONLY
+                            || s_workMode[socket_id] == WCDMA_AND_GSM
+                            || s_workMode[socket_id] == GSM_ONLY)) {
+                        isSetReattach = false;
+                    }
+                }
             }
             if (isSetReattach && (s_in4G[socket_id] == 1 ||
                 s_PSRegStateDetail[socket_id] == RIL_NOT_REG_AND_NOT_SEARCHING ||
@@ -3083,10 +3091,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
                                       socket_id);
         }
     } else if (strStartsWith(s, "+SPERROR:")) {
+        char *tmp;
         int type;
         int errCode;
-        char *tmp;
-        int response[2];
+        int response[3] = {0};
+        int plmn = 0;
         extern int s_ussdError[SIM_COUNT];
         extern int s_ussdRun[SIM_COUNT];
 
@@ -3099,6 +3108,11 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
 
         err = at_tok_nextint(&tmp, &errCode);
         if (err < 0) goto out;
+
+        if (at_tok_hasmore(&tmp)) {
+            err = at_tok_nextint(&tmp, &plmn);
+            if (err < 0) goto out;
+        }
 
         if (errCode == 336) {
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_CLEAR_CODE_FALLBACK, NULL,
@@ -3132,6 +3146,7 @@ int processDataUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             }
             response[0] = type;
             response[1] = errCode;
+            response[2] = plmn;
             RIL_onUnsolicitedResponse(RIL_EXT_UNSOL_SIM_PS_REJECT, response, sizeof(response),
                                             socket_id);
         }
