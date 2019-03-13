@@ -1097,6 +1097,9 @@ int getFacilityLockForAppExtResponse(int slotId, int responseType, int serial,
 int getImsRegAddressResponse(int slotId, int responseType, int serial,
                              RIL_Errno e, void *response, size_t responseLen);
 
+int getImsPaniInfoResponse(int slotId, int responseType, int serial,
+                           RIL_Errno e, void *response, size_t responseLen);
+
 /****************IMS EXTENSION UNSOL RESPONSEs' responseFunction**************/
 
 int IMSCallStateChangedInd(int slotId, int indicationType, int token,
@@ -1129,6 +1132,8 @@ int IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
 int DsdaStatusInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
 int updateHdStateInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
+int IMSCsfbVendorCauseInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
 /*****************************************************************************/
 }   // namespace radio

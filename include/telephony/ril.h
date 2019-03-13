@@ -2352,6 +2352,7 @@ typedef enum {
 
 typedef struct {
     int      type;
+    int      age;
     char *   info;
 } IMS_NetworkInfo;
 /* @} */
@@ -7279,7 +7280,8 @@ typedef enum {
 #define RIL_REQUEST_EXT_QUERY_FACILITY_LOCK         (RIL_EXT_REQUEST_BASE + 92)
 #define RIL_REQUEST_IMS_REGADDR                     (RIL_EXT_REQUEST_BASE + 93)
 #define RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE  (RIL_EXT_REQUEST_BASE + 94)
-#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE
+#define RIL_EXT_REQUEST_GET_IMS_PANI_INFO           (RIL_EXT_REQUEST_BASE + 100)
+#define RIL_EXT_REQUEST_LAST                        RIL_EXT_REQUEST_GET_IMS_PANI_INFO
 
 #define RIL_EXT_UNSOL_RESPONSE_BASE                 5000
 #define RIL_EXT_UNSOL_VIDEOPHONE_CODEC              (RIL_EXT_UNSOL_RESPONSE_BASE + 0)
@@ -7314,7 +7316,8 @@ typedef enum {
 #define RIL_UNSOL_IMS_NETWORK_STATE_CHANGED         (RIL_EXT_UNSOL_RESPONSE_BASE + 29)
 #define RIL_UNSOL_DSDASTATUS                        (RIL_EXT_UNSOL_RESPONSE_BASE + 30)
 #define RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE         (RIL_EXT_UNSOL_RESPONSE_BASE + 31)
-#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE
+#define RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE         (RIL_EXT_UNSOL_RESPONSE_BASE + 32)
+#define RIL_EXT_UNSOL_RESPONSE_LAST                 RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE
 /*****************************************************************************/
 
 

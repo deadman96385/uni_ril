@@ -1250,6 +1250,7 @@ const char *requestToString(int request) {
         case RIL_REQUEST_SET_IMS_PCSCF_ADDR: return "SET_VOWIFI_PCSCF_ADDR";
         case RIL_REQUEST_EXT_QUERY_FACILITY_LOCK: return "EXT_QUERY_FACILITY_LOCK";
         case RIL_REQUEST_IMS_REGADDR: return "IMS_REGADDR";
+        case RIL_EXT_REQUEST_GET_IMS_PANI_INFO: return "GET_IMS_PANI_INFO";
         /* }@ */
         /* OEM SOCKET REQUEST @{*/
         /* videophone @{ */
@@ -1373,6 +1374,7 @@ const char *requestToString(int request) {
         case RIL_UNSOL_IMS_NETWORK_STATE_CHANGED: return "UNSOL_IMS_NETWORK_STATE_CHANGED";
         case RIL_UNSOL_DSDASTATUS: return "UNSOL_DSDASTATUS";
         case RIL_EXT_UNSOL_UPDATE_HD_VOICE_STATE: return "UNSOL_UPDATE_HD_VOICE_STATE";
+        case RIL_EXT_UNSOL_IMS_CSFB_VENDOR_CAUSE: return "UNSOL_IMS_CSFB_VENDOR_CAUSE";
         /* }@ */
         /* videophone @{ */
         case RIL_EXT_UNSOL_VIDEOPHONE_CODEC: return "UNSOL_VIDEOPHONE_CODEC";

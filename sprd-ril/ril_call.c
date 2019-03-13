@@ -1571,6 +1571,48 @@ error:
     at_response_free(p_response);
 }
 
+static void requestGetImsPaniInfo(int channelID, void *data,
+                                  size_t datalen, RIL_Token t) {
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    char *line = NULL;
+    ATResponse *p_response = NULL;
+    IMS_NetworkInfo *pResp =
+            (IMS_NetworkInfo *)calloc(1, sizeof(IMS_NetworkInfo));
+
+    err = at_send_command_singleline(s_ATChannels[channelID],
+            "AT+IMSHONWINF?", "+IMSHONWINF:", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &pResp->type);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&line, &pResp->info);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &pResp->age);
+    if (err < 0) goto error;
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, pResp, sizeof(IMS_NetworkInfo));
+    at_response_free(p_response);
+    free(pResp);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    free(pResp);
+}
+
 int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
                           int channelID) {
     int ret = 1;
@@ -2261,6 +2303,9 @@ int processCallRequest(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_IMS_PANI_INFO:
+            requestGetImsPaniInfo(channelID, data, datalen, t);
+            break;
         default:
             ret = 0;
             break;
