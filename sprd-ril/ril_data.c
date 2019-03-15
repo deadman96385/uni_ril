@@ -855,10 +855,20 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
-        snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        RLOGD("activeSpeciedCidProcess, s_inUMTS: %d, socketid: %d", s_inUMTS[socket_id], socket_id);
+        if (s_inUMTS[socket_id]) {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                      cid, 4);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", cid);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        } else {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                      cid, s_trafficClass[socket_id]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
     }
 
     if (islte) {
@@ -1422,10 +1432,20 @@ static int reuseDefaultBearer(int channelID, void *data,
                             /* Set required QoS params to default */
                             property_get(ENG_QOS_PROP, qosState, "0");
                             if (!strcmp(qosState, "0")) {
-                                snprintf(cmd, sizeof(cmd),
-                                          "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                                          cid, s_trafficClass[socket_id]);
-                                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                RLOGD("reuseDefaultBearer, s_inUMTS: %d, socketid: %d", s_inUMTS[socket_id], socket_id);
+                                if (s_inUMTS[socket_id]) {
+                                    snprintf(cmd, sizeof(cmd),
+                                              "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                                              cid, 4);
+                                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                    snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", cid);
+                                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                } else {
+                                    snprintf(cmd, sizeof(cmd),
+                                              "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                                              cid, s_trafficClass[socket_id]);
+                                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                }
                             }
                             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
                                       cid);
@@ -1911,10 +1931,21 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
-        snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        RLOGD("setDataProfile, s_inUMTS: %d, socketid: %d", s_inUMTS[socket_id], socket_id);
+        if (s_inUMTS[socket_id]) {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0e0\",\"0e0\",3,0,0",
+                      cid, 4);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+            snprintf(cmd, sizeof(cmd), "AT+CGQREQ=%d,0,0,0,0,0", cid);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+
+        } else {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                      cid, s_trafficClass[socket_id]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
     }
 }
 
