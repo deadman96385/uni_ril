@@ -1588,11 +1588,13 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
             times = p3 / 255 + 1;
         }
         for (i = 0; i < times; i++) {
+            memset(sr, 0, sizeof(RIL_SIM_IO_Response));
+
             p_args->p1 = total >> 8;
             p_args->p2 = total & 0xff;
             p_args->p3 = (p3-total) >= 255 ? 255 : p3 % 255;
             total += p_args->p3;
-            RLOGD("p1 = %d,p2 = %d,p3 = %d", p_args->p1, p_args->p2, p_args->p3);
+            RLOGD("p1 = %d, p2 = %d, p3 = %d", p_args->p1, p_args->p2, p_args->p3);
             err = readSimRecord(channelID, p_args, sr);
             if (err < 0) goto error;
             if (sr->sw1 != 0x90 && sr->sw1 != 0x91 && sr->sw1 != 0x9e
@@ -1601,10 +1603,10 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
                 goto done;
             }
             strncat(simResponse, sr->simResponse, p_args->p3 * 2);
-            free(sr->simResponse);
+            FREEMEMORY(sr->simResponse);
         }
         sr->simResponse = simResponse;
-        RLOGD("simResponse = %s",sr->simResponse);
+        RLOGD("simResponse = %s", sr->simResponse);
     } else {
         err = readSimRecord(channelID, p_args, sr);
         if (err < 0) goto error;
