@@ -1034,7 +1034,7 @@ void updateIMEISV(int channelID) {
 
         if (svProp != svModem) {
             char cmd[AT_COMMAND_LEN] = {0};
-            snprintf(cmd, sizeof(cmd), "AT+SGMR=0,1,2,\"%d\"", svProp);
+            snprintf(cmd, sizeof(cmd), "AT+SGMR=0,1,2,\"%02d\"", svProp);
             at_send_command(s_ATChannels[channelID], cmd, NULL);
         } else {
             RLOGD("Software versions are the same, no need to set again.");
