@@ -918,7 +918,7 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
  * return  NULL :  Dont need fallback
  *         other:  FallBack s_PDP type
  */
-static const char *checkNeedFallBack(int channelID, const char *pdp_type,
+static const char *checkFallBackType(int channelID, const char *pdp_type,
                                          int cidIndex) {
     int fbCause, ipType;
     char *ret = NULL;
@@ -936,7 +936,7 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
     bool isDualpdpAllowed = false;
     memset(carrier, 0, sizeof(carrier));
     property_get(OVERSEA_VERSION, carrier, "unknown");
-    RLOGD("checkNeedFallBack ro.carrier = %s", carrier);
+    RLOGD("checkFallBackType ro.carrier = %s", carrier);
 
     if(!strcmp(carrier, "claro") || !strcmp(carrier, "telcel")){
         isDualpdpAllowed = true;
@@ -955,6 +955,37 @@ static const char *checkNeedFallBack(int channelID, const char *pdp_type,
         }
     }
     return ret;
+}
+
+/*bug1027382 DUT fails to access ipv6 address*/
+static void checkFallBack(int channelID, void *data, const char *pdp_type, int cidIndex) {
+    const char *tmpType = NULL;
+    int isFallback = 0;
+    int index = -1;
+
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    /* Check if need fall back or not */
+    if (pdp_type != NULL && !strcmp(pdp_type, "IPV4+IPV6")) {
+        tmpType = "IPV6";
+    } else if (pdp_type != NULL && !strcmp(pdp_type, "IPV4V6")) {
+        tmpType = checkFallBackType(channelID, pdp_type, cidIndex);
+        isFallback = 1;
+    }
+    if (tmpType == NULL) {  // don't need fallback
+        return ;
+    }
+    index = getPDP(socket_id);
+    if (index < 0 || getPDPCid(socket_id, index) >= 0) {
+        /* just use actived IP */
+        return ;
+    }
+    if (isFallback == 1) {
+        activeSpeciedCidProcess(channelID, data, index + 1, tmpType,
+                cidIndex + 1);
+    } else {  // IPV4+IPV6
+        activeSpeciedCidProcess(channelID, data, index+1, tmpType, 0);
+    }
 }
 
 static bool doIPV4_IPV6_Fallback(int channelID, int index, void *data) {
@@ -1441,6 +1472,7 @@ static int reuseDefaultBearer(int channelID, void *data,
                                 updatePDPCid(socket_id, i + 1, 1);
                                 s_openchannelCid = cid;
                                 ret = cid;
+                                checkFallBack(channelID, data, type, cid - 1);
                             } else if (cgdata_err ==
                                     DATA_ACTIVE_NEED_RETRY_FOR_ANOTHER_CID) {
                                 updatePDPCid(socket_id, i + 1, -1);
@@ -1477,7 +1509,7 @@ static int reuseDefaultBearer(int channelID, void *data,
 static void requestSetupDataCall(int channelID, void *data, size_t datalen,
                                      RIL_Token t) {
     int err;
-    int index = -1, primaryindex = -1;
+    int index = -1;
     int nRetryTimes = 0;
     int ret;
     int isFallback = 0;
@@ -1513,7 +1545,7 @@ RETRY:
     /* check if reuse default bearer or not */
     ret = reuseDefaultBearer(channelID, data, pdpType, t);
     if (ret > 0) {
-        primaryindex = ret - 1;
+        index = ret - 1;
         goto done;
     } else if (ret == -3) {
         goto error;
@@ -1530,7 +1562,6 @@ RETRY:
         s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
         goto error;
     }
-    primaryindex = index;
     ret = activeSpeciedCidProcess(channelID, data, index + 1, pdpType, 0);
     if (ret == DATA_ACTIVE_NEED_RETRY) {
         if (nRetryTimes < 5) {
@@ -1549,28 +1580,7 @@ RETRY:
     } else if (ret == DATA_ACTIVE_SUCCESS &&
             (!strcmp(pdpType, "IPV4V6") || !strcmp(pdpType, "IPV4+IPV6")) &&
             s_isLTE ) {
-        const char *tmpType = NULL;
-        /* Check if need fall back or not */
-        if (!strcmp(pdpType, "IPV4+IPV6")) {
-            tmpType = "IPV6";
-        } else if (!strcmp(pdpType, "IPV4V6")) {
-            tmpType = checkNeedFallBack(channelID, pdpType, index);
-            isFallback = 1;
-        }
-        if (tmpType == NULL) {  // don't need fallback
-            goto done;
-        }
-        index = getPDP(socket_id);
-        if (index < 0 || getPDPCid(socket_id, index) >= 0) {
-            /* just use actived IP */
-            goto done;
-        }
-        if (isFallback == 1) {
-            activeSpeciedCidProcess(channelID, data, index + 1, tmpType,
-                                    primaryindex + 1);
-        } else {  // IPV4+IPV6
-            activeSpeciedCidProcess(channelID, data, index+1, tmpType, 0);
-        }
+        checkFallBack (channelID, data, pdpType, index);
     } else if (ret != DATA_ACTIVE_SUCCESS) {
         goto error;
     }
@@ -1578,20 +1588,20 @@ RETRY:
 done:
     putUnusablePDPCid(socket_id);
     pthread_mutex_lock(&s_signalBipPdpMutex);
-    s_openchannelCid = primaryindex + 1;
-    s_openchannelInfo[primaryindex].count++;
-    s_openchannelInfo[primaryindex].pdpState = true;
+    s_openchannelCid = index + 1;
+    s_openchannelInfo[index].count++;
+    s_openchannelInfo[index].pdpState = true;
     pthread_cond_signal(&s_signalBipPdpCond);
     pthread_mutex_unlock(&s_signalBipPdpMutex);
-    RLOGD("s_openchannelInfo count = %d", s_openchannelInfo[primaryindex].count);
-    requestOrSendDataCallList(channelID, primaryindex + 1, &t);
+    RLOGD("s_openchannelInfo count = %d", s_openchannelInfo[index].count);
+    requestOrSendDataCallList(channelID, index + 1, &t);
     return;
 
 error:
-    if (primaryindex >= 0) {
-        putPDP(socket_id, getFallbackCid(socket_id, primaryindex) - 1);
-        putPDP(socket_id, primaryindex);
-        s_openchannelInfo[primaryindex].pdpState = true;
+    if (index >= 0) {
+        putPDP(socket_id, getFallbackCid(socket_id, index) - 1);
+        putPDP(socket_id, index);
+        s_openchannelInfo[index].pdpState = true;
     }
     pthread_mutex_lock(&s_signalBipPdpMutex);
     pthread_cond_signal(&s_signalBipPdpCond);
