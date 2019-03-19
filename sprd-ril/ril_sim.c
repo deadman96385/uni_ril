@@ -1596,7 +1596,11 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
             total += p_args->p3;
             RLOGD("p1 = %d, p2 = %d, p3 = %d", p_args->p1, p_args->p2, p_args->p3);
             err = readSimRecord(channelID, p_args, sr);
-            if (err < 0) goto error;
+            if (err < 0) {
+                FREEMEMORY(sr->simResponse);
+                sr->simResponse = simResponse;
+                goto error;
+            }
             if (sr->sw1 != 0x90 && sr->sw1 != 0x91 && sr->sw1 != 0x9e
                     && sr->sw1 != 0x9f) {
                 sr->simResponse = simResponse;
