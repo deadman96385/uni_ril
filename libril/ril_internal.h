@@ -25,6 +25,12 @@ namespace android {
 #define RIL3_SERVICE_NAME "slot3"
 #define RIL4_SERVICE_NAME "slot4"
 
+#define SE_ON_SIM_SERVICE_NAME_BASE "SIM"
+#define SE_ON_SIM1_SERVICE_NAME "SIM1"
+#define SE_ON_SIM2_SERVICE_NAME "SIM2"
+#define SE_ON_SIM3_SERVICE_NAME "SIM3"
+#define SE_ON_SIM4_SERVICE_NAME "SIM4"
+
 /* Constants for response types */
 #define RESPONSE_SOLICITED 0
 #define RESPONSE_UNSOLICITED 1
@@ -88,6 +94,8 @@ typedef struct CommandInfo {
 RequestInfo * addRequestToList(int serial, int slotId, int request);
 
 char * RIL_getServiceName();
+
+char * SE_getServiceName();
 
 void releaseWakeLock();
 

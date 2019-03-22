@@ -51,6 +51,7 @@ typedef enum {
 } SimPresentState;
 
 extern int s_imsInitISIM[SIM_COUNT];
+extern int s_chanelNumber[SIM_COUNT];
 extern RIL_AppType s_appType[SIM_COUNT];
 
 void onModemReset_Sim();
@@ -61,5 +62,12 @@ int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s);
 SimStatus getSIMStatus(int request, int channelID);
 RIL_AppType getSimType(int channelID);
 void dispatchCLCK(RIL_Token t, void *data, void *resp);
+bool initForSeService(int simId);
+void getAtrForSeService(int simId, void *response, int *responseLen);
+bool isCardPresentForSeService(int simId);
+void transmitForSeService(int simId, void *data, void *response);
+SE_Status openLogicalChannelForSeService(int simId, void *data, void *response, int *responseLen);
+SE_Status openBasicChannelForSeService(int simId, void *data, void *response);
+SE_Status closeChannelForSeService(int simId, uint8_t channelNumber);
 
 #endif  // RIL_SIM_H_

@@ -2357,6 +2357,34 @@ typedef struct {
 } IMS_NetworkInfo;
 /* @} */
 
+/* UNISOC: add for secure_element @{ */
+typedef enum {
+    SUCCESS = 0,
+    FAILED = 1,
+    CHANNEL_NOT_AVAILABLE = 2,
+    NO_SUCH_ELEMENT_ERROR = 3,
+    UNSUPPORTED_OPERATION = 4,
+    IOERROR = 5,
+} SE_Status;
+
+typedef struct  {
+    uint8_t channelNumber;    /* Channel number to uniquely identify the channel */
+    uint8_t *selectResponse;  /* Response to SELECT command as per ISO/IEC 7816 */
+} SE_LogicalChannelResponse;
+
+typedef struct {
+    uint8_t *aidPtr; /* AID value, See ETSI 102.221 and 101.220*/
+    uint8_t p2;        /* P2 parameter (described in ISO 7816-4)
+                      P2Constants:NO_P2 if to be ignored */
+    size_t len;
+} SE_OpenChannelParams;
+
+typedef struct {
+  uint8_t *data;
+  size_t len;
+} SE_APDU;
+/* @} */
+
 typedef enum {
     TD_LTE = 1,
     LTE_FDD = 2,
@@ -7432,6 +7460,30 @@ typedef void (*RIL_SendCmdSync)(int phoneId, char *cmd, char *response, int resp
 
 typedef void (*RIL_InitVariables)(RIL_SOCKET_ID socket_id);
 
+typedef int (*SE_init)(int simId);
+
+typedef void (*SE_getAtr)(int simId, void *response, int *responseLen);
+
+typedef int (*SE_isCardPresent)(int simId);
+
+typedef void (*SE_transmit)(int simId, void *data, void *response);
+
+typedef SE_Status (*SE_openLogicalChannel)(int simId, void *data, void *response, int *responseLen);
+
+typedef SE_Status (*SE_openBasicChannel)(int simId, void *data, void *response);
+
+typedef SE_Status (*SE_closeChannel)(int simId, uint8_t channelNumber);
+
+typedef struct {
+    SE_init initForSeService;
+    SE_getAtr getAtrForSeService;
+    SE_isCardPresent isCardPresentForSeService;
+    SE_transmit transmitForSeService;
+    SE_openLogicalChannel openLogicalChannelForSeService;
+    SE_openBasicChannel openBasicChannelForSeService;
+    SE_closeChannel closeChannelForSeService;
+} SE_Functions;
+
 typedef struct {
     int version;        /* set to RIL_VERSION */
     RIL_RequestFunc onRequest;
@@ -7441,6 +7493,7 @@ typedef struct {
     RIL_GetVersion getVersion;
     RIL_SendCmdSync sendCmdSync;
     RIL_InitVariables initVaribales;
+    SE_Functions *seFunctions;
 } RIL_RadioFunctions;
 
 typedef void (*RIL_processRequest)(int request, void *data, size_t datalen,

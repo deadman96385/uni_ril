@@ -140,6 +140,16 @@ static const RIL_RequestFunctions s_requestFunctions = {
 };
 const RIL_TheadsFunctions *s_threadsFunctions = NULL;
 
+static const SE_Functions s_seCallbacks = {
+    initForSeService,
+    getAtrForSeService,
+    isCardPresentForSeService,
+    transmitForSeService,
+    openLogicalChannelForSeService,
+    openBasicChannelForSeService,
+    closeChannelForSeService
+};
+
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
     RIL_VERSION,
@@ -149,7 +159,8 @@ static const RIL_RadioFunctions s_callbacks = {
     onCancel,
     getVersion,
     sendCmdSync,
-    initVaribales
+    initVaribales,
+    &s_seCallbacks
 };
 
 const struct RIL_Env *s_rilSapEnv;
@@ -161,7 +172,8 @@ static const RIL_RadioFunctions s_sapCallbacks = {
     onCancel,
     getVersion,
     sendCmdSync,
-    initVaribales
+    initVaribales,
+    &s_seCallbacks
 };
 
 void *noopRemoveWarning(void *a) {

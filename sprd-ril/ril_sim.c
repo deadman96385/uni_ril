@@ -122,6 +122,19 @@ int s_imsInitISIM[SIM_COUNT] = {
 #endif
         };
 
+int s_channelNumber[SIM_COUNT] = {
+        0
+#if (SIM_COUNT >= 2)
+       ,0
+#if (SIM_COUNT >= 3)
+       ,0
+#if (SIM_COUNT >= 4)
+       ,0
+#endif
+#endif
+#endif
+        };
+
 const char *base64char =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -3253,6 +3266,225 @@ void onSimStatusChanged(RIL_SOCKET_ID socket_id, const char *s) {
 
 out:
     free(line);
+}
+
+bool initForSeService(int simId) {
+    bool ret = false;
+    int channelID = getChannel((RIL_SOCKET_ID)simId);
+    int err = -1;
+    char *cpinLine = NULL, *cpinResult = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CPIN?",
+                                     "+CPIN:", &p_response);
+    if (err < 0 || p_response->success == 0) goto done;
+
+    cpinLine = p_response->p_intermediates->line;
+    err = at_tok_start(&cpinLine);
+    if (err < 0) goto done;
+
+    err = at_tok_nextstr(&cpinLine, &cpinResult);
+    if (err < 0) goto done;
+
+    if (strcmp(cpinResult, "READY") == 0) {
+        ret = true;
+    }
+
+done:
+    putChannel(channelID);
+    return ret;
+}
+
+void getAtrForSeService(int simId, void *response, int *responseLen) {
+    int err;
+    char *line = NULL;
+    char *resp = NULL;
+    ATResponse *p_response = NULL;
+    int channelID = getChannel((RIL_SOCKET_ID)simId);
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+SPATR?",
+                                     "+SPATR:", &p_response);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        RLOGD("getAtr AT return failed");
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    if (at_tok_start(&line) < 0) goto error;
+    if (at_tok_nextstr(&line, &resp) < 0) goto error;
+
+    memcpy((char *)response, resp, strlen(resp));
+    *responseLen = strlen(resp);
+    at_response_free(p_response);
+    putChannel(channelID);
+    return;
+
+error:
+    at_response_free(p_response);
+    putChannel(channelID);
+}
+
+bool isCardPresentForSeService(int simId) {
+    bool ret = false;
+    if (s_isSimPresent[simId] != ABSENT) {
+        ret = true;
+        RLOGD("isCardPresent");
+    }
+    return ret;
+}
+
+void transmitForSeService(int simId, void *data, void *response) {
+    int err, len, i = 0;
+    char *cmd = NULL;
+    char *line = NULL;
+    char tmp[AT_COMMAND_LEN] = {0};
+    int channelID = getChannel((RIL_SOCKET_ID)simId);
+    SE_APDU *apdu = (SE_APDU *)data;
+    SE_APDU *resp = (SE_APDU *)response;
+    ATResponse *p_response = NULL;
+    RIL_SIM_IO_Response sr;
+
+    memset(&sr, 0, sizeof(sr));
+
+    for (i = 0; i < (int)(apdu->len); i++) {
+        snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
+    }
+    asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId],
+            (int)((apdu->len) * 2), tmp);
+
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
+                                     &p_response);
+    free(cmd);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        RLOGD("transmit(): +CGLA return failed");
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    if (at_tok_start(&line) < 0 || at_tok_nextint(&line, &len) < 0 ||
+        at_tok_nextstr(&line, &(sr.simResponse)) < 0) {
+        RLOGD("transmit(): at_tok failed");
+        goto error;
+    }
+
+    resp->len = strlen(sr.simResponse);
+    resp->data = (uint8_t *)calloc(resp->len, sizeof(uint8_t));
+    memcpy(resp->data, (uint8_t *)sr.simResponse, (resp->len) * sizeof(uint8_t));
+
+error:
+    AT_RESPONSE_FREE(p_response);
+    putChannel(channelID);
+}
+
+SE_Status openLogicalChannelForSeService(int simId, void *data, void *resp, int *responseLen) {
+    int channelID = getChannel((RIL_SOCKET_ID)simId);
+    int respLen = 1;
+    int err, i = 0;
+    int response[ARRAY_SIZE * 4] = {0};
+    SE_Status errType = FAILED;
+    char *cmd = NULL, *line = NULL;
+    char tmp[AT_COMMAND_LEN] = {0};
+    char *statusWord = NULL;
+    char *respData = NULL;
+    SE_OpenChannelParams *params = (SE_OpenChannelParams *)data;
+    ATResponse *p_response = NULL;
+
+    for (i = 0; i < (int)(params->len); i++) {
+        snprintf(tmp, sizeof(tmp), "%s%02X", tmp, params->aidPtr[i]);
+    }
+    if (params->p2 < 0) {
+        asprintf(&cmd, "AT+SPCCHO=\"%s\"", tmp);
+    } else {
+        asprintf(&cmd, "AT+SPCCHO=\"%s\",%d", tmp, params->p2);
+    }
+
+    err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+SPCCHO:",
+                                    &p_response);
+    if (err < 0) goto error;
+    if (p_response != NULL && p_response->success == 0) {
+        if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
+            errType = CHANNEL_NOT_AVAILABLE;
+        } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+            errType = NO_SUCH_ELEMENT_ERROR;
+        }
+        goto error;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &response[0]);  // Read channel number
+    if (err < 0) goto error;
+    s_channelNumber[simId] = response[0];
+
+    if (at_tok_hasmore(&line)) {  // Read select response (if available)
+        err = at_tok_nextstr(&line, &statusWord);
+        if (err < 0) goto error;
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextstr(&line, &respData);
+            if (err < 0) goto error;
+            int length = strlen(respData) / 2;
+            while (respLen <= length) {
+                sscanf(respData, "%02x", &(response[respLen]));
+                respLen++;
+                respData += 2;
+            }
+            sscanf(statusWord, "%02x%02x", &(response[respLen]), &(response[respLen + 1]));
+            respLen = respLen + 2;
+        } else {
+            sscanf(statusWord, "%02x%02x", &(response[respLen]), &(response[respLen + 1]));
+            respLen = respLen + 2;
+        }
+    } else {  // no select response, set status word
+        response[respLen] = 0x90;
+        response[respLen + 1] = 0x00;
+        respLen = respLen + 2;
+    }
+
+    memcpy((int *)resp, response, respLen * sizeof(int));
+    *responseLen = respLen * sizeof(int);
+    errType = SUCCESS;
+
+error:
+    at_response_free(p_response);
+    free(cmd);
+    putChannel(channelID);
+    return errType;
+}
+
+SE_Status openBasicChannelForSeService(int simId, void *data, void *response) {
+    /* @@@ TODO */
+    RIL_UNUSED_PARM(simId);
+    RIL_UNUSED_PARM(data);
+    RIL_UNUSED_PARM(response);
+    return UNSUPPORTED_OPERATION;
+}
+
+SE_Status closeChannelForSeService(int simId, uint8_t channelNumber) { //TODO: requestCloseLogicalChannel???
+    RLOGD("closeChannel: simId = %d, channelNumber = %d", simId, channelNumber);
+
+    int err = 0, status = SUCCESS;
+    int sessionId = (int)channelNumber;
+    int channelID = getChannel((RIL_SOCKET_ID)simId);
+    char cmd[AT_COMMAND_LEN] = {0};
+    ATResponse *p_response = NULL;
+
+    if (sessionId <= 0) {
+        status = FAILED;
+    } else {
+        snprintf(cmd, sizeof(cmd), "AT+CCHC=%d", sessionId);
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            status = FAILED;
+        }
+        at_response_free(p_response);
+    }
+    putChannel(channelID);
+    s_channelNumber[simId] = 0;
+    return status;
 }
 
 int processSimUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {

@@ -12,6 +12,7 @@ LOCAL_SRC_FILES:= \
     ril_service.cpp \
     sap_service.cpp \
     ril_ons.cpp \
+    se_service.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog \
@@ -26,6 +27,7 @@ LOCAL_SHARED_LIBRARIES := \
     libhidltransport \
     libhwbinder \
     vendor.sprd.hardware.radio@1.0 \
+    android.hardware.secure_element@1.0 \
 
 LOCAL_STATIC_LIBRARIES := \
     libprotobuf-c-nano-enable_malloc \
@@ -62,6 +64,7 @@ LOCAL_SRC_FILES:= \
     ril_service.cpp \
     sap_service.cpp \
     ril_ons.cpp \
+    se_service.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     liblog \
@@ -76,6 +79,7 @@ LOCAL_SHARED_LIBRARIES := \
     libhidltransport \
     libhwbinder \
     vendor.sprd.hardware.radio@1.0 \
+    android.hardware.secure_element@1.0 \
 
 LOCAL_STATIC_LIBRARIES := \
     libprotobuf-c-nano-enable_malloc \

@@ -48,7 +48,7 @@
 #include <RilSapSocket.h>
 #include <ril_service.h>
 #include <sap_service.h>
-
+#include <se_service.h>
 
 namespace android {
 
@@ -104,9 +104,16 @@ extern "C"
 char ril_service_name_base[MAX_SERVICE_NAME_LENGTH] = RIL_SERVICE_NAME_BASE;
 extern "C"
 char ril_service_name[MAX_SERVICE_NAME_LENGTH] = RIL1_SERVICE_NAME;
+
+extern "C"
+char secureElement_service_name_base[MAX_SERVICE_NAME_LENGTH] = SE_ON_SIM_SERVICE_NAME_BASE;
+extern "C"
+char secureElement_service_name[MAX_SERVICE_NAME_LENGTH] = SE_ON_SIM1_SERVICE_NAME;
+
 /*******************************************************************/
 
-RIL_RadioFunctions s_callbacks = {0, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+RIL_RadioFunctions s_callbacks = {0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+SE_Functions s_seCallbacks = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 static int s_registerCalled = 0;
 
 static pthread_t s_tid_dispatch;
@@ -210,6 +217,10 @@ static UnsolResponseInfo s_atcUnsolResponses[] = {
 
 char * RIL_getServiceName() {
     return ril_service_name;
+}
+
+char * SE_getServiceName() {
+    return secureElement_service_name;
 }
 
 RequestInfo *
@@ -471,6 +482,7 @@ RIL_register (const RIL_RadioFunctions *callbacks) {
     }
 
     memcpy(&s_callbacks, callbacks, sizeof (RIL_RadioFunctions));
+    memcpy(&s_seCallbacks, callbacks->seFunctions, sizeof (SE_Functions));
 
     s_registerCalled = 1;
 
@@ -510,7 +522,8 @@ RIL_register (const RIL_RadioFunctions *callbacks) {
 
     radio::registerService(&s_callbacks, s_commands);
     RLOGI("RILHIDL called registerService");
-
+    secureElement::registerService(&s_seCallbacks);
+    RLOGI("SEHIDL called registerService");
 }
 
 extern "C" void
