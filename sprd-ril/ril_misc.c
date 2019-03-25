@@ -1088,6 +1088,18 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             p_response = NULL;
             int mode = ((int *)data)[0];
             char cmd[AT_COMMAND_LEN] = {0};
+
+            RLOGD("RADIO_POWER_FALLBACK:mode = %d",mode);
+            if(1 == mode) {
+                RLOGD("RADIO_POWER_FALLBACK:set A first");
+                err = at_send_command(s_ATChannels[channelID], "AT+SPPOWERBFCOM=0,0,1", &p_response); 
+                if (err < 0 || p_response->success == 0) {
+                    RLOGD("RADIO_POWER_FALLBACK:set A failed!!!");
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+                    goto error;
+                }
+                at_response_free(p_response);
+            }
             snprintf(cmd, sizeof(cmd), "AT+SPPOWERFB=%d", mode);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err < 0 || p_response->success == 0) {
@@ -1095,6 +1107,7 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             } else {
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             }
+    error:
             at_response_free(p_response);
             break;
         }
