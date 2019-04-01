@@ -1064,7 +1064,7 @@ int processStkUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
             goto out;
         }
         response->result = result;
-        if (SIM_RESET == result) {
+        if (SIM_RESET == result || SIM_INIT == result) {
             s_imsInitISIM[socket_id] = -1;
             s_stkServiceRunning[socket_id] = false;
         }
