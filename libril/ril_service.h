@@ -1099,6 +1099,9 @@ int IMSWifiParamInd(int slotId, int indicationType, int token,
 int IMSNetworkStateChangedInd(int slotId, int indicationType, int token,
                               RIL_Errno e, void *response, size_t responseLen);
 
+int IMSCsfbVendorCauseInd(int slotId, int indicationType, int token,
+                         RIL_Errno e, void *response, size_t responseLen);
+
 /*****************************************************************************/
 }   // namespace radio
 
