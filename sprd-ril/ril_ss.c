@@ -1334,6 +1334,7 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
     } else if (strStartsWith(s, "+CSSI:")) {
         RIL_SuppSvcNotification *response = NULL;
         int code = 0;
+        int index = 0;
         char *tmp;
 
         response =(RIL_SuppSvcNotification *)
@@ -1346,13 +1347,18 @@ int processSSUnsolicited(RIL_SOCKET_ID socket_id, const char *s) {
         at_tok_start(&tmp);
         err = at_tok_nextint(&tmp, &code);
         if (err < 0) {
-            RLOGD("%s fail", s);
+            RLOGD("%s code fail", s);
             free(response);
             goto out;
         }
+        err = at_tok_nextint(&tmp, &index);
+        if (err < 0) {
+            RLOGD("%s index fail ", s);
+            index = 0;
+        }
         response->notificationType = MO_CALL;
         response->code = code;
-        response->index = 0;
+        response->index = index;
         response->type = 0;
         response->number = NULL;
 
