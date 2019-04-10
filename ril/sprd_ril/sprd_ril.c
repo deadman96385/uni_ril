@@ -13440,6 +13440,8 @@ error:
  */
 static void onUnsolicited (const char *s, const char *sms_pdu)
 {
+    RILLOGI( "[unsl] URC STRING = %s, strlen = %d.", s, strlen(s)+1 );
+    RIL_onUnsolicitedResponse (RIL_UNSOL_URC_STRING, (void *)s, strlen(s)+1);
     char *line = NULL;
     int err;
 

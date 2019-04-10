@@ -7016,6 +7016,7 @@ requestToString(int request) {
         case RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE: return "RIL_UNSOL_IMS_REGISTER_ADDRESS_CHANGE";
         case RIL_UNSOL_IMS_WIFI_PARAM: return "RIL_UNSOL_IMS_WIFI_PARAM";
         /* @} */
+        case RIL_UNSOL_URC_STRING: return "RIL_UNSOL_URC_STRING";
 #if defined (RIL_SUPPORTED_OEMSOCKET)
         case RIL_EXT_UNSOL_RIL_CONNECTED: return "UNSOL_RIL_CONNECTED";
         case RIL_EXT_UNSOL_BAND_INFO: return "UNSOL_BAND_INFO";
