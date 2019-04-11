@@ -851,7 +851,7 @@ int createSocket(StkContext *pstkContext) {
 
                 char srcAddress[128] = {0};
                 char cmd[128] = {0};
-                sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                sprintf(cmd, "vendor.net.%s.ipv6_ip", ifName);
                 RLOGD("createSocket cmd:%s", cmd);
                 property_get(cmd, srcAddress, "");
                 RLOGD("createSocket srcAddress:%s", srcAddress);
@@ -893,7 +893,7 @@ int createSocket(StkContext *pstkContext) {
                 }
                 char srcAddress[128] = {0};
                 char cmd[128] = {0};
-                sprintf(cmd, "net.%s.ipv6_ip", ifName);
+                sprintf(cmd, "vendor.net.%s.ipv6_ip", ifName);
                 RLOGD("createSocket cmd:%s", cmd);
                 property_get(cmd, srcAddress, "");
                 RLOGD("createSocket srcAddress:%s", srcAddress);
