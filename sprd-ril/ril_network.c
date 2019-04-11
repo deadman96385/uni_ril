@@ -111,6 +111,7 @@ int s_imsRegistered[SIM_COUNT];  // 0 == unregistered
 int s_imsBearerEstablished[SIM_COUNT];
 int s_in4G[SIM_COUNT];
 int s_in2G[SIM_COUNT] = {0};
+int s_in3G[SIM_COUNT] = {0};
 int s_workMode[SIM_COUNT] = {0};
 int s_desiredRadioState[SIM_COUNT] = {0};
 int s_requestSetRC[SIM_COUNT] = {0};
@@ -138,6 +139,7 @@ void onModemReset_Network() {
         s_PSRegState[socket_id] = STATE_OUT_OF_SERVICE;
         s_in4G[socket_id] = 0;
         s_in2G[socket_id] = 0;
+        s_in3G[socket_id] = 0;
         s_imsRegistered[socket_id] = 0;
 
         // signal process related
@@ -826,6 +828,14 @@ static void requestRegistrationState(int channelID, int request,
         if (response[3] == RADIO_TECH_GPRS
                 || response[3] == RADIO_TECH_EDGE) {
             s_in2G[socket_id] = 1;
+        }
+        RLOGD("requestRegistrationState ACT = %d", response[3]);
+        if (response[3] == RADIO_TECH_UMTS
+                || response[3] == RADIO_TECH_HSDPA
+                || response[3] == RADIO_TECH_HSUPA
+                || response[3] == RADIO_TECH_HSPA
+                || response[3] == RADIO_TECH_HSPAP) {
+            s_in3G[socket_id] = 1;
         }
         snprintf(res[3], sizeof(res[3]), "%d", response[3]);
         responseStr[3] = res[3];

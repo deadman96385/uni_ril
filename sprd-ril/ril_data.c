@@ -34,6 +34,7 @@ static int s_activePDN;
 static int s_addedIPCid = -1;  /* for VoLTE additional business */
 static int s_autoDetach = 1;  /* whether support auto detach */
 static int s_pdpType = IPV4V6;
+bool isAttachPlay = false;
 
 PDP_INFO pdp_info[MAX_PDP_NUM];
 pthread_mutex_t s_psServiceMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -539,6 +540,59 @@ error:
     return cause;
 }
 
+static void queryCOPS(int channelID) {
+    int err = 0;
+    int skip;
+    int rat;
+    char *mccmnc;
+    ATResponse *p_response = NULL;
+    err = at_send_command_multiline(s_ATChannels[channelID],
+            "AT+COPS=3,2;+COPS?", "+COPS:",
+            &p_response);
+    RLOGD("query cops err= %d", err);
+    if (err != 0) goto error;
+
+    char *line = p_response->p_intermediates->line;
+    RLOGD("query cops line = %s", line);
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextint(&line, &skip);
+    RLOGD("query cops mode = %d", skip);
+    if (err < 0) goto error;
+
+    if (!at_tok_hasmore(&line)) {
+        RLOGD("modem occur error1");
+        goto error;
+    }
+
+    err = at_tok_nextint(&line, &skip);
+    RLOGD("query cops format = %d", skip);
+    if (err < 0) goto error;
+
+    if (!at_tok_hasmore(&line)) {
+        RLOGD("modem occur error2");
+        goto error;
+     }
+
+    err = at_tok_nextstr(&line, &mccmnc);
+    if (err < 0) goto error;
+    int isPlay = strncasecmp(mccmnc, "260",3);
+    RLOGD("query cops current oper = %s, is play = %d", mccmnc, isPlay);
+    if (!isPlay) {
+        RLOGD("in play");
+        isAttachPlay = true;
+    } else {
+        RLOGD("not in play");
+        isAttachPlay = false;
+    }
+
+    return;
+
+    error:
+    RLOGD("query cops exception");
+}
+
 static void queryAllActivePDNInfos(int channelID) {
     int err = 0;
     int skip, active;
@@ -855,10 +909,20 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
-        snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        queryCOPS(channelID);
+        RLOGD("activeSpeciedCidProcess, isAttachPlay: %d, in3G: %d, socketid: %d"
+                , isAttachPlay, s_in3G[socket_id], socket_id);
+        if (isAttachPlay && s_in3G[socket_id]) {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0\",\"0\",3,0,0",
+                      cid, 4);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        } else {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                      cid, s_trafficClass[socket_id]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
     }
 
     if (islte) {
@@ -1326,11 +1390,17 @@ static void requestOrSendDataCallList(int channelID, int cid,
                     s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                     RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
+                RLOGD("set s_LTEDetached & s_curCid default value");
+                s_LTEDetached[socket_id] = false;
+                s_curCid[socket_id] = 0;
                 return;
             }
         }
 
         if (i >= MAX_PDP) {
+            RLOGD("set s_LTEDetached & s_curCid default value");
+            s_LTEDetached[socket_id] = false;
+            s_curCid[socket_id] = 0;
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
             RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
             return;
@@ -1422,10 +1492,20 @@ static int reuseDefaultBearer(int channelID, void *data,
                             /* Set required QoS params to default */
                             property_get(ENG_QOS_PROP, qosState, "0");
                             if (!strcmp(qosState, "0")) {
-                                snprintf(cmd, sizeof(cmd),
-                                          "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                                          cid, s_trafficClass[socket_id]);
-                                at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                queryCOPS(channelID);
+                                RLOGD("reuseDefaultBearer, isAttachPlay: %d, in3G: %d, socketid: %d"
+                                        , isAttachPlay, s_in3G[socket_id], socket_id);
+                                if (isAttachPlay && s_in3G[socket_id]) {
+                                    snprintf(cmd, sizeof(cmd),
+                                              "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0\",\"0\",3,0,0",
+                                              cid, 4);
+                                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                } else {
+                                    snprintf(cmd, sizeof(cmd),
+                                              "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                                              cid, s_trafficClass[socket_id]);
+                                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                                }
                             }
                             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
                                       cid);
@@ -1911,10 +1991,20 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
     if (!strcmp(qosState, "0")) {
-        snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
-        at_send_command(s_ATChannels[channelID], cmd, NULL);
+        queryCOPS(channelID);
+        RLOGD("setDataProfile, isAttachPlay: %d, in3G: %d, socketid: %d"
+                , isAttachPlay, s_in3G[socket_id], socket_id);
+        if (isAttachPlay && s_in3G[socket_id]) {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"0\",\"0\",3,0,0",
+                      cid, 4);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        } else {
+            snprintf(cmd, sizeof(cmd),
+                      "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
+                      cid, s_trafficClass[socket_id]);
+            at_send_command(s_ATChannels[channelID], cmd, NULL);
+        }
     }
 }
 
