@@ -946,6 +946,32 @@ error:
     return;
 }
 
+void downgradeRadioPower(int channelID, void *data, size_t datalen, RIL_Token t) {
+    ATResponse *p_response = NULL;
+    int err = 0;
+    int mode = ((int *)data)[0];
+    char cmd[AT_COMMAND_LEN] = {0};
+    if (1 == mode) {  //turn on power regress/lift function and use setA configuration
+        snprintf(cmd, sizeof(cmd), "AT+SPPOWERBFCOM=0,0,1");
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+        if (err < 0 || p_response->success == 0) {
+            RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+            goto error;
+        }
+        AT_RESPONSE_FREE(p_response);
+    }
+    memset(cmd, 0, sizeof(cmd));
+    snprintf(cmd, sizeof(cmd), "AT+SPPOWERFB=%d", mode);
+    err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    if (err < 0 || p_response->success == 0) {
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else {
+        RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    }
+error:
+    at_response_free(p_response);
+}
+
 int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
                         int channelID) {
     int err;
@@ -1085,29 +1111,7 @@ int processMiscRequests(int request, void *data, size_t datalen, RIL_Token t,
             break;
         }
         case RIL_EXT_REQUEST_RADIO_POWER_FALLBACK: {
-            p_response = NULL;
-            int mode = ((int *)data)[0];
-            char cmd[AT_COMMAND_LEN] = {0};
-
-            RLOGD("RADIO_POWER_FALLBACK:mode = %d",mode);
-            if(1 == mode) {
-                err = at_send_command(s_ATChannels[channelID], "AT+SPPOWERBFCOM=0,0,1", &p_response);
-                if (err < 0 || p_response->success == 0) {
-                    RLOGD("RADIO_POWER_FALLBACK:set A failed!!!");
-                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-                    goto error;
-                }
-                at_response_free(p_response);
-            }
-            snprintf(cmd, sizeof(cmd), "AT+SPPOWERFB=%d", mode);
-            err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
-            if (err < 0 || p_response->success == 0) {
-                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-            } else {
-                RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-            }
-    error:
-            at_response_free(p_response);
+            downgradeRadioPower(channelID, data, datalen, t);
             break;
         }
         case RIL_EXT_REQUEST_SET_LOCATION_INFO: {
