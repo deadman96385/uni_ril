@@ -2795,11 +2795,13 @@ static void requestGetCellInfoList(int channelID, void *data,
         err = at_tok_nextint(&line, &arfcn);
         if (err < 0) goto error;
 
-        err = at_tok_nextint(&line, &psc);
-        if (err < 0) goto error;
+        if (at_tok_hasmore(&line)) {
+            err = at_tok_nextint(&line, &psc);
+            if (err < 0) goto error;
 
-        err = at_tok_nextint(&line, &cellIdNumber);
-        if (err < 0) goto error;
+            err = at_tok_nextint(&line, &cellIdNumber);
+            if (err < 0) goto error;
+        }
 
         response = (RIL_CellInfo_v12 *)
                 calloc((cellIdNumber + 1), sizeof(RIL_CellInfo_v12));
@@ -2819,34 +2821,36 @@ static void requestGetCellInfoList(int channelID, void *data,
         response[0].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = biterr3G;
         response[0].CellInfo.wcdma.signalStrengthWcdma.signalStrength = sig3G;
 
-        for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
-             current++) {
-            err = at_tok_nextint(&line, &arfcn);
-            if (err < 0) goto error;
+        if (at_tok_hasmore(&line)) {
+            for (current = 0; at_tok_hasmore(&line), current < cellIdNumber;
+                    current++) {
+                err = at_tok_nextint(&line, &arfcn);
+                if (err < 0) goto error;
 
-            err = at_tok_nextint(&line, &psc);
-            if (err < 0) goto error;
+                err = at_tok_nextint(&line, &psc);
+                if (err < 0) goto error;
 
-            err = at_tok_nextint(&line, &sig3G);
-            if (err < 0) goto error;
+                err = at_tok_nextint(&line, &sig3G);
+                if (err < 0) goto error;
 
-            signalStrength = (sig3G - 3) / 2;
+                signalStrength = (sig3G - 3) / 2;
 
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mcc = INT_MAX;
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mnc = INT_MAX;
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.lac = INT_MAX;
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.cid = INT_MAX;
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.psc = psc;
-            response[current + 1].CellInfo.wcdma.cellIdentityWcdma.uarfcn = arfcn;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mcc = INT_MAX;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.mnc = INT_MAX;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.lac = INT_MAX;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.cid = INT_MAX;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.psc = psc;
+                response[current + 1].CellInfo.wcdma.cellIdentityWcdma.uarfcn = arfcn;
 
-            response[current + 1].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = INT_MAX;
-            response[current + 1].CellInfo.wcdma.signalStrengthWcdma.signalStrength =
-                    signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);
+                response[current + 1].CellInfo.wcdma.signalStrengthWcdma.bitErrorRate = INT_MAX;
+                response[current + 1].CellInfo.wcdma.signalStrengthWcdma.signalStrength =
+                        signalStrength > 31 ? 31 : (signalStrength < 0 ? 0 : signalStrength);
 
-            response[current + 1].registered = 0;
-            response[current + 1].cellInfoType = cellType;
-            response[current + 1].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
-            response[current + 1].timeStamp = INT_MAX;
+                response[current + 1].registered = 0;
+                response[current + 1].cellInfoType = cellType;
+                response[current + 1].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+                response[current + 1].timeStamp = INT_MAX;
+            }
         }
     }
 
