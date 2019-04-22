@@ -815,6 +815,8 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     char qosState[PROPERTY_VALUE_MAX] = {0};
     char eth[PROPERTY_VALUE_MAX] = {0};
     char prop[PROPERTY_VALUE_MAX] = {0};
+    char qosSduErrorRatio[PROPERTY_VALUE_MAX] = {0};
+    char qosResidualBitErrorRatio[PROPERTY_VALUE_MAX] = {0};
     const char *apn, *username, *password, *authtype;
     ATResponse *p_response = NULL;
 
@@ -854,10 +856,12 @@ static int activeSpeciedCidProcess(int channelID, void *data, int cid,
     at_send_command(s_ATChannels[channelID], cmd, NULL);
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
+    property_get(QOS_SDU_ERROR_RATIO, qosSduErrorRatio, "1e4");
+    property_get(QOS_RESIDUAL_BIT_ERROR_RATIO, qosResidualBitErrorRatio, "0e0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
+                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"%s\",\"%s\",3,0,0",
+                  cid, s_trafficClass[socket_id], qosSduErrorRatio, qosResidualBitErrorRatio);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
 
@@ -1443,6 +1447,8 @@ static int reuseDefaultBearer(int channelID, void *data,
 
                             char newCmd[AT_COMMAND_LEN] = {0};
                             char qosState[PROPERTY_VALUE_MAX] = {0};
+                            char qosSduErrorRatio[PROPERTY_VALUE_MAX] = {0};
+                            char qosResidualBitErrorRatio[PROPERTY_VALUE_MAX] = {0};
                             snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
                                       cid, type, apn);
                             err = cgdcont_set_cmd_req(cmd, newCmd);
@@ -1455,10 +1461,12 @@ static int reuseDefaultBearer(int channelID, void *data,
                             at_send_command(s_ATChannels[channelID], cmd, NULL);
                             /* Set required QoS params to default */
                             property_get(ENG_QOS_PROP, qosState, "0");
+                            property_get(QOS_SDU_ERROR_RATIO, qosSduErrorRatio, "1e4");
+                            property_get(QOS_RESIDUAL_BIT_ERROR_RATIO, qosResidualBitErrorRatio, "0e0");
                             if (!strcmp(qosState, "0")) {
                                 snprintf(cmd, sizeof(cmd),
-                                          "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                                          cid, s_trafficClass[socket_id]);
+                                          "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"%s\",\"%s\",3,0,0",
+                                          cid, s_trafficClass[socket_id], qosSduErrorRatio, qosResidualBitErrorRatio);
                                 at_send_command(s_ATChannels[channelID], cmd, NULL);
                             }
                             snprintf(cmd, sizeof(cmd), "AT+CGDATA=\"M-ETHER\",%d",
@@ -1908,6 +1916,8 @@ static int compareApnProfile(RIL_InitialAttachApn *new,
 static void setDataProfile(RIL_InitialAttachApn *new, int cid,
                              int channelID, int socket_id) {
     char qosState[PROPERTY_VALUE_MAX] = {0};
+    char qosSduErrorRatio[PROPERTY_VALUE_MAX] = {0};
+    char qosResidualBitErrorRatio[PROPERTY_VALUE_MAX] = {0};
     char cmd[AT_COMMAND_LEN] = {0};
     char newCmd[AT_COMMAND_LEN] = {0};
     snprintf(cmd, sizeof(cmd), "AT+CGDCONT=%d,\"%s\",\"%s\",\"\",0,0",
@@ -1923,10 +1933,12 @@ static void setDataProfile(RIL_InitialAttachApn *new, int cid,
 
     /* Set required QoS params to default */
     property_get(ENG_QOS_PROP, qosState, "0");
+    property_get(QOS_SDU_ERROR_RATIO, qosSduErrorRatio, "1e4");
+    property_get(QOS_RESIDUAL_BIT_ERROR_RATIO, qosResidualBitErrorRatio, "0e0");
     if (!strcmp(qosState, "0")) {
         snprintf(cmd, sizeof(cmd),
-                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                  cid, s_trafficClass[socket_id]);
+                  "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"%s\",\"%s\",3,0,0",
+                  cid, s_trafficClass[socket_id], qosSduErrorRatio, qosResidualBitErrorRatio);
         at_send_command(s_ATChannels[channelID], cmd, NULL);
     }
 }
@@ -2337,6 +2349,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             char cmd[AT_COMMAND_LEN] = {0};
             char newCmd[AT_COMMAND_LEN] = {0};
             char qosState[PROPERTY_VALUE_MAX] = {0};
+            char qosSduErrorRatio[PROPERTY_VALUE_MAX] = {0};
+            char qosResidualBitErrorRatio[PROPERTY_VALUE_MAX] = {0};
             int initialAttachId = 11;  // use index of 11
             RIL_InitialAttachApn *initialAttachIMSApn = NULL;
             p_response = NULL;
@@ -2360,6 +2374,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
 
                 /* Set required QoS params to default */
                 property_get(ENG_QOS_PROP, qosState, "0");
+                property_get(QOS_SDU_ERROR_RATIO, qosSduErrorRatio, "1e4");
+                property_get(QOS_RESIDUAL_BIT_ERROR_RATIO, qosResidualBitErrorRatio, "0e0");
                 if (!strcmp(qosState, "0")) {
                     snprintf(cmd, sizeof(cmd),
                         "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
@@ -2377,6 +2393,8 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_REQUEST_SET_SOS_INITIAL_ATTACH_APN: {
             char cmd[AT_COMMAND_LEN] = {0};
             char qosState[PROPERTY_VALUE_MAX] = {0};
+            char qosSduErrorRatio[PROPERTY_VALUE_MAX] = {0};
+            char qosResidualBitErrorRatio[PROPERTY_VALUE_MAX] = {0};
             int initialAttachId = 9;  // use index of 9 for sos
             RIL_InitialAttachApn *initialAttachSOSApn = NULL;
             p_response = NULL;
@@ -2398,10 +2416,12 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
 
                 /* Set required QoS params to default */
                 property_get(ENG_QOS_PROP, qosState, "0");
+                property_get(QOS_SDU_ERROR_RATIO, qosSduErrorRatio, "1e4");
+                property_get(QOS_RESIDUAL_BIT_ERROR_RATIO, qosResidualBitErrorRatio, "0e0");
                 if (!strcmp(qosState, "0")) {
                     snprintf(cmd, sizeof(cmd),
-                        "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"1e4\",\"0e0\",3,0,0",
-                        initialAttachId, s_trafficClass[socket_id]);
+                        "AT+CGEQREQ=%d,%d,0,0,0,0,2,0,\"%s\",\"%s\",3,0,0",
+                        initialAttachId, s_trafficClass[socket_id], qosSduErrorRatio, qosResidualBitErrorRatio);
                     err = at_send_command(s_ATChannels[channelID], cmd, NULL);
                 }
                 RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);

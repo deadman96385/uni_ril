@@ -59,6 +59,9 @@
 #define MODEM_ETH_PROP             "ro.vendor.modem.eth"
 #define ENG_QOS_PROP               "persist.vendor.sys.qosstate"
 
+#define QOS_SDU_ERROR_RATIO        "vendor.data.qos_sdu_error_ratio"
+#define QOS_RESIDUAL_BIT_ERROR_RATIO         "vendor.data.qos_residual_bit_error_ratio"
+
 #define AT_RESPONSE_FREE(rsp)   \
 {                                \
     at_response_free(rsp);       \
