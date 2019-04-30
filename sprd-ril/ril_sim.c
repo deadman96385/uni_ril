@@ -3338,7 +3338,7 @@ void transmitForSeService(int simId, void *data, void *response) {
     int err, len, i = 0;
     char *cmd = NULL;
     char *line = NULL;
-    char tmp[AT_COMMAND_LEN] = {0};
+    char tmp[AT_COMMAND_LEN * 10] = {0};
     int channelID = getChannel((RIL_SOCKET_ID)simId);
     SE_APDU *apdu = (SE_APDU *)data;
     SE_APDU *resp = (SE_APDU *)response;
@@ -3347,11 +3347,21 @@ void transmitForSeService(int simId, void *data, void *response) {
 
     memset(&sr, 0, sizeof(sr));
 
-    for (i = 0; i < (int)(apdu->len); i++) {
-        snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
+    if ((int)(apdu->len) == 4) {
+        for (i = 0; i < (int)(apdu->len - 1); i++) {
+            snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
+        }
+        snprintf(tmp, sizeof(tmp), "%s%s", tmp, "00");
+        snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[apdu->len - 1]);
+
+        asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId], 10, tmp);
+    } else {
+        for (i = 0; i < (int)(apdu->len); i++) {
+            snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
+        }
+        asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId],
+                 (int)((apdu->len) * 2), tmp);
     }
-    asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId],
-            (int)((apdu->len) * 2), tmp);
 
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
                                      &p_response);
@@ -3405,7 +3415,7 @@ SE_Status openLogicalChannelForSeService(int simId, void *data, void *resp, int 
     if (err < 0) goto error;
     if (p_response != NULL && p_response->success == 0) {
         if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
-            errType = CHANNEL_NOT_AVAILABLE;
+            errType = FAILED;
         } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
             errType = NO_SUCH_ELEMENT_ERROR;
         }
