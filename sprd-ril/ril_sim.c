@@ -3368,19 +3368,22 @@ void transmitForSeService(int simId, void *data, void *response) {
     free(cmd);
     if (err < 0) goto error;
     if (p_response != NULL && p_response->success == 0) {
-        RLOGD("transmit(): +CGLA return failed");
+        RLOGE("transmit(): +CGLA return failed");
         goto error;
     }
 
     line = p_response->p_intermediates->line;
     if (at_tok_start(&line) < 0 || at_tok_nextint(&line, &len) < 0 ||
         at_tok_nextstr(&line, &(sr.simResponse)) < 0) {
-        RLOGD("transmit(): at_tok failed");
+        RLOGE("transmit(): at_tok failed");
         goto error;
     }
 
     resp->len = strlen(sr.simResponse);
     resp->data = (uint8_t *)calloc(resp->len, sizeof(uint8_t));
+    if (strncmp(sr.simResponse, "6881", resp->len) == 0) {  // bug1063360
+        sr.simResponse = "";
+    }
     memcpy(resp->data, (uint8_t *)sr.simResponse, (resp->len) * sizeof(uint8_t));
 
 error:
@@ -3418,6 +3421,8 @@ SE_Status openLogicalChannelForSeService(int simId, void *data, void *resp, int 
             errType = FAILED;
         } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
             errType = NO_SUCH_ELEMENT_ERROR;
+        } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 100")) {  // bug1063352
+            errType = IOERROR;
         }
         goto error;
     }

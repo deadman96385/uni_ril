@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 UNSOC
+ * Copyright (c) 2019 UNISOC
  *
  */
 
@@ -90,6 +90,7 @@ Return<void> SecureElementImpl::getAtr(getAtr_cb _hidl_cb) {
 
 done:
     _hidl_cb(response);
+    FREE(bytes);
     return Void();
 }
 
@@ -113,7 +114,7 @@ Return<void> SecureElementImpl::transmit(const hidl_vec<uint8_t>& data, transmit
     memset(&resp,0, sizeof(SE_APDU));
 
     apdu.len = data.size();
-    if(apdu.len == 0) {
+    if (apdu.len == 0) {
         RLOGE("SE transmit data length is zero");
         goto done;
     }
@@ -137,6 +138,7 @@ done:
     _hidl_cb(response);
     FREE(apdu.data);
     FREE(resp.data);
+    FREE(bytes);
     return Void();
 }
 
