@@ -2486,19 +2486,27 @@ int processDataRequest(int request, void *data, size_t datalen, RIL_Token t,
             RLOGD("index = %s", index);
             /* send IP for volte addtional business */
             if (s_isLTE && index != NULL) {
-                char cmd[AT_COMMAND_LEN] = {0};
-                if (ipv4 == NULL || strlen(ipv4) <= 0) {
-                    ipv4 = "0.0.0.0";
+                int cidIndex = atoi(index);
+                if (getPDPCid(socket_id, cidIndex) > 0) {
+                    char cmd[AT_COMMAND_LEN] = {0};
+                    if (ipv4 == NULL || strlen(ipv4) <= 0) {
+                        ipv4 = "0.0.0.0";
+                    }
+                    if (ipv6 == NULL || strlen(ipv6) <= 0) {
+                        ipv6 = "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF";
+                    }
+                    checkIpv6Address(ipv6, ipv6Address, sizeof(ipv6Address));
+                    snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"",
+                            cidIndex + 1, ipv4, ipv6Address);
+                    at_send_command(s_ATChannels[channelID], cmd, NULL);
+                    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+                } else {
+                    RLOGD("pdn was already deactived, do nothing.");
+                    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
-                if (ipv6 == NULL || strlen(ipv6) <= 0) {
-                    ipv6 = "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF";
-                }
-                checkIpv6Address(ipv6, ipv6Address, sizeof(ipv6Address));
-                snprintf(cmd, sizeof(cmd), "AT+XCAPIP=%d,\"%s,[%s]\"",
-                          atoi(index) + 1, ipv4, ipv6Address);
-                at_send_command(s_ATChannels[channelID], cmd, NULL);
+            } else {
+                RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
             }
-            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
         case RIL_REQUEST_GET_IMS_PCSCF_ADDR: {
