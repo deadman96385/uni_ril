@@ -522,8 +522,10 @@ RIL_register (const RIL_RadioFunctions *callbacks) {
 
     radio::registerService(&s_callbacks, s_commands);
     RLOGI("RILHIDL called registerService");
-    secureElement::registerService(&s_seCallbacks);
-    RLOGI("SEHIDL called registerService");
+#ifdef ANDROID_SE_ENABLE
+     secureElement::registerService(&s_seCallbacks);
+     RLOGI("SEHIDL called registerService");
+#endif
 }
 
 extern "C" void

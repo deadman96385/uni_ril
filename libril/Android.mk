@@ -41,6 +41,10 @@ ifeq ($(SIM_COUNT), 2)
     LOCAL_CFLAGS += -DANDROID_SIM_COUNT_2
 endif
 
+ifeq ($(SE_ENABLE), 1)
+    LOCAL_CFLAGS += -DANDROID_SE_ENABLE
+endif
+
 ifneq ($(DISABLE_RILD_OEM_HOOK),)
     LOCAL_CFLAGS += -DOEM_HOOK_DISABLED
 endif
@@ -86,6 +90,10 @@ LOCAL_STATIC_LIBRARIES := \
     libtinyxml2 \
 
 LOCAL_CFLAGS += -Wno-unused-parameter
+
+ifeq ($(SE_ENABLE), 1)
+    LOCAL_CFLAGS += -DANDROID_SE_ENABLE
+endif
 
 ifneq ($(DISABLE_RILD_OEM_HOOK),)
     LOCAL_CFLAGS += -DOEM_HOOK_DISABLED
