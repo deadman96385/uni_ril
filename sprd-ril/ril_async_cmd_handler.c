@@ -46,8 +46,14 @@ static void addToList(ril_event *ev, ril_event *list) {
 
 static void removeFromList(ril_event *ev) {
     if (ev != NULL) {
-        ev->next->prev = ev->prev;
-        ev->prev->next = ev->next;
+        if(ev->next != NULL) {
+	    RLOGE("removeFromList ev->next");
+            ev->next->prev = ev->prev;
+	}
+	if(ev->prev != NULL) {
+	    RLOGE("removeFromList ev->prev");
+            ev->prev->next = ev->next;
+	}
         ev->next = NULL;
         ev->prev = NULL;
     }
