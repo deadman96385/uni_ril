@@ -65,8 +65,8 @@ Return<void> SecureElementImpl::init(const sp<ISecureElementHalCallback>& client
 #if VDBG
     RLOGD("secure element init: mSlotId %d", mSlotId);
 #endif
-    bool ret = false;
-    ret = s_seFunctions->initForSeService(mSlotId);
+    bool ret = true;  // bug1063494, need to return true
+    // ret = s_seFunctions->initForSeService(mSlotId);
     clientCallback->onStateChange(ret);
     return Void();
 }
