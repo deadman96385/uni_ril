@@ -3355,6 +3355,54 @@ void transmitForSeService(int simId, void *data, void *response) {
         snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[apdu->len - 1]);
 
         asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId], 10, tmp);
+    } else if ((apdu->len == 7) && (apdu->data[4] == 0x00)) {
+        // bug1068801, total apdu len is 7 bytes and fifth byte is 0x00
+        for (i = 0; i < 5; i++) {  // send first 5 bytes to cp
+            snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
+        }
+        asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId], 10, tmp);
+    } else if ((apdu->len >= 262) && (apdu->data[4] == 0x00)) {
+        // bug1068836, total apdu len is longer than 262 bytes and fifth byte is 0x00
+        char commonHead[16] = {0};
+        char lastHead[16] = {0};
+        int maxAPDULen = 255;
+        int removeBytes = 7;
+        int commonP3 = 0xFF;
+        int lastP3 = (apdu->len - removeBytes) % maxAPDULen;  // length of bytes in Decimal
+        int segmentNum = (apdu->len - removeBytes) / maxAPDULen;
+
+        for (int i = 0; i < 4; i++) {
+            snprintf(commonHead, sizeof(commonHead), "%s%02X", commonHead, apdu->data[i]);
+        }
+        snprintf(lastHead, sizeof(lastHead),  "%s%02X", commonHead, lastP3);
+        snprintf(commonHead, sizeof(commonHead), "%s%02X", commonHead, commonP3);
+        RLOGD("lastHead = %s", lastHead);
+
+        for (int i = 0; i < segmentNum; i++) {
+            char tmpCmd[1024] = {0};
+            for (int j = removeBytes; j < (removeBytes + maxAPDULen); j++) {
+                // remove first 7 bytes, loop 255 times
+                int index = maxAPDULen * i + j;  // index
+                snprintf(tmpCmd, sizeof(tmpCmd), "%s%02X", tmpCmd, apdu->data[index]);
+            }
+            snprintf(tmp, sizeof(tmp), "%s%s", commonHead, tmpCmd);
+            asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId],
+                    10 + maxAPDULen * 2, tmp);
+            err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
+                                             &p_response);
+            AT_RESPONSE_FREE(p_response);
+            FREEMEMORY(cmd);
+            memset(tmp, 0, sizeof(tmp));
+        }
+
+        char tmpCmd[1024] = {0};
+        for (int i = 0; i < lastP3; i++) {
+            int index = removeBytes + maxAPDULen * segmentNum + i;
+            snprintf(tmpCmd, sizeof(tmpCmd), "%s%02X", tmpCmd, apdu->data[index]);
+        }
+        snprintf(tmp, sizeof(tmp), "%s%s", lastHead, tmpCmd);
+        asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId],
+                10 + lastP3 * 2, tmp);
     } else {
         for (i = 0; i < (int)(apdu->len); i++) {
             snprintf(tmp, sizeof(tmp), "%s%02X", tmp, apdu->data[i]);
@@ -3365,7 +3413,7 @@ void transmitForSeService(int simId, void *data, void *response) {
 
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
                                      &p_response);
-    free(cmd);
+    FREEMEMORY(cmd);
     if (err < 0) goto error;
     if (p_response != NULL && p_response->success == 0) {
         RLOGE("transmit(): +CGLA return failed");
