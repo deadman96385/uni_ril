@@ -3411,9 +3411,11 @@ void transmitForSeService(int simId, void *data, void *response) {
                  (int)((apdu->len) * 2), tmp);
     }
 
+RETRY:
     err = at_send_command_singleline(s_ATChannels[channelID], cmd, "+CGLA:",
                                      &p_response);
     FREEMEMORY(cmd);
+    memset(tmp, 0, sizeof(tmp));
     if (err < 0) goto error;
     if (p_response != NULL && p_response->success == 0) {
         RLOGE("transmit(): +CGLA return failed");
@@ -3428,10 +3430,16 @@ void transmitForSeService(int simId, void *data, void *response) {
     }
 
     resp->len = strlen(sr.simResponse);
-    resp->data = (uint8_t *)calloc(resp->len, sizeof(uint8_t));
     if (strncmp(sr.simResponse, "6881", resp->len) == 0) {  // bug1063360
         sr.simResponse = "";
+    } else if ((resp->len == 4) && strncmp(sr.simResponse, "61", 2) == 0) {  // bug1071112
+        snprintf(tmp, sizeof(tmp), "%02XC00000%s", apdu->data[0],
+                 sr.simResponse + 2);
+        asprintf(&cmd, "AT+CGLA=%d,%d,\"%s\"", s_channelNumber[simId], 10, tmp);
+        AT_RESPONSE_FREE(p_response);
+        goto RETRY;
     }
+    resp->data = (uint8_t *)calloc(resp->len, sizeof(uint8_t));
     memcpy(resp->data, (uint8_t *)sr.simResponse, (resp->len) * sizeof(uint8_t));
 
 error:
