@@ -79,6 +79,8 @@ namespace android {
 // request, response, and unsolicited msg print macro
 #define PRINTBUF_SIZE 8096
 
+#define SE_ENABLE_PROP "persist.vendor.radio.se.enable"
+
 enum WakeType {DONT_WAKE, WAKE_PARTIAL};
 
 typedef struct {
@@ -522,10 +524,16 @@ RIL_register (const RIL_RadioFunctions *callbacks) {
 
     radio::registerService(&s_callbacks, s_commands);
     RLOGI("RILHIDL called registerService");
-#ifdef ANDROID_SE_ENABLE
-     secureElement::registerService(&s_seCallbacks);
-     RLOGI("SEHIDL called registerService");
-#endif
+
+    char seEnable[PROPERTY_VALUE_MAX] = {0};
+    property_get(SE_ENABLE_PROP, seEnable, "0");
+    if (strcmp(seEnable, "1") == 0) {
+        secureElement::registerService(&s_seCallbacks);
+        RLOGI("SEHIDL called registerService");
+    } else {
+        RLOGI("Please configure se enable prop in board to register se service");
+    }
+
 }
 
 extern "C" void
