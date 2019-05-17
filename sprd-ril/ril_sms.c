@@ -333,7 +333,7 @@ error1:
 
 static int setSmsBroadcastConfigValue(int value, char *out_value,
         size_t out_len ) {
-    if (value == 0xffff) {
+    if (value < 0 || value > 0xffff) {
         return 0;
     } else {
         snprintf(out_value, out_len, "%d", value);
