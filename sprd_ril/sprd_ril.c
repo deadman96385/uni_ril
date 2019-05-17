@@ -116,6 +116,26 @@ char RIL_SP_SIM_PIN_PROPERTYS[128]; // ril.*.sim.pin* --ril.*.sim.pin1 or ril.*.
 #define OEM_FUNCTION_ID_TRAFFICCLASS 1
 
 #define MAX_AT_RESPONSE 0x1000
+#define READ_BINERY                             0xb0
+#define READ_RECORD                             0xb2
+#define DF_ADF                                  "3F007FFF"
+#define DF_GSM                                  "3F007F20"
+#define DF_TELECOM                              "3F007F10"
+#define MF_SIM                                  "3F00"
+#define EFID_SST                                0x6f38
+#define EFID_DIR                                0x2f00
+#define AIDS_COUNT                              3
+// According to TS 102.221 AID value max size is 0x10
+#define MAX_AID_LENGTH                          32
+// TS 101.220 V 15.0.0 AnnexE & Annex M
+#define AID_TYPE_USIM                           "A0000000871002"
+#define AID_TYPE_CSIM                           "A0000003431002"
+#define AID_TYPE_ISIM                           "A0000000871004"
+
+
+static char s_aidsForSIM[AIDS_COUNT][MAX_AID_LENGTH + 1] = {0};
+
+
 
 int s_isuserdebug = 0;
 
@@ -331,6 +351,11 @@ static void getIMEIPassword(int channeID,char pwd[]);//SPRD add for simlock
 static int activeSpecifiedCidProcess(int channelID, void *data, int primaryCid, int secondaryCid, char* pdp_type);
 static void radioPowerOnTimeout();
 static void queryVideoCid(void *param);
+static char* getIMSIM(int channelID, RIL_Token t,char** tempimsi);
+static void getSimTypesMultiApp(int channelID, int *num_apps);
+static void getAidForMultiApp(int channelID, char **csim_aid);
+static void getAidFromEfDir(int channelID, int recordNumber, char *aid);
+
 
 /*** Static Variables ***/
 static const RIL_RadioFunctions s_callbacks = {
@@ -362,6 +387,8 @@ static pthread_mutex_t s_pdp_mapping_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_lte_cgatt_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t wait_cpin_unlock_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_simStatusMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_getAidsMutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 static int s_port = -1;
 static const char * s_device_path = NULL;
@@ -7662,10 +7689,30 @@ void requestSendAT(int channelID, char *data, size_t datalen, RIL_Token t)
     char *cmd;
     char *pdu;
     char *response[1]={NULL};   
+    char vsimImsi[25] = {0};
 
     if(at_cmd == NULL) {
         RILLOGE("Invalid AT command");
         return;
+    }
+     
+     RILLOGD("11 requestSendAT atstr = %s",at_cmd);
+     if (strStartsWith(at_cmd,"AT+GETIMSIM")) {
+         char* simrespone = getIMSIM(channelID, t,&vsimImsi);
+         RILLOGD("requestSendAT simrespone = %s,vsimImsi = %s",simrespone,vsimImsi);
+         if (vsimImsi != NULL &&  strlen(vsimImsi) != 0) { 
+             // response[0] = simrespone;
+             strlcat(buf, "+GETIMSIM:", sizeof(buf));
+             strlcat(buf, vsimImsi, sizeof(buf));
+             strlcat(buf, "\r\n", sizeof(buf));
+             strlcat(buf, "OK", sizeof(buf));
+             response[0] = buf;
+             //RILLOGD("requestSendAT simrespone[] = %s",simrespone[0]);
+             RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(char*));
+             return;
+          } else {
+             goto error;
+      }
     }
 
     // AT+SNVM=1,2118,01
@@ -7848,6 +7895,11 @@ static char* strReplace(char *str, char flag)
 
     return str;
 }
+
+
+
+
+
 
 
 static void requestSetCellBroadcastConfig(int channelID,  void *data, size_t datalen, RIL_Token t)
@@ -8873,6 +8925,285 @@ static void requestCloseLogicalChannel(int channelID, void *data, size_t datalen
     at_response_free(p_response);
 }
 
+static char* getIMSIM(int channelID, RIL_Token t,char** tempimsi) {
+    int err;
+    ATResponse *p_response = NULL;
+    char cmd[128] = {0};
+    char *line;
+    int session_id = -1;
+    int num_apps;
+    int sw1,sw2;
+    char* csim_aid;
+    char *simResponse = NULL;
+
+
+    //session_id = ((int *)data)[0];
+    getSimTypesMultiApp(channelID, &num_apps);
+    RILLOGD("num_apps = %d",num_apps);
+   // if (num_apps == 2) {
+        getAidForMultiApp(channelID, &csim_aid);
+
+   // } else {
+   //     return;
+   // }
+//open channel,get session id
+    if (csim_aid != NULL) {
+        snprintf(cmd,sizeof(cmd), "AT+SPCCHO=\"%s\"", csim_aid);
+        err = at_send_command_singleline(ATch_type[channelID], cmd, "+SPCCHO:", &p_response);
+        if (err < 0) goto error;
+        if (p_response != NULL && p_response->success == 0) {
+            if (!strcmp(p_response->finalResponse, "+CME ERROR: 20")) {
+                //err_no = RIL_E_MISSING_RESOURCE;
+            } else if (!strcmp(p_response->finalResponse, "+CME ERROR: 22")) {
+                //err_no = RIL_E_NO_SUCH_ELEMENT;
+             }
+             goto error;
+    }
+
+        line = p_response->p_intermediates->line;
+        err = at_tok_start(&line);
+        if (err < 0)
+            goto error;
+        // Read channel number
+        err = at_tok_nextint(&line, &session_id);
+        if (err < 0)
+        goto error;
+        RILLOGD("session_id = %d",session_id);
+        at_response_free(p_response);
+        //free(cmd);
+    }
+
+    // using session id to get imsim string
+    snprintf(cmd, sizeof(cmd), "AT+CRLA=%d,176,28450,0,0,10,0,\"3F007F25\"", session_id);
+    err = at_send_command_singleline(ATch_type[channelID], cmd, "+CRLA", &p_response);
+    if (err < 0 || p_response->success == 0){
+       goto error;
+    }
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &sw1);
+    if (err < 0) goto error;
+    err = at_tok_nextint(&line, &sw2);
+    if (err < 0) goto error;
+    if (at_tok_hasmore(&line)) {
+       
+        err = at_tok_nextstr(&line, &simResponse);
+        if (err < 0 || simResponse == NULL) goto error;
+         RILLOGD("csim11 simResponse = %s",simResponse);
+        //sr->simResponse = (char *)calloc(strlen(simResponse) + 1, sizeof(char));
+        strcpy(tempimsi,simResponse);
+        //snprintf(simResponse, strlen(simResponse) + 1, "%s", simResponse);
+    }
+    at_response_free(p_response);
+    //free(cmd);
+
+//close session
+    snprintf(cmd, sizeof(cmd), "AT+CCHC=%d", session_id);
+    err = at_send_command(ATch_type[channelID], cmd, &p_response);
+
+    if (err < 0 || p_response->success == 0) {
+        //RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    } else{
+        //RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+        return simResponse;
+    }
+ //   at_response_free(p_response);
+ //   free(cmd);
+error:
+    //RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+    return simResponse;
+    //free(cmd);
+}
+
+/**
+ * UNISOC Add for C2K
+ * Get multiple APP card type
+ */
+static void getSimTypesMultiApp(int channelID, int *num_apps) {
+        int err, skip;
+		int type_2g_3G; // 0: 2G card, 1: 3G card
+		int type_3gpp_3gpp2; // 0: 3GPP only, 1: 3GPP2 only, 2: 3GPP and 3GPP2
+		char *line;
+		ATResponse *p_response = NULL;
+		RIL_AppType *ret = NULL;
+		*num_apps = 1;
+		//RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+	
+		err = at_send_command_singleline(ATch_type[channelID], "AT+EUICC?",
+										 "+EUICC:", &p_response);
+		if (err < 0 || p_response->success == 0) {
+			goto error;
+		}
+	
+		line = p_response->p_intermediates->line;
+	
+		err = at_tok_start(&line);
+		if (err < 0) goto error;
+	
+		err = at_tok_nextint(&line, &skip);
+		if (err < 0) goto error;
+	
+		err = at_tok_nextint(&line, &skip);
+		if (err < 0) goto error;
+	
+		err = at_tok_nextint(&line, &type_2g_3G);
+		if (err < 0) goto error;
+	
+		err = at_tok_nextint(&line, &type_3gpp_3gpp2);
+		if (err < 0) goto error;
+	
+		/**
+		 * s_appType is used by some places to check USIM
+		 */
+		//if (type_2g_3G == 1) {
+		  //  s_appType[socket_id] = RIL_APPTYPE_USIM;
+		//} else if (type_2g_3G == 0) {
+		//	  s_appType[socket_id] = RIL_APPTYPE_SIM;
+		//} else {
+		//	  s_appType[socket_id] = RIL_APPTYPE_UNKNOWN;
+		//}
+	
+		/**
+		 * AT+EUICC?
+		   +EUICC: 0,0,0,0 //SIM
+		   +EUICC: 0,0,0,1 //UIM
+		   +EUICC: 0,0,0,2 //SIM+UIM
+		   +EUICC: 0,0,1,0 //USIM
+		   +EUICC: 0,0,1,1 //CSIM
+		   +EUICC: 0,0,1,2 //USIM+CSIM
+		 */
+		RILLOGD("type_2g_3G = %d , type_3gpp_3gpp2 = %d ",type_2g_3G,type_3gpp_3gpp2);
+		if (type_2g_3G == 0 && type_3gpp_3gpp2 == 2) {
+			*num_apps = 2;
+		} else if (type_2g_3G == 1 && type_3gpp_3gpp2 == 2) {
+			*num_apps = 2;
+		} else {
+			goto error;
+		}
+		at_response_free(p_response);
+		return;
+	
+	error:
+		at_response_free(p_response);
+	
+	}
+	
+	
+	/*
+	 * UNISOC Add for C2K
+	 * Currently, this function only supports usim/csim/isim maximum three ADFs.
+	 *
+	 * if the imsi is same with s_imsi, we get three aids from s_aidsForSIM,
+	 * or, we get three aids from sim card and save them into s_aidsForSIM and
+	 * update imsi into s_imsi.
+	 */
+	static void getAidForMultiApp(int channelID, char **csim_aid) {
+		ATResponse *p_response = NULL;
+		int err = -1;
+		char *aid = NULL;
+		unsigned int numRec;
+		//RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+	
+	
+		memset(s_aidsForSIM[0], 0, sizeof(s_aidsForSIM[0]));
+		memset(s_aidsForSIM[1], 0, sizeof(s_aidsForSIM[1]));
+		memset(s_aidsForSIM[2], 0, sizeof(s_aidsForSIM[2]));
+		// According to TS 102.221 AID value max size is 0x10.
+		aid = (char*)calloc(MAX_AID_LENGTH + 1, sizeof(char));
+	
+		for (numRec = 1; numRec < 4; numRec++) {
+			getAidFromEfDir(channelID, numRec, aid);
+	
+			if (strStartsWith(aid, AID_TYPE_USIM)) {
+				strncpy(s_aidsForSIM[0], aid, strlen(aid) + 1);
+			} else if (strStartsWith(aid, AID_TYPE_CSIM)) {
+				strncpy(s_aidsForSIM[1], aid, strlen(aid) + 1);
+			} else if (strStartsWith(aid, AID_TYPE_ISIM)) {
+				strncpy(s_aidsForSIM[2], aid, strlen(aid) + 1);
+			}
+	
+			memset(aid, 0, MAX_AID_LENGTH + 1);
+		}
+	
+		free(aid);
+		aid = NULL;
+	
+	EXIT:
+		//*usim_aid = s_aidsForSIM[socket_id][0];
+		*csim_aid = s_aidsForSIM[1];
+		//*isim_aid = s_aidsForSIM[socket_id][2];
+		at_response_free(p_response);
+		pthread_mutex_unlock(&s_getAidsMutex);
+	}
+
+static void getAidFromEfDir(int channelID, int recordNumber, char *aid) {
+    char cmd[128] = {0};
+    int err = -1;
+    ATResponse *p_response = NULL;
+    RIL_SIM_IO_Response sr;
+    char *line = NULL;
+    char aid_length_str[3] = {0};
+    int aid_length = 0;
+
+    memset(&sr, 0, sizeof(sr));
+
+    // For READ_RECORD:
+    // P1 is record number;
+    // P2 is fixed 0x04;
+    // P3 is expected data length;
+    // For AID see TS 102.221 V8.2.0 Table 13.2
+    // the first 4 bytes are fixed length 4,
+    // then AID value is from 0x01 to 0x10, so set P3 to 20.
+    sprintf(cmd, "AT+CRSM=%d,%d,%d,4,20,0,\"%s\"",
+            READ_RECORD, EFID_DIR, recordNumber, MF_SIM);
+    err = at_send_command_singleline(ATch_type[channelID], cmd, "+CRSM:",
+                                     &p_response);
+
+    if (err < 0 || p_response->success == 0) {
+        goto out;
+    }
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto out;
+
+    err = at_tok_nextint(&line, &(sr.sw1));
+    if (err < 0) goto out;
+
+    err = at_tok_nextint(&line, &(sr.sw2));
+    if (err < 0) goto out;
+
+    if (at_tok_hasmore(&line)) {
+        err = at_tok_nextstr(&line, &(sr.simResponse));
+        if (err < 0) goto out;
+    }
+
+    if (sr.simResponse == NULL || strlen(sr.simResponse) < 2) {
+        goto out;
+    }
+
+    RLOGD("getAidFromEfDir: simResponse = %s", sr.simResponse);
+
+    // The 4th byte is AID length
+    strncpy(aid_length_str, sr.simResponse + 6, 2);
+
+    // Convert HexStr to Integer
+    aid_length = strtol (aid_length_str, NULL, 16);
+
+    // skip template tag and aid tag, such as "61184F10".
+    strncpy(aid, sr.simResponse + 8, (aid_length >= 1 && aid_length <= 16)
+        ? (aid_length * 2) : MAX_AID_LENGTH);
+
+out:
+    at_response_free(p_response);
+    return;
+}
+
+
+
+
 static void requestTransmitApdu(int channelID, void *data, size_t datalen, RIL_Token t){
     ATResponse *p_response = NULL;
     RIL_SIM_IO_Response sr;
@@ -9642,7 +9973,7 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
     int err;
     int channelID = -1;
 
-    RILLOGD("onRequest: %s sState=%d", requestToString(request), sState);
+    RILLOGD("onRequest SPCSS00592332: %s sState=%d", requestToString(request), sState);
 
     /* Ignore all requests except !(requests)
      * when RADIO_STATE_UNAVAILABLE.
