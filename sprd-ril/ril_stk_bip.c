@@ -1308,8 +1308,8 @@ int lunchOpenChannel(int socket_id, int channel_id) {
     RLOGD("[stk] pCmdDet->typeOfCommand = %d", pstkContext->pCmdDet->typeOfCommand);
     RLOGD("[stk] pCmdDet->commandQualifier = %d", pstkContext->pCmdDet->commandQualifier);
 
-    if (pstkContext->pOCData->BearerType == BEARER_TYPE_DEFAULT) {
-        RLOGD("pstkContext->pOCData->BearerType is BEARER_TYPE_DEFAULT");
+    if ((pstkContext->pOCData->BearerType == BEARER_TYPE_DEFAULT)||(pstkContext->pOCData->BearerType == BEARER_TYPE_GPRS)) {
+        RLOGD("pstkContext->pOCData->BearerType is BEARER_TYPE_DEFAULT or BEARER_TYPE_GPRS");
         if (emNStrlen(pstkContext->pOCData->NetAccessName) == 0) {
             RLOGD("pstkContext->pOCData->NetAccessName is empty");
             int sendTRChannelID = getChannel(socket_id);
