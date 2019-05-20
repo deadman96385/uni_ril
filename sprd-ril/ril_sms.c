@@ -333,7 +333,8 @@ error1:
 
 static int setSmsBroadcastConfigValue(int value, char *out_value,
         size_t out_len ) {
-    if (value == 0xffff) {
+    RLOGD("setSmsBroadcastConfigValue value = %d ",value);
+    if (value > 0xffff || value < 0) {
         return 0;
     } else {
         snprintf(out_value, out_len, "%d", value);
