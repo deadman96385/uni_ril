@@ -1469,6 +1469,22 @@ static void requestSIM_IO(int channelID, void *data, size_t datalen,
         if (err < 0) goto error;
     }
 
+    if (28513 == p_args->fileid && p_args->command != COMMAND_GET_RESPONSE
+                && sr.simResponse != NULL) {
+            RLOGD("start check invalid hex char for SPCSS00583372");
+            int i;
+            char ch;
+            int length = strlen(sr.simResponse);
+            for (i = 0; i < length; i++) {
+                ch = sr.simResponse[i];
+                if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')
+                        || (ch >= 'A' && ch <= 'F'))) {
+                    RLOGD("goto error");
+                    goto error;
+                }
+            }
+        }
+
     if (s_appType[socket_id] == RIL_APPTYPE_USIM &&
         (p_args->command == COMMAND_GET_RESPONSE)) {
         RLOGD("usim card, change to sim format");
