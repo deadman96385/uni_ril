@@ -1390,7 +1390,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
                     s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
                     RIL_onRequestComplete(*t, RIL_E_GENERIC_FAILURE, NULL, 0);
                 }
-                RLOGD("set s_LTEDetached & s_curCid default value");
+                RLOGD("add set s_LTEDetached & s_curCid default value");
                 s_LTEDetached[socket_id] = false;
                 s_curCid[socket_id] = 0;
                 return;
@@ -1398,7 +1398,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         }
 
         if (i >= MAX_PDP) {
-            RLOGD("set s_LTEDetached & s_curCid default value");
+            RLOGD("add set s_LTEDetached & s_curCid default value");
             s_LTEDetached[socket_id] = false;
             s_curCid[socket_id] = 0;
             s_lastPDPFailCause[socket_id] = PDP_FAIL_ERROR_UNSPECIFIED;
@@ -1414,8 +1414,7 @@ static void requestOrSendDataCallList(int channelID, int cid,
         RIL_onUnsolicitedResponse(RIL_UNSOL_DATA_CALL_LIST_CHANGED,
                 responses, n * sizeof(RIL_Data_Call_Response_v11), socket_id);
     }
-    s_LTEDetached[socket_id] = false;
-    s_curCid[socket_id] = 0;
+    RLOGD("remove set s_LTEDetached & s_curCid default value code");
     return;
 
 error:
