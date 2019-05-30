@@ -243,7 +243,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
 
     RIL_RadioState radioState = s_radioState[socket_id];
 
-    RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
+    RLOGD("SPCSS00586651-3 onRequest: %s radioState=%d", requestToString(request), radioState);
 
     if (s_modemState != MODEM_ALIVE) {
         RLOGE("Modem is not alive, return radio_not_avaliable");

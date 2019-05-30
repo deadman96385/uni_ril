@@ -1490,6 +1490,7 @@ int readSimRecord(int channelID, RIL_SIM_IO_v6 *data, RIL_SIM_IO_Response *sr) {
         goto error;
     }
 
+
     err = at_send_command_singleline(s_ATChannels[channelID], cmd,
             isISIMfile ? "+CRLA:" : "+CRSM:",  &p_response);
     free(cmd);
@@ -1509,6 +1510,7 @@ int readSimRecord(int channelID, RIL_SIM_IO_v6 *data, RIL_SIM_IO_Response *sr) {
     err = at_tok_nextint(&line, &(sr->sw2));
     if (err < 0) goto error;
 
+
     if (at_tok_hasmore(&line)) {
         char *simResponse = NULL;
         err = at_tok_nextstr(&line, &simResponse);
@@ -1516,7 +1518,53 @@ int readSimRecord(int channelID, RIL_SIM_IO_v6 *data, RIL_SIM_IO_Response *sr) {
 
         sr->simResponse = (char *)calloc(strlen(simResponse) + 1, sizeof(char));
         snprintf(sr->simResponse, strlen(simResponse) + 1, "%s", simResponse);
+    } 
+    if(p_args->fileid == 12258) {
+        RLOGD("p_args->fileid = %d,p_args->command =%d,sr->sw1 = %d",
+            p_args->fileid,p_args->command,sr->sw1);
+
     }
+    if (p_args->fileid == 12258 && (p_args->command == READ_BINERY)
+        && (sr->sw1 == 105) && (sr->sw2 == 134)) {
+                at_response_free(p_response);
+                err = at_send_command_singleline(s_ATChannels[channelID], "AT+CCID",
+                       "+CCID:",  &p_response);
+                if (err < 0 || p_response->success == 0) {
+                    goto error;
+                }
+                line = p_response->p_intermediates->line;
+                err = at_tok_start(&line);
+                if (err < 0) goto error;
+                char *simResponse12 = NULL;
+                err = at_tok_nextstr(&line, &simResponse12);
+                if (err < 0 || simResponse12 == NULL) goto error;
+                //IccUtils.hexStringToBytes(hexString)
+                sr->simResponse = (char *)calloc(strlen(simResponse12) + 1, sizeof(char));
+                snprintf(sr->simResponse, strlen(simResponse12) + 1, "%s", simResponse12);
+                char* simhexstr = sr->simResponse;
+                unsigned char *byteUSIM = (char *)calloc(strlen(simResponse12) + 1, sizeof(char));
+                int i;
+                for (i=0;i<strlen(simhexstr);i+=2) {
+                    char ch1 = simhexstr[i];
+                    char ch2 = simhexstr[i+1];
+                    byteUSIM[i] = ch2;
+                    byteUSIM[i+1] = ch1;
+
+                }
+                snprintf(byteUSIM, strlen(byteUSIM) + 1, "%s", byteUSIM);
+                RLOGD("--byteUSIM= %s",byteUSIM);
+                snprintf(sr->simResponse, strlen(byteUSIM) + 1, "%s", byteUSIM);
+                RLOGD("change the sw value");
+                sr->sw1 = 144;
+                sr->sw2 = 0;
+                RLOGD("sr->simResponse =  %s",sr->simResponse);
+                if (byteUSIM != NULL) {
+                free(byteUSIM);
+                byteUSIM = NULL;
+            }
+                
+    }
+
 
     if (s_appType[socket_id] == RIL_APPTYPE_USIM &&
         (p_args->command == COMMAND_GET_RESPONSE)) {
