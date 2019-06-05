@@ -644,6 +644,8 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> getSubsidyLockdyStatus(int32_t serial);
 
+    Return<void> getICCID(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9813,7 +9815,6 @@ Return<void> RadioImpl::setRadioPowerFallback(int32_t serial, bool enabled) {
     return Void();
 }
 
-
 Return<void> RadioImpl::getCnap(int32_t serial) {
 #if VDBG
     RLOGD("getCNAP: serial %d", serial);
@@ -9862,6 +9863,14 @@ Return<void> RadioImpl::getSubsidyLockdyStatus(int32_t serial) {
     RLOGD("getSubsidyLockdyStatus: serial %d", serial);
 #endif
     dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS);
+    return Void();
+}
+
+Return<void> RadioImpl::getICCID(int32_t serial) {
+#if VDBG
+    RLOGD("getICCID: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_ICCID);
     return Void();
 }
 
@@ -10829,6 +10838,25 @@ int radio::setPreferredNetworkTypeExtResponse(int slotId, int responseType,
     } else {
         RLOGE("setPreferredNetworkTypeExtResponse: radioService[%d]->mExtRadioResponse == NULL",
                 slotId);
+    }
+
+    return 0;
+}
+
+int radio::getICCIDResponse(int slotId, int responseType, int serial,
+                             RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getICCIDResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        populateResponseInfo(responseInfo, serial, responseType, e);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->getICCIDResponse(
+                responseInfo, convertCharPtrToHidlString((char *) response));
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getICCIDResponse: radioService[%d]->mExtRadioResponse == NULL", slotId);
     }
 
     return 0;

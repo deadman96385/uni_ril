@@ -105,3 +105,4 @@
     {RIL_EXT_REQUEST_GET_IMS_PANI_INFO, radio::getImsPaniInfoResponse},
     {RIL_EXT_REQUEST_SET_EMERGENCY_ONLY, radio::setEmergencyOnlyResponse},
     {RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS, radio::getSubsidyLockdyStatusResponse},
+    {RIL_EXT_REQUEST_GET_ICCID, radio::getICCIDResponse},

@@ -2552,6 +2552,35 @@ error:
     }
 }
 
+void requestGetICCID(int channelID, RIL_Token t) {
+    int err;
+    char *line = NULL;
+    char *response = NULL;
+    ATResponse *p_response = NULL;
+
+    err = at_send_command_singleline(s_ATChannels[channelID], "AT+CCID?",
+                                     "+CCID: ", &p_response);
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) goto error;
+
+    err = at_tok_nextstr(&line, &response);
+    if (err < 0) goto error;
+
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, response, strlen(response) + 1);
+    return;
+
+error:
+    at_response_free(p_response);
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+}
+
+
 static void setSIMPowerOff(void *param) {
     RIL_SOCKET_ID socket_id = *((RIL_SOCKET_ID *)param);
     if ((int)socket_id < 0 || (int)socket_id >= SIM_COUNT) {
@@ -3201,6 +3230,9 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
             at_response_free(p_response);
             break;
         }
+        case RIL_EXT_REQUEST_GET_ICCID:
+            requestGetICCID(channelID, t);
+            break;
         default:
             return 0;
     }
