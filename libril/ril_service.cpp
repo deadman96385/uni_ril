@@ -640,6 +640,10 @@ struct RadioImpl : public IExtRadio {
 
     Return<void> getVideoResolution(int32_t serial);
 
+    Return<void> setEmergencyOnly(int32_t serial, int32_t emergencyOnly);
+
+    Return<void> getSubsidyLockdyStatus(int32_t serial);
+
     /*****************IMS EXTENSION REQUESTs' dispatchFunction****************/
 
     Return<void> getIMSCurrentCalls(int32_t serial);
@@ -9845,6 +9849,22 @@ Return<void> RadioImpl::getVideoResolution(int32_t serial) {
     return Void();
 }
 
+Return<void> RadioImpl::setEmergencyOnly(int32_t serial, int32_t emergencyOnly) {
+#if VDBG
+    RLOGD("setEmergencyOnly: serial %d", serial);
+#endif
+    dispatchInts(serial, mSlotId, RIL_EXT_REQUEST_SET_EMERGENCY_ONLY, 1, emergencyOnly);
+    return Void();
+}
+
+Return<void> RadioImpl::getSubsidyLockdyStatus(int32_t serial) {
+#if VDBG
+    RLOGD("getSubsidyLockdyStatus: serial %d", serial);
+#endif
+    dispatchVoid(serial, mSlotId, RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS);
+    return Void();
+}
+
 /*******************SPRD EXTENSION REQUESTs' responseFunction*****************/
 
 int radio::videoPhoneDialResponse(int slotId, int responseType, int serial,
@@ -11290,6 +11310,47 @@ int radio::getVideoResolutionResponse(int slotId, int responseType, int serial,
     return 0;
 }
 
+int radio::setEmergencyOnlyResponse(int slotId, int responseType, int serial,
+                                 RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+RLOGD("setEmergencyOnlyResponse: serial %d", serial);
+#endif
+
+if (radioService[slotId]->mExtRadioResponse != NULL) {
+    RadioResponseInfo responseInfo = {};
+    populateResponseInfo(responseInfo, serial, responseType, e);
+    Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                setEmergencyOnlyResponse(responseInfo);
+    radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("setEmergencyOnlyResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
+int radio::getSubsidyLockdyStatusResponse(int slotId, int responseType, int serial,
+                                RIL_Errno e, void *response, size_t responseLen) {
+#if VDBG
+    RLOGD("getSubsidyLockdyStatusResponse: serial %d", serial);
+#endif
+
+    if (radioService[slotId]->mExtRadioResponse != NULL) {
+        RadioResponseInfo responseInfo = {};
+        int ret = responseIntOrEmpty(responseInfo, serial, responseType, e,
+                response, responseLen);
+        Return<void> retStatus = radioService[slotId]->mExtRadioResponse->
+                getSubsidyLockdyStatusResponse(responseInfo, ret);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("getSubsidyLockdyStatusResponse: radioService[%d]->mExtRadioResponse == NULL",
+                slotId);
+    }
+
+    return 0;
+}
+
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 int radio::vsimSendCmdResponse(int slotId, int responseType, int serial,
                                      RIL_Errno e, void *response, size_t responseLen) {
@@ -11777,6 +11838,27 @@ int radio::availableNetworksInd(int slotId, int indicationType, int token,
     return 0;
 }
 
+int radio::subsidyLockStatusChangedInd(int slotId, int indicationType,
+                                       int token, RIL_Errno e, void *response,
+                                       size_t responseLen) {
+    if (radioService[slotId] != NULL && radioService[slotId]->mExtRadioIndication != NULL) {
+        if (response == NULL || responseLen != sizeof(int)) {
+            RLOGE("subsidyLockStatusChangedInd: invalid response");
+            return 0;
+        }
+        int32_t status = ((int32_t *)response)[0];
+#if VDBG
+        RLOGD("subsidyLockStatusChangedInd: %d", status);
+#endif
+        Return<void> retStatus = radioService[slotId]->mExtRadioIndication->
+                subsidyLockStatusChangedInd(convertIntToRadioIndicationType(indicationType), status);
+        radioService[slotId]->checkReturnStatus(retStatus, RADIOINTERACTOR_SERVICE);
+    } else {
+        RLOGE("subsidyLockStatusChangedInd: radioService[%d]->mExtRadioIndication == NULL", slotId);
+    }
+
+    return 0;
+}
 /***************************ATC EXTENSION REQUEST*****************************/
 Return<void> RadioImpl::setAtcResponseFunctions(
         const ::android::sp<IAtcRadioResponse>& radioResponse,

@@ -284,7 +284,9 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
           request == RIL_EXT_REQUEST_SIM_POWER_REAL ||
           request == RIL_ATC_REQUEST_VSIM_SEND_CMD ||
           request == RIL_EXT_REQUEST_GET_RADIO_PREFERENCE ||
-          request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE)) {
+          request == RIL_EXT_REQUEST_SET_RADIO_PREFERENCE ||
+          request == RIL_EXT_REQUEST_SET_EMERGENCY_ONLY ||
+          request == RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS)) {
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         goto done;
     }
@@ -353,6 +355,8 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
                  request == RIL_EXT_REQUEST_GET_PREFERRED_NETWORK_TYPE ||
                  request == RIL_EXT_REQUEST_GET_SPECIAL_RATCAP ||
                  request == RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION ||
+                 request == RIL_EXT_REQUEST_SET_EMERGENCY_ONLY ||
+                 request == RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS ||
                  /* IMS Request @{ */
                  request == RIL_REQUEST_GET_IMS_CURRENT_CALLS ||
                  request == RIL_REQUEST_SET_IMS_VOICE_CALL_AVAILABILITY ||

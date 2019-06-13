@@ -1321,6 +1321,8 @@ const char *requestToString(int request) {
         case RIL_EXT_REQUEST_SET_LOCATION_INFO: return "EXT_SET_LOCATION_INFO";
         case RIL_EXT_REQUEST_GET_SPECIAL_RATCAP: return "GET_SPECIAL_RATCAP";
         case RIL_EXT_REQUEST_GET_VIDEO_RESOLUTION: return "GET_VIDEO_RESOLUTION";
+        case RIL_EXT_REQUEST_SET_EMERGENCY_ONLY: return "SET_EMERGENCY_ONLY";
+        case RIL_EXT_REQUEST_GET_SUBSIDYLOCK_STATUS: return "GET_SUBSIDYLOCK_STATUS";
         /* }@ */
 
         case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
@@ -1404,6 +1406,7 @@ const char *requestToString(int request) {
         case RIL_EXT_UNSOL_SPUCOPS_LIST: return "UNSOL_SPUCOPS_LIST";
         case RIL_ATC_UNSOL_VSIM_RSIM_REQ: return "UNSOL_VSIM_RSIM_REQ";
 //        case RIL_EXT_UNSOL_SETUP_DATA_FOR_CP: return "UNSOL_SETUP_DATA_FOR_CP";
+        case RIL_EXT_UNSOL_SUBSIDYLOCK_STATUS_CHANGED: return "UNSOL_SUBSIDYLOCK_STATUS_CHANGED";
         default: return "<unknown request>";
     }
 }

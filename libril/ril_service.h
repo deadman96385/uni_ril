@@ -938,6 +938,11 @@ int getSpecialRatcapResponse(int slotId, int responseType, int serial,
 int getVideoResolutionResponse(int slotId, int responseType, int serial,
                                RIL_Errno e, void *response, size_t responseLen);
 
+int setEmergencyOnlyResponse(int slotId, int responseType, int serial,
+                             RIL_Errno e, void *response, size_t responseLen);
+
+int getSubsidyLockdyStatusResponse(int slotId, int responseType, int serial,
+                                RIL_Errno e, void *response, size_t responseLen);
 /*********************SPRD ATCI REQUESTs' responseFunction******************/
 
 int vsimSendCmdResponse(int slotId, int responseType, int serial,
@@ -1000,10 +1005,15 @@ int simMgrSimStatusChangedInd(int slotId, int indicationType, int token,
 
 int radioCapabilityChangedInd(int slotId, int indicationType, int token,
                               RIL_Errno e, void *response, size_t responseLen);
+
 int earlyMediaInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
+
 int availableNetworksInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);
+
+int subsidyLockStatusChangedInd(int slotId, int indicationType, int token,
+                                RIL_Errno e, void *response, size_t responseLen);
 /*******************ATC EXTENSION REQUESTs' responseFunction******************/
 int vsimRSimReqInd(int slotId, int indicationType, int token,
                          RIL_Errno e, void *response, size_t responseLen);

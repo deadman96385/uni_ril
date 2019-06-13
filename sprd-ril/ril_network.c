@@ -3390,6 +3390,50 @@ void requestSetLocationUpdates(int channelID, void *data, size_t datalen,
     RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }
 
+void requestSetEmergencyOnly(int channelID, void *data, size_t datalen,
+                             RIL_Token t) {
+    RIL_UNUSED_PARM(datalen);
+
+    int err = -1;
+    int value = -1;
+    char cmd[AT_COMMAND_LEN] = {0};
+    bool isRadioStateOn = false;
+    ATResponse *p_response = NULL;
+    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+
+    value = ((int *)data)[0];
+    snprintf(cmd, sizeof(cmd), "AT+SPECCMOD=%d", value);
+
+    if (value == 1 || value == 0) {
+        err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
+    } else {
+        RLOGE("Invalid param value: %d", value);
+        goto error;
+    }
+
+    if (err < 0 || p_response->success == 0) {
+        goto error;
+    }
+
+    if (isRadioOn(channelID) == 1) {
+        isRadioStateOn = true;
+    }
+
+    if (value == 0 && isRadioStateOn) {
+        RLOGD("restart protocol stack");
+        at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
+        at_send_command(s_ATChannels[channelID], "AT+SFUN=4", NULL);
+    }
+
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    at_response_free(p_response);
+    return;
+
+error:
+    RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+    at_response_free(p_response);
+}
+
 int processNetworkRequests(int request, void *data, size_t datalen,
                               RIL_Token t, int channelID) {
     int err;
@@ -3559,6 +3603,12 @@ int processNetworkRequests(int request, void *data, size_t datalen,
         }
         case RIL_REQUEST_STOP_NETWORK_SCAN: {
             requestStopNetworkScan(channelID, data, datalen, t);
+            break;
+        }
+        case RIL_EXT_REQUEST_SET_EMERGENCY_ONLY: {
+            pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
+            requestSetEmergencyOnly(channelID, data, datalen, t);
+            pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             break;
         }
         default:
