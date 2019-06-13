@@ -3053,9 +3053,14 @@ int processSimRequests(int request, void *data, size_t datalen, RIL_Token t,
         case RIL_EXT_REQUEST_SIM_GET_ATR:
             requestSIMGetAtr(channelID, t);
             break;
-        case RIL_EXT_REQUEST_SIM_POWER_REAL:
+        case RIL_EXT_REQUEST_SIM_POWER_REAL:{
+			//RIL_SOCKET_ID socket_id;
+            RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+			pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
             requestSIMPower(channelID, data, t);
+		    pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             break;
+        	}
         default:
             return 0;
     }
