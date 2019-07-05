@@ -4,7 +4,7 @@
 #
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
-
+test
 LOCAL_SRC_FILES := \
     sprd_ril.c \
     atchannel.c \
