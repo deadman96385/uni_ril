@@ -560,7 +560,9 @@ void requestSendAT(int channelID, const char *data, size_t datalen,
             at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err >= 0 && p_response->success != 0) {
+		pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
                 onSimDisabled(channelID);
+		pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             }
         } else {
             RLOGD("no vsim!!");
@@ -676,7 +678,9 @@ static void requestVsimCmd(int channelID, void *data, size_t datalen,
             at_send_command(s_ATChannels[channelID], "AT+RSIMRSP=\"ERRO\",2", NULL);
             err = at_send_command(s_ATChannels[channelID], cmd, &p_response);
             if (err >= 0 && p_response->success != 0) {
+		pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
                 onSimDisabled(channelID);
+		pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             }
         } else {
             RLOGD("no vsim!!");
