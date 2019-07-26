@@ -476,7 +476,7 @@ int vsimQueryVirtual(int channelID) {
 void onSimDisabled(int channelID) {
     RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
     int i;
-    RIL_SOCKET_ID socket_id = getSocketIdByChannelID(channelID);
+    
     pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
     at_send_command(s_ATChannels[channelID], "AT+SFUN=5", NULL);
     pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
