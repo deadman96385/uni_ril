@@ -3371,9 +3371,12 @@ int processNetworkRequests(int request, void *data, size_t datalen,
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         case RIL_REQUEST_SHUTDOWN:
-        case RIL_EXT_REQUEST_SHUTDOWN:
+        case RIL_EXT_REQUEST_SHUTDOWN: {
+            pthread_mutex_lock(&s_radioPowerMutex[socket_id]);
             requestShutdown(channelID, data, datalen, t);
+            pthread_mutex_unlock(&s_radioPowerMutex[socket_id]);
             break;
+        }
         case RIL_REQUEST_GET_RADIO_CAPABILITY:
             requestGetRadioCapability(channelID, data, datalen, t);
             break;

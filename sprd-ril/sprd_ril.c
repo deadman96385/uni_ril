@@ -247,7 +247,7 @@ void processRequest(int request, void *data, size_t datalen, RIL_Token t,
 
     RIL_RadioState radioState = s_radioState[socket_id];
 
-    RLOGD("onRequest SPCSS00596797: %s radioState=%d", requestToString(request), radioState);
+    RLOGD("onRequest SPCSS00606489: %s radioState=%d", requestToString(request), radioState);
     /**
      * Ignore all requests except !(requests)
      * when RADIO_STATE_UNAVAILABLE.
