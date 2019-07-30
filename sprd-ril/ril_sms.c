@@ -1023,7 +1023,24 @@ int processSmsUnsolicited(RIL_SOCKET_ID socket_id, const char *s,
     } else if (strStartsWith(s, "+CBM:")) {
         char *pdu_bin = NULL;
         RLOGD("CBM sss %s, len  %d", s, (int)strlen(s));
-        RLOGD("CBM  %s, len  %d", sms_pdu, (int)strlen(sms_pdu));
+		RLOGD("sms_pdu len  %d ,CBM  %s , ", (int)strlen(sms_pdu),sms_pdu);
+        if (strlen(sms_pdu) > 1000) {
+            char tmp1[1001] = {0};
+            char tmp2[1001] = {0};
+            char tmp3[1001] = {0};
+            
+            snprintf(tmp1, sizeof(tmp1), "%s", sms_pdu);
+            snprintf(tmp2, sizeof(tmp1), "%s", sms_pdu+1000);
+            //snprintf(tmp2, sizeof(tmp2), "%s", sms_pdu + 512);
+            //snprintf(tmp2, sizeof(tmp2), "%s", sms_pdu + 512);
+            RLOGD("tmp1 = %s ", tmp1);
+            RLOGD("tmp2 = %s ", tmp2);
+            if (strlen(sms_pdu) > 2000) {
+                snprintf(tmp3, sizeof(tmp1), "%s", sms_pdu+2000);
+                RLOGD("tmp3 = %s ", tmp3);
+
+            }
+        }
         pdu_bin = (char *)alloca(strlen(sms_pdu) / 2);
         memset(pdu_bin, 0, strlen(sms_pdu) / 2);
         if (!convertHexToBin(sms_pdu, strlen(sms_pdu), pdu_bin)) {

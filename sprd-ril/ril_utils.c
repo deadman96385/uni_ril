@@ -39,11 +39,13 @@ int convertHexToBin(const char *hex_ptr, int length, char *bin_ptr) {
     char ch;
 
     if (hex_ptr == NULL || bin_ptr == NULL) {
+		RLOGD("hex_ptr == null or bin_ptr == NULL = " ,(hex_ptr == NULL),(bin_ptr == NULL));
         return -1;
     }
 
     for (i = 0; i < length; i += 2) {
         ch = hex_ptr[i];
+		RLOGD("i = %d, char = %c",i ,ch);
         if (ch >= '0' && ch <= '9') {
             *dest_ptr = (char)((ch - '0') << 4);
         } else if (ch >= 'a' && ch <= 'f') {
@@ -51,10 +53,12 @@ int convertHexToBin(const char *hex_ptr, int length, char *bin_ptr) {
         } else if (ch >= 'A' && ch <= 'F') {
             *dest_ptr = (char)((ch - 'A' + 10) << 4);
         } else {
+            RLOGD("i = %d,fatal char = %c",i ,ch);
             return -1;
         }
 
         ch = hex_ptr[i + 1];
+		RLOGD("i+1 = %d, char = %c",i ,ch);
         if (ch >= '0' && ch <= '9') {
             *dest_ptr |= (char)(ch - '0');
         } else if (ch >= 'a' && ch <= 'f') {
@@ -62,9 +66,10 @@ int convertHexToBin(const char *hex_ptr, int length, char *bin_ptr) {
         } else if (ch >= 'A' && ch <= 'F') {
             *dest_ptr |= (char)(ch - 'A' + 10);
         } else {
+            RLOGD("i+1 = %d,fatal char = %c",i ,ch);
             return -1;
         }
-
+		RLOGD("no fatal char");
         dest_ptr++;
     }
     return 0;
