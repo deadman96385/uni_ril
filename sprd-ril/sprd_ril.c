@@ -297,7 +297,7 @@ static void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 
     RIL_RadioState radioState = s_radioState[soc_id];
 
-    RLOGD("onRequest: %s radioState=%d", requestToString(request), radioState);
+    RLOGD("SPCSS00607353 onRequest: %s radioState=%d", requestToString(request), radioState);
 
     /**
      * Ignore all requests except !(requests)
